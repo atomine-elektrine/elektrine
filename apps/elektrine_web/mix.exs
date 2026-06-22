@@ -101,6 +101,7 @@ defmodule ElektrineWeb.MixProject do
       ElektrineEmailWeb.UnsubscribeLive.Show,
       ElektrineVPNWeb.VPNAPIController,
       ElektrineVPNWeb.VPNLive.Index,
+      ElektrineUptimeWeb.UptimeLive.Index,
       ElektrineSocialWeb.WebFingerController,
       ElektrineEmailWeb.WKDController,
       Elektrine.DNS,

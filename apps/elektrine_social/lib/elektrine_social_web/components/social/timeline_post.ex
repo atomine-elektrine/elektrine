@@ -240,7 +240,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
     post_state = current_post_interaction_state(assigns.post_interactions, post)
 
-    display_like_count = max((base_like_count || 0) + Map.get(post_state, :like_delta, 0), 0)
+    display_like_count = max(base_like_count + Map.get(post_state, :like_delta, 0), 0)
     display_boost_count = max(base_share_count(post) + Map.get(post_state, :boost_delta, 0), 0)
     is_liked = Map.get(post_state, :liked, current_post_flag(assigns.user_likes, post))
     is_boosted = Map.get(post_state, :boosted, current_post_flag(assigns.user_boosts, post))
@@ -929,8 +929,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
     end
   end
 
-  defp ancestor_author_subtitle(_), do: nil
-
   defp resolve_reply_ancestors_for_post(post, source, resolve_reply_refs) when is_map(post) do
     max_depth = reply_ancestor_max_depth(source)
     should_resolve_refs = should_resolve_reply_refs?(source, resolve_reply_refs)
@@ -971,8 +969,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
     end
   end
 
-  defp resolve_reply_ancestors_for_post(_, _, _), do: []
-
   # Keep reply ancestor lookups cheap on high-volume feeds.
   defp reply_ancestor_max_depth(source)
        when source in ["timeline", "portal", "hashtag", "remote_profile"],
@@ -998,8 +994,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       cache
     end
   end
-
-  defp maybe_reset_reply_ancestor_cache(_), do: %{}
 
   defp resolve_reply_ancestors(post, resolve_reply_refs, max_depth, allow_db_lookups)
 
@@ -1256,7 +1250,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       is_integer(local_id) ||
         is_binary(activitypub_ref) ||
         is_binary(preview_content) ||
-        (is_map(author_info) && author_info.name != "a post")
+        author_info.name != "a post"
 
     if has_payload do
       %{
@@ -1521,8 +1515,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
     end)
   end
 
-  defp resolve_ancestor_ref(_), do: nil
-
   defp fetch_local_ancestor(id) when is_integer(id) do
     cached_ancestor_message({:id, id}, fn ->
       Message
@@ -1531,11 +1523,8 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
     end)
   end
 
-  defp fetch_local_ancestor(_), do: nil
-
   defp preload_ancestor_message(%Message{} = message), do: preload_ancestor_message(message, true)
   defp preload_ancestor_message(message) when is_map(message), do: message
-  defp preload_ancestor_message(_), do: nil
 
   defp preload_ancestor_message(%Message{} = message, allow_db_lookups)
        when is_boolean(allow_db_lookups) do
@@ -1551,7 +1540,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   end
 
   defp preload_ancestor_message(message, _allow_db_lookups) when is_map(message), do: message
-  defp preload_ancestor_message(_, _allow_db_lookups), do: nil
 
   defp ancestor_associations_loaded?(%Message{} = message) do
     Ecto.assoc_loaded?(Map.get(message, :sender)) &&
@@ -1586,8 +1574,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       cache
     end
   end
-
-  defp maybe_reset_ancestor_message_cache(_), do: %{}
 
   defp assoc_loaded_map?(%Ecto.Association.NotLoaded{}), do: false
   defp assoc_loaded_map?(value) when is_map(value), do: true
@@ -2069,8 +2055,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       Map.get(post, :sensitive) == true ||
       Map.get(post, "sensitive") == true
   end
-
-  defp sensitive_post?(_), do: false
 
   # Link preview component
   attr :post, :map, required: true
@@ -2566,8 +2550,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
     |> Enum.map(&normalize_count/1)
     |> Enum.max(fn -> 0 end)
   end
-
-  defp base_share_count(_), do: 0
 
   defp collection_total_items(%{} = collection) do
     Map.get(collection, "totalItems") || Map.get(collection, :totalItems) ||
@@ -3466,8 +3448,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
     Elektrine.Paths.post_path_or_external(url)
   end
 
-  defp external_post_url(value), do: Elektrine.Paths.post_path_or_external(value)
-
   defp external_url?(url) when is_binary(url) do
     case URI.parse(url) do
       %URI{scheme: scheme, host: host} when scheme in ["http", "https"] and is_binary(host) ->
@@ -3585,8 +3565,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
     end
   end
 
-  defp normalize_reply_author_info(_, _), do: %{name: "a post", type: :unknown}
-
   defp infer_reply_label_from_url(url) when is_binary(url) do
     case URI.parse(url) do
       %{host: host, path: path} when is_binary(host) and is_binary(path) ->
@@ -3627,8 +3605,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
     end
   end
 
-  defp infer_username_from_reply_path(_), do: nil
-
   defp infer_post_id_from_reply_path(path) when is_binary(path) do
     candidate =
       case reply_path_segments(path) do
@@ -3645,8 +3621,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
     trim_reply_identifier(candidate)
   end
-
-  defp infer_post_id_from_reply_path(_), do: nil
 
   defp reply_path_segments(path) when is_binary(path) do
     path

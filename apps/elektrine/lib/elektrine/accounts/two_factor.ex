@@ -108,9 +108,14 @@ defmodule Elektrine.Accounts.TwoFactor do
   defp verify_backup_code_match(code, stored_code)
        when is_binary(code) and is_binary(stored_code) do
     cond do
-      String.match?(stored_code, ~r/^[A-Z0-9]{8}$/) -> code == stored_code
-      String.starts_with?(stored_code, "$argon2") -> Argon2.verify_pass(code, stored_code)
-      true -> false
+      String.match?(stored_code, ~r/^[A-Z0-9]{8}$/) ->
+        Plug.Crypto.secure_compare(code, stored_code)
+
+      String.starts_with?(stored_code, "$argon2") ->
+        Argon2.verify_pass(code, stored_code)
+
+      true ->
+        false
     end
   end
 

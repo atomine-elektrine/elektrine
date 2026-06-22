@@ -18,15 +18,35 @@ function isEditableTarget(target) {
   )
 }
 
+const SHORTCUT_MODAL_SELECTOR = '[data-email-shortcuts-modal], #keyboard-shortcuts-modal'
+
+function closeExistingShortcutModals() {
+  document.querySelectorAll(SHORTCUT_MODAL_SELECTOR).forEach((modal) => modal.remove())
+}
+
+function registerEmailShortcutHelp(owner, callback) {
+  window.activeEmailShortcutHelp = { owner, callback }
+
+  return () => {
+    if (window.activeEmailShortcutHelp?.owner === owner) {
+      delete window.activeEmailShortcutHelp
+    }
+  }
+}
+
+function isActiveEmailShortcutHelpOwner(owner) {
+  return window.activeEmailShortcutHelp?.owner === owner
+}
+
 export const KeyboardShortcuts = {
   mounted() {
     this.setupKeyboardShortcuts()
+    this.unregisterShortcutHelp = registerEmailShortcutHelp(this, () => this.showShortcutsHelp())
 
     // Listen for server event to show keyboard shortcuts
     this.handleEvent("show-keyboard-shortcuts", () => {
-      if (window.showKeyboardShortcuts) {
-        window.showKeyboardShortcuts()
-      } else {
+      if (isActiveEmailShortcutHelpOwner(this)) {
+        this.showShortcutsHelp()
       }
     })
 
@@ -36,6 +56,10 @@ export const KeyboardShortcuts = {
         top: 0,
         behavior: 'smooth'
       })
+    })
+
+    this.handleEvent("focus-search-input", () => {
+      this.focusSearchInput()
     })
   },
 
@@ -84,6 +108,9 @@ export const KeyboardShortcuts = {
     }
     if (this.gotoMenuCleanup) {
       this.gotoMenuCleanup()
+    }
+    if (this.unregisterShortcutHelp) {
+      this.unregisterShortcutHelp()
     }
   },
 
@@ -191,9 +218,9 @@ export const KeyboardShortcuts = {
 
     // Show a temporary goto menu
     const menu = document.createElement('div')
-    menu.className = 'fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-base-100 border border-base-300 rounded-lg shadow-xl p-6 z-50'
+    menu.className = 'shortcut-floating fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 rounded-lg p-6 z-50'
     menu.innerHTML = `
-      <h3 class="text-lg font-bold mb-4">Go to...</h3>
+      <h3 class="shortcut-heading text-lg font-bold mb-4">Go to...</h3>
       <div class="space-y-2">
         <button class="btn btn-ghost btn-sm w-full justify-start" data-goto="inbox">
           <span class="font-mono mr-2">gi</span> Inbox
@@ -211,28 +238,35 @@ export const KeyboardShortcuts = {
           <span class="font-mono mr-2">gp</span> Spam
         </button>
       </div>
-      <div class="text-xs text-base-content/60 mt-4">Press Escape to close</div>
+      <div class="shortcut-muted text-xs mt-4">Press Escape to close</div>
     `
 
     document.body.appendChild(menu)
 
     const handleGotoKey = (e) => {
-      if (e.key === 'Escape') {
+      const key = e.key.toLowerCase()
+
+      if (['escape', 'i', 's', 't', 'a', 'p'].includes(key)) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+      }
+
+      if (key === 'escape') {
         cleanup()
-      } else if (e.key === 'i') {
-        this.navigateTo('inbox')
+      } else if (key === 'i') {
+        window.location.href = '/email?tab=inbox'
         cleanup()
-      } else if (e.key === 's') {
-        this.navigateTo('sent')
+      } else if (key === 's') {
+        window.location.href = '/email?tab=sent'
         cleanup()
-      } else if (e.key === 't') {
-        this.navigateTo('search')
+      } else if (key === 't') {
+        window.location.href = '/email?tab=search'
         cleanup()
-      } else if (e.key === 'a') {
-        this.navigateTo('archive')
+      } else if (key === 'a') {
+        window.location.href = '/email?tab=archive'
         cleanup()
-      } else if (e.key === 'p') {
-        this.navigateTo('spam')
+      } else if (key === 'p') {
+        window.location.href = '/email?tab=spam'
         cleanup()
       }
     }
@@ -243,7 +277,7 @@ export const KeyboardShortcuts = {
         clearTimeout(timeoutId)
         timeoutId = null
       }
-      document.removeEventListener('keydown', handleGotoKey)
+      document.removeEventListener('keydown', handleGotoKey, true)
       if (menu.parentNode) {
         menu.parentNode.removeChild(menu)
       }
@@ -264,7 +298,7 @@ export const KeyboardShortcuts = {
       }
     })
 
-    document.addEventListener('keydown', handleGotoKey)
+    document.addEventListener('keydown', handleGotoKey, true)
 
     // Auto-close after 5 seconds
     timeoutId = setTimeout(cleanup, 5000)
@@ -294,6 +328,25 @@ export const KeyboardShortcuts = {
   focusSearch() {
     // Switch to search tab and focus input
     this.pushEvent('switch_tab', { tab: 'search', focus_search: true })
+  },
+
+  focusSearchInput() {
+    const focusInput = () => {
+      const input =
+        document.getElementById('email-search-input') ||
+        document.getElementById('email-index-search-input') ||
+        document.querySelector('[data-search-input]')
+
+      if (input) {
+        input.focus()
+        input.select?.()
+      }
+    }
+
+    requestAnimationFrame(() => {
+      focusInput()
+      setTimeout(focusInput, 75)
+    })
   },
 
   selectNextMessage() {
@@ -371,20 +424,10 @@ export const KeyboardShortcuts = {
   },
 
   deleteSelectedMessage() {
-    // Delete functionality - move to trash/delete
     if (this.selectedMessageIndex >= 0 && this.selectedMessageIndex < this.messages.length) {
       const selectedMsg = this.messages[this.selectedMessageIndex]
-      // Look for delete action in dropdown
-      const dropdownBtn = selectedMsg.querySelector('.dropdown button')
-      if (dropdownBtn) {
-        dropdownBtn.click()
-        setTimeout(() => {
-          const deleteOption = document.querySelector('.dropdown-content [phx-click*="delete"]')
-          if (deleteOption) {
-            deleteOption.click()
-          }
-        }, 100)
-      }
+      const messageId = selectedMsg.id.replace('message-', '')
+      this.pushEvent('delete_message', { message_id: messageId })
     }
   },
 
@@ -399,9 +442,11 @@ export const KeyboardShortcuts = {
   },
 
   showShortcutsHelp() {
-    // Trigger the LiveView event instead of calling directly
-    // This ensures the modal is only shown once through the proper event flow
-    this.pushEvent('show_keyboard_shortcuts', {})
+    closeExistingShortcutModals()
+
+    if (window.showKeyboardShortcuts) {
+      window.showKeyboardShortcuts()
+    }
   }
 }
 
@@ -534,6 +579,8 @@ export const EmailIframeResize = {
 // Keyboard shortcuts for email show/view page
 export const EmailShowKeyboardShortcuts = {
   mounted() {
+    this.unregisterShortcutHelp = registerEmailShortcutHelp(this, () => this.showShortcutsHelp())
+
     this.keyHandler = (e) => {
       // Don't interfere when typing in inputs, textareas, or contenteditable elements
       if (isEditableTarget(e.target) || e.target.closest('.dropdown.dropdown-open')) {
@@ -615,6 +662,12 @@ export const EmailShowKeyboardShortcuts = {
 
     document.addEventListener('keydown', this.keyHandler)
 
+    this.handleEvent("show-keyboard-shortcuts", () => {
+      if (isActiveEmailShortcutHelpOwner(this)) {
+        this.showShortcutsHelp()
+      }
+    })
+
     // Also attach FileDownloader functionality
     this.handleEvent("download-file", ({ url, filename }) => {
       const link = document.createElement('a')
@@ -636,17 +689,23 @@ export const EmailShowKeyboardShortcuts = {
     if (this.shortcutsModalCleanup) {
       this.shortcutsModalCleanup()
     }
+    if (this.unregisterShortcutHelp) {
+      this.unregisterShortcutHelp()
+    }
   },
 
   showShortcutsHelp() {
+    closeExistingShortcutModals()
+
     if (this.shortcutsModalCleanup) {
       this.shortcutsModalCleanup()
     }
 
     const modal = document.createElement('div')
-    modal.className = 'fixed inset-0 bg-base-300/60 z-50 flex items-center justify-center p-4'
+    modal.dataset.emailShortcutsModal = 'true'
+    modal.className = 'shortcut-overlay fixed inset-0 z-50 flex items-center justify-center p-4'
     modal.innerHTML = `
-      <div class="bg-base-100 rounded-lg shadow-xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto border border-base-300">
+      <div class="shortcut-dialog rounded-lg p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
         <div class="flex justify-between items-center mb-6">
           <h3 class="text-2xl font-bold">Keyboard Shortcuts</h3>
           <button class="btn btn-ghost btn-sm btn-circle" data-close>
@@ -658,11 +717,15 @@ export const EmailShowKeyboardShortcuts = {
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <h4 class="font-semibold mb-3 text-primary">Navigation</h4>
+            <h4 class="shortcut-heading font-semibold mb-3">Navigation</h4>
             <div class="space-y-2">
               <div class="flex justify-between items-center">
                 <span class="text-sm">Compose new message</span>
                 <kbd class="kbd kbd-sm">c</kbd>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-sm">Go to menu</span>
+                <kbd class="kbd kbd-sm">g</kbd>
               </div>
               <div class="flex justify-between items-center">
                 <span class="text-sm">Back to inbox</span>
@@ -676,7 +739,7 @@ export const EmailShowKeyboardShortcuts = {
           </div>
 
           <div>
-            <h4 class="font-semibold mb-3 text-primary">Actions</h4>
+            <h4 class="shortcut-heading font-semibold mb-3">Actions</h4>
             <div class="space-y-2">
               <div class="flex justify-between items-center">
                 <span class="text-sm">Reply</span>
@@ -698,7 +761,7 @@ export const EmailShowKeyboardShortcuts = {
           </div>
         </div>
 
-        <div class="mt-6 pt-4 border-t border-base-300">
+        <div class="shortcut-divider mt-6 pt-4 border-t">
           <div class="flex justify-between items-center">
             <span class="text-sm">Show this help</span>
             <kbd class="kbd kbd-sm">?</kbd>
@@ -745,9 +808,9 @@ export const EmailShowKeyboardShortcuts = {
 
     // Show a temporary goto menu
     const menu = document.createElement('div')
-    menu.className = 'fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-base-100 border border-base-300 rounded-lg shadow-xl p-6 z-50'
+    menu.className = 'shortcut-floating fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 rounded-lg p-6 z-50'
     menu.innerHTML = `
-      <h3 class="text-lg font-bold mb-4">Go to...</h3>
+      <h3 class="shortcut-heading text-lg font-bold mb-4">Go to...</h3>
       <div class="space-y-2">
         <button class="btn btn-ghost btn-sm w-full justify-start" data-goto="inbox">
           <span class="font-mono mr-2">gi</span> Inbox
@@ -765,27 +828,34 @@ export const EmailShowKeyboardShortcuts = {
           <span class="font-mono mr-2">gp</span> Spam
         </button>
       </div>
-      <div class="text-xs text-base-content/60 mt-4">Press Escape to close</div>
+      <div class="shortcut-muted text-xs mt-4">Press Escape to close</div>
     `
 
     document.body.appendChild(menu)
 
     const handleGotoKey = (e) => {
-      if (e.key === 'Escape') {
+      const key = e.key.toLowerCase()
+
+      if (['escape', 'i', 's', 't', 'a', 'p'].includes(key)) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+      }
+
+      if (key === 'escape') {
         cleanup()
-      } else if (e.key === 'i') {
+      } else if (key === 'i') {
         window.location.href = '/email?tab=inbox'
         cleanup()
-      } else if (e.key === 's') {
+      } else if (key === 's') {
         window.location.href = '/email?tab=sent'
         cleanup()
-      } else if (e.key === 't') {
+      } else if (key === 't') {
         window.location.href = '/email?tab=search'
         cleanup()
-      } else if (e.key === 'a') {
+      } else if (key === 'a') {
         window.location.href = '/email?tab=archive'
         cleanup()
-      } else if (e.key === 'p') {
+      } else if (key === 'p') {
         window.location.href = '/email?tab=spam'
         cleanup()
       }
@@ -797,7 +867,7 @@ export const EmailShowKeyboardShortcuts = {
         clearTimeout(timeoutId)
         timeoutId = null
       }
-      document.removeEventListener('keydown', handleGotoKey)
+      document.removeEventListener('keydown', handleGotoKey, true)
       if (menu.parentNode) {
         menu.parentNode.removeChild(menu)
       }
@@ -818,7 +888,7 @@ export const EmailShowKeyboardShortcuts = {
       }
     })
 
-    document.addEventListener('keydown', handleGotoKey)
+    document.addEventListener('keydown', handleGotoKey, true)
 
     // Auto-close after 5 seconds
     timeoutId = setTimeout(cleanup, 5000)
@@ -828,6 +898,8 @@ export const EmailShowKeyboardShortcuts = {
 // Keyboard shortcuts for email compose page
 export const EmailComposeKeyboardShortcuts = {
   mounted() {
+    this.unregisterShortcutHelp = registerEmailShortcutHelp(this, () => this.showShortcutsHelp())
+
     this.keyHandler = (e) => {
       const key = e.key.toLowerCase()
       const ctrl = e.ctrlKey || e.metaKey
@@ -886,6 +958,12 @@ export const EmailComposeKeyboardShortcuts = {
     }
 
     document.addEventListener('keydown', this.keyHandler)
+
+    this.handleEvent("show-keyboard-shortcuts", () => {
+      if (isActiveEmailShortcutHelpOwner(this)) {
+        this.showShortcutsHelp()
+      }
+    })
   },
 
   destroyed() {
@@ -898,6 +976,9 @@ export const EmailComposeKeyboardShortcuts = {
     if (this.shortcutsModalCleanup) {
       this.shortcutsModalCleanup()
     }
+    if (this.unregisterShortcutHelp) {
+      this.unregisterShortcutHelp()
+    }
   },
 
   showGotoMenu() {
@@ -906,9 +987,9 @@ export const EmailComposeKeyboardShortcuts = {
     }
 
     const menu = document.createElement('div')
-    menu.className = 'fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-base-100 border border-base-300 rounded-lg shadow-xl p-6 z-50'
+    menu.className = 'shortcut-floating fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 rounded-lg p-6 z-50'
     menu.innerHTML = `
-      <h3 class="text-lg font-bold mb-4">Go to...</h3>
+      <h3 class="shortcut-heading text-lg font-bold mb-4">Go to...</h3>
       <div class="space-y-2">
         <button class="btn btn-ghost btn-sm w-full justify-start" data-goto="inbox">
           <span class="font-mono mr-2">gi</span> Inbox
@@ -920,21 +1001,28 @@ export const EmailComposeKeyboardShortcuts = {
           <span class="font-mono mr-2">gt</span> Search
         </button>
       </div>
-      <div class="text-xs text-base-content/60 mt-4">Press Escape to close</div>
+      <div class="shortcut-muted text-xs mt-4">Press Escape to close</div>
     `
 
     document.body.appendChild(menu)
 
     const handleGotoKey = (e) => {
-      if (e.key === 'Escape') {
+      const key = e.key.toLowerCase()
+
+      if (['escape', 'i', 's', 't'].includes(key)) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+      }
+
+      if (key === 'escape') {
         cleanup()
-      } else if (e.key === 'i') {
+      } else if (key === 'i') {
         window.location.href = '/email?tab=inbox'
         cleanup()
-      } else if (e.key === 's') {
+      } else if (key === 's') {
         window.location.href = '/email?tab=sent'
         cleanup()
-      } else if (e.key === 't') {
+      } else if (key === 't') {
         window.location.href = '/email?tab=search'
         cleanup()
       }
@@ -946,7 +1034,7 @@ export const EmailComposeKeyboardShortcuts = {
         clearTimeout(timeoutId)
         timeoutId = null
       }
-      document.removeEventListener('keydown', handleGotoKey)
+      document.removeEventListener('keydown', handleGotoKey, true)
       if (menu.parentNode) {
         menu.parentNode.removeChild(menu)
       }
@@ -966,20 +1054,23 @@ export const EmailComposeKeyboardShortcuts = {
       }
     })
 
-    document.addEventListener('keydown', handleGotoKey)
+    document.addEventListener('keydown', handleGotoKey, true)
 
     timeoutId = setTimeout(cleanup, 5000)
   },
 
   showShortcutsHelp() {
+    closeExistingShortcutModals()
+
     if (this.shortcutsModalCleanup) {
       this.shortcutsModalCleanup()
     }
 
     const modal = document.createElement('div')
-    modal.className = 'fixed inset-0 bg-base-300/60 z-50 flex items-center justify-center p-4'
+    modal.dataset.emailShortcutsModal = 'true'
+    modal.className = 'shortcut-overlay fixed inset-0 z-50 flex items-center justify-center p-4'
     modal.innerHTML = `
-      <div class="bg-base-100 rounded-lg shadow-xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto border border-base-300">
+      <div class="shortcut-dialog rounded-lg p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
         <div class="flex justify-between items-center mb-6">
           <h3 class="text-2xl font-bold">Keyboard Shortcuts</h3>
           <button class="btn btn-ghost btn-sm btn-circle" data-close>
@@ -991,11 +1082,19 @@ export const EmailComposeKeyboardShortcuts = {
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <h4 class="font-semibold mb-3 text-primary">Navigation</h4>
+            <h4 class="shortcut-heading font-semibold mb-3">Navigation</h4>
             <div class="space-y-2">
               <div class="flex justify-between items-center">
                 <span class="text-sm">Go to inbox</span>
                 <kbd class="kbd kbd-sm">g</kbd> <kbd class="kbd kbd-sm">i</kbd>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-sm">Go to sent</span>
+                <kbd class="kbd kbd-sm">g</kbd> <kbd class="kbd kbd-sm">s</kbd>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-sm">Go to search</span>
+                <kbd class="kbd kbd-sm">g</kbd> <kbd class="kbd kbd-sm">t</kbd>
               </div>
               <div class="flex justify-between items-center">
                 <span class="text-sm">Cancel/Go back</span>
@@ -1005,7 +1104,7 @@ export const EmailComposeKeyboardShortcuts = {
           </div>
 
           <div>
-            <h4 class="font-semibold mb-3 text-primary">Actions</h4>
+            <h4 class="shortcut-heading font-semibold mb-3">Actions</h4>
             <div class="space-y-2">
               <div class="flex justify-between items-center">
                 <span class="text-sm">Send email</span>
@@ -1015,7 +1114,7 @@ export const EmailComposeKeyboardShortcuts = {
           </div>
         </div>
 
-        <div class="mt-6 pt-4 border-t border-base-300">
+        <div class="shortcut-divider mt-6 pt-4 border-t">
           <div class="flex justify-between items-center">
             <span class="text-sm">Show this help</span>
             <kbd class="kbd kbd-sm">?</kbd>

@@ -901,14 +901,12 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
              }) do
           {:ok, _user} ->
             # Update the report to mark it as resolved
-            if socket.assigns.selected_report do
-              Reports.review_report(socket.assigns.selected_report, %{
-                status: "resolved",
-                action_taken: "suspended",
-                reviewed_by_id: socket.assigns.current_user.id,
-                resolution_notes: "User suspended for 7 days"
-              })
-            end
+            Reports.review_report(socket.assigns.selected_report, %{
+              status: "resolved",
+              action_taken: "suspended",
+              reviewed_by_id: socket.assigns.current_user.id,
+              resolution_notes: "User suspended for 7 days"
+            })
 
             {:noreply,
              socket
@@ -937,14 +935,12 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
              }) do
           {:ok, _user} ->
             # Update the report to mark it as resolved
-            if socket.assigns.selected_report do
-              Reports.review_report(socket.assigns.selected_report, %{
-                status: "resolved",
-                action_taken: "banned",
-                reviewed_by_id: socket.assigns.current_user.id,
-                resolution_notes: "User permanently banned"
-              })
-            end
+            Reports.review_report(socket.assigns.selected_report, %{
+              status: "resolved",
+              action_taken: "banned",
+              reviewed_by_id: socket.assigns.current_user.id,
+              resolution_notes: "User permanently banned"
+            })
 
             {:noreply,
              socket
@@ -1100,8 +1096,6 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
     |> String.split()
     |> Enum.map_join(" ", &String.capitalize/1)
   end
-
-  defp format_action_taken(nil), do: "No Action"
 
   defp format_action_taken(action) do
     case action do

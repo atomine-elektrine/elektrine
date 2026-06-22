@@ -722,13 +722,9 @@ defmodule Elektrine.Messaging.Federation.Validation do
     if is_map(payload["signature"]), do: :ok, else: {:error, :invalid_event_signature}
   end
 
-  defp maybe_require_event_signature(_payload), do: {:error, :invalid_event_signature}
-
   defp snapshot_governance_present?(payload) when is_map(payload) do
     Map.has_key?(payload, "governance") or Map.has_key?(payload, :governance)
   end
-
-  defp snapshot_governance_present?(_payload), do: false
 
   defp snapshot_governance_list?(governance, key) when is_map(governance) and is_binary(key) do
     Map.has_key?(governance, key) and is_list(governance[key])
@@ -739,8 +735,6 @@ defmodule Elektrine.Messaging.Federation.Validation do
   defp snapshot_stream_positions_present?(payload) when is_map(payload) do
     Map.has_key?(payload, "stream_positions") or Map.has_key?(payload, :stream_positions)
   end
-
-  defp snapshot_stream_positions_present?(_payload), do: false
 
   defp valid_snapshot_stream_position?(position, remote_domain)
        when is_map(position) and is_binary(remote_domain) do
@@ -826,8 +820,6 @@ defmodule Elektrine.Messaging.Federation.Validation do
   defp actor_uri(actor) when is_map(actor) do
     normalize_optional_string(actor["uri"] || actor[:uri] || actor["id"] || actor[:id])
   end
-
-  defp actor_uri(_actor), do: nil
 
   defp actor_uri_host(uri) when is_binary(uri) do
     case URI.parse(uri) do

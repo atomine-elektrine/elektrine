@@ -248,10 +248,6 @@ defmodule Elektrine.Social.LinkPreviewFetcher do
     end
   end
 
-  defp sanitize_utf8(text) do
-    text
-  end
-
   defp decode_html_entities(text) do
     text
     |> String.replace("&amp;", "&")

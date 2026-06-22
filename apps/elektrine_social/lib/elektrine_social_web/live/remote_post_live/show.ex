@@ -1015,7 +1015,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         max(map_get_value(reply, "_local_like_count") + score_delta, 0)
 
       true ->
-        (get_collection_total_items(map_get_value(reply, "likes")) || 0) + score_delta
+        get_collection_total_items(map_get_value(reply, "likes")) + score_delta
     end
   end
 
@@ -1025,7 +1025,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     if is_integer(local_share_count) do
       max(local_share_count + boost_delta, 0)
     else
-      max((get_collection_total_items(map_get_value(reply, "shares")) || 0) + boost_delta, 0)
+      max(get_collection_total_items(map_get_value(reply, "shares")) + boost_delta, 0)
     end
   end
 
@@ -2391,8 +2391,6 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     _ -> :ok
   end
 
-  defp maybe_enqueue_submitted_link_preview(_, _), do: :ok
-
   defp maybe_schedule_submitted_preview_poll(socket, url) when is_binary(url) do
     if connected?(socket) do
       Process.send_after(
@@ -2404,8 +2402,6 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
     :ok
   end
-
-  defp maybe_schedule_submitted_preview_poll(_, _), do: :ok
 
   defp current_submitted_url(%Phoenix.LiveView.Socket{} = socket) do
     detect_submitted_url(
@@ -2697,8 +2693,6 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       Enum.any?(segments, &String.starts_with?(&1, "@"))
   end
 
-  defp status_permalink_path?(_), do: false
-
   defp extract_http_url_from_content(content) when is_binary(content) do
     with [_, href] <- Regex.run(~r/href=["']([^"']+)["']/i, content),
          normalized when is_binary(normalized) <- normalize_http_url(href) do
@@ -2880,8 +2874,6 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     |> Enum.find_value(&normalize_in_reply_to_ref/1)
   end
 
-  defp message_in_reply_to(_), do: nil
-
   defp local_message_metadata(%{media_metadata: metadata}) when is_map(metadata), do: metadata
   defp local_message_metadata(_), do: %{}
 
@@ -3054,8 +3046,6 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         reraise error, __STACKTRACE__
       end
   end
-
-  defp local_reply_parent_from_ref(_), do: :error
 
   defp build_reply_parent_from_message(message) do
     base_url = ElektrineWeb.Endpoint.url()
@@ -3271,8 +3261,6 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     |> Enum.find_value(&normalize_in_reply_to_ref/1)
   end
 
-  defp parent_post_in_reply_to_ref(_), do: nil
-
   defp maybe_fetch_reply_parent_actor(parent_post) when is_map(parent_post) do
     attributed_to = extract_attributed_to_uri(parent_post)
 
@@ -3291,22 +3279,16 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     end
   end
 
-  defp maybe_fetch_reply_parent_actor(_), do: nil
-
   defp extract_attributed_to_uri(post) when is_map(post) do
     post
     |> map_get_value("attributedTo")
     |> normalize_in_reply_to_ref()
   end
 
-  defp extract_attributed_to_uri(_), do: nil
-
   defp local_actor_uri?(uri) when is_binary(uri) do
     ActivityPub.local_actor_prefixes()
     |> Enum.any?(fn prefix -> String.starts_with?(uri, prefix) end)
   end
-
-  defp local_actor_uri?(_), do: false
 
   defp reply_parent_author_label(reply_parent, reply_parent_actor) do
     cond do
@@ -3588,8 +3570,6 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     end
   end
 
-  defp load_cached_remote_post_socket(_socket, _post_id), do: nil
-
   defp build_modal_post(socket) do
     cond do
       socket.assigns.is_local_post && socket.assigns.local_message ->
@@ -3643,7 +3623,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         socket.assigns.post["_mastodon"]["favourites_count"]
 
       is_map(socket.assigns[:post]) and not is_nil(socket.assigns.post["likes"]) ->
-        Elektrine.ActivityPub.Helpers.get_collection_total(socket.assigns.post["likes"]) || 0
+        Elektrine.ActivityPub.Helpers.get_collection_total(socket.assigns.post["likes"])
 
       true ->
         0
@@ -4126,8 +4106,6 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     end
   end
 
-  defp nonzero_platform_counts(_), do: nil
-
   defp positive_platform_count?(count), do: is_integer(count) and count > 0
 
   defp platform_metadata_from_result(mastodon_counts, _lemmy_counts, _fresh_post)
@@ -4191,8 +4169,6 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     |> maybe_put_platform_status_metadata("misskey", post["misskey"])
   end
 
-  defp remote_status_metadata_from_post(_), do: %{}
-
   defp remote_status_quote_count(post) when is_map(post) do
     normalize_display_count(
       post["quotes_count"] ||
@@ -4203,8 +4179,6 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         get_in(post, ["pleroma", "quotes_count"])
     )
   end
-
-  defp remote_status_quote_count(_), do: 0
 
   defp maybe_apply_platform_counts_to_local_message(socket, nil, metadata) do
     metadata = normalize_metadata(metadata)
@@ -6112,7 +6086,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
     effective_reply_count =
       case local_message do
-        %{} = message -> max(message.reply_count || 0, reply_count)
+        %{} = message -> max(message.reply_count, reply_count)
         _ -> reply_count
       end
 
@@ -6819,47 +6793,11 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
      |> assign(:modal_post, modal_post)}
   end
 
-  def handle_event("close_image_modal", _params, socket) do
-    {:noreply,
-     socket
-     |> assign(:show_image_modal, false)
-     |> assign(:modal_image_url, nil)
-     |> assign(:modal_images, [])
-     |> assign(:modal_image_index, 0)
-     |> assign(:modal_post, nil)}
-  end
-
-  def handle_event("next_image", _params, socket) do
-    images = socket.assigns.modal_images || []
-
-    if images == [] do
-      {:noreply, socket}
-    else
-      new_index = rem(socket.assigns.modal_image_index + 1, length(images))
-      new_url = Enum.at(images, new_index)
-
-      {:noreply,
-       socket
-       |> assign(:modal_image_index, new_index)
-       |> assign(:modal_image_url, new_url)}
-    end
-  end
-
-  def handle_event("prev_image", _params, socket) do
-    images = socket.assigns.modal_images || []
-    total = length(images)
-
-    if total == 0 do
-      {:noreply, socket}
-    else
-      new_index = rem(socket.assigns.modal_image_index - 1 + total, total)
-      new_url = Enum.at(images, new_index)
-
-      {:noreply,
-       socket
-       |> assign(:modal_image_index, new_index)
-       |> assign(:modal_image_url, new_url)}
-    end
+  # close_image_modal / next_image / prev_image only touch the canonical modal-state
+  # assigns, so delegate to the shared image-modal handlers.
+  def handle_event(event, params, socket)
+      when event in ["close_image_modal", "next_image", "prev_image"] do
+    ElektrineSocialWeb.TimelineLive.Operations.ImageOperations.handle_event(event, params, socket)
   end
 
   def handle_event("sort_comments", %{"sort" => sort}, socket) do
@@ -7437,8 +7375,6 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       message_reply_author_from_parent(message)
   end
 
-  defp local_message_in_reply_to_author(_), do: nil
-
   defp message_reply_author_from_parent(%{reply_to: reply_to}) when is_map(reply_to) do
     case reply_to do
       %{remote_actor: %{username: username, domain: domain}}
@@ -7564,8 +7500,6 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     end
   end
 
-  defp fetch_post_for_navigation(_), do: nil
-
   defp parse_local_message_id(value) when is_integer(value), do: {:ok, value}
 
   defp parse_local_message_id(value) when is_binary(value) do
@@ -7654,8 +7588,6 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   defp community_stats_ready?(%{} = stats) do
     (stats[:members] || 0) > 0 || (stats[:posts] || 0) > 0
   end
-
-  defp community_stats_ready?(_), do: false
 
   defp local_message_community_actor(%{
          conversation: %{remote_group_actor: %{actor_type: "Group"} = actor}
@@ -8176,9 +8108,6 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     end
   end
 
-  defp quick_reply_author_preview(_),
-    do: %{label: "Remote user", avatar_url: nil, profile_path: nil}
-
   defp quick_reply_click_target(reply) when is_map(reply) do
     cond do
       is_binary(reply["_local_activitypub_id"]) && reply["_local_activitypub_id"] != "" ->
@@ -8191,8 +8120,6 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         nil
     end
   end
-
-  defp quick_reply_click_target(_), do: nil
 
   defp strict_fetch_remote_object(post_id) when is_binary(post_id) do
     ActivityPub.fetch_remote_object_strict(post_id)

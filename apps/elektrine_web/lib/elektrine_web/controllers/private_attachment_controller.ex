@@ -78,6 +78,4 @@ defmodule ElektrineWeb.PrivateAttachmentController do
         false
     end
   end
-
-  defp inline_safe_content_type?(_), do: false
 end

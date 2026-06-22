@@ -94,9 +94,6 @@ defmodule Elektrine.ActivityPub.Fetcher do
       {:error, :unauthorized_fetch} = error ->
         Elektrine.AppCache.invalidate_object(uri)
         error
-
-      error ->
-        error
     end
   end
 
@@ -435,9 +432,6 @@ defmodule Elektrine.ActivityPub.Fetcher do
     end
   end
 
-  defp maybe_recover_object_from_html(_uri, _response, _reason, _opts),
-    do: {:error, :invalid_json}
-
   defp response_content_type(headers) when is_list(headers) do
     headers
     |> Enum.find_value(fn {key, value} ->
@@ -498,8 +492,6 @@ defmodule Elektrine.ActivityPub.Fetcher do
         {:error, :unsupported_status_url}
     end
   end
-
-  defp extract_mastodon_status_info(_), do: {:error, :unsupported_status_url}
 
   defp fetch_mastodon_status(domain, status_id, opts) do
     api_url = "https://#{domain}/api/v1/statuses/#{status_id}"
@@ -1091,8 +1083,6 @@ defmodule Elektrine.ActivityPub.Fetcher do
         nil
     end
   end
-
-  defp shared_inbox_for_actor(_), do: nil
 
   defp unavailable_public_key_pem do
     "-----BEGIN PUBLIC KEY-----\nUNAVAILABLE\n-----END PUBLIC KEY-----"

@@ -125,8 +125,6 @@ defmodule Elektrine.Email.SafeSenders do
     end
   end
 
-  defp extract_email(_), do: ""
-
   # Extract domain from email address
   defp extract_domain(email) do
     case String.split(email, "@") do

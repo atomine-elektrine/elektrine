@@ -24,7 +24,6 @@ defmodule Elektrine.MediaProxy do
   The signature prevents URL enumeration attacks.
   """
 
-  require Logger
   alias Elektrine.Security.URLValidator
 
   @doc """

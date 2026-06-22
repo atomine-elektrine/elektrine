@@ -1694,8 +1694,6 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
     |> Enum.sort_by(&timeline_sort_key/1, :desc)
   end
 
-  defp group_reply_chains(posts), do: posts
-
   defp choose_thread_representative([post]), do: post
 
   defp choose_thread_representative(grouped_posts) do
@@ -2269,24 +2267,16 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
   end
 
   defp actor_identity_from_uri(actor_uri) when is_binary(actor_uri) do
-    case URI.parse(actor_uri) do
-      %URI{host: host, path: path} ->
-        username =
-          path
-          |> to_string()
-          |> String.split("/", trim: true)
-          |> List.last()
-          |> normalize_actor_segment()
+    %URI{host: host, path: path} = URI.parse(actor_uri)
 
-        {username, host}
+    username =
+      path
+      |> to_string()
+      |> String.split("/", trim: true)
+      |> List.last()
+      |> normalize_actor_segment()
 
-      _ ->
-        {nil, nil}
-    end
-  end
-
-  defp actor_identity_from_uri(_) do
-    {nil, nil}
+    {username, host}
   end
 
   defp normalize_actor_segment(segment) when is_binary(segment) do

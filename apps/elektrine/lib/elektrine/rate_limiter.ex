@@ -135,31 +135,50 @@ defmodule Elektrine.RateLimiter do
       Records an attempt for rate limiting.
       Automatically locks out if limits exceeded.
       """
-      def record_attempt(identifier) do
-        now = System.system_time(:second)
+      if @lockout_seconds do
+        def record_attempt(identifier) do
+          now = System.system_time(:second)
 
-        case :ets.lookup(@table_name, identifier) do
-          [] ->
-            # First attempt
-            :ets.insert(@table_name, {identifier, [now], nil})
+          case :ets.lookup(@table_name, identifier) do
+            [] ->
+              # First attempt
+              :ets.insert(@table_name, {identifier, [now], nil})
 
-          [{^identifier, attempts, _locked_until}] ->
-            # Add new attempt and filter old ones
-            new_attempts = [now | filter_recent_attempts(attempts, now)]
+            [{^identifier, attempts, _locked_until}] ->
+              # Add new attempt and filter old ones
+              new_attempts = [now | filter_recent_attempts(attempts, now)]
 
-            # Check if we should lock out
-            locked_until = calculate_lockout(new_attempts, now)
+              # Check if we should lock out
+              locked_until = calculate_lockout(new_attempts, now)
 
-            if locked_until do
-              Logger.warning(
-                "Rate limit lockout for #{identifier} until #{DateTime.from_unix!(locked_until)}"
-              )
-            end
+              if locked_until do
+                Logger.warning(
+                  "Rate limit lockout for #{identifier} until #{DateTime.from_unix!(locked_until)}"
+                )
+              end
 
-            :ets.insert(@table_name, {identifier, new_attempts, locked_until})
+              :ets.insert(@table_name, {identifier, new_attempts, locked_until})
+          end
+
+          :ok
         end
+      else
+        def record_attempt(identifier) do
+          now = System.system_time(:second)
 
-        :ok
+          case :ets.lookup(@table_name, identifier) do
+            [] ->
+              # First attempt
+              :ets.insert(@table_name, {identifier, [now], nil})
+
+            [{^identifier, attempts, _locked_until}] ->
+              # Add new attempt and filter old ones
+              new_attempts = [now | filter_recent_attempts(attempts, now)]
+              :ets.insert(@table_name, {identifier, new_attempts, nil})
+          end
+
+          :ok
+        end
       end
 
       @doc """

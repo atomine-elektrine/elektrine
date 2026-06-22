@@ -97,8 +97,6 @@ defmodule ArblargWeb.ChatLive.Operations.CallInfoOperations do
     Ecto.assoc_loaded?(call.caller) and Ecto.assoc_loaded?(call.callee)
   end
 
-  defp maybe_reload_local_call(%{source: :federated} = call), do: call
-
   defp maybe_reload_local_call(call) do
     Elektrine.Calls.get_call_with_users(call.id) || call
   end

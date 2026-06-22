@@ -539,9 +539,8 @@ defmodule Elektrine.Email.PGPTest do
         |> Repo.update!()
 
       contact =
-        %Contact{}
+        %Contact{user_id: sender.id}
         |> Contact.changeset(%{
-          user_id: sender.id,
           name: "External Contact",
           email: "contact#{System.unique_integer([:positive])}@example.com"
         })

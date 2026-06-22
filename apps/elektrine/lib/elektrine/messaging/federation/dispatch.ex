@@ -1,8 +1,9 @@
 defmodule Elektrine.Messaging.Federation.Dispatch do
   @moduledoc false
 
-  import Elektrine.Messaging.Federation.Utils
   require Logger
+
+  import Elektrine.Messaging.Federation.Utils
 
   alias Elektrine.Messaging.Federation.{Transport, Visibility}
   alias Elektrine.Messaging.{FederationOutboxEvent, FederationOutboxWorker}
@@ -15,7 +16,8 @@ defmodule Elektrine.Messaging.Federation.Dispatch do
       call(context, :outgoing_peers, [])
       |> Enum.map(&String.downcase(&1.domain))
       |> Enum.uniq()
-      |> filter_domains_for_event(event, context)
+
+    peer_domains = filter_domains_for_event(event, peer_domains, context)
 
     do_enqueue_outbox_event(event, peer_domains, context)
   end
@@ -29,7 +31,8 @@ defmodule Elektrine.Messaging.Federation.Dispatch do
       |> Enum.map(&String.downcase/1)
       |> Enum.filter(fn domain -> match?(%{}, call(context, :outgoing_peer, [domain])) end)
       |> Enum.uniq()
-      |> filter_domains_for_event(event, context)
+
+    filtered_domains = filter_domains_for_event(event, filtered_domains, context)
 
     do_enqueue_outbox_event(event, filtered_domains, context)
   end
@@ -105,9 +108,15 @@ defmodule Elektrine.Messaging.Federation.Dispatch do
 
   def ephemeral_stream_id(_event_type, _payload), do: nil
 
-  defp do_enqueue_outbox_event(_event, [], _context), do: :ok
-
   defp do_enqueue_outbox_event(event, peer_domains, context) do
+    if Enum.empty?(peer_domains) do
+      :ok
+    else
+      do_enqueue_nonempty_outbox_event(event, peer_domains, context)
+    end
+  end
+
+  defp do_enqueue_nonempty_outbox_event(event, peer_domains, context) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
     attrs = %{
@@ -176,14 +185,10 @@ defmodule Elektrine.Messaging.Federation.Dispatch do
     get_in(data, ["server", "id"]) || refs["server_id"]
   end
 
-  defp event_server_id(_data), do: nil
-
   defp event_channel_id(data) when is_map(data) do
     refs = data["refs"] || %{}
     get_in(data, ["channel", "id"]) || refs["channel_id"]
   end
-
-  defp event_channel_id(_data), do: nil
 
   defp normalize_optional_string(value) when is_binary(value),
     do: Elektrine.Strings.present(value)
@@ -211,8 +216,6 @@ defmodule Elektrine.Messaging.Federation.Dispatch do
       end
     end)
   end
-
-  defp filter_domains_for_event(_event, _domains, _context), do: []
 
   defp peer_supports_item?(peer, %{"event_type" => event_type})
        when is_map(peer) and is_binary(event_type) do

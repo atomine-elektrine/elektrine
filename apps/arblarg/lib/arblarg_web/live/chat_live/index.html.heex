@@ -971,7 +971,7 @@
           class="flex-1 min-h-0 overflow-y-auto p-2.5 sm:p-3 space-y-2 sm:space-y-3 bg-base-200"
           id="messages-container"
           phx-hook="MessageList"
-          data-conversation-id={@conversation.selected && @conversation.selected.id}
+          data-conversation-id={@conversation.selected.id}
         >
           <!-- Loading indicator for older messages -->
           <%= if @loading_older_messages do %>

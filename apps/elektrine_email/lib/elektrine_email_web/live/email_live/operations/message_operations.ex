@@ -212,65 +212,83 @@ defmodule ElektrineEmailWeb.EmailLive.Operations.MessageOperations do
 
   # Label management
   def handle_event("add_label", %{"message_id" => message_id, "label_id" => label_id}, socket) do
-    result =
-      Email.add_label_to_message(String.to_integer(message_id), String.to_integer(label_id))
+    user_id = socket.assigns.current_user.id
+    message_id_int = String.to_integer(message_id)
+    label_id_int = String.to_integer(label_id)
 
-    case result do
-      :ok ->
-        socket =
-          load_tab_content(
-            socket,
-            socket.assigns.current_tab,
-            %{"filter" => socket.assigns.current_filter},
-            socket.assigns.pagination.page
-          )
+    with {:ok, _message} <- Email.get_user_message(message_id_int, user_id),
+         %{} <- Email.get_label(label_id_int, user_id) do
+      result = Email.add_label_to_message(message_id_int, label_id_int)
 
-        {:noreply, notify_info(socket, "Label added")}
+      case result do
+        :ok ->
+          socket =
+            load_tab_content(
+              socket,
+              socket.assigns.current_tab,
+              %{"filter" => socket.assigns.current_filter},
+              socket.assigns.pagination.page
+            )
 
-      {:ok, _} ->
-        socket =
-          load_tab_content(
-            socket,
-            socket.assigns.current_tab,
-            %{"filter" => socket.assigns.current_filter},
-            socket.assigns.pagination.page
-          )
+          {:noreply, notify_info(socket, "Label added")}
 
-        {:noreply, notify_info(socket, "Label added")}
+        {:ok, _} ->
+          socket =
+            load_tab_content(
+              socket,
+              socket.assigns.current_tab,
+              %{"filter" => socket.assigns.current_filter},
+              socket.assigns.pagination.page
+            )
 
-      {:error, _} ->
+          {:noreply, notify_info(socket, "Label added")}
+
+        {:error, _} ->
+          {:noreply, notify_error(socket, "Failed to add label")}
+      end
+    else
+      _ ->
         {:noreply, notify_error(socket, "Failed to add label")}
     end
   end
 
   def handle_event("remove_label", %{"message_id" => message_id, "label_id" => label_id}, socket) do
-    result =
-      Email.remove_label_from_message(String.to_integer(message_id), String.to_integer(label_id))
+    user_id = socket.assigns.current_user.id
+    message_id_int = String.to_integer(message_id)
+    label_id_int = String.to_integer(label_id)
 
-    case result do
-      :ok ->
-        socket =
-          load_tab_content(
-            socket,
-            socket.assigns.current_tab,
-            %{"filter" => socket.assigns.current_filter},
-            socket.assigns.pagination.page
-          )
+    with {:ok, _message} <- Email.get_user_message(message_id_int, user_id),
+         %{} <- Email.get_label(label_id_int, user_id) do
+      result = Email.remove_label_from_message(message_id_int, label_id_int)
 
-        {:noreply, notify_info(socket, "Label removed")}
+      case result do
+        :ok ->
+          socket =
+            load_tab_content(
+              socket,
+              socket.assigns.current_tab,
+              %{"filter" => socket.assigns.current_filter},
+              socket.assigns.pagination.page
+            )
 
-      {:ok, _} ->
-        socket =
-          load_tab_content(
-            socket,
-            socket.assigns.current_tab,
-            %{"filter" => socket.assigns.current_filter},
-            socket.assigns.pagination.page
-          )
+          {:noreply, notify_info(socket, "Label removed")}
 
-        {:noreply, notify_info(socket, "Label removed")}
+        {:ok, _} ->
+          socket =
+            load_tab_content(
+              socket,
+              socket.assigns.current_tab,
+              %{"filter" => socket.assigns.current_filter},
+              socket.assigns.pagination.page
+            )
 
-      {:error, _} ->
+          {:noreply, notify_info(socket, "Label removed")}
+
+        {:error, _} ->
+          {:noreply, notify_error(socket, "Failed to remove label")}
+      end
+    else
+      _ ->
         {:noreply, notify_error(socket, "Failed to remove label")}
     end
   end

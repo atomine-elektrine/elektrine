@@ -1120,8 +1120,6 @@ defmodule Elektrine.Subscriptions do
   defp normalize_optional_string(value) when is_binary(value),
     do: Elektrine.Strings.present(value)
 
-  defp normalize_optional_string(value), do: value
-
   defp present?(value) when is_binary(value), do: Elektrine.Strings.present?(value)
   defp present?(value), do: not is_nil(value)
 

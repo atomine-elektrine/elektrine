@@ -11,7 +11,8 @@ defmodule ElektrineWeb.PlatformAccess do
     {:social, ElektrineWeb.Routes.Social},
     {:nerve, ElektrineWeb.Routes.Nerve},
     {:vpn, ElektrineWeb.Routes.VPN},
-    {:dns, ElektrineWeb.Routes.DNS}
+    {:dns, ElektrineWeb.Routes.DNS},
+    {:uptime, ElektrineWeb.Routes.Uptime}
   ]
 
   def required_module_for_path(path) when is_binary(path) do
@@ -123,6 +124,9 @@ defmodule ElektrineWeb.PlatformAccess do
       path_matches?(path, "/vpn") or path_matches?(path, "/api/vpn") ->
         :vpn
 
+      path_matches?(path, "/uptime") ->
+        :uptime
+
       path_matches?(path, "/account/storage") ->
         :storage
 
@@ -193,6 +197,9 @@ defmodule ElektrineWeb.PlatformAccess do
 
       view == ElektrineVPNWeb.VPNLive.Index ->
         :vpn
+
+      view == ElektrineUptimeWeb.UptimeLive.Index ->
+        :uptime
 
       view == ElektrineWeb.StorageLive ->
         :storage

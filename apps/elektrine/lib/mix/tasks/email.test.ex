@@ -1,7 +1,6 @@
 defmodule Mix.Tasks.Email.Test do
   @moduledoc false
   use Mix.Task
-  require Logger
 
   @shortdoc "Test the email system by sending and receiving test emails"
 

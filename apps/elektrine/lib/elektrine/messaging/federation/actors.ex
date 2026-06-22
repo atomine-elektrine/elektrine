@@ -205,8 +205,6 @@ defmodule Elektrine.Messaging.Federation.Actors do
     end
   end
 
-  defp normalize_remote_dm_handle(_handle), do: {:error, :invalid_remote_handle}
-
   defp canonical_actor_handle?(username, domain, handle)
        when is_binary(username) and is_binary(domain) and is_binary(handle) do
     String.downcase(handle) == String.downcase("#{username}@#{domain}")
@@ -253,8 +251,6 @@ defmodule Elektrine.Messaging.Federation.Actors do
         nil
     end
   end
-
-  defp derive_actor_inbox_from_uri(_uri), do: nil
 
   defp normalize_optional_string(value) when is_binary(value),
     do: Elektrine.Strings.present(value)

@@ -109,14 +109,6 @@ defmodule ElektrineWeb.API.AuthController do
         conn
         |> put_status(:forbidden)
         |> json(%{error: "Account is suspended", until: until, reason: reason})
-
-      {:error, _reason} ->
-        # Record failed attempt for rate limiting
-        record_login_rate_limit_attempts(identifiers)
-
-        conn
-        |> put_status(:unauthorized)
-        |> json(%{error: "Authentication failed"})
     end
   end
 

@@ -106,6 +106,15 @@ defmodule Elektrine.Platform.ENav do
         access_module: :vpn,
         icon: "hero-shield-check",
         active_icon: "hero-shield-check-solid"
+      },
+      %{
+        id: "uptime",
+        label: "Uptime",
+        href: "/uptime",
+        platform_module: :uptime,
+        access_module: :uptime,
+        icon: "hero-chart-bar",
+        active_icon: "hero-chart-bar-solid"
       }
     ]
   end

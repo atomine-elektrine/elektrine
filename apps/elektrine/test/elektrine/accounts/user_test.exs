@@ -57,6 +57,22 @@ defmodule Elektrine.Accounts.UserTest do
     end
   end
 
+  describe "reserved usernames" do
+    test "registration rejects operational and certificate-validation mailbox names" do
+      for username <- ~w(abuse postmaster ssladmin ssladministrator sysadmin noc payments dmca) do
+        changeset =
+          User.registration_changeset(%User{}, %{
+            username: username,
+            password: "testpassword123",
+            password_confirmation: "testpassword123"
+          })
+
+        refute changeset.valid?, "#{username} should be reserved"
+        assert "this username is reserved and cannot be used" in errors_on(changeset).username
+      end
+    end
+  end
+
   describe "admin registration changeset" do
     test "accepts initial trust level and lock state" do
       changeset =

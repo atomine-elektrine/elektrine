@@ -154,8 +154,6 @@ defmodule ElektrineWeb.HtmlHelpers do
     _ -> content
   end
 
-  defp strip_html_without_parser(_), do: ""
-
   defp decode_html_entities_repeatedly(text), do: decode_html_entities_repeatedly(text, 3)
 
   defp decode_html_entities_repeatedly(text, remaining) when is_binary(text) and remaining > 0 do
@@ -501,8 +499,6 @@ defmodule ElektrineWeb.HtmlHelpers do
     Map.get(actor, :domain) || Map.get(actor, "domain")
   end
 
-  defp actor_domain(_), do: nil
-
   defp normalize_actor_display_name(value) when is_binary(value) do
     case String.trim(value) do
       "" -> nil
@@ -644,7 +640,7 @@ defmodule ElektrineWeb.HtmlHelpers do
         content
 
       likely_markdown?(content) ->
-        Earmark.as_html!(content)
+        MDEx.to_html!(content)
 
       true ->
         content
@@ -969,8 +965,6 @@ defmodule ElektrineWeb.HtmlHelpers do
 
     Map.merge(metadata_hints, reply_to_hints)
   end
-
-  defp mention_domain_hints(_), do: %{}
 
   defp in_reply_to_author_from_metadata(metadata) when is_map(metadata) do
     Map.get(metadata, "inReplyToAuthor") ||

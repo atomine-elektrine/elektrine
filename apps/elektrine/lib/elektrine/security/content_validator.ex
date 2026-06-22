@@ -202,15 +202,12 @@ defmodule Elektrine.Security.ContentValidator do
   @doc """
   Checks if a user is allowed to perform an action based on their account status.
   """
-  def check_user_permissions(user, action) do
+  def check_user_permissions(user, _action) do
     cond do
       user.banned ->
         {:error, :user_banned}
 
       user.suspended ->
-        {:error, :user_suspended}
-
-      action in [:create_post, :promote_content] && user.suspended ->
         {:error, :user_suspended}
 
       true ->

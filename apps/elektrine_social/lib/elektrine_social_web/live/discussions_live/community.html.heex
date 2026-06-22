@@ -53,14 +53,6 @@
               <code class="text-sm opacity-70 bg-base-200 px-2 py-0.5 rounded">
                 !{@community_slug}@{Elektrine.ActivityPub.instance_domain()}
               </code>
-              <button
-                type="button"
-                phx-click="copy_community_handle"
-                class="btn btn-ghost btn-xs"
-                title="Copy community handle"
-              >
-                <.icon name="hero-clipboard" class="w-3 h-3" />
-              </button>
             </div>
             <p class="text-sm sm:text-base text-base-content/70 mt-2 line-clamp-3">
               {@community.description}
@@ -1148,7 +1140,6 @@
                                     phx-click="view_discussion"
                                     phx-value-message_id={post.id}
                                     type="button"
-                                    phx-click="close_dropdown"
                                   >
                                     <.icon name="hero-arrow-top-right-on-square" class="w-4 h-4" />
                                     View Post
@@ -1159,7 +1150,6 @@
                                     phx-click="copy_discussion_link"
                                     phx-value-message_id={post.id}
                                     type="button"
-                                    phx-click="close_dropdown"
                                   >
                                     <.icon name="hero-link" class="w-4 h-4" /> Copy Link
                                   </button>
@@ -1207,7 +1197,6 @@
                                         phx-click="pin_post"
                                         phx-value-message_id={post.id}
                                         type="button"
-                                        phx-click="close_dropdown"
                                       >
                                         <.icon name="hero-map-pin" class="w-4 h-4" /> Pin Post
                                       </button>
@@ -1218,7 +1207,6 @@
                                         phx-click="unpin_post"
                                         phx-value-message_id={post.id}
                                         type="button"
-                                        phx-click="close_dropdown"
                                       >
                                         <.icon name="hero-x-mark" class="w-4 h-4" /> Unpin Post
                                       </button>
@@ -1230,7 +1218,6 @@
                                         phx-click="lock_thread"
                                         phx-value-message_id={post.id}
                                         type="button"
-                                        phx-click="close_dropdown"
                                       >
                                         <.icon name="hero-lock-closed" class="w-4 h-4" />
                                         Lock Thread
@@ -1242,7 +1229,6 @@
                                         phx-click="unlock_thread"
                                         phx-value-message_id={post.id}
                                         type="button"
-                                        phx-click="close_dropdown"
                                       >
                                         <.icon name="hero-lock-open" class="w-4 h-4" />
                                         Unlock Thread
@@ -1267,7 +1253,6 @@
                                         phx-value-user_id={post.sender.id}
                                         type="button"
                                         class="font-semibold"
-                                        phx-click="close_dropdown"
                                       >
                                         <.icon name="hero-user-circle" class="w-4 h-4" />
                                         View User Status
@@ -1279,7 +1264,6 @@
                                         phx-click="show_note_modal"
                                         phx-value-user_id={post.sender.id}
                                         type="button"
-                                        phx-click="close_dropdown"
                                       >
                                         <.icon name="hero-document-text" class="w-4 h-4" />
                                         Add Note
@@ -1290,7 +1274,6 @@
                                         phx-click="show_timeout_modal"
                                         phx-value-user_id={post.sender.id}
                                         type="button"
-                                        phx-click="close_dropdown"
                                       >
                                         <.icon name="hero-clock" class="w-4 h-4" /> Timeout User
                                       </button>
@@ -1301,7 +1284,6 @@
                                         phx-value-user_id={post.sender.id}
                                         phx-value-message_id={post.id}
                                         type="button"
-                                        phx-click="close_dropdown"
                                       >
                                         <.icon name="hero-exclamation-triangle" class="w-4 h-4" />
                                         Warn User
@@ -1313,7 +1295,6 @@
                                         phx-value-user_id={post.sender.id}
                                         class="text-error"
                                         type="button"
-                                        phx-click="close_dropdown"
                                       >
                                         <.icon name="hero-no-symbol" class="w-4 h-4" /> Ban User
                                       </button>

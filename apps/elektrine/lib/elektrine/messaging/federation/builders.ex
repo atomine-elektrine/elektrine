@@ -442,6 +442,12 @@ defmodule Elektrine.Messaging.Federation.Builders do
     end
   end
 
+  # NOTE: unlike build_invite/remote_invite/ban events, this intentionally has
+  # no `is_federated_mirror` reject guard. Membership is multi-origin — each
+  # instance is authoritative for its own users' membership — so a mirror
+  # legitimately emits membership events, which Visibility routes back to the
+  # conversation's origin_domain. The asymmetry with the guarded sibling
+  # builders is by design, not an oversight.
   def build_membership_upsert_event(conversation_id, user_id, state, role, context)
       when is_integer(conversation_id) and is_integer(user_id) and is_binary(state) and
              is_binary(role) and is_map(context) do

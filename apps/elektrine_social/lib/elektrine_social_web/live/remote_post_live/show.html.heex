@@ -880,7 +880,7 @@
                           detect_submitted_url(
                             @post,
                             @local_message,
-                            @remote_actor && @remote_actor.domain
+                            @remote_actor.domain
                           ) ||
                           (@local_message && @local_message.primary_url)
 
@@ -1268,7 +1268,7 @@
                         <div class="mt-4 pt-4 border-t border-base-300 space-y-3">
                           <.quick_reply_recent_replies_preview
                             replies={@quick_reply_recent_replies}
-                            reply_content_domain={@remote_actor && @remote_actor.domain}
+                            reply_content_domain={@remote_actor.domain}
                             id_prefix="remote-post-inline-quick-reply-"
                           />
 
@@ -1307,7 +1307,7 @@
                   current_user={@current_user}
                   quick_reply_recent_replies={@quick_reply_recent_replies}
                   reply_content={@reply_content}
-                  reply_content_domain={@remote_actor && @remote_actor.domain}
+                  reply_content_domain={@remote_actor.domain}
                   replying_to_comment_id={@replying_to_comment_id}
                 />
               <% end %>
@@ -1444,7 +1444,7 @@
                     <div class="alert alert-info py-2 mb-3">
                       <.icon
                         name="hero-arrow-path"
-                        class={[@replies_loading && "animate-spin", "w-4 h-4"]}
+                        class={["animate-spin", "w-4 h-4"]}
                       />
                       <span class="text-sm">
                         <%= if missing_remote_replies > 0 do %>

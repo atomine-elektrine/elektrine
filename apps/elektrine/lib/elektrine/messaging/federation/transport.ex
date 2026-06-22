@@ -108,8 +108,6 @@ defmodule Elektrine.Messaging.Federation.Transport do
     |> Enum.filter(&is_binary/1)
   end
 
-  defp peer_preferred_transport_order(_peer), do: []
-
   defp peer_fallback_transport_order(peer) when is_map(peer) do
     peer
     |> peer_transport_profiles()
@@ -117,8 +115,6 @@ defmodule Elektrine.Messaging.Federation.Transport do
     |> List.wrap()
     |> Enum.filter(&is_binary/1)
   end
-
-  defp peer_fallback_transport_order(_peer), do: []
 
   defp peer_transport_profiles(peer) when is_map(peer) do
     peer_features(peer)
@@ -128,8 +124,6 @@ defmodule Elektrine.Messaging.Federation.Transport do
       _ -> %{}
     end
   end
-
-  defp peer_transport_profiles(_peer), do: %{}
 
   defp peer_limit(peer, key, default) when is_map(peer) and is_binary(key) do
     case peer_features(peer) do
@@ -165,13 +159,9 @@ defmodule Elektrine.Messaging.Federation.Transport do
     end
   end
 
-  defp peer_features(_peer), do: %{}
-
   defp supported_event_type_advertised?(peer, event_type) when is_binary(event_type) do
     event_type in peer_supported_event_types(peer)
   end
-
-  defp supported_event_type_advertised?(_peer, _event_type), do: false
 
   defp supported_extension_advertised?(peer, urn) when is_binary(urn) do
     peer

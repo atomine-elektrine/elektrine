@@ -7,6 +7,7 @@ defmodule ElektrineWeb.Router do
   require ElektrineWeb.Routes.Social
   require ElektrineWeb.Routes.Nerve
   require ElektrineWeb.Routes.VPN
+  require ElektrineWeb.Routes.Uptime
   import ElektrineWeb.UserAuth
 
   @profile_host_scope (case System.get_env("PRIMARY_DOMAIN") do
@@ -1246,6 +1247,7 @@ defmodule ElektrineWeb.Router do
         ElektrineWeb.Routes.Chat.main_live_routes()
         ElektrineWeb.Routes.VPN.main_live_routes()
         ElektrineWeb.Routes.DNS.main_live_routes()
+        ElektrineWeb.Routes.Uptime.main_live_routes()
       end
 
       # Portal

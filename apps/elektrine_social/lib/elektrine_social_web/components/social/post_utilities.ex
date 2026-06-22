@@ -550,8 +550,6 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
     |> Enum.max(fn -> 0 end)
   end
 
-  defp cached_reply_count(_), do: 0
-
   @doc """
   Returns the visible primary engagement count for a post.
 
@@ -643,8 +641,6 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
       non_zero_integer?(Map.get(post, :downvotes) || Map.get(post, "downvotes"))
   end
 
-  defp explicit_vote_totals?(_), do: false
-
   defp non_zero_integer?(value) when is_integer(value), do: value != 0
   defp non_zero_integer?(_), do: false
 
@@ -687,8 +683,6 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
   defp contains_emoji_shortcode?(text) when is_binary(text) do
     String.match?(text, ~r/:([a-zA-Z_][a-zA-Z0-9_]*):/)
   end
-
-  defp contains_emoji_shortcode?(_), do: false
 
   defp normalize_reply_avatar(value) when is_binary(value) do
     trimmed = String.trim(value)

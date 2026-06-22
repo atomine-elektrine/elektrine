@@ -4,7 +4,6 @@ defmodule Elektrine.Messaging.RateLimiter do
   """
 
   use GenServer
-  require Logger
 
   # Rate limits per user
   @message_limit_per_minute 60

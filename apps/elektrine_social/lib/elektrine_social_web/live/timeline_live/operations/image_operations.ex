@@ -84,25 +84,38 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.ImageOperations do
 
   # Navigates to the next image in the modal gallery.
   def handle_event("next_image", _params, socket) do
-    new_index = rem(socket.assigns.modal_image_index + 1, length(socket.assigns.modal_images))
-    new_url = Enum.at(socket.assigns.modal_images, new_index)
+    images = socket.assigns.modal_images || []
+    total = length(images)
 
-    {:noreply,
-     socket
-     |> assign(:modal_image_index, new_index)
-     |> assign(:modal_image_url, new_url)}
+    if total > 0 do
+      new_index = rem(socket.assigns.modal_image_index + 1, total)
+      new_url = Enum.at(images, new_index)
+
+      {:noreply,
+       socket
+       |> assign(:modal_image_index, new_index)
+       |> assign(:modal_image_url, new_url)}
+    else
+      {:noreply, socket}
+    end
   end
 
   # Navigates to the previous image in the modal gallery.
   def handle_event("prev_image", _params, socket) do
-    total = length(socket.assigns.modal_images)
-    new_index = rem(socket.assigns.modal_image_index - 1 + total, total)
-    new_url = Enum.at(socket.assigns.modal_images, new_index)
+    images = socket.assigns.modal_images || []
+    total = length(images)
 
-    {:noreply,
-     socket
-     |> assign(:modal_image_index, new_index)
-     |> assign(:modal_image_url, new_url)}
+    if total > 0 do
+      new_index = rem(socket.assigns.modal_image_index - 1 + total, total)
+      new_url = Enum.at(images, new_index)
+
+      {:noreply,
+       socket
+       |> assign(:modal_image_index, new_index)
+       |> assign(:modal_image_url, new_url)}
+    else
+      {:noreply, socket}
+    end
   end
 
   # Navigates to the next post with media in the timeline.

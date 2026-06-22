@@ -180,16 +180,11 @@ defmodule ElektrineSocialWeb.MediaProxyController do
   end
 
   defp redacted_url(url) when is_binary(url) do
-    case URI.parse(url) do
-      %URI{} = uri ->
-        uri
-        |> Map.put(:query, nil)
-        |> Map.put(:userinfo, nil)
-        |> URI.to_string()
-
-      _ ->
-        "[invalid-url]"
-    end
+    url
+    |> URI.parse()
+    |> Map.put(:query, nil)
+    |> Map.put(:userinfo, nil)
+    |> URI.to_string()
   rescue
     _ -> "[invalid-url]"
   end

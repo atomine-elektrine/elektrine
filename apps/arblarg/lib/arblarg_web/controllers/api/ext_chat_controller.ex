@@ -28,9 +28,7 @@ defmodule ArblargWeb.API.ExtChatController do
     user = conn.assigns.current_user
     limit = parse_positive_int(params["limit"], @default_limit) |> min(@max_limit)
 
-    conversations =
-      list_chat_conversations(user.id, limit)
-      |> Enum.map(&with_latest_message(&1, user.id))
+    conversations = list_chat_conversations(user.id, limit)
 
     Response.ok(
       conn,
@@ -55,7 +53,8 @@ defmodule ArblargWeb.API.ExtChatController do
       Response.ok(
         conn,
         %{
-          conversation: format_conversation(with_latest_message(conversation, user.id), user.id),
+          conversation:
+            format_conversation(conversation, user.id, latest_message(conversation, user.id)),
           messages: Enum.map(page.messages, &format_message/1)
         },
         %{pagination: pagination_meta(page, @default_message_limit)}
@@ -247,13 +246,10 @@ defmodule ArblargWeb.API.ExtChatController do
     end
   end
 
-  defp with_latest_message(conversation, user_id) do
-    latest_message =
-      conversation.id
-      |> ChatMessages.get_messages(user_id: user_id, limit: 1)
-      |> List.first()
-
-    Map.put(conversation, :latest_message, latest_message)
+  defp latest_message(conversation, user_id) do
+    conversation.id
+    |> ChatMessages.get_messages(user_id: user_id, limit: 1)
+    |> List.first()
   end
 
   defp blocked_dm?(%ChatConversation{type: "dm", members: members}, user_id)
@@ -273,6 +269,14 @@ defmodule ArblargWeb.API.ExtChatController do
   defp blocked_dm?(_conversation, _user_id), do: false
 
   defp format_conversation(conversation, current_user_id) do
+    format_conversation(
+      conversation,
+      current_user_id,
+      latest_message(conversation, current_user_id)
+    )
+  end
+
+  defp format_conversation(conversation, current_user_id, latest_message) do
     members =
       conversation.members
       |> List.wrap()
@@ -288,7 +292,7 @@ defmodule ArblargWeb.API.ExtChatController do
       is_public: conversation.is_public,
       member_count: length(members),
       last_message_at: conversation.last_message_at,
-      latest_message: format_message_preview(Map.get(conversation, :latest_message)),
+      latest_message: format_message_preview(latest_message),
       members: members
     }
   end

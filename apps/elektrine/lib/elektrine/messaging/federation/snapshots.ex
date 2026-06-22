@@ -892,8 +892,6 @@ defmodule Elektrine.Messaging.Federation.Snapshots do
     }
   end
 
-  defp remote_actor_payload(_actor), do: nil
-
   defp maybe_put_read_through_sequence(payload, sequence)
        when is_map(payload) and is_integer(sequence) and sequence > 0 do
     Map.put(payload, "read_through_sequence", sequence)
@@ -913,8 +911,6 @@ defmodule Elektrine.Messaging.Federation.Snapshots do
         |> ArblargSDK.sign_payload(private_key)
     })
   end
-
-  defp sign_snapshot_payload(snapshot, _context), do: snapshot
 
   defp local_last_sequence_for_stream(stream_id) when is_binary(stream_id) do
     from(o in FederationOutboxEvent,

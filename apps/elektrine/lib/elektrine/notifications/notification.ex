@@ -59,7 +59,9 @@ defmodule Elektrine.Notifications.Notification do
       "comment",
       "discussion_reply",
       "email_received",
-      "system"
+      "system",
+      "uptime_down",
+      "uptime_recovered"
     ])
     |> validate_inclusion(:priority, ["low", "normal", "high", "urgent"])
   end

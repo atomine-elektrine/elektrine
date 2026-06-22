@@ -102,8 +102,6 @@ defmodule ArblargWeb.ChatLive.HandleFormatter do
     Map.get(map, key) || Map.get(map, Atom.to_string(key))
   end
 
-  defp map_get(_map, _key), do: nil
-
   defp unknown_handle(domain \\ local_domain()) do
     "unknown@" <> normalize_domain(domain)
   end

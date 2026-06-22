@@ -1,7 +1,6 @@
 defmodule Mix.Tasks.Email.InboundTest do
   @moduledoc false
   use Mix.Task
-  require Logger
 
   @shortdoc "Test the Postal inbound email processing"
 

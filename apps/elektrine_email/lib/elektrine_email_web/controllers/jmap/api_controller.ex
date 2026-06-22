@@ -743,8 +743,6 @@ defmodule ElektrineEmailWeb.JMAP.APIController do
     }
   end
 
-  defp normalize_email_header(nil), do: nil
-
   defp normalize_email_header(value) do
     case Regex.run(~r/<([^>]+)>/, value) do
       [_, email] -> String.trim(email)

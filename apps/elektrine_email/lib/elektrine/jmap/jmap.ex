@@ -538,6 +538,8 @@ defmodule Elektrine.JMAP do
   end
 
   # Apply JMAP sort options
+  defp apply_jmap_sort(query, []), do: {:ok, order_by(query, [m], desc: m.inserted_at)}
+
   defp apply_jmap_sort(query, sort) when is_list(sort) do
     Enum.reduce_while(sort, {:ok, query}, fn sort_item, {:ok, q} ->
       property = Map.get(sort_item, "property", "receivedAt")
@@ -561,7 +563,6 @@ defmodule Elektrine.JMAP do
   end
 
   defp apply_jmap_sort(query, nil), do: {:ok, order_by(query, [m], desc: m.inserted_at)}
-  defp apply_jmap_sort(query, []), do: {:ok, order_by(query, [m], desc: m.inserted_at)}
   defp apply_jmap_sort(_query, _), do: {:error, :invalid_sort}
 
   # Convert Elektrine Message to JMAP Email format

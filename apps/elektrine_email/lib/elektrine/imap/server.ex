@@ -522,7 +522,6 @@ defmodule Elektrine.IMAP.Server do
 
   defp command_outcome({:continue, _state}), do: :ok
   defp command_outcome({:logout, _state}), do: :logout
-  defp command_outcome(_), do: :error
 
   defp maybe_alert_slow_command(command_name, duration_us, ip) do
     if duration_us >= @slow_command_threshold_us do

@@ -85,6 +85,8 @@ defmodule ArblargWeb.ChatLive.Router do
     "show_add_members" => MemberOperations,
     "hide_add_members" => MemberOperations,
     "add_member_to_conversation" => MemberOperations,
+    "approve_remote_join_request" => MemberOperations,
+    "decline_remote_join_request" => MemberOperations,
     "kick_member" => MemberOperations,
     "promote_member" => MemberOperations,
     "demote_member" => MemberOperations,

@@ -163,121 +163,10 @@ defmodule ElektrineSocialWeb.ListLive.Show do
   end
 
   def handle_event("add_remote_user", %{"handle" => handle}, socket) do
-    case Elektrine.ActivityPub.FederationHelpers.follow_remote_user(
-           socket.assigns.current_user.username,
-           handle
-         ) do
-      {:ok, result} ->
-        case Social.add_to_list(socket.assigns.list.id, %{remote_actor_id: result.remote_actor.id}) do
-          {:ok, _} ->
-            list = Social.get_user_list(socket.assigns.current_user.id, socket.assigns.list.id)
-
-            posts =
-              Social.get_list_timeline(socket.assigns.list.id,
-                limit: 20,
-                viewer_id: socket.assigns.current_user.id
-              )
-
-            post_ids = Enum.map(posts, & &1.id)
-
-            post_replies =
-              Social.get_direct_replies_for_posts(post_ids,
-                user_id: socket.assigns.current_user.id,
-                limit_per_post: 3
-              )
-
-            all_messages = posts ++ List.flatten(Map.values(post_replies))
-
-            user_likes =
-              get_user_likes(
-                socket.assigns.current_user.id,
-                all_messages
-              )
-
-            user_boosts = get_user_boosts(socket.assigns.current_user.id, all_messages)
-
-            {:noreply,
-             socket
-             |> assign(:list, list)
-             |> assign(:posts, posts)
-             |> assign(:post_replies, post_replies)
-             |> assign(:user_likes, user_likes)
-             |> assign(:user_boosts, user_boosts)
-             |> assign(:search_results, [])
-             |> assign(:search_query, "")
-             |> put_flash(
-               :info,
-               "Added @#{result.remote_actor.username}@#{result.remote_actor.domain} to list"
-             )}
-
-          {:error, reason} ->
-            Logger.error("Failed to add to list: #{inspect(reason)}")
-            {:noreply, put_flash(socket, :error, "Failed to add to list")}
-        end
-
-      {:error, :webfinger_failed} ->
-        Logger.warning("WebFinger failed for: #{handle}")
-
-        {:noreply,
-         put_flash(socket, :error, "Could not find user. Check the handle and try again.")}
-
-      {:error, :already_following} ->
-        case Elektrine.ActivityPub.get_actor_by_username_and_domain(
-               String.split(handle, "@") |> Enum.at(0),
-               String.split(handle, "@") |> Enum.at(1)
-             ) do
-          nil ->
-            {:noreply, put_flash(socket, :error, "Could not find user")}
-
-          actor ->
-            case Social.add_to_list(socket.assigns.list.id, %{remote_actor_id: actor.id}) do
-              {:ok, _} ->
-                list =
-                  Social.get_user_list(socket.assigns.current_user.id, socket.assigns.list.id)
-
-                posts =
-                  Social.get_list_timeline(socket.assigns.list.id,
-                    limit: 20,
-                    viewer_id: socket.assigns.current_user.id
-                  )
-
-                post_ids = Enum.map(posts, & &1.id)
-
-                post_replies =
-                  Social.get_direct_replies_for_posts(post_ids,
-                    user_id: socket.assigns.current_user.id,
-                    limit_per_post: 3
-                  )
-
-                all_messages = posts ++ List.flatten(Map.values(post_replies))
-
-                user_likes =
-                  get_user_likes(
-                    socket.assigns.current_user.id,
-                    all_messages
-                  )
-
-                user_boosts = get_user_boosts(socket.assigns.current_user.id, all_messages)
-
-                {:noreply,
-                 socket
-                 |> assign(:list, list)
-                 |> assign(:posts, posts)
-                 |> assign(:post_replies, post_replies)
-                 |> assign(:user_likes, user_likes)
-                 |> assign(:user_boosts, user_boosts)
-                 |> assign(:search_results, [])
-                 |> assign(:search_query, "")
-                 |> put_flash(:info, "Added @#{actor.username}@#{actor.domain} to list")}
-
-              {:error, _} ->
-                {:noreply, put_flash(socket, :error, "Failed to add to list")}
-            end
-        end
-
-      {:error, reason} ->
-        Logger.error("Failed to add remote user: #{inspect(reason)}")
-        {:noreply, put_flash(socket, :error, "Failed to add remote user")}
+    if socket.assigns[:is_owner] != true do
+      {:noreply, put_flash(socket, :error, "Only the list owner can add members")}
+    else
+      do_add_remote_user(socket, handle)
     end
   end
 
@@ -315,38 +204,54 @@ defmodule ElektrineSocialWeb.ListLive.Show do
   def handle_event("add_member", %{"user_id" => user_id}, socket) do
     user_id = String.to_integer(user_id)
 
-    case Social.add_to_list(socket.assigns.list.id, %{user_id: user_id}) do
-      {:ok, _} ->
-        list = Social.get_user_list(socket.assigns.current_user.id, socket.assigns.list.id)
+    if socket.assigns[:is_owner] != true do
+      {:noreply, put_flash(socket, :error, "Only the list owner can add members")}
+    else
+      case Elektrine.Social.Lists.add_to_list(
+             socket.assigns.current_user.id,
+             socket.assigns.list.id,
+             %{user_id: user_id}
+           ) do
+        {:ok, _} ->
+          list = Social.get_user_list(socket.assigns.current_user.id, socket.assigns.list.id)
 
-        {:noreply,
-         socket
-         |> assign(:list, list)
-         |> assign(:search_results, [])
-         |> assign(:search_query, "")
-         |> put_flash(:info, "Added to list")}
+          {:noreply,
+           socket
+           |> assign(:list, list)
+           |> assign(:search_results, [])
+           |> assign(:search_query, "")
+           |> put_flash(:info, "Added to list")}
 
-      {:error, _} ->
-        {:noreply, put_flash(socket, :error, "Failed to add to list")}
+        {:error, _} ->
+          {:noreply, put_flash(socket, :error, "Failed to add to list")}
+      end
     end
   end
 
   def handle_event("add_member", %{"remote_actor_id" => remote_actor_id}, socket) do
     remote_actor_id = String.to_integer(remote_actor_id)
 
-    case Social.add_to_list(socket.assigns.list.id, %{remote_actor_id: remote_actor_id}) do
-      {:ok, _} ->
-        list = Social.get_user_list(socket.assigns.current_user.id, socket.assigns.list.id)
+    if socket.assigns[:is_owner] != true do
+      {:noreply, put_flash(socket, :error, "Only the list owner can add members")}
+    else
+      case Elektrine.Social.Lists.add_to_list(
+             socket.assigns.current_user.id,
+             socket.assigns.list.id,
+             %{remote_actor_id: remote_actor_id}
+           ) do
+        {:ok, _} ->
+          list = Social.get_user_list(socket.assigns.current_user.id, socket.assigns.list.id)
 
-        {:noreply,
-         socket
-         |> assign(:list, list)
-         |> assign(:search_results, [])
-         |> assign(:search_query, "")
-         |> put_flash(:info, "Added to list")}
+          {:noreply,
+           socket
+           |> assign(:list, list)
+           |> assign(:search_results, [])
+           |> assign(:search_query, "")
+           |> put_flash(:info, "Added to list")}
 
-      {:error, _} ->
-        {:noreply, put_flash(socket, :error, "Failed to add to list")}
+        {:error, _} ->
+          {:noreply, put_flash(socket, :error, "Failed to add to list")}
+      end
     end
   end
 
@@ -354,64 +259,69 @@ defmodule ElektrineSocialWeb.ListLive.Show do
     require Logger
     handles_text = String.trim(socket.assigns.bulk_input)
 
-    if Elektrine.Strings.present?(handles_text) do
-      handles =
-        handles_text
-        |> String.split(",")
-        |> Enum.map(&String.trim/1)
-        |> Enum.reject(&(not Elektrine.Strings.present?(&1)))
+    cond do
+      socket.assigns[:is_owner] != true ->
+        {:noreply, put_flash(socket, :error, "Only the list owner can add members")}
 
-      results =
-        Enum.map(handles, fn handle ->
-          clean_handle = String.trim_leading(handle, "@")
+      Elektrine.Strings.present?(handles_text) ->
+        handles =
+          handles_text
+          |> String.split(",")
+          |> Enum.map(&String.trim/1)
+          |> Enum.reject(&(not Elektrine.Strings.present?(&1)))
 
-          if String.contains?(clean_handle, "@") do
-            add_remote_user_to_list(socket, clean_handle)
-          else
-            add_local_user_to_list(socket, clean_handle)
-          end
-        end)
+        results =
+          Enum.map(handles, fn handle ->
+            clean_handle = String.trim_leading(handle, "@")
 
-      successful = Enum.count(results, &(&1 == :ok))
-      total = length(handles)
-      list = Social.get_user_list(socket.assigns.current_user.id, socket.assigns.list.id)
+            if String.contains?(clean_handle, "@") do
+              add_remote_user_to_list(socket, clean_handle)
+            else
+              add_local_user_to_list(socket, clean_handle)
+            end
+          end)
 
-      posts =
-        Social.get_list_timeline(socket.assigns.list.id,
-          limit: 20,
-          viewer_id: socket.assigns.current_user.id
-        )
+        successful = Enum.count(results, &(&1 == :ok))
+        total = length(handles)
+        list = Social.get_user_list(socket.assigns.current_user.id, socket.assigns.list.id)
 
-      post_ids = Enum.map(posts, & &1.id)
+        posts =
+          Social.get_list_timeline(socket.assigns.list.id,
+            limit: 20,
+            viewer_id: socket.assigns.current_user.id
+          )
 
-      post_replies =
-        Social.get_direct_replies_for_posts(post_ids,
-          user_id: socket.assigns.current_user.id,
-          limit_per_post: 3
-        )
+        post_ids = Enum.map(posts, & &1.id)
 
-      all_messages = posts ++ List.flatten(Map.values(post_replies))
+        post_replies =
+          Social.get_direct_replies_for_posts(post_ids,
+            user_id: socket.assigns.current_user.id,
+            limit_per_post: 3
+          )
 
-      user_likes =
-        get_user_likes(
-          socket.assigns.current_user.id,
-          all_messages
-        )
+        all_messages = posts ++ List.flatten(Map.values(post_replies))
 
-      user_boosts = get_user_boosts(socket.assigns.current_user.id, all_messages)
+        user_likes =
+          get_user_likes(
+            socket.assigns.current_user.id,
+            all_messages
+          )
 
-      {:noreply,
-       socket
-       |> assign(:list, list)
-       |> assign(:posts, posts)
-       |> assign(:post_replies, post_replies)
-       |> assign(:user_likes, user_likes)
-       |> assign(:user_boosts, user_boosts)
-       |> assign(:bulk_input, "")
-       |> assign(:search_results, [])
-       |> put_flash(:info, "Added #{successful}/#{total} users to list")}
-    else
-      {:noreply, put_flash(socket, :error, "Please enter at least one handle")}
+        user_boosts = get_user_boosts(socket.assigns.current_user.id, all_messages)
+
+        {:noreply,
+         socket
+         |> assign(:list, list)
+         |> assign(:posts, posts)
+         |> assign(:post_replies, post_replies)
+         |> assign(:user_likes, user_likes)
+         |> assign(:user_boosts, user_boosts)
+         |> assign(:bulk_input, "")
+         |> assign(:search_results, [])
+         |> put_flash(:info, "Added #{successful}/#{total} users to list")}
+
+      true ->
+        {:noreply, put_flash(socket, :error, "Please enter at least one handle")}
     end
   end
 
@@ -470,45 +380,10 @@ defmodule ElektrineSocialWeb.ListLive.Show do
   def handle_event("remove_member", %{"member_id" => member_id}, socket) do
     member_id = String.to_integer(member_id)
 
-    case Social.remove_from_list(member_id) do
-      {:ok, _} ->
-        list = Social.get_user_list(socket.assigns.current_user.id, socket.assigns.list.id)
-
-        posts =
-          Social.get_list_timeline(socket.assigns.list.id,
-            limit: 20,
-            viewer_id: socket.assigns.current_user.id
-          )
-
-        post_ids = Enum.map(posts, & &1.id)
-
-        post_replies =
-          Social.get_direct_replies_for_posts(post_ids,
-            user_id: socket.assigns.current_user.id,
-            limit_per_post: 3
-          )
-
-        all_messages = posts ++ List.flatten(Map.values(post_replies))
-
-        user_likes =
-          get_user_likes(
-            socket.assigns.current_user.id,
-            all_messages
-          )
-
-        user_boosts = get_user_boosts(socket.assigns.current_user.id, all_messages)
-
-        {:noreply,
-         socket
-         |> assign(:list, list)
-         |> assign(:posts, posts)
-         |> assign(:post_replies, post_replies)
-         |> assign(:user_likes, user_likes)
-         |> assign(:user_boosts, user_boosts)
-         |> put_flash(:info, "Removed from list")}
-
-      {:error, _} ->
-        {:noreply, put_flash(socket, :error, "Failed to remove from list")}
+    if socket.assigns[:is_owner] != true do
+      {:noreply, put_flash(socket, :error, "Only the list owner can remove members")}
+    else
+      do_remove_member(socket, member_id)
     end
   end
 
@@ -734,13 +609,187 @@ defmodule ElektrineSocialWeb.ListLive.Show do
     end
   end
 
+  defp do_add_remote_user(socket, handle) do
+    case Elektrine.ActivityPub.FederationHelpers.follow_remote_user(
+           socket.assigns.current_user.username,
+           handle
+         ) do
+      {:ok, result} ->
+        case Elektrine.Social.Lists.add_to_list(
+               socket.assigns.current_user.id,
+               socket.assigns.list.id,
+               %{remote_actor_id: result.remote_actor.id}
+             ) do
+          {:ok, _} ->
+            list = Social.get_user_list(socket.assigns.current_user.id, socket.assigns.list.id)
+
+            posts =
+              Social.get_list_timeline(socket.assigns.list.id,
+                limit: 20,
+                viewer_id: socket.assigns.current_user.id
+              )
+
+            post_ids = Enum.map(posts, & &1.id)
+
+            post_replies =
+              Social.get_direct_replies_for_posts(post_ids,
+                user_id: socket.assigns.current_user.id,
+                limit_per_post: 3
+              )
+
+            all_messages = posts ++ List.flatten(Map.values(post_replies))
+
+            user_likes =
+              get_user_likes(
+                socket.assigns.current_user.id,
+                all_messages
+              )
+
+            user_boosts = get_user_boosts(socket.assigns.current_user.id, all_messages)
+
+            {:noreply,
+             socket
+             |> assign(:list, list)
+             |> assign(:posts, posts)
+             |> assign(:post_replies, post_replies)
+             |> assign(:user_likes, user_likes)
+             |> assign(:user_boosts, user_boosts)
+             |> assign(:search_results, [])
+             |> assign(:search_query, "")
+             |> put_flash(
+               :info,
+               "Added @#{result.remote_actor.username}@#{result.remote_actor.domain} to list"
+             )}
+
+          {:error, reason} ->
+            Logger.error("Failed to add to list: #{inspect(reason)}")
+            {:noreply, put_flash(socket, :error, "Failed to add to list")}
+        end
+
+      {:error, :webfinger_failed} ->
+        Logger.warning("WebFinger failed for: #{handle}")
+
+        {:noreply,
+         put_flash(socket, :error, "Could not find user. Check the handle and try again.")}
+
+      {:error, :already_following} ->
+        case Elektrine.ActivityPub.get_actor_by_username_and_domain(
+               String.split(handle, "@") |> Enum.at(0),
+               String.split(handle, "@") |> Enum.at(1)
+             ) do
+          nil ->
+            {:noreply, put_flash(socket, :error, "Could not find user")}
+
+          actor ->
+            case Elektrine.Social.Lists.add_to_list(
+                   socket.assigns.current_user.id,
+                   socket.assigns.list.id,
+                   %{remote_actor_id: actor.id}
+                 ) do
+              {:ok, _} ->
+                list =
+                  Social.get_user_list(socket.assigns.current_user.id, socket.assigns.list.id)
+
+                posts =
+                  Social.get_list_timeline(socket.assigns.list.id,
+                    limit: 20,
+                    viewer_id: socket.assigns.current_user.id
+                  )
+
+                post_ids = Enum.map(posts, & &1.id)
+
+                post_replies =
+                  Social.get_direct_replies_for_posts(post_ids,
+                    user_id: socket.assigns.current_user.id,
+                    limit_per_post: 3
+                  )
+
+                all_messages = posts ++ List.flatten(Map.values(post_replies))
+
+                user_likes =
+                  get_user_likes(
+                    socket.assigns.current_user.id,
+                    all_messages
+                  )
+
+                user_boosts = get_user_boosts(socket.assigns.current_user.id, all_messages)
+
+                {:noreply,
+                 socket
+                 |> assign(:list, list)
+                 |> assign(:posts, posts)
+                 |> assign(:post_replies, post_replies)
+                 |> assign(:user_likes, user_likes)
+                 |> assign(:user_boosts, user_boosts)
+                 |> assign(:search_results, [])
+                 |> assign(:search_query, "")
+                 |> put_flash(:info, "Added @#{actor.username}@#{actor.domain} to list")}
+
+              {:error, _} ->
+                {:noreply, put_flash(socket, :error, "Failed to add to list")}
+            end
+        end
+
+      {:error, reason} ->
+        Logger.error("Failed to add remote user: #{inspect(reason)}")
+        {:noreply, put_flash(socket, :error, "Failed to add remote user")}
+    end
+  end
+
+  defp do_remove_member(socket, member_id) do
+    case Elektrine.Social.Lists.remove_from_list(socket.assigns.current_user.id, member_id) do
+      {:ok, _} ->
+        list = Social.get_user_list(socket.assigns.current_user.id, socket.assigns.list.id)
+
+        posts =
+          Social.get_list_timeline(socket.assigns.list.id,
+            limit: 20,
+            viewer_id: socket.assigns.current_user.id
+          )
+
+        post_ids = Enum.map(posts, & &1.id)
+
+        post_replies =
+          Social.get_direct_replies_for_posts(post_ids,
+            user_id: socket.assigns.current_user.id,
+            limit_per_post: 3
+          )
+
+        all_messages = posts ++ List.flatten(Map.values(post_replies))
+
+        user_likes =
+          get_user_likes(
+            socket.assigns.current_user.id,
+            all_messages
+          )
+
+        user_boosts = get_user_boosts(socket.assigns.current_user.id, all_messages)
+
+        {:noreply,
+         socket
+         |> assign(:list, list)
+         |> assign(:posts, posts)
+         |> assign(:post_replies, post_replies)
+         |> assign(:user_likes, user_likes)
+         |> assign(:user_boosts, user_boosts)
+         |> put_flash(:info, "Removed from list")}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Failed to remove from list")}
+    end
+  end
+
   defp add_remote_user_to_list(socket, handle) do
     case Elektrine.ActivityPub.FederationHelpers.follow_remote_user(
            socket.assigns.current_user.username,
            handle
          ) do
       {:ok, result} ->
-        case Social.add_to_list(socket.assigns.list.id, %{remote_actor_id: result.remote_actor.id}) do
+        case Elektrine.Social.Lists.add_to_list(
+               socket.assigns.current_user.id,
+               socket.assigns.list.id,
+               %{remote_actor_id: result.remote_actor.id}
+             ) do
           {:ok, _} -> :ok
           {:error, _reason} -> :error
         end
@@ -753,7 +802,11 @@ defmodule ElektrineSocialWeb.ListLive.Show do
             :error
 
           actor ->
-            case Social.add_to_list(socket.assigns.list.id, %{remote_actor_id: actor.id}) do
+            case Elektrine.Social.Lists.add_to_list(
+                   socket.assigns.current_user.id,
+                   socket.assigns.list.id,
+                   %{remote_actor_id: actor.id}
+                 ) do
               {:ok, _} -> :ok
               {:error, _reason} -> :error
             end
@@ -770,7 +823,11 @@ defmodule ElektrineSocialWeb.ListLive.Show do
         :error
 
       user ->
-        case Social.add_to_list(socket.assigns.list.id, %{user_id: user.id}) do
+        case Elektrine.Social.Lists.add_to_list(
+               socket.assigns.current_user.id,
+               socket.assigns.list.id,
+               %{user_id: user.id}
+             ) do
           {:ok, _} -> :ok
           {:error, _reason} -> :error
         end

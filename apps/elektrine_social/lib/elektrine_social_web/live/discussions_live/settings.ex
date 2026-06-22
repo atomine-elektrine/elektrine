@@ -94,7 +94,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Settings do
       community_id = socket.assigns.community.id
       user_id = String.to_integer(user_id)
 
-      case Messaging.promote_to_moderator(community_id, user_id) do
+      case Messaging.promote_to_moderator(community_id, user_id, socket.assigns.current_user.id) do
         {:ok, _member} ->
           members = Messaging.get_conversation_members(community_id)
 
@@ -126,7 +126,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Settings do
       community_id = socket.assigns.community.id
       user_id = String.to_integer(user_id)
 
-      case Messaging.demote_from_moderator(community_id, user_id) do
+      case Messaging.demote_from_moderator(community_id, user_id, socket.assigns.current_user.id) do
         {:ok, _member} ->
           members = Messaging.get_conversation_members(community_id)
 

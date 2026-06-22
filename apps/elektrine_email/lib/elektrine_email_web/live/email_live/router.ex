@@ -36,6 +36,9 @@ defmodule ElektrineEmailWeb.EmailLive.Router do
       "search" ->
         SearchOperations.handle_event(event_name, params, socket)
 
+      "clear_search" ->
+        SearchOperations.handle_event(event_name, params, socket)
+
       # Selection operations
       "toggle_message_selection" ->
         SelectionOperations.handle_event(event_name, params, socket)
@@ -115,6 +118,9 @@ defmodule ElektrineEmailWeb.EmailLive.Router do
         ComposeOperations.handle_event(event_name, params, socket)
 
       "mark_spam" ->
+        ComposeOperations.handle_event(event_name, params, socket)
+
+      "delete_message" ->
         ComposeOperations.handle_event(event_name, params, socket)
 
       "navigate_to_compose" ->

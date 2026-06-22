@@ -591,7 +591,6 @@ defmodule Elektrine.Messaging.ReferencePeerSessionServer do
     else
       :more -> :more
       false -> {:error, :invalid_session_frame}
-      {:error, reason} -> {:error, reason}
     end
   end
 

@@ -922,7 +922,6 @@ defmodule Elektrine.Email.Sender do
   end
 
   # Parse email list from string or list
-  defp parse_email_list(nil), do: []
   defp parse_email_list(""), do: []
 
   defp parse_email_list(emails) when is_binary(emails) do
@@ -1386,7 +1385,10 @@ defmodule Elektrine.Email.Sender do
     Map.get(response, :message_id) || Map.get(response, "message_id")
   end
 
-  defp provider_response_message_id(response), do: Map.get(response, :message_id)
+  # Fallback for non-map, non-nil provider responses: nothing to extract.
+  # (Previously called Map.get/2 on a value the type system proves is not a map,
+  # which would raise BadMapError if ever reached.)
+  defp provider_response_message_id(_response), do: nil
 
   defp enqueue_external_delivery(
          user_id,

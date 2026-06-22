@@ -537,16 +537,11 @@ defmodule Elektrine.Messaging.Federation.Utils do
   end
 
   defp base_url_for_domain(domain) when is_binary(domain) do
-    case URI.parse(local_base_url()) do
-      %URI{} = uri ->
-        uri
-        |> Map.put(:host, domain)
-        |> URI.to_string()
-        |> String.trim_trailing("/")
-
-      _ ->
-        "https://#{domain}"
-    end
+    local_base_url()
+    |> URI.parse()
+    |> Map.put(:host, domain)
+    |> URI.to_string()
+    |> String.trim_trailing("/")
   end
 
   def infer_remote_server_id_from_federation_id(federation_id) when is_binary(federation_id) do

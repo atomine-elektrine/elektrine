@@ -55,6 +55,9 @@ defmodule ArblargWeb.ChatLive.Operations.MemberOperations do
       {:error, :privacy_restricted} ->
         {:noreply, notify_error(socket, "This user's privacy settings prevent this action")}
 
+      {:error, :unauthorized} ->
+        {:noreply, notify_error(socket, "You don't have permission to add members")}
+
       {:error, _} ->
         {:noreply, notify_error(socket, "Failed to add member")}
     end
@@ -72,9 +75,18 @@ defmodule ArblargWeb.ChatLive.Operations.MemberOperations do
     conversation = socket.assigns.conversation.selected
     user_id = String.to_integer(user_id)
 
-    case Messaging.remove_member_from_conversation(conversation.id, user_id) do
+    # Route through the facade /3 so the actor (current user) is passed for the
+    # authorization check and type-routing stays consistent.
+    case Messaging.remove_member_from_conversation(
+           conversation.id,
+           user_id,
+           socket.assigns.current_user.id
+         ) do
       {:ok, _} ->
         {:noreply, notify_info(socket, "Member removed")}
+
+      {:error, :unauthorized} ->
+        {:noreply, notify_error(socket, "You don't have permission to remove members")}
 
       {:error, _} ->
         {:noreply, notify_error(socket, "Failed to remove member")}
@@ -94,6 +106,12 @@ defmodule ArblargWeb.ChatLive.Operations.MemberOperations do
       {:ok, _} ->
         {:noreply, notify_info(socket, "Member promoted to admin")}
 
+      {:error, :unauthorized} ->
+        {:noreply, notify_error(socket, "You don't have permission to promote members")}
+
+      {:error, :cannot_modify_creator} ->
+        {:noreply, notify_error(socket, "The conversation owner's role can't be changed")}
+
       {:error, _} ->
         {:noreply, notify_error(socket, "Failed to promote member")}
     end
@@ -111,6 +129,12 @@ defmodule ArblargWeb.ChatLive.Operations.MemberOperations do
          ) do
       {:ok, _} ->
         {:noreply, notify_info(socket, "Member demoted")}
+
+      {:error, :unauthorized} ->
+        {:noreply, notify_error(socket, "You don't have permission to demote members")}
+
+      {:error, :cannot_modify_creator} ->
+        {:noreply, notify_error(socket, "The conversation owner's role can't be changed")}
 
       {:error, _} ->
         {:noreply, notify_error(socket, "Failed to demote member")}
@@ -130,6 +154,9 @@ defmodule ArblargWeb.ChatLive.Operations.MemberOperations do
          ) do
       {:ok, _} ->
         {:noreply, notify_info(socket, "User timed out")}
+
+      {:error, :unauthorized} ->
+        {:noreply, notify_error(socket, "You don't have permission to timeout users")}
 
       {:error, _} ->
         {:noreply, notify_error(socket, "Failed to timeout user")}

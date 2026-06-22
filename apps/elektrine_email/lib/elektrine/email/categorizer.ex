@@ -603,10 +603,10 @@ defmodule Elektrine.Email.Categorizer do
         bulk.matched && !receipt.matched ->
           {"feed", :bulk_non_receipt, bulk}
 
-        receipt.matched && !newsletter.matched ->
+        receipt.matched ->
           {"ledger", :receipt, receipt}
 
-        notification.matched && !bulk.matched && !newsletter.matched ->
+        notification.matched && !bulk.matched ->
           {"inbox", :notification, notification}
 
         notification.matched && bulk.matched ->
@@ -782,8 +782,6 @@ defmodule Elektrine.Email.Categorizer do
   defp format_confidence(confidence) when is_number(confidence) do
     :erlang.float_to_binary(confidence, decimals: 3)
   end
-
-  defp format_confidence(_), do: "0.000"
 
   defp match_learned_preference(user_id, from) when is_integer(user_id) and is_binary(from) do
     Elektrine.Email.CategoryPreferences.match_category(user_id, from)

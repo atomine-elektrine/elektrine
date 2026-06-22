@@ -47,9 +47,6 @@ defmodule Mix.Tasks.Activitypub.MigrateDomain do
 
       {:error, :same_domain} ->
         Mix.raise("Source and target domains must be different.")
-
-      {:error, reason} ->
-        Mix.raise("Domain migration failed: #{inspect(reason)}")
     end
   end
 

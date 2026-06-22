@@ -460,32 +460,11 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
      |> assign(:modal_is_liked, false)}
   end
 
-  def handle_event("next_image", _params, socket) do
-    total = length(socket.assigns.modal_images)
-
-    if total > 0 do
-      new_index = rem(socket.assigns.modal_image_index + 1, total)
-      new_url = Enum.at(socket.assigns.modal_images, new_index)
-
-      {:noreply,
-       socket |> assign(:modal_image_index, new_index) |> assign(:modal_image_url, new_url)}
-    else
-      {:noreply, socket}
-    end
-  end
-
-  def handle_event("prev_image", _params, socket) do
-    total = length(socket.assigns.modal_images)
-
-    if total > 0 do
-      new_index = rem(socket.assigns.modal_image_index - 1 + total, total)
-      new_url = Enum.at(socket.assigns.modal_images, new_index)
-
-      {:noreply,
-       socket |> assign(:modal_image_index, new_index) |> assign(:modal_image_url, new_url)}
-    else
-      {:noreply, socket}
-    end
+  # next_image / prev_image only touch the canonical modal-state assigns, so delegate
+  # to the shared image-modal handlers. close_image_modal stays local because it also
+  # resets the gallery-specific :modal_is_liked assign.
+  def handle_event(event, params, socket) when event in ["next_image", "prev_image"] do
+    ElektrineSocialWeb.TimelineLive.Operations.ImageOperations.handle_event(event, params, socket)
   end
 
   def handle_event("next_media_post", _params, socket) do
@@ -1621,8 +1600,6 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
       Map.get(post, :sensitive) == true ||
       Map.get(post, "sensitive") == true
   end
-
-  defp gallery_sensitive?(_), do: false
 
   defp gallery_image_url?(url) when is_binary(url),
     do: String.match?(url, ~r/\.(jpg|jpeg|png|gif|webp|avif|svg|bmp)(\?.*)?$/i)

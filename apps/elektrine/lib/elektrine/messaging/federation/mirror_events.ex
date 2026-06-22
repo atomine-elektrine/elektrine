@@ -946,8 +946,6 @@ defmodule Elektrine.Messaging.Federation.MirrorEvents do
     end
   end
 
-  defp remove_local_banned_member(_mirror_channel, _local_user), do: :ok
-
   defp upsert_local_ban_projection(
          %ChatConversation{} = mirror_channel,
          %User{} = local_user,
@@ -1064,10 +1062,6 @@ defmodule Elektrine.Messaging.Federation.MirrorEvents do
 
   defp maybe_broadcast_optional_membership_state(_conversation_id, nil, _context), do: :ok
 
-  defp maybe_broadcast_optional_membership_state(conversation_id, membership_state, context) do
-    call(context, :maybe_broadcast_membership_state, [conversation_id, membership_state])
-  end
-
   defp ensure_local_mirror_server_membership(%ChatConversation{server_id: server_id}, user_id)
        when is_integer(server_id) and is_integer(user_id) do
     case Repo.get_by(ServerMember, server_id: server_id, user_id: user_id) do
@@ -1116,8 +1110,6 @@ defmodule Elektrine.Messaging.Federation.MirrorEvents do
 
     :ok
   end
-
-  defp refresh_local_server_member_count(_server_id), do: :ok
 
   defp resolve_local_user_from_actor_payload(actor_payload) when is_map(actor_payload) do
     uri = actor_uri(actor_payload)

@@ -806,7 +806,7 @@ defmodule Elektrine.Email.PGP do
 
       case parse_new_packet_length(rest) do
         {:ok, length, packet_rest} ->
-          <<packet_content::binary-size(length), remaining::binary>> = packet_rest
+          <<packet_content::binary-size(^length), remaining::binary>> = packet_rest
 
           if tag == 6 do
             {:ok, packet_content}
@@ -823,7 +823,7 @@ defmodule Elektrine.Email.PGP do
 
       case parse_old_packet_length(rest, length_type) do
         {:ok, length, packet_rest} ->
-          <<packet_content::binary-size(length), remaining::binary>> = packet_rest
+          <<packet_content::binary-size(^length), remaining::binary>> = packet_rest
 
           if tag == 6 do
             {:ok, packet_content}

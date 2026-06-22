@@ -1056,10 +1056,6 @@ defmodule Elektrine.SMTP.Server do
     :quit
   end
 
-  defp command_outcome(_) do
-    :error
-  end
-
   defp maybe_alert_slow_command(command_name, duration_us, ip) do
     if duration_us >= @slow_command_threshold_us do
       duration_ms = Float.round(duration_us / 1000, 1)

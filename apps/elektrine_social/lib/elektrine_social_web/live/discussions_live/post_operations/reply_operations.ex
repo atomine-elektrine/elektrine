@@ -257,8 +257,6 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.ReplyOperations do
     )
   end
 
-  defp load_direct_replies([], _community_id), do: []
-
   defp load_direct_replies(parent_ids, community_id) do
     import Ecto.Query
 

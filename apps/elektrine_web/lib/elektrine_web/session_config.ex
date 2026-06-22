@@ -75,7 +75,7 @@ defmodule ElektrineWeb.SessionConfig do
 
   defp default_signing_salt do
     case RuntimeEnv.environment() do
-      :prod -> "chat_auth_signing_salt"
+      :prod -> RuntimeSecrets.session_signing_salt() || prod_fallback_salt("signing")
       :test -> "test_signing_salt"
       _ -> "dev_signing_salt"
     end
@@ -83,9 +83,30 @@ defmodule ElektrineWeb.SessionConfig do
 
   defp default_encryption_salt do
     case RuntimeEnv.environment() do
-      :prod -> RuntimeSecrets.session_encryption_salt()
+      :prod -> RuntimeSecrets.session_encryption_salt() || prod_fallback_salt("encryption")
       :test -> "test_encryption_salt"
       _ -> "dev_encryption_salt"
+    end
+  end
+
+  # Last-resort salt for a prod runtime that reached request handling without a
+  # dedicated session salt configured. A valid prod boot fails fast in
+  # config/runtime.exs (which raises when the salt is unset) BEFORE this is ever
+  # reached, so this only matters for degraded/artificial states. It derives a
+  # stable, secret, per-purpose salt from secret_key_base — never a publicly
+  # known constant (the old "chat_auth_signing_salt" footgun) and never nil
+  # (which would crash the cookie store on every request).
+  defp prod_fallback_salt(purpose) do
+    base =
+      Application.get_env(:elektrine, ElektrineWeb.Endpoint, [])[:secret_key_base] ||
+        RuntimeSecrets.secret_key_base()
+
+    case base do
+      b when is_binary(b) ->
+        Base.url_encode64(:crypto.hash(:sha256, b <> "/session_salt/" <> purpose), padding: false)
+
+      _ ->
+        nil
     end
   end
 end

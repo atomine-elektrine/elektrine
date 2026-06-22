@@ -6,7 +6,6 @@ defmodule Elektrine.ActivityPub.ObjectValidator do
   This helps prevent malformed or malicious activities from causing issues.
   """
 
-  require Logger
   alias Elektrine.Security.URLValidator
 
   @doc """
@@ -220,8 +219,6 @@ defmodule Elektrine.ActivityPub.ObjectValidator do
     end
   end
 
-  defp validate_object(_), do: {:error, "Invalid object"}
-
   # Content object validation (Note, Article, etc.)
   defp validate_content_object(object) do
     # Content objects should have some content
@@ -315,14 +312,14 @@ defmodule Elektrine.ActivityPub.ObjectValidator do
   Used to prevent actor spoofing.
   """
   def validate_actor_domain(actor_uri, expected_domain) when is_binary(actor_uri) do
-    case URI.parse(actor_uri) do
-      %URI{host: ^expected_domain} ->
+    case URI.parse(actor_uri).host do
+      ^expected_domain ->
         {:ok, actor_uri}
 
-      %URI{host: actual_domain} ->
+      actual_domain when is_binary(actual_domain) ->
         {:error, "Actor domain mismatch: expected #{expected_domain}, got #{actual_domain}"}
 
-      _ ->
+      nil ->
         {:error, "Invalid actor URI"}
     end
   end

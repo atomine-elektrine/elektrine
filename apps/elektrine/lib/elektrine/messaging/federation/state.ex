@@ -931,8 +931,6 @@ defmodule Elektrine.Messaging.Federation.State do
     "remote:#{actor.id}:#{actor.domain}"
   end
 
-  defp remote_actor_typing_key(_actor), do: "remote"
-
   defp normalize_positive_int(value) when is_integer(value) and value > 0, do: value
   defp normalize_positive_int(_value), do: nil
 

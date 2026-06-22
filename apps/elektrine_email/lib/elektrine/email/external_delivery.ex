@@ -561,7 +561,10 @@ defmodule Elektrine.Email.ExternalDelivery do
       Map.get(response, :provider_message_id) || Map.get(response, "provider_message_id")
   end
 
-  defp response_message_id(response), do: Map.get(response, :message_id)
+  # Fallback for non-map, non-nil responses: nothing to extract (avoids a
+  # BadMapError from calling Map.get/2 on a value the type system proves is not
+  # a map).
+  defp response_message_id(_response), do: nil
 
   defp response_code(response) when is_map(response) do
     Map.get(response, :response_code) || Map.get(response, "response_code") ||

@@ -652,8 +652,6 @@ defmodule Elektrine.Messaging.Servers do
     Map.get(data, key) || Map.get(data, Atom.to_string(key))
   end
 
-  defp value_from(_data, _key), do: nil
-
   defp normalize_optional_string(value) when is_binary(value),
     do: Elektrine.Strings.present(value)
 

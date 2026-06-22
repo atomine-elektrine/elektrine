@@ -40,9 +40,10 @@ defmodule ElektrineVPNWeb.VPNAPIController do
    Uses cache to reduce DB load.
   """
   def get_peers(conn, %{"server_id" => server_id}) do
-    server_id = String.to_integer(server_id)
-
-    json(conn, VPN.peer_sync_snapshot(server_id))
+    case parse_id(server_id) do
+      {:ok, server_id} -> json(conn, VPN.peer_sync_snapshot(server_id))
+      :error -> invalid_server_id(conn)
+    end
   end
 
   @doc """
@@ -52,20 +53,30 @@ defmodule ElektrineVPNWeb.VPNAPIController do
   """
   def update_stats(conn, %{"server_id" => server_id} = params) do
     require Logger
-    server_id = String.to_integer(server_id)
-    server = VPN.get_server!(server_id)
-    entries = normalize_stats_entries(server, params)
 
-    if stats_entries_provided?(params) do
-      Logger.debug("VPN Stats received for server #{server_id}: #{length(entries)} entries")
+    case parse_id(server_id) do
+      {:ok, server_id} ->
+        server = VPN.get_server!(server_id)
+        entries = normalize_stats_entries(server, params)
 
-      :ok = VPN.report_peer_stats(server_id, entries)
+        if stats_entries_provided?(params) do
+          Logger.debug("VPN Stats received for server #{server_id}: #{length(entries)} entries")
 
-      json(conn, %{status: "ok", updated: length(entries), protocol: VPN.server_protocol(server)})
-    else
-      conn
-      |> put_status(:bad_request)
-      |> json(%{error: "peers or clients are required"})
+          :ok = VPN.report_peer_stats(server_id, entries)
+
+          json(conn, %{
+            status: "ok",
+            updated: length(entries),
+            protocol: VPN.server_protocol(server)
+          })
+        else
+          conn
+          |> put_status(:bad_request)
+          |> json(%{error: "peers or clients are required"})
+        end
+
+      :error ->
+        invalid_server_id(conn)
     end
   end
 
@@ -78,11 +89,15 @@ defmodule ElektrineVPNWeb.VPNAPIController do
         "current_users" => current_users,
         "status" => status
       }) do
-    server_id = String.to_integer(server_id)
+    case parse_id(server_id) do
+      {:ok, server_id} ->
+        :ok = VPN.report_server_heartbeat(server_id, current_users, status)
 
-    :ok = VPN.report_server_heartbeat(server_id, current_users, status)
+        json(conn, %{status: "ok"})
 
-    json(conn, %{status: "ok"})
+      :error ->
+        invalid_server_id(conn)
+    end
   end
 
   @doc """
@@ -90,23 +105,28 @@ defmodule ElektrineVPNWeb.VPNAPIController do
    Useful for RAM-only WireGuard servers where keys may be ephemeral or regenerated.
   """
   def register_key(conn, %{"server_id" => server_id, "public_key" => public_key}) do
-    server_id = String.to_integer(server_id)
-    server = VPN.get_server!(server_id)
+    case parse_id(server_id) do
+      {:ok, server_id} ->
+        server = VPN.get_server!(server_id)
 
-    if VPN.server_protocol(server) == "shadowsocks" do
-      conn
-      |> put_status(:unprocessable_entity)
-      |> json(%{error: "Public key registration is only supported for WireGuard servers"})
-    else
-      case VPN.update_server(server, %{public_key: public_key}) do
-        {:ok, _updated_server} ->
-          json(conn, %{status: "ok", message: "Public key registered successfully"})
-
-        {:error, changeset} ->
+        if VPN.server_protocol(server) == "shadowsocks" do
           conn
-          |> put_status(400)
-          |> json(%{error: "Failed to register public key", details: changeset})
-      end
+          |> put_status(:unprocessable_entity)
+          |> json(%{error: "Public key registration is only supported for WireGuard servers"})
+        else
+          case VPN.update_server(server, %{public_key: public_key}) do
+            {:ok, _updated_server} ->
+              json(conn, %{status: "ok", message: "Public key registered successfully"})
+
+            {:error, changeset} ->
+              conn
+              |> put_status(400)
+              |> json(%{error: "Failed to register public key", details: changeset})
+          end
+        end
+
+      :error ->
+        invalid_server_id(conn)
     end
   end
 
@@ -119,8 +139,13 @@ defmodule ElektrineVPNWeb.VPNAPIController do
   end
 
   def check_peer(conn, %{"server_id" => server_id, "client_id" => client_id}) do
-    server_id = String.to_integer(server_id)
+    case parse_id(server_id) do
+      {:ok, server_id} -> do_check_peer(conn, server_id, client_id)
+      :error -> invalid_server_id(conn)
+    end
+  end
 
+  defp do_check_peer(conn, server_id, client_id) do
     # Find the user config
     user_config =
       from(uc in Elektrine.VPN.UserConfig,
@@ -267,8 +292,16 @@ defmodule ElektrineVPNWeb.VPNAPIController do
 
     public_key = params["public_key"] || params["client_id"]
 
-    server_id = String.to_integer(server_id)
+    case parse_id(server_id) do
+      :error ->
+        invalid_server_id(conn)
 
+      {:ok, server_id} ->
+        do_log_connection(conn, server_id, public_key, event, params)
+    end
+  end
+
+  defp do_log_connection(conn, server_id, public_key, event, params) do
     # Find user config
     user_config =
       from(uc in Elektrine.VPN.UserConfig,
@@ -323,24 +356,31 @@ defmodule ElektrineVPNWeb.VPNAPIController do
     server_id = conn.params["server_id"]
 
     if server_id && api_key do
-      server_id = String.to_integer(server_id)
-
-      case Elektrine.Repo.get(VPN.Server, server_id) do
-        nil ->
+      case parse_id(server_id) do
+        :error ->
           conn
-          |> put_status(404)
-          |> json(%{error: "VPN server not found"})
+          |> put_status(400)
+          |> json(%{error: "Invalid server_id"})
           |> halt()
 
-        server ->
-          if String.starts_with?(api_key, "Bearer ") and
-               VPN.valid_server_api_key?(server, String.trim_leading(api_key, "Bearer ")) do
-            conn
-          else
-            conn
-            |> put_status(401)
-            |> json(%{error: "Invalid API key"})
-            |> halt()
+        {:ok, server_id} ->
+          case Elektrine.Repo.get(VPN.Server, server_id) do
+            nil ->
+              conn
+              |> put_status(404)
+              |> json(%{error: "VPN server not found"})
+              |> halt()
+
+            server ->
+              if String.starts_with?(api_key, "Bearer ") and
+                   VPN.valid_server_api_key?(server, String.trim_leading(api_key, "Bearer ")) do
+                conn
+              else
+                conn
+                |> put_status(401)
+                |> json(%{error: "Invalid API key"})
+                |> halt()
+              end
           end
       end
     else
@@ -367,6 +407,24 @@ defmodule ElektrineVPNWeb.VPNAPIController do
       |> json(%{error: "Invalid or missing fleet registration key"})
       |> halt()
     end
+  end
+
+  # Safely parse a user-supplied id param. Rejects non-integer/garbage input so
+  # the controller can't crash with an ArgumentError from String.to_integer/1.
+  defp parse_id(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {int, ""} -> {:ok, int}
+      _ -> :error
+    end
+  end
+
+  defp parse_id(value) when is_integer(value), do: {:ok, value}
+  defp parse_id(_), do: :error
+
+  defp invalid_server_id(conn) do
+    conn
+    |> put_status(:bad_request)
+    |> json(%{error: "Invalid server_id"})
   end
 
   defp translate_errors(changeset) do

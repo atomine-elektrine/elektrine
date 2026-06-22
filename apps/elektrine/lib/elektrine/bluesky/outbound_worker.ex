@@ -134,7 +134,6 @@ defmodule Elektrine.Bluesky.OutboundWorker do
   defp dispatch(_action, _args), do: {:skipped, :unsupported_action}
 
   defp normalize_result(:ok, _action, _args), do: :ok
-  defp normalize_result({:ok, _value}, _action, _args), do: :ok
   defp normalize_result({:skipped, _reason}, _action, _args), do: :ok
 
   defp normalize_result({:error, reason}, action, _args) do
@@ -145,14 +144,6 @@ defmodule Elektrine.Bluesky.OutboundWorker do
       Logger.warning("Bluesky outbound action #{action} skipped after error: #{inspect(reason)}")
       :ok
     end
-  end
-
-  defp normalize_result(other, action, args) do
-    Logger.warning(
-      "Bluesky outbound action #{action} returned unexpected result #{inspect(other)} for #{inspect(args)}"
-    )
-
-    :ok
   end
 
   defp retryable_reason?({:http_error, _reason}), do: true

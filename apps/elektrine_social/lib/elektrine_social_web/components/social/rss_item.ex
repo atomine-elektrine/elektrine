@@ -197,8 +197,6 @@ defmodule ElektrineSocialWeb.Components.Social.RSSItem do
     |> HtmlSanitizeEx.strip_tags()
   end
 
-  defp sanitize_text(_), do: ""
-
   defp truncate_text(nil, _max), do: ""
 
   defp truncate_text(text, max) when is_binary(text) do

@@ -1267,22 +1267,20 @@
                       <% end %>
                     </section>
 
-                    <%= if !search_active? do %>
-                      <div class="py-4 h-24 flex items-center justify-center timeline-load-more-zone">
-                        <%= if @overview_no_more do %>
-                          <div class="text-sm text-base-content/60">No more overview cards</div>
-                        <% else %>
-                          <div class="text-center">
-                            <button phx-click="load_more_overview" class="btn btn-ghost">
-                              Load More
-                            </button>
-                          </div>
-                        <% end %>
-                      </div>
+                    <div class="py-4 h-24 flex items-center justify-center timeline-load-more-zone">
+                      <%= if @overview_no_more do %>
+                        <div class="text-sm text-base-content/60">No more overview cards</div>
+                      <% else %>
+                        <div class="text-center">
+                          <button phx-click="load_more_overview" class="btn btn-ghost">
+                            Load More
+                          </button>
+                        </div>
+                      <% end %>
+                    </div>
 
-                      <div class="h-px w-full" data-infinite-scroll-sentinel aria-hidden="true">
-                      </div>
-                    <% end %>
+                    <div class="h-px w-full" data-infinite-scroll-sentinel aria-hidden="true">
+                    </div>
                   <% end %>
                 </div>
               <% "feed" -> %>
@@ -1406,6 +1404,8 @@
                               post_reactions_map={@post_reactions}
                               replies={Map.get(@post_replies, post.activitypub_id, [])}
                               reactions={Map.get(@post_reactions, post.id, [])}
+                              show_post_dropdown={false}
+                              show_admin_actions={false}
                             />
                           <% end %>
                         </div>

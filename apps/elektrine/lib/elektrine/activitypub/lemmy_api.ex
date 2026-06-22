@@ -204,8 +204,6 @@ defmodule Elektrine.ActivityPub.LemmyApi do
     end)
   end
 
-  defp fetch_comment_counts_from_post_comments(_), do: %{}
-
   @doc """
   Fetch top comments for a Lemmy post with content.
   Returns a list of comment maps with :author, :content, :score, :ap_id
@@ -676,8 +674,6 @@ defmodule Elektrine.ActivityPub.LemmyApi do
     end
   end
 
-  defp fetch_post_counts_from_html(_), do: nil
-
   defp parse_post_counts_from_html(body) when is_binary(body) do
     score = extract_named_capture_integer(body, ~r/class="score"[^>]*>(?<value>[^<]+)</)
 
@@ -717,8 +713,6 @@ defmodule Elektrine.ActivityPub.LemmyApi do
         nil
     end
   end
-
-  defp extract_named_capture_integer(_, _), do: nil
 
   defp safe_request(method, url, headers, body, opts) do
     case Keyword.get(opts, :request_fun) do

@@ -51,11 +51,6 @@ defmodule Elektrine.Email.Contacts do
   end
 
   @doc """
-  Gets a single contact.
-  """
-  def get_contact!(id), do: Repo.get!(Contact, id)
-
-  @doc """
   Gets a single contact by user_id and contact_id.
   Raises if not found or doesn't belong to user.
   """
@@ -77,7 +72,13 @@ defmodule Elektrine.Email.Contacts do
   Creates a contact.
   """
   def create_contact(attrs) do
-    %Contact{}
+    user_id = Map.get(attrs, :user_id) || Map.get(attrs, "user_id")
+
+    # Set user_id on the struct (not via the changeset, which no longer casts
+    # :user_id — see Contact.changeset, mass-assignment hardening). It must be
+    # present BEFORE Contact.changeset runs so its validate_required(:user_id)
+    # passes; a put_change after the changeset would run too late.
+    %Contact{user_id: user_id}
     |> Contact.changeset(attrs)
     |> Repo.insert()
   end

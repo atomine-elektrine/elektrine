@@ -577,8 +577,6 @@ defmodule Elektrine.Calendar.ICalendar do
     |> String.replace("\n", "\\n")
   end
 
-  defp escape_value(nil), do: ""
-
   defp fold_line(line) when byte_size(line) <= 75, do: line
 
   defp fold_line(line) do

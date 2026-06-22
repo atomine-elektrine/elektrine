@@ -57,16 +57,6 @@ defmodule Elektrine.DNS.Query do
             rcode: :formerr,
             authoritative: false
           }
-
-        _ ->
-          %{
-            response: Packet.encode_error(packet, :servfail),
-            zone: nil,
-            qname: nil,
-            qtype: nil,
-            rcode: :servfail,
-            authoritative: false
-          }
       end
 
     emit_query_telemetry(result)

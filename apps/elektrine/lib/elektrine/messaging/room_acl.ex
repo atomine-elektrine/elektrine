@@ -424,9 +424,6 @@ defmodule Elektrine.Messaging.RoomACL do
     )
   end
 
-  defp load_acl_state(_conversation_id),
-    do: %{role_definitions: %{}, role_assignments: [], permission_overwrites: []}
-
   defp assigned_role_ids(actor_uri, role_assignments)
        when is_binary(actor_uri) and is_list(role_assignments) do
     role_assignments
@@ -514,8 +511,6 @@ defmodule Elektrine.Messaging.RoomACL do
       _ -> nil
     end
   end
-
-  defp local_actor_uri(_user_id), do: nil
 
   defp owner_matches?(options, actor_uri) when is_map(options) and is_binary(actor_uri) do
     options[:owner_actor_uri] == actor_uri or

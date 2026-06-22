@@ -13,6 +13,8 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Router do
     VotingOperations
   }
 
+  alias ElektrineSocialWeb.TimelineLive.Operations.ImageOperations
+
   @doc """
   Routes an event to the appropriate operation module based on the event name.
   Returns {:noreply, socket} tuple.
@@ -281,13 +283,13 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Router do
         UiOperations.handle_event(event_name, params, socket)
 
       "close_image_modal" ->
-        UiOperations.handle_event(event_name, params, socket)
+        ImageOperations.handle_event(event_name, params, socket)
 
       "next_image" ->
-        UiOperations.handle_event(event_name, params, socket)
+        ImageOperations.handle_event(event_name, params, socket)
 
       "prev_image" ->
-        UiOperations.handle_event(event_name, params, socket)
+        ImageOperations.handle_event(event_name, params, socket)
 
       "next_media_post" ->
         UiOperations.handle_event(event_name, params, socket)

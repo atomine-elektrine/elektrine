@@ -225,16 +225,30 @@ defmodule ElektrineSocialWeb.API.SocialController do
   def unlike_post(conn, %{"id" => id}) do
     user = conn.assigns[:current_user]
 
-    case Social.unlike_post(user.id, parse_int(id, 0)) do
-      {:ok, _} ->
-        conn
-        |> put_status(:ok)
-        |> json(%{message: "Post unliked"})
+    case Messages.get_timeline_post(parse_int(id, 0)) do
+      post when not is_nil(post) ->
+        if can_view_post?(post, user.id) do
+          case Social.unlike_post(user.id, post.id) do
+            {:ok, _} ->
+              conn
+              |> put_status(:ok)
+              |> json(%{message: "Post unliked"})
 
-      {:error, reason} ->
+            {:error, reason} ->
+              conn
+              |> put_status(:unprocessable_entity)
+              |> json(%{error: "Failed to unlike post: #{inspect(reason)}"})
+          end
+        else
+          conn
+          |> put_status(:not_found)
+          |> json(%{error: "Post not found"})
+        end
+
+      _ ->
         conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{error: "Failed to unlike post: #{inspect(reason)}"})
+        |> put_status(:not_found)
+        |> json(%{error: "Post not found"})
     end
   end
 
@@ -373,16 +387,30 @@ defmodule ElektrineSocialWeb.API.SocialController do
     user = conn.assigns[:current_user]
 
     # Comments use the same like system as posts
-    case Social.like_post(user.id, parse_int(id, 0)) do
-      {:ok, _} ->
-        conn
-        |> put_status(:ok)
-        |> json(%{message: "Comment liked"})
+    case Messages.get_timeline_post(parse_int(id, 0)) do
+      post when not is_nil(post) ->
+        if can_view_post?(post, user.id) do
+          case Social.like_post(user.id, post.id) do
+            {:ok, _} ->
+              conn
+              |> put_status(:ok)
+              |> json(%{message: "Comment liked"})
 
-      {:error, reason} ->
+            {:error, reason} ->
+              conn
+              |> put_status(:unprocessable_entity)
+              |> json(%{error: "Failed to like comment: #{inspect(reason)}"})
+          end
+        else
+          conn
+          |> put_status(:not_found)
+          |> json(%{error: "Comment not found"})
+        end
+
+      _ ->
         conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{error: "Failed to like comment: #{inspect(reason)}"})
+        |> put_status(:not_found)
+        |> json(%{error: "Comment not found"})
     end
   end
 
@@ -394,16 +422,30 @@ defmodule ElektrineSocialWeb.API.SocialController do
     user = conn.assigns[:current_user]
 
     # Comments use the same like system as posts
-    case Social.unlike_post(user.id, parse_int(id, 0)) do
-      {:ok, _} ->
-        conn
-        |> put_status(:ok)
-        |> json(%{message: "Comment unliked"})
+    case Messages.get_timeline_post(parse_int(id, 0)) do
+      post when not is_nil(post) ->
+        if can_view_post?(post, user.id) do
+          case Social.unlike_post(user.id, post.id) do
+            {:ok, _} ->
+              conn
+              |> put_status(:ok)
+              |> json(%{message: "Comment unliked"})
 
-      {:error, reason} ->
+            {:error, reason} ->
+              conn
+              |> put_status(:unprocessable_entity)
+              |> json(%{error: "Failed to unlike comment: #{inspect(reason)}"})
+          end
+        else
+          conn
+          |> put_status(:not_found)
+          |> json(%{error: "Comment not found"})
+        end
+
+      _ ->
         conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{error: "Failed to unlike comment: #{inspect(reason)}"})
+        |> put_status(:not_found)
+        |> json(%{error: "Comment not found"})
     end
   end
 

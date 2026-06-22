@@ -275,46 +275,11 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
     end
   end
 
-  def handle_event("close_image_modal", _params, socket) do
-    {:noreply,
-     socket
-     |> assign(:show_image_modal, false)
-     |> assign(:modal_image_url, nil)
-     |> assign(:modal_images, [])
-     |> assign(:modal_image_index, 0)
-     |> assign(:modal_post, nil)}
-  end
-
-  def handle_event("next_image", _params, socket) do
-    total = length(socket.assigns.modal_images)
-
-    if total > 0 do
-      new_index = rem(socket.assigns.modal_image_index + 1, total)
-      new_url = Enum.at(socket.assigns.modal_images, new_index)
-
-      {:noreply,
-       socket
-       |> assign(:modal_image_index, new_index)
-       |> assign(:modal_image_url, new_url)}
-    else
-      {:noreply, socket}
-    end
-  end
-
-  def handle_event("prev_image", _params, socket) do
-    total = length(socket.assigns.modal_images)
-
-    if total > 0 do
-      new_index = rem(socket.assigns.modal_image_index - 1 + total, total)
-      new_url = Enum.at(socket.assigns.modal_images, new_index)
-
-      {:noreply,
-       socket
-       |> assign(:modal_image_index, new_index)
-       |> assign(:modal_image_url, new_url)}
-    else
-      {:noreply, socket}
-    end
+  # close_image_modal / next_image / prev_image only touch the canonical modal-state
+  # assigns, so delegate to the shared image-modal handlers.
+  def handle_event(event, params, socket)
+      when event in ["close_image_modal", "next_image", "prev_image"] do
+    ElektrineSocialWeb.TimelineLive.Operations.ImageOperations.handle_event(event, params, socket)
   end
 
   def handle_event("filter_by_category", %{"category" => category}, socket) do

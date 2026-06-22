@@ -39,9 +39,6 @@ defmodule ElektrineWeb.Admin.SecurityController do
     else
       false ->
         json_error(conn, :unprocessable_entity, "Admin passkey is required before elevation.")
-
-      {:error, _reason} ->
-        json_error(conn, :unprocessable_entity, "Unable to start passkey challenge.")
     end
   end
 
@@ -110,9 +107,6 @@ defmodule ElektrineWeb.Admin.SecurityController do
           :unprocessable_entity,
           "Admin passkey is required before action signing."
         )
-
-      {:error, _reason} ->
-        json_error(conn, :unprocessable_entity, "Unable to start passkey challenge.")
     end
   end
 

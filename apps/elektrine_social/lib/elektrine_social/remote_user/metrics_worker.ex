@@ -22,7 +22,6 @@ defmodule ElektrineSocial.RemoteUser.MetricsWorker do
     case Metrics.refresh_counts(actor_id) do
       {:ok, _} -> :ok
       {:error, :actor_not_found} -> {:discard, :actor_not_found}
-      {:error, reason} -> {:error, reason}
     end
   end
 

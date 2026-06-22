@@ -13,9 +13,9 @@ defmodule Elektrine.Messaging.ChatConversations do
   alias Elektrine.Messaging.Federation
   alias Elektrine.Messaging.Federation.DirectMessageState
   alias Elektrine.Messaging.Federation.State, as: FederationState
-  alias Elektrine.Messaging.Federation.Utils, as: FederationUtils
   alias Elektrine.Messaging.FederationInviteState
   alias Elektrine.Messaging.FederationMembershipState
+  alias Elektrine.Messaging.Membership
   alias Elektrine.Messaging.RateLimiter
   alias Elektrine.Profiles
   alias Elektrine.Repo
@@ -387,91 +387,41 @@ defmodule Elektrine.Messaging.ChatConversations do
         role \\ "member",
         added_by_user_id \\ nil
       ) do
-    if added_by_user_id do
-      case Elektrine.Privacy.can_add_to_group?(added_by_user_id, user_id) do
-        {:error, reason} ->
-          {:error, reason}
-
-        {:ok, :allowed} ->
-          do_add_member_to_conversation(conversation_id, user_id, role, added_by_user_id, true)
-      end
-    else
-      do_add_member_to_conversation(conversation_id, user_id, role, nil, true)
-    end
+    Membership.add_member(
+      ChatConversationMember,
+      ChatConversation,
+      conversation_id,
+      user_id,
+      role,
+      added_by_user_id
+    )
   end
 
   def add_member_to_conversation_without_federation(conversation_id, user_id, role \\ "member") do
-    do_add_member_to_conversation(conversation_id, user_id, role, nil, false)
-  end
-
-  def remove_member_from_conversation(conversation_id, user_id) do
-    member =
-      from(cm in ChatConversationMember,
-        where: cm.conversation_id == ^conversation_id and cm.user_id == ^user_id
-      )
-      |> Repo.one()
-
-    case member do
-      nil ->
-        {:error, :not_found}
-
-      member ->
-        member
-        |> ChatConversationMember.remove_member_changeset()
-        |> Repo.update()
-        |> case do
-          {:ok, updated_member} ->
-            update_member_count(conversation_id)
-
-            _ =
-              Federation.publish_membership_state(
-                conversation_id,
-                user_id,
-                membership_state_for_departure(updated_member),
-                updated_member.role || "member"
-              )
-
-            Phoenix.PubSub.broadcast(
-              Elektrine.PubSub,
-              "conversation:#{conversation_id}",
-              {:member_left, %{user_id: user_id, conversation_id: conversation_id}}
-            )
-
-            {:ok, updated_member}
-
-          error ->
-            error
-        end
-    end
-  end
-
-  def get_conversation_member(conversation_id, user_id) do
-    from(cm in ChatConversationMember,
-      where:
-        cm.conversation_id == ^conversation_id and cm.user_id == ^user_id and is_nil(cm.left_at)
+    Membership.add_member_without_federation(
+      ChatConversationMember,
+      ChatConversation,
+      conversation_id,
+      user_id,
+      role
     )
-    |> Repo.one()
   end
 
-  def get_conversation_members(conversation_id) do
-    from(cm in ChatConversationMember,
-      join: u in User,
-      on: u.id == cm.user_id,
-      where: cm.conversation_id == ^conversation_id and is_nil(cm.left_at),
-      select: %{
-        user_id: u.id,
-        username: u.username,
-        handle: u.handle,
-        display_name: u.display_name,
-        avatar: u.avatar,
-        verified: u.verified,
-        joined_at: cm.joined_at,
-        role: cm.role
-      },
-      order_by: [desc: cm.role, asc: cm.joined_at]
+  def remove_member_from_conversation(conversation_id, user_id, actor_user_id \\ nil) do
+    Membership.remove_member(
+      ChatConversationMember,
+      ChatConversation,
+      conversation_id,
+      user_id,
+      actor_user_id
     )
-    |> Repo.all()
   end
+
+  def get_conversation_member(conversation_id, user_id),
+    do: Membership.get_member(ChatConversationMember, conversation_id, user_id)
+
+  def get_conversation_members(conversation_id),
+    do: Membership.get_members(ChatConversationMember, conversation_id)
 
   def list_pending_remote_join_requests(conversation_id) when is_integer(conversation_id) do
     case remote_join_review_conversation(conversation_id) do
@@ -512,101 +462,42 @@ defmodule Elektrine.Messaging.ChatConversations do
   def decline_remote_join_request(_, _, _), do: {:error, :not_found}
 
   def promote_to_admin(conversation_id, user_id, promoter_id) do
-    with {:ok, _conversation} <- get_conversation_basic(conversation_id),
-         true <- admin?(conversation_id, promoter_id) do
-      member =
-        from(cm in ChatConversationMember,
-          where:
-            cm.conversation_id == ^conversation_id and cm.user_id == ^user_id and
-              is_nil(cm.left_at)
-        )
-        |> Repo.one()
-
-      case member do
-        nil ->
-          {:error, :not_found}
-
-        member ->
-          member
-          |> ChatConversationMember.changeset(%{role: "admin"})
-          |> Repo.update()
-          |> case do
-            {:ok, updated_member} ->
-              _ = Federation.publish_membership_state(conversation_id, user_id, "active", "admin")
-              maybe_publish_role_assignment(conversation_id, user_id, "admin", promoter_id)
-              {:ok, updated_member}
-
-            error ->
-              error
-          end
-      end
-    else
-      false -> {:error, :unauthorized}
-      error -> error
-    end
+    Membership.promote_to_admin(
+      ChatConversationMember,
+      ChatConversation,
+      conversation_id,
+      user_id,
+      promoter_id,
+      &admin?/2,
+      &builtin_room_role_definition/1
+    )
   end
 
   def demote_from_admin(conversation_id, user_id, demoter_id) do
-    with {:ok, conversation} <- get_conversation_basic(conversation_id),
-         true <- admin?(conversation_id, demoter_id),
-         false <- conversation.creator_id == user_id do
-      member =
-        from(cm in ChatConversationMember,
-          where:
-            cm.conversation_id == ^conversation_id and cm.user_id == ^user_id and
-              is_nil(cm.left_at)
-        )
-        |> Repo.one()
-
-      case member do
-        nil ->
-          {:error, :not_found}
-
-        member ->
-          member
-          |> ChatConversationMember.changeset(%{role: "member"})
-          |> Repo.update()
-          |> case do
-            {:ok, updated_member} ->
-              _ =
-                Federation.publish_membership_state(conversation_id, user_id, "active", "member")
-
-              maybe_publish_role_assignment(conversation_id, user_id, "member", demoter_id)
-              {:ok, updated_member}
-
-            error ->
-              error
-          end
-      end
-    else
-      true -> {:error, :cannot_demote_creator}
-      false -> {:error, :unauthorized}
-      error -> error
-    end
+    Membership.demote_from_admin(
+      ChatConversationMember,
+      ChatConversation,
+      conversation_id,
+      user_id,
+      demoter_id,
+      &admin?/2,
+      &builtin_room_role_definition/1
+    )
   end
 
   def update_member_role(conversation_id, user_id, new_role),
     do: update_member_role(conversation_id, user_id, new_role, nil)
 
   def update_member_role(conversation_id, user_id, new_role, actor_user_id) do
-    case get_conversation_member(conversation_id, user_id) do
-      nil ->
-        {:error, :member_not_found}
-
-      member ->
-        member
-        |> ChatConversationMember.changeset(%{role: new_role})
-        |> Repo.update()
-        |> case do
-          {:ok, updated_member} ->
-            _ = Federation.publish_membership_state(conversation_id, user_id, "active", new_role)
-            maybe_publish_role_assignment(conversation_id, user_id, new_role, actor_user_id)
-            {:ok, updated_member}
-
-          error ->
-            error
-        end
-    end
+    Membership.update_member_role(
+      ChatConversationMember,
+      ChatConversation,
+      conversation_id,
+      user_id,
+      new_role,
+      actor_user_id,
+      &builtin_room_role_definition/1
+    )
   end
 
   def join_conversation(conversation_id, user_id) do
@@ -644,59 +535,58 @@ defmodule Elektrine.Messaging.ChatConversations do
                 {:error, :already_member}
 
               %ChatConversationMember{} = member ->
-                result =
-                  member
-                  |> ChatConversationMember.changeset(%{
-                    left_at: nil,
-                    joined_at: DateTime.utc_now()
-                  })
-                  |> Repo.update()
+                case member
+                     |> ChatConversationMember.changeset(%{
+                       left_at: nil,
+                       joined_at: DateTime.utc_now()
+                     })
+                     |> Repo.update() do
+                  {:ok, updated_member} = result ->
+                    update_member_count(conversation_id)
 
-                update_member_count(conversation_id)
+                    # Re-announce the rejoining member to federated followers.
+                    # The fresh-join branch and join_channel/2 both publish via
+                    # add_member_to_conversation; this reactivation path must do
+                    # the same or remote mirrors silently miss the rejoin.
+                    _ =
+                      Federation.publish_membership_state(
+                        conversation_id,
+                        user_id,
+                        "active",
+                        updated_member.role || "member"
+                      )
 
-                Phoenix.PubSub.broadcast(
-                  Elektrine.PubSub,
-                  "conversation:#{conversation_id}",
-                  {:member_joined, user_id}
-                )
+                    Phoenix.PubSub.broadcast(
+                      Elektrine.PubSub,
+                      "conversation:#{conversation_id}",
+                      {:member_joined, user_id}
+                    )
 
-                result
+                    result
+
+                  error ->
+                    error
+                end
             end
         end
     end
   end
 
   def join_channel(channel_id, user_id) do
-    with {:ok, conversation} <- get_conversation_basic(channel_id),
-         true <- conversation.type == "channel",
-         true <- conversation.is_public,
-         nil <-
-           from(cm in ChatConversationMember,
-             where:
-               cm.conversation_id == ^channel_id and cm.user_id == ^user_id and is_nil(cm.left_at)
-           )
-           |> Repo.one() do
-      add_member_to_conversation(channel_id, user_id, "readonly")
-    else
-      false -> {:error, :not_public_channel}
-      %ChatConversationMember{} -> {:error, :already_member}
-      error -> error
-    end
+    Membership.join_channel(
+      ChatConversationMember,
+      ChatConversation,
+      channel_id,
+      user_id,
+      &add_member_to_conversation(&1, &2, &3)
+    )
   end
 
-  def pin_conversation(conversation_id, user_id) do
-    case get_conversation_member(conversation_id, user_id) do
-      nil -> {:error, :unauthorized}
-      member -> member |> ChatConversationMember.changeset(%{pinned: true}) |> Repo.update()
-    end
-  end
+  def pin_conversation(conversation_id, user_id),
+    do: Membership.pin(ChatConversationMember, conversation_id, user_id)
 
-  def unpin_conversation(conversation_id, user_id) do
-    case get_conversation_member(conversation_id, user_id) do
-      nil -> {:error, :unauthorized}
-      member -> member |> ChatConversationMember.changeset(%{pinned: false}) |> Repo.update()
-    end
-  end
+  def unpin_conversation(conversation_id, user_id),
+    do: Membership.unpin(ChatConversationMember, conversation_id, user_id)
 
   def leave_conversation(conversation_id, user_id) do
     case get_conversation_member(conversation_id, user_id) do
@@ -746,7 +636,14 @@ defmodule Elektrine.Messaging.ChatConversations do
       )
       |> Repo.one()
 
-    match?(%ChatConversationMember{role: "admin"}, member)
+    # Owners are implicitly admins. (Note: the "owner" role is currently
+    # vestigial on the chat side — creators are stored as "admin" and creator
+    # protection keys off conversation.creator_id — but federated/imported
+    # members can carry it, so treat it as admin-or-higher here.)
+    case member do
+      %ChatConversationMember{role: role} when role in ["owner", "admin"] -> true
+      _ -> false
+    end
   end
 
   defp complete_leave(member, conversation_id, user_id) do
@@ -805,126 +702,6 @@ defmodule Elektrine.Messaging.ChatConversations do
     end
   end
 
-  defp do_add_member_to_conversation(
-         conversation_id,
-         user_id,
-         role,
-         added_by_user_id,
-         publish_federation?
-       ) do
-    if Elektrine.Messaging.Moderation.user_banned?(conversation_id, user_id) do
-      {:error, :banned}
-    else
-      existing_member =
-        Repo.get_by(ChatConversationMember, conversation_id: conversation_id, user_id: user_id)
-
-      case existing_member do
-        nil ->
-          ChatConversationMember.add_member_changeset(conversation_id, user_id, role)
-          |> Repo.insert()
-          |> case do
-            {:ok, member} ->
-              update_member_count(conversation_id)
-
-              maybe_publish_federation_membership(
-                publish_federation?,
-                conversation_id,
-                user_id,
-                added_by_user_id,
-                role
-              )
-
-              Phoenix.PubSub.broadcast(
-                Elektrine.PubSub,
-                "conversation:#{conversation_id}",
-                {:member_joined, %{user_id: user_id, conversation_id: conversation_id}}
-              )
-
-              Phoenix.PubSub.broadcast(
-                Elektrine.PubSub,
-                "user:#{user_id}",
-                {:added_to_conversation, %{conversation_id: conversation_id}}
-              )
-
-              {:ok, member}
-
-            error ->
-              error
-          end
-
-        member ->
-          member
-          |> ChatConversationMember.changeset(%{
-            left_at: nil,
-            joined_at: DateTime.utc_now(),
-            role: role
-          })
-          |> Repo.update()
-          |> case do
-            {:ok, updated_member} ->
-              update_member_count(conversation_id)
-
-              maybe_publish_federation_membership(
-                publish_federation?,
-                conversation_id,
-                user_id,
-                added_by_user_id,
-                role
-              )
-
-              Phoenix.PubSub.broadcast(
-                Elektrine.PubSub,
-                "conversation:#{conversation_id}",
-                {:member_joined, %{user_id: user_id, conversation_id: conversation_id}}
-              )
-
-              Phoenix.PubSub.broadcast(
-                Elektrine.PubSub,
-                "user:#{user_id}",
-                {:added_to_conversation, %{conversation_id: conversation_id}}
-              )
-
-              {:ok, updated_member}
-
-            error ->
-              error
-          end
-      end
-    end
-  end
-
-  defp maybe_publish_invite_acceptance(_conversation_id, _user_id, nil, _role), do: :ok
-
-  defp maybe_publish_invite_acceptance(conversation_id, user_id, added_by_user_id, role)
-       when is_integer(conversation_id) and is_integer(user_id) and is_integer(added_by_user_id) do
-    if user_id != added_by_user_id do
-      Federation.publish_invite_state(
-        conversation_id,
-        user_id,
-        added_by_user_id,
-        "accepted",
-        role,
-        %{"source" => "local_member_add"}
-      )
-    else
-      :ok
-    end
-  end
-
-  defp maybe_publish_federation_membership(true, conversation_id, user_id, added_by_user_id, role) do
-    maybe_publish_invite_acceptance(conversation_id, user_id, added_by_user_id, role)
-    _ = Federation.publish_membership_state(conversation_id, user_id, "active", role)
-    :ok
-  end
-
-  defp maybe_publish_federation_membership(false, _conversation_id, _user_id, _actor_id, _role),
-    do: :ok
-
-  defp membership_state_for_departure(%ChatConversationMember{role: role})
-       when role in ["owner", "admin"], do: "left"
-
-  defp membership_state_for_departure(_member), do: "left"
-
   defp remote_mirror_channel_join?(%ChatConversation{
          type: "channel",
          is_federated_mirror: true,
@@ -973,6 +750,12 @@ defmodule Elektrine.Messaging.ChatConversations do
        when decision in ["accepted", "declined"] do
     with {:ok, conversation} <- remote_join_review_conversation(conversation_id),
          %User{} <- Repo.get(User, reviewer_user_id),
+         # NOTE: authorization for remote-join review is enforced at the LiveView
+         # layer (can_manage_remote_join_requests?/2). It is NOT enforced here via
+         # channel membership, because these are SERVER channels whose authority
+         # is server-level (the owner has no per-channel ChatConversationMember
+         # row). A context-level check belongs against server role, not channel
+         # membership — see federation_test.exs "remote join moderation workflow".
          %FederationMembershipState{} = membership_state <-
            pending_remote_join_membership_state(conversation_id, remote_actor_id),
          %ActivityPubActor{} = remote_actor <- Repo.get(ActivityPubActor, remote_actor_id) do
@@ -1124,11 +907,7 @@ defmodule Elektrine.Messaging.ChatConversations do
   defp remote_join_display_label(display_name, _handle) when is_binary(display_name),
     do: display_name
 
-  defp remote_join_display_label(_display_name, handle) when is_binary(handle), do: handle
-  defp remote_join_display_label(_display_name, _handle), do: "remote user"
-
   defp normalize_remote_join_metadata(metadata) when is_map(metadata), do: metadata
-  defp normalize_remote_join_metadata(_metadata), do: %{}
 
   defp outbound_remote_join_decision_metadata(metadata) when is_map(metadata),
     do:
@@ -1148,8 +927,6 @@ defmodule Elektrine.Messaging.ChatConversations do
     }
     |> maybe_put_actor_avatar(actor.avatar_url)
   end
-
-  defp remote_join_actor_payload(_actor), do: %{}
 
   defp maybe_put_actor_avatar(payload, avatar_url) when is_binary(avatar_url) do
     if Elektrine.Strings.present?(avatar_url),
@@ -1214,53 +991,6 @@ defmodule Elektrine.Messaging.ChatConversations do
 
   defp local_actor_uri(%User{username: username}) when is_binary(username),
     do: "#{ActivityPub.instance_url()}/users/#{username}"
-
-  defp maybe_publish_role_assignment(_conversation_id, _user_id, _new_role, nil), do: :ok
-
-  defp maybe_publish_role_assignment(conversation_id, user_id, new_role, actor_user_id)
-       when is_integer(conversation_id) and is_integer(user_id) and is_binary(new_role) and
-              is_integer(actor_user_id) do
-    with %ChatConversation{type: "channel", server_id: server_id} <-
-           Repo.get(ChatConversation, conversation_id),
-         true <- is_integer(server_id),
-         %User{} = target_user <- Repo.get(User, user_id),
-         %User{} = actor_user <- Repo.get(User, actor_user_id),
-         %{} = role_definition <- builtin_room_role_definition(new_role) do
-      role_upsert_payload = %{"role" => role_definition}
-
-      role_assignment_payload = %{
-        "assignment" => %{
-          "role_id" => role_definition["id"],
-          "target" => %{
-            "type" => "member",
-            "id" => FederationUtils.sender_payload(target_user)["uri"]
-          },
-          "state" => "assigned"
-        }
-      }
-
-      _ =
-        Federation.publish_extension_event(
-          conversation_id,
-          actor_user.id,
-          "role.upsert",
-          role_upsert_payload
-        )
-
-      _ =
-        Federation.publish_extension_event(
-          conversation_id,
-          actor_user.id,
-          "role.assignment.upsert",
-          role_assignment_payload
-        )
-    end
-
-    :ok
-  end
-
-  defp maybe_publish_role_assignment(_conversation_id, _user_id, _new_role, _actor_user_id),
-    do: :ok
 
   defp builtin_room_role_definition("owner"),
     do: %{
@@ -1351,36 +1081,12 @@ defmodule Elektrine.Messaging.ChatConversations do
   defp builtin_room_role_definition(_role), do: nil
 
   defp update_member_count(conversation_id) do
-    count =
-      from(cm in ChatConversationMember,
-        where: cm.conversation_id == ^conversation_id and is_nil(cm.left_at),
-        select: count()
-      )
-      |> Repo.one()
-
-    conversation = Repo.get(ChatConversation, conversation_id)
-
-    if count == 0 && conversation && conversation.type in ["group", "channel"] do
-      from(m in ChatMessage, where: m.conversation_id == ^conversation_id) |> Repo.delete_all()
-
-      from(cm in ChatConversationMember, where: cm.conversation_id == ^conversation_id)
-      |> Repo.delete_all()
-
-      Repo.delete(conversation)
-
-      Phoenix.PubSub.broadcast(
-        Elektrine.PubSub,
-        "conversations:all",
-        {:conversation_deleted, conversation_id}
-      )
-
-      {:deleted, 0}
-    else
-      from(c in ChatConversation, where: c.id == ^conversation_id)
-      |> Repo.update_all(set: [member_count: count])
-
-      {:updated, count}
-    end
+    Membership.update_member_count(
+      ChatConversationMember,
+      ChatConversation,
+      conversation_id,
+      ChatMessage
+    )
   end
 
   defp normalize_remote_dm_handle(handle) when is_binary(handle) do

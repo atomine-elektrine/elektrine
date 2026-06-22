@@ -118,9 +118,6 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.MemberOperations do
              socket
              |> update_user_follow_status(target_user_id, false)
              |> put_flash(:info, "Unfollowed user.")}
-
-          _ ->
-            {:noreply, notify_error(socket, "Couldn't unfollow right now. Please try again.")}
         end
       else
         # Follow
@@ -175,7 +172,6 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.MemberOperations do
     case Profiles.unfollow_remote_actor(user_id, remote_actor_id) do
       {:ok, :unfollowed} -> {:ok, :unfollowed}
       {:error, :not_following} -> {:ok, :not_following}
-      error -> error
     end
   end
 

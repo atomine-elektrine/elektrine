@@ -230,8 +230,6 @@ defmodule Elektrine.Messaging.Federation.DirectMessageState do
     end
   end
 
-  defp client_encrypted_payload(_), do: nil
-
   def maybe_broadcast_remote_dm_message_created(
         _conversation,
         :duplicate,
@@ -426,8 +424,6 @@ defmodule Elektrine.Messaging.Federation.DirectMessageState do
     |> Enum.uniq()
   end
 
-  defp remote_dm_source_candidates(_remote_sender), do: []
-
   defp remote_dm_source_value(source) do
     cond do
       !String.starts_with?(source, @remote_dm_source_prefix) ->
@@ -511,8 +507,6 @@ defmodule Elektrine.Messaging.Federation.DirectMessageState do
         "New message"
     end
   end
-
-  defp remote_dm_message_preview(_message), do: "New message"
 
   defp remote_sender_metadata(remote_sender, sender_payload \\ nil)
 

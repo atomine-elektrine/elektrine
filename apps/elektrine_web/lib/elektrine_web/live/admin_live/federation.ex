@@ -478,8 +478,6 @@ defmodule ElektrineWeb.AdminLive.Federation do
     end
   end
 
-  defp approximate_table_count(_), do: 0
-
   defp get_domain_stats do
     from(a in ActivityPub.Actor,
       group_by: a.domain,

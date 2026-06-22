@@ -326,7 +326,7 @@
           <% sorted_posts =
             ElektrineSocialWeb.RemoteUserLive.Show.sort_posts(@local_posts, @sort_by)
 
-          remote_community_feed? = @remote_actor && @remote_actor.actor_type == "Group"
+          remote_community_feed? = @remote_actor.actor_type == "Group"
           local_likes = likes_by_local_id(@local_posts, @post_interactions)
           local_boosts = boosts_by_local_id(@local_posts, @post_interactions)
           local_saves = saves_by_local_id(@local_posts, @user_saves)
@@ -508,12 +508,12 @@
                 <% post_state =
                   interaction_state_for_remote_post(post, @post_interactions)
 
-                is_remote_community_feed = @remote_actor && @remote_actor.actor_type == "Group"
+                is_remote_community_feed = @remote_actor.actor_type == "Group"
                 current_vote = Map.get(post_state, :vote)
                 is_liked = Map.get(post_state, :liked, false)
                 like_delta = Map.get(post_state, :like_delta, 0)
                 is_downvoted = current_vote == "down"
-                like_count = (get_collection_total_items(post["likes"]) || 0) + like_delta
+                like_count = get_collection_total_items(post["likes"]) + like_delta
                 vote_score = get_post_score(post) + Map.get(post_state, :vote_delta, 0)
                 loaded_replies = Map.get(@post_replies, post["id"], [])
                 loaded_reply_count = length(loaded_replies)
@@ -1654,17 +1654,17 @@
 
                   like_count =
                     max(
-                      get_collection_total_items(post["likes"]) || 0,
-                      get_collection_total_items(post["likesCount"]) || 0
+                      get_collection_total_items(post["likes"]),
+                      get_collection_total_items(post["likesCount"])
                     ) + like_delta
 
                   boost_count =
                     max(
                       max(
-                        get_collection_total_items(post["shares"]) || 0,
-                        get_collection_total_items(post["sharesCount"]) || 0
+                        get_collection_total_items(post["shares"]),
+                        get_collection_total_items(post["sharesCount"])
                       ),
-                      get_collection_total_items(post["announcesCount"]) || 0
+                      get_collection_total_items(post["announcesCount"])
                     ) + boost_delta
 
                   loaded_replies = Map.get(@post_replies, post["id"], [])
@@ -1673,10 +1673,10 @@
                   remote_reply_count =
                     max(
                       max(
-                        get_collection_total_items(post["replies"]) || 0,
-                        get_collection_total_items(post["comments"]) || 0
+                        get_collection_total_items(post["replies"]),
+                        get_collection_total_items(post["comments"])
                       ),
-                      get_collection_total_items(post["repliesCount"]) || 0
+                      get_collection_total_items(post["repliesCount"])
                     )
 
                   display_reply_count = max(loaded_reply_count, remote_reply_count)
@@ -1684,10 +1684,10 @@
                   quote_count =
                     max(
                       max(
-                        get_collection_total_items(post["quoteCount"]) || 0,
-                        get_collection_total_items(post["quote_count"]) || 0
+                        get_collection_total_items(post["quoteCount"]),
+                        get_collection_total_items(post["quote_count"])
                       ),
-                      get_collection_total_items(get_in(post, ["pleroma", "quote_count"])) || 0
+                      get_collection_total_items(get_in(post, ["pleroma", "quote_count"]))
                     )
 
                   reaction_surface =

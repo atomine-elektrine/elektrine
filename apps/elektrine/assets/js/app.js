@@ -138,9 +138,6 @@ window.addEventListener("phx:page-loading-stop", () => {
 // Global Event Handlers
 // ============================================================================
 
-// Keyboard shortcuts modal
-window.addEventListener('phx:show-keyboard-shortcuts', showKeyboardShortcuts)
-
 // Scroll to top (used by new posts button)
 window.addEventListener("scroll-to-top", () => {
   window.scrollTo({ top: 0, behavior: "instant" })
