@@ -33,6 +33,7 @@ defmodule ElektrineUmbrella.MixProject do
           elektrine_social: :permanent,
           elektrine_vpn: :permanent,
           elektrine_nerve: :permanent,
+          elektrine_uptime: :permanent,
           maid: :permanent
         ]
       ],
