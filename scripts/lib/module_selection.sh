@@ -35,7 +35,7 @@ normalize_platform_modules() {
   if [[ -z "$trimmed" || "$trimmed" == "all" || "$trimmed" == "*" ]]; then
     NORMALIZED_MODULES="all"
     BUILD_SLUG="all"
-    NORMALIZED_MODULE_ARRAY=(chat social email nerve vpn dns atomine)
+    NORMALIZED_MODULE_ARRAY=(chat social email nerve vpn dns uptime atomine)
     return
   fi
 
@@ -69,7 +69,7 @@ normalize_platform_modules() {
     token="$(printf "%s" "$token" | tr "[:upper:]" "[:lower:]")"
 
     case "$token" in
-      chat|social|email|nerve|vpn|dns|atomine)
+      chat|social|email|nerve|vpn|dns|uptime|atomine)
         append_unique_module "$token"
         ;;
       proofs|personhood)
@@ -87,7 +87,7 @@ normalize_platform_modules() {
   done
 
   local candidate=""
-  for candidate in chat social email nerve vpn dns atomine; do
+  for candidate in chat social email nerve vpn dns uptime atomine; do
     for token in "${canonical_requested[@]:-}"; do
       if [[ "$token" == "$candidate" ]]; then
         normalized+=("$candidate")
@@ -104,7 +104,7 @@ normalize_platform_modules() {
   NORMALIZED_MODULE_ARRAY=("${normalized[@]}")
   NORMALIZED_MODULES="$(IFS=,; echo "${normalized[*]}")"
 
-  if [[ "$NORMALIZED_MODULES" == "chat,social,email,nerve,vpn,dns,atomine" ]]; then
+  if [[ "$NORMALIZED_MODULES" == "chat,social,email,nerve,vpn,dns,uptime,atomine" ]]; then
     BUILD_SLUG="all"
   else
     BUILD_SLUG="$(IFS=-; echo "${normalized[*]}")"

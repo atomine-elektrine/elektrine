@@ -1,5 +1,5 @@
 defmodule ElektrineReleaseBuilder.ModuleSelection do
-  @known_modules [:chat, :social, :email, :nerve, :vpn, :dns, :atomine]
+  @known_modules [:chat, :social, :email, :nerve, :vpn, :dns, :uptime, :atomine]
   @module_order @known_modules |> Enum.with_index() |> Map.new()
   @core_apps [:elektrine, :elektrine_web]
   @module_apps %{
@@ -9,6 +9,7 @@ defmodule ElektrineReleaseBuilder.ModuleSelection do
     nerve: :elektrine_nerve,
     vpn: :elektrine_vpn,
     dns: :elektrine_dns,
+    uptime: :elektrine_uptime,
     atomine: :atomine
   }
 
@@ -73,6 +74,7 @@ defmodule ElektrineReleaseBuilder.ModuleSelection do
       "nerve" -> :nerve
       "vpn" -> :vpn
       "dns" -> :dns
+      "uptime" -> :uptime
       "atomine" -> :atomine
       "proofs" -> :atomine
       "personhood" -> :atomine
