@@ -39,6 +39,22 @@ defmodule Elektrine.Profiles do
   defdelegate verification_value(custom_domain), to: Elektrine.Profiles.CustomDomains
   defdelegate dns_records_for_custom_domain(custom_domain), to: Elektrine.Profiles.CustomDomains
 
+  # Per-site portable identities
+  defdelegate list_user_per_site_identities(user_or_id),
+    to: Elektrine.Profiles.PerSiteIdentities
+
+  defdelegate get_per_site_identity(id, user_id), to: Elektrine.Profiles.PerSiteIdentities
+
+  defdelegate create_per_site_identity(user, attrs), to: Elektrine.Profiles.PerSiteIdentities
+
+  defdelegate update_per_site_identity(identity, attrs), to: Elektrine.Profiles.PerSiteIdentities
+
+  defdelegate delete_per_site_identity(identity), to: Elektrine.Profiles.PerSiteIdentities
+
+  defdelegate available_per_site_base_domains(user),
+    to: Elektrine.Profiles.PerSiteIdentities,
+    as: :available_base_domains
+
   @doc """
   Gets a user's profile page.
   """

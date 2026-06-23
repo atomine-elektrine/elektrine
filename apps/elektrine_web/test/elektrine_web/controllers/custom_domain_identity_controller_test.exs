@@ -62,6 +62,170 @@ defmodule ElektrineWeb.CustomDomainIdentityControllerTest do
     end
   end
 
+  describe "GET /.well-known/domain-account" do
+    test "publishes the portable identity document on a verified custom profile domain", %{
+      conn: conn
+    } do
+      user =
+        user_fixture(%{
+          username: "domainaccount",
+          handle: "domainaccount",
+          display_name: "Domain Account"
+        })
+
+      custom_domain = verified_profile_custom_domain_fixture(user, "portable.example")
+
+      assert {:ok, _identity} =
+               Profiles.create_per_site_identity(user, %{
+                 "site_key" => "hn",
+                 "base_domain" => custom_domain.domain
+               })
+
+      conn =
+        conn
+        |> Map.put(:host, custom_domain.domain)
+        |> put_req_header("accept", "application/json")
+        |> get("/.well-known/domain-account")
+
+      response = json_response(conn, 200)
+
+      assert response["version"] == 1
+      assert response["id"] == "https://portable.example/"
+      assert response["subject"] == "domain:portable.example"
+      assert response["domain"] == "portable.example"
+      assert response["portable"] == true
+      assert response["hosted_by"] == Elektrine.Domains.public_base_url()
+
+      assert response["auth"]["subject"] == "domain:portable.example"
+      assert response["auth"]["oidc_issuer"] == Elektrine.Domains.public_base_url()
+      assert response["auth"]["oidc_discovery"] =~ "/.well-known/openid-configuration"
+      assert response["auth"]["authorization_endpoint"] =~ "/oauth/authorize"
+      assert response["auth"]["authorization_endpoint"] =~ "identity_domain=portable.example"
+      assert response["auth"]["identity_domain"] == "portable.example"
+
+      assert response["federation"]["activitypub_actor"] ==
+               "https://portable.example/users/domainaccount"
+
+      assert response["federation"]["activitypub_webfinger"] ==
+               "acct:domainaccount@portable.example"
+
+      assert response["federation"]["arblarg"] ==
+               "https://portable.example/.well-known/_arblarg"
+
+      assert response["email"]["primary_address"] == "domainaccount@portable.example"
+
+      assert response["per_site_identities"]["subject_template"] ==
+               "domain:{site}.portable.example"
+
+      assert [
+               %{
+                 "site_key" => "hn",
+                 "domain" => "hn.portable.example",
+                 "subject" => "domain:hn.portable.example",
+                 "did" => "did:web:hn.portable.example",
+                 "email_alias" => "hn@portable.example",
+                 "enabled" => true
+               }
+             ] = response["per_site_identities"]["identities"]
+
+      assert response["recovery"]["export_available"] == true
+      assert response["recovery"]["portable_root"] == "dns"
+    end
+
+    test "also publishes the Elektrine-namespaced discovery alias", %{conn: conn} do
+      user = user_fixture(%{username: "elektrinedomainaccount"})
+      custom_domain = verified_profile_custom_domain_fixture(user, "elektrineportable.example")
+
+      conn =
+        conn
+        |> Map.put(:host, custom_domain.domain)
+        |> put_req_header("accept", "application/json")
+        |> get("/.well-known/elektrine")
+
+      assert %{"subject" => "domain:elektrineportable.example"} = json_response(conn, 200)
+    end
+
+    test "publishes the portable identity document on built-in handle subdomains", %{conn: conn} do
+      user_fixture(%{username: "builtinaccount", handle: "builtinaccount"})
+      domain = "builtinaccount.#{Elektrine.Domains.default_profile_domain()}"
+
+      conn =
+        conn
+        |> Map.put(:host, domain)
+        |> put_req_header("accept", "application/json")
+        |> get("/.well-known/domain-account")
+
+      response = json_response(conn, 200)
+
+      assert response["subject"] == "domain:#{domain}"
+
+      assert response["federation"]["activitypub_actor"] ==
+               "https://#{domain}/users/builtinaccount"
+
+      assert response["auth"]["oidc_issuer"] == Elektrine.Domains.public_base_url()
+    end
+
+    test "returns not found for unverified hosts", %{conn: conn} do
+      conn =
+        conn
+        |> Map.put(:host, "unknown.example")
+        |> put_req_header("accept", "application/json")
+        |> get("/.well-known/domain-account")
+
+      assert json_response(conn, 404) == %{"error" => "domain_account_not_found"}
+    end
+  end
+
+  describe "GET /.well-known/did.json" do
+    test "publishes a did:web document for a verified custom profile domain", %{conn: conn} do
+      user = user_fixture(%{username: "didaccount", handle: "didaccount"})
+      custom_domain = verified_profile_custom_domain_fixture(user, "didportable.example")
+
+      conn =
+        conn
+        |> Map.put(:host, custom_domain.domain)
+        |> put_req_header("accept", "application/json")
+        |> get("/.well-known/did.json")
+
+      response = json_response(conn, 200)
+
+      assert response["@context"] == ["https://www.w3.org/ns/did/v1"]
+      assert response["id"] == "did:web:didportable.example"
+
+      assert "https://didportable.example/" in response["alsoKnownAs"]
+      assert "acct:didaccount@didportable.example" in response["alsoKnownAs"]
+      assert "https://didportable.example/users/didaccount" in response["alsoKnownAs"]
+
+      assert %{
+               "id" => "did:web:didportable.example#domain-account",
+               "type" => "DomainAccount",
+               "serviceEndpoint" => "https://didportable.example/.well-known/domain-account"
+             } in response["service"]
+
+      assert %{
+               "id" => "did:web:didportable.example#openid-connect",
+               "type" => "OpenIDConnectIssuer",
+               "serviceEndpoint" => Elektrine.Domains.public_base_url()
+             } in response["service"]
+
+      assert %{
+               "id" => "did:web:didportable.example#activitypub",
+               "type" => "ActivityPubActor",
+               "serviceEndpoint" => "https://didportable.example/users/didaccount"
+             } in response["service"]
+    end
+
+    test "returns not found for DID requests on unverified hosts", %{conn: conn} do
+      conn =
+        conn
+        |> Map.put(:host, "unknown.example")
+        |> put_req_header("accept", "application/json")
+        |> get("/.well-known/did.json")
+
+      assert json_response(conn, 404) == %{"error" => "did_not_found"}
+    end
+  end
+
   defp verified_profile_custom_domain_fixture(user, domain) do
     {:ok, custom_domain} = Profiles.create_custom_domain(user, %{"domain" => domain})
 

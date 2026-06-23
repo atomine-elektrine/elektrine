@@ -13,7 +13,10 @@ defmodule Elektrine.Developer.Exports.AccountExporter do
 
   import Ecto.Query
   alias Elektrine.Accounts.User
+  alias Elektrine.DomainAccount
+  alias Elektrine.Domains
   alias Elektrine.EmailAddresses
+  alias Elektrine.Profiles
   alias Elektrine.Repo
 
   @doc """
@@ -28,6 +31,7 @@ defmodule Elektrine.Developer.Exports.AccountExporter do
 
     data = %{
       profile: format_profile(user),
+      domain_account: format_domain_account(user),
       settings: format_settings(user),
       privacy: format_privacy(user),
       notifications: format_notifications(user),
@@ -183,6 +187,56 @@ defmodule Elektrine.Developer.Exports.AccountExporter do
       locale: user.locale,
       timezone: user.timezone,
       created_at: user.inserted_at
+    }
+  end
+
+  defp format_domain_account(user) do
+    built_in_domain = "#{user.handle || user.username}.#{Domains.default_profile_domain()}"
+    verified_profile_domains = Profiles.verified_domains_for_user(user)
+    per_site_identities = Profiles.list_user_per_site_identities(user)
+    provider_base_url = Domains.public_base_url()
+
+    domains =
+      [%{domain: built_in_domain, status: "built_in", dns_records: []}]
+      |> Enum.concat(
+        Enum.map(verified_profile_domains, fn custom_domain ->
+          %{
+            domain: custom_domain.domain,
+            status: custom_domain.status,
+            dns_records: Profiles.dns_records_for_custom_domain(custom_domain)
+          }
+        end)
+      )
+
+    %{
+      provider: provider_base_url,
+      portable_root: "dns",
+      domains:
+        Enum.map(domains, fn %{domain: domain, status: status, dns_records: dns_records} ->
+          %{
+            domain: domain,
+            status: status,
+            subject: DomainAccount.subject(domain),
+            did: DomainAccount.did_for_domain(domain),
+            domain_account:
+              DomainAccount.document(user, domain,
+                provider_base_url: provider_base_url,
+                per_site_identities: per_site_identities
+              ),
+            did_document:
+              DomainAccount.did_document(user, domain, provider_base_url: provider_base_url),
+            activitypub_actor: "https://#{domain}/users/#{user.handle || user.username}",
+            email_address: "#{user.username}@#{domain}",
+            dns_records: dns_records,
+            migration: %{
+              domain_account: "Serve this JSON at https://#{domain}/.well-known/domain-account",
+              did: "Serve this JSON at https://#{domain}/.well-known/did.json",
+              oidc: "Update the domain account document's OIDC issuer to the new provider.",
+              activitypub:
+                "Keep the ActivityPub actor URL stable or publish a Move activity from the old actor."
+            }
+          }
+        end)
     }
   end
 
