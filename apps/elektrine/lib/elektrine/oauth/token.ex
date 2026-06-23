@@ -32,6 +32,9 @@ defmodule Elektrine.OAuth.Token do
     field(:valid_until, :utc_datetime)
     field(:oidc_nonce, :string)
     field(:oidc_auth_time, :utc_datetime)
+    field(:identity_subject, :string)
+    field(:identity_domain, :string)
+    field(:identity_did, :string)
 
     belongs_to(:user, User)
     belongs_to(:app, App, foreign_key: :app_id)
@@ -114,7 +117,10 @@ defmodule Elektrine.OAuth.Token do
         create(app, user, %{
           scopes: auth.scopes,
           oidc_nonce: auth.nonce,
-          oidc_auth_time: auth.inserted_at
+          oidc_auth_time: auth.inserted_at,
+          identity_subject: auth.identity_subject,
+          identity_domain: auth.identity_domain,
+          identity_did: auth.identity_did
         })
       end
     else
@@ -169,6 +175,7 @@ defmodule Elektrine.OAuth.Token do
       |> validate_required([:scopes, :app_id])
       |> put_valid_until(attrs)
       |> put_oidc_attrs(attrs)
+      |> put_identity_attrs(attrs)
       |> put_token()
       |> put_refresh_token(attrs)
       |> Repo.insert()
@@ -201,7 +208,10 @@ defmodule Elektrine.OAuth.Token do
              create(app, old_token.user, %{
                scopes: old_token.scopes,
                oidc_nonce: old_token.oidc_nonce,
-               oidc_auth_time: old_token.oidc_auth_time
+               oidc_auth_time: old_token.oidc_auth_time,
+               identity_subject: old_token.identity_subject,
+               identity_domain: old_token.identity_domain,
+               identity_did: old_token.identity_did
              }) do
         new_token
       else
@@ -335,6 +345,13 @@ defmodule Elektrine.OAuth.Token do
     changeset
     |> put_change(:oidc_nonce, Map.get(attrs, :oidc_nonce))
     |> put_change(:oidc_auth_time, truncate_datetime(Map.get(attrs, :oidc_auth_time)))
+  end
+
+  defp put_identity_attrs(changeset, attrs) do
+    changeset
+    |> put_change(:identity_subject, Map.get(attrs, :identity_subject))
+    |> put_change(:identity_domain, Map.get(attrs, :identity_domain))
+    |> put_change(:identity_did, Map.get(attrs, :identity_did))
   end
 
   defp put_token(changeset) do

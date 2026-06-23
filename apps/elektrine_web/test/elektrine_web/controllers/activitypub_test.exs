@@ -226,8 +226,10 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
 
       assert Enum.any?(response["links"], fn link ->
                link["rel"] == "self" and
-                 link["href"] == "#{ActivityPub.instance_url()}/users/#{user.username}"
+                 link["href"] == "https://#{custom_domain.domain}/users/#{user.username}"
              end)
+
+      assert "#{ActivityPub.instance_url()}/users/#{user.username}" in response["aliases"]
 
       assert Enum.any?(response["links"], fn link ->
                link["rel"] == "http://webfinger.net/rel/profile-page" and

@@ -27,6 +27,9 @@ defmodule ElektrineWeb.Plugs.ProfileCustomDomain do
     "/.well-known/_arblarg"
   ]
   @bypass_paths [
+    "/.well-known/domain-account",
+    "/.well-known/did.json",
+    "/.well-known/elektrine",
     "/.well-known/webfinger",
     "/.well-known/host-meta",
     "/.well-known/atproto-did"

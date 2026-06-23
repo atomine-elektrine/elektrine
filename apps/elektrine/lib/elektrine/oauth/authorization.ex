@@ -32,6 +32,9 @@ defmodule Elektrine.OAuth.Authorization do
     field(:nonce, :string)
     field(:code_challenge, :string)
     field(:code_challenge_method, :string)
+    field(:identity_subject, :string)
+    field(:identity_domain, :string)
+    field(:identity_did, :string)
 
     belongs_to(:user, User)
     belongs_to(:app, App, foreign_key: :app_id)
@@ -75,7 +78,10 @@ defmodule Elektrine.OAuth.Authorization do
       :state,
       :nonce,
       :code_challenge,
-      :code_challenge_method
+      :code_challenge_method,
+      :identity_subject,
+      :identity_domain,
+      :identity_did
     ])
     |> validate_required([:app_id, :scopes])
     |> validate_inclusion(:code_challenge_method, ["S256"])

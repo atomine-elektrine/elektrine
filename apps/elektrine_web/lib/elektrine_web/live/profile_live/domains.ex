@@ -1,6 +1,7 @@
 defmodule ElektrineWeb.ProfileLive.Domains do
   use ElektrineWeb, :live_view
 
+  alias Elektrine.DomainAccount
   alias Elektrine.Accounts.User
   alias Elektrine.{DNS, Domains, Profiles}
   alias ElektrineWeb.Platform.Integrations
@@ -14,6 +15,8 @@ defmodule ElektrineWeb.ProfileLive.Domains do
      |> assign(:page_title, "Profile Domains")
      |> assign(:user, user)
      |> assign_builtin_profile_url()
+     |> assign_domain_account_summary()
+     |> refresh_per_site_identities()
      |> assign(:custom_domains, Profiles.list_user_custom_domains(user.id))
      |> assign(:email_custom_domains, Integrations.email_custom_domains(user.id))}
   end
@@ -34,10 +37,86 @@ defmodule ElektrineWeb.ProfileLive.Domains do
          |> assign(:user, user)
          |> assign(:current_user, user)
          |> assign_builtin_profile_url()
+         |> assign_domain_account_summary()
+         |> refresh_per_site_identities()
          |> put_flash(:info, message)}
 
       {:error, _changeset} ->
         {:noreply, put_flash(socket, :error, "Could not update built-in profile URL")}
+    end
+  end
+
+  @impl true
+  def handle_event(
+        "create_per_site_identity",
+        %{"site_key" => site_key, "base_domain" => base_domain} = params,
+        socket
+      ) do
+    attrs = %{
+      "site_key" => site_key,
+      "base_domain" => base_domain,
+      "display_name" => Map.get(params, "display_name")
+    }
+
+    case Profiles.create_per_site_identity(socket.assigns.user, attrs) do
+      {:ok, _identity} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Per-site identity created")
+         |> refresh_per_site_identities()}
+
+      {:error, :invalid_base_domain} ->
+        {:noreply, put_flash(socket, :error, "Choose one of your verified identity domains")}
+
+      {:error, changeset} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           "Failed to create per-site identity: #{changeset_error(changeset)}"
+         )}
+    end
+  end
+
+  @impl true
+  def handle_event("toggle_per_site_identity", %{"id" => id}, socket) do
+    user_id = socket.assigns.user.id
+
+    case Profiles.get_per_site_identity(String.to_integer(id), user_id) do
+      nil ->
+        {:noreply, put_flash(socket, :error, "Per-site identity not found")}
+
+      identity ->
+        case Profiles.update_per_site_identity(identity, %{"enabled" => !identity.enabled}) do
+          {:ok, _identity} ->
+            {:noreply, refresh_per_site_identities(socket)}
+
+          {:error, changeset} ->
+            {:noreply,
+             put_flash(socket, :error, "Failed to update identity: #{changeset_error(changeset)}")}
+        end
+    end
+  end
+
+  @impl true
+  def handle_event("delete_per_site_identity", %{"id" => id}, socket) do
+    user_id = socket.assigns.user.id
+
+    case Profiles.get_per_site_identity(String.to_integer(id), user_id) do
+      nil ->
+        {:noreply, put_flash(socket, :error, "Per-site identity not found")}
+
+      identity ->
+        case Profiles.delete_per_site_identity(identity) do
+          {:ok, _identity} ->
+            {:noreply,
+             socket
+             |> put_flash(:info, "Per-site identity removed")
+             |> refresh_per_site_identities()}
+
+          {:error, reason} ->
+            {:noreply, put_flash(socket, :error, "Failed to remove identity: #{inspect(reason)}")}
+        end
     end
   end
 
@@ -282,6 +361,188 @@ defmodule ElektrineWeb.ProfileLive.Domains do
         <div class="card panel-card">
           <div class="card-body space-y-4">
             <.section_header
+              title="Domain Account"
+              description="Your domain account ties profile, sign-in, federation, mail, DID, and recovery discovery to one portable name."
+              align="start"
+            />
+
+            <div class="grid gap-3 lg:grid-cols-3">
+              <div class="rounded-2xl border border-base-content/10 bg-base-200/30 px-4 py-3">
+                <div class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                  Current Identity
+                </div>
+                <div class="mt-2 font-mono text-sm break-all text-base-content/85">
+                  {@domain_account_domain}
+                </div>
+              </div>
+              <div class="rounded-2xl border border-base-content/10 bg-base-200/30 px-4 py-3">
+                <div class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                  OIDC Subject
+                </div>
+                <div class="mt-2 font-mono text-sm break-all text-base-content/85">
+                  {DomainAccount.subject(@domain_account_domain)}
+                </div>
+              </div>
+              <div class="rounded-2xl border border-base-content/10 bg-base-200/30 px-4 py-3">
+                <div class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                  DID
+                </div>
+                <div class="mt-2 font-mono text-sm break-all text-base-content/85">
+                  {DomainAccount.did_for_domain(@domain_account_domain)}
+                </div>
+              </div>
+            </div>
+
+            <div class="grid gap-3 lg:grid-cols-2">
+              <.identity_endpoint
+                id="domain-account-built-in-endpoint"
+                label="Domain Account"
+                url={"https://#{@domain_account_domain}/.well-known/domain-account"}
+              />
+              <.identity_endpoint
+                id="did-built-in-endpoint"
+                label="DID Document"
+                url={"https://#{@domain_account_domain}/.well-known/did.json"}
+              />
+            </div>
+
+            <div class="rounded-2xl border border-base-content/10 bg-base-100 px-4 py-3">
+              <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <div class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                    Per-site Identities
+                  </div>
+                  <p class="mt-1 text-sm text-base-content/65">
+                    Create scoped domains like
+                    <span class="font-mono">hn.{@domain_account_domain}</span>
+                    for apps that should not share the same subject.
+                  </p>
+                </div>
+              </div>
+
+              <.form
+                for={%{}}
+                phx-submit="create_per_site_identity"
+                class="mt-4 grid gap-3 lg:grid-cols-[minmax(0,0.7fr)_minmax(0,1fr)_minmax(0,1fr)_auto]"
+              >
+                <input
+                  type="text"
+                  name="site_key"
+                  placeholder="hn"
+                  class="input input-bordered w-full"
+                  pattern="[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?"
+                  required
+                />
+                <div class="select select-bordered w-full">
+                  <select name="base_domain" required>
+                    <%= for domain <- @per_site_base_domains do %>
+                      <option value={domain}>{domain}</option>
+                    <% end %>
+                  </select>
+                </div>
+                <input
+                  type="text"
+                  name="display_name"
+                  placeholder="Display name"
+                  class="input input-bordered w-full"
+                />
+                <button type="submit" class="btn btn-primary lg:min-w-32">Create</button>
+              </.form>
+
+              <%= if Enum.empty?(@per_site_identities) do %>
+                <div class="mt-4 rounded-xl border border-dashed border-base-content/15 bg-base-200/20 px-4 py-5 text-sm text-base-content/60">
+                  No saved per-site identities yet.
+                </div>
+              <% else %>
+                <div class="mt-4 divide-y divide-base-content/10 overflow-hidden rounded-2xl border border-base-content/10">
+                  <%= for identity <- @per_site_identities do %>
+                    <div class="grid gap-3 bg-base-100 px-4 py-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-center">
+                      <div class="min-w-0">
+                        <div class="flex flex-wrap items-center gap-2">
+                          <div class="font-mono text-sm font-semibold break-all">
+                            {identity.domain}
+                          </div>
+                          <span class={[
+                            "badge badge-sm border-0",
+                            if(identity.enabled,
+                              do: "bg-success/15 text-success",
+                              else: "bg-base-200 text-base-content/60"
+                            )
+                          ]}>
+                            {if identity.enabled, do: "Enabled", else: "Paused"}
+                          </span>
+                        </div>
+                        <div class="mt-1 font-mono text-xs break-all text-base-content/55">
+                          {identity.email_alias}
+                        </div>
+                      </div>
+
+                      <div class="min-w-0 space-y-1">
+                        <div class="flex items-start gap-2">
+                          <div class="font-mono text-xs break-all text-base-content/70 flex-1">
+                            {identity.subject}
+                          </div>
+                          <.copy_button
+                            id={"per-site-subject-#{identity.id}"}
+                            content={identity.subject}
+                            label="Copy subject"
+                          />
+                        </div>
+                        <div class="flex items-start gap-2">
+                          <div class="font-mono text-xs break-all text-base-content/70 flex-1">
+                            {identity.did}
+                          </div>
+                          <.copy_button
+                            id={"per-site-did-#{identity.id}"}
+                            content={identity.did}
+                            label="Copy DID"
+                          />
+                        </div>
+                      </div>
+
+                      <div class="flex gap-2 lg:justify-end">
+                        <button
+                          type="button"
+                          phx-click="toggle_per_site_identity"
+                          phx-value-id={identity.id}
+                          class="btn btn-ghost btn-sm"
+                        >
+                          {if identity.enabled, do: "Pause", else: "Enable"}
+                        </button>
+                        <button
+                          type="button"
+                          phx-click="delete_per_site_identity"
+                          phx-value-id={identity.id}
+                          class="btn btn-ghost btn-sm text-error hover:bg-error/10"
+                          data-confirm="Remove this per-site identity?"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+              <% end %>
+
+              <div class="mt-3 grid gap-3 lg:grid-cols-3">
+                <%= for site <- ["hn", "spotify", "banking"] do %>
+                  <div class="rounded-xl border border-base-content/10 bg-base-200/30 px-3 py-3">
+                    <div class="font-mono text-xs break-all text-base-content/85">
+                      {site}.{@domain_account_domain}
+                    </div>
+                    <div class="mt-2 font-mono text-xs break-all text-base-content/65">
+                      {"domain:#{site}.#{@domain_account_domain}"}
+                    </div>
+                  </div>
+                <% end %>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card panel-card">
+          <div class="card-body space-y-4">
+            <.section_header
               title="Default Profile URL"
               description="Your built-in profile URL stays available even if you add custom domains."
               align="start"
@@ -420,9 +681,9 @@ defmodule ElektrineWeb.ProfileLive.Domains do
                           </div>
                           <div class="text-xs text-base-content/55">
                             <%= if custom_domain.status == "verified" do %>
-                              Followable alias. Canonical actor stays on <span class="font-mono">{Domains.instance_domain()}</span>.
+                              Followable canonical identity on <span class="font-mono">{custom_domain.domain}</span>.
                             <% else %>
-                              Becomes followable after verification. Canonical actor stays on <span class="font-mono">{Domains.instance_domain()}</span>.
+                              Becomes a canonical followable identity after verification.
                             <% end %>
                           </div>
                           <div class="mt-1 flex items-start gap-2">
@@ -436,6 +697,31 @@ defmodule ElektrineWeb.ProfileLive.Domains do
                             />
                           </div>
                         </div>
+
+                        <%= if custom_domain.status == "verified" do %>
+                          <div class="grid gap-3 lg:grid-cols-2">
+                            <.identity_endpoint
+                              id={"domain-account-endpoint-#{custom_domain.id}"}
+                              label="Domain Account"
+                              url={"https://#{custom_domain.domain}/.well-known/domain-account"}
+                            />
+                            <.identity_endpoint
+                              id={"did-endpoint-#{custom_domain.id}"}
+                              label="DID Document"
+                              url={"https://#{custom_domain.domain}/.well-known/did.json"}
+                            />
+                            <.identity_endpoint
+                              id={"activitypub-actor-#{custom_domain.id}"}
+                              label="ActivityPub Actor"
+                              url={"https://#{custom_domain.domain}/users/#{user_handle(@user)}"}
+                            />
+                            <.identity_endpoint
+                              id={"domain-account-subject-#{custom_domain.id}"}
+                              label="OIDC Subject"
+                              url={DomainAccount.subject(custom_domain.domain)}
+                            />
+                          </div>
+                        <% end %>
 
                         <%= if Elektrine.Strings.present?(custom_domain.last_error) do %>
                           <div class="rounded-xl border border-error/20 bg-error/5 px-3 py-2 text-xs leading-5 text-error">
@@ -745,7 +1031,9 @@ defmodule ElektrineWeb.ProfileLive.Domains do
   end
 
   defp refresh_custom_domains(socket) do
-    assign(socket, :custom_domains, Profiles.list_user_custom_domains(socket.assigns.user.id))
+    socket
+    |> assign(:custom_domains, Profiles.list_user_custom_domains(socket.assigns.user.id))
+    |> refresh_per_site_identities()
   end
 
   defp refresh_email_custom_domains(socket) do
@@ -762,6 +1050,22 @@ defmodule ElektrineWeb.ProfileLive.Domains do
     socket
     |> assign(:default_profile_url, Domains.default_profile_url_for_user(user))
     |> assign(:built_in_subdomain_mode, User.built_in_subdomain_mode(user))
+  end
+
+  defp assign_domain_account_summary(socket) do
+    user = socket.assigns.user
+    handle = user_handle(user)
+    domain = "#{handle}.#{Domains.default_profile_domain()}"
+
+    assign(socket, :domain_account_domain, domain)
+  end
+
+  defp refresh_per_site_identities(socket) do
+    user = socket.assigns.user
+
+    socket
+    |> assign(:per_site_identities, Profiles.list_user_per_site_identities(user))
+    |> assign(:per_site_base_domains, Profiles.available_per_site_base_domains(user))
   end
 
   defp user_handle(%{handle: handle, username: username}), do: handle || username
@@ -794,6 +1098,26 @@ defmodule ElektrineWeb.ProfileLive.Domains do
     >
       <.icon name="hero-clipboard-document" class="h-4 w-4" />
     </button>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :label, :string, required: true
+  attr :url, :string, required: true
+
+  defp identity_endpoint(assigns) do
+    ~H"""
+    <div class="rounded-2xl border border-base-content/10 bg-base-200/30 px-4 py-3">
+      <div class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+        {@label}
+      </div>
+      <div class="mt-2 flex items-start gap-2">
+        <div class="font-mono text-xs leading-5 break-all text-base-content/80 flex-1">
+          {@url}
+        </div>
+        <.copy_button id={"#{@id}-copy"} content={@url} label={"Copy #{@label}"} />
+      </div>
+    </div>
     """
   end
 

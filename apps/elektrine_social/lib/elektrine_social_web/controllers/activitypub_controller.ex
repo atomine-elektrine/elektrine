@@ -82,7 +82,7 @@ defmodule ElektrineSocialWeb.ActivityPubController do
           user = Elektrine.Repo.preload(user, profile: :links)
 
           base_url = activitypub_base_url_for_conn(conn)
-          canonical_base_url = ActivityPub.instance_url()
+          canonical_base_url = canonical_activitypub_base_url_for_request(user, conn)
 
           legacy_base_url =
             case Domains.activitypub_move_from_domain() do
@@ -503,6 +503,10 @@ defmodule ElektrineSocialWeb.ActivityPubController do
     canonical_domain = ActivityPub.instance_domain()
 
     cond do
+      request_host != "" and
+          match?(%{domain: _}, Domains.profile_custom_domain_for_host(request_host)) ->
+        ActivityPub.instance_url_for_domain(request_host)
+
       request_host != "" and request_host == move_from_domain ->
         ActivityPub.instance_url_for_domain(request_host)
 
@@ -510,6 +514,22 @@ defmodule ElektrineSocialWeb.ActivityPubController do
         ActivityPub.instance_url()
 
       true ->
+        ActivityPub.instance_url()
+    end
+  end
+
+  defp canonical_activitypub_base_url_for_request(user, conn) do
+    request_host =
+      (conn.host || "")
+      |> String.trim()
+      |> String.downcase()
+      |> String.trim_leading("www.")
+
+    case Domains.profile_custom_domain_for_host(request_host) do
+      %{domain: domain, user_id: user_id} when user_id == user.id ->
+        ActivityPub.instance_url_for_domain(domain)
+
+      _ ->
         ActivityPub.instance_url()
     end
   end
