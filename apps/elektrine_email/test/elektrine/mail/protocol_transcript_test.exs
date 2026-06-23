@@ -176,6 +176,92 @@ defmodule Elektrine.Mail.ProtocolTranscriptTest do
     :ok = close_socket(socket2)
   end
 
+  test "IMAP supports common client discovery and search transcripts" do
+    {user, password, _mailbox} = create_user_with_messages(2)
+    clear_auth_limits(:imap, user.username)
+
+    {:ok, socket} = connect_tcp(imap_port())
+    assert String.starts_with?(recv_line!(socket), "* OK")
+
+    assert Enum.any?(
+             imap_command(socket, "C001", "STARTTLS"),
+             &String.starts_with?(&1, "C001 OK")
+           )
+
+    {:ok, socket} = upgrade_socket_to_tls(socket)
+
+    assert Enum.any?(
+             imap_command(socket, "C002", "LOGIN #{user.username} #{password}"),
+             &String.starts_with?(&1, "C002 OK")
+           )
+
+    Enum.each(load_imap_client_transcripts(), fn transcript ->
+      lines = imap_command(socket, transcript["tag"], transcript["command"])
+      assert_transcript_expectations!(transcript, lines)
+    end)
+
+    _logout = imap_command(socket, "C008", "LOGOUT")
+    :ok = close_socket(socket)
+  end
+
+  test "IMAP FETCH BODYSTRUCTURE describes multipart messages with attachments" do
+    {user, password, mailbox} = create_user_with_messages(0)
+    clear_auth_limits(:imap, user.username)
+
+    message_fixture(%{
+      mailbox_id: mailbox.id,
+      to: mailbox.email,
+      from: "sender@example.com",
+      subject: "Multipart structure",
+      text_body: "plain part",
+      html_body: "<p>html part</p>",
+      has_attachments: true,
+      attachments: %{
+        "1" => %{
+          "filename" => "report.pdf",
+          "content_type" => "application/pdf",
+          "size" => 12,
+          "data" => Base.encode64("report bytes")
+        }
+      },
+      message_id: "bodystructure-#{System.unique_integer([:positive])}@example.com"
+    })
+
+    {:ok, socket} = connect_tcp(imap_port())
+    assert String.starts_with?(recv_line!(socket), "* OK")
+
+    assert Enum.any?(
+             imap_command(socket, "B001", "STARTTLS"),
+             &String.starts_with?(&1, "B001 OK")
+           )
+
+    {:ok, socket} = upgrade_socket_to_tls(socket)
+
+    assert Enum.any?(
+             imap_command(socket, "B002", "LOGIN #{user.username} #{password}"),
+             &String.starts_with?(&1, "B002 OK")
+           )
+
+    assert Enum.any?(
+             imap_command(socket, "B003", "SELECT INBOX"),
+             &String.starts_with?(&1, "B003 OK")
+           )
+
+    bodystructure_lines = imap_command(socket, "B004", "FETCH 1 (UID BODYSTRUCTURE)")
+    bodystructure = Enum.join(bodystructure_lines, "\n")
+
+    assert bodystructure =~ "BODYSTRUCTURE"
+    assert bodystructure =~ "\"MIXED\""
+    assert bodystructure =~ "\"ALTERNATIVE\""
+    assert bodystructure =~ "\"APPLICATION\" \"PDF\""
+    assert bodystructure =~ "\"ATTACHMENT\""
+    assert bodystructure =~ "\"FILENAME\" \"report.pdf\""
+    assert Enum.any?(bodystructure_lines, &String.starts_with?(&1, "B004 OK"))
+
+    _logout = imap_command(socket, "B005", "LOGOUT")
+    :ok = close_socket(socket)
+  end
+
   test "POP3 UIDL is stable across retrieval operations" do
     {user, password, _mailbox} = create_user_with_messages(2)
     clear_auth_limits(:pop3, user.username)
@@ -362,6 +448,83 @@ defmodule Elektrine.Mail.ProtocolTranscriptTest do
     {:ok, socket} = upgrade_socket_to_tls(socket)
 
     assert String.starts_with?(pop3_command(socket, "PASS #{password}"), "-ERR Send USER first")
+    assert String.starts_with?(pop3_command(socket, "USER #{user.username}"), "+OK")
+    assert String.starts_with?(pop3_command(socket, "PASS #{password}"), "+OK")
+    assert String.starts_with?(pop3_command(socket, "QUIT"), "+OK")
+    :ok = close_socket(socket)
+  end
+
+  test "POP3 transaction CAPA does not advertise authorization-only USER command" do
+    {user, password, _mailbox} = create_user_with_messages(0)
+    clear_auth_limits(:pop3, user.username)
+
+    {:ok, socket} = connect_tcp(pop3_port())
+    assert String.starts_with?(recv_line!(socket), "+OK")
+    assert String.starts_with?(pop3_command(socket, "STLS"), "+OK")
+    {:ok, socket} = upgrade_socket_to_tls(socket)
+
+    assert String.starts_with?(pop3_command(socket, "USER #{user.username}"), "+OK")
+    assert String.starts_with?(pop3_command(socket, "PASS #{password}"), "+OK")
+
+    {capa_status, capa_lines} = pop3_multiline_command(socket, "CAPA")
+    assert String.starts_with?(capa_status, "+OK")
+    refute "USER" in capa_lines
+    assert "UIDL" in capa_lines
+    assert "TOP" in capa_lines
+
+    assert String.starts_with?(pop3_command(socket, "QUIT"), "+OK")
+    :ok = close_socket(socket)
+  end
+
+  test "native IMAPS listener accepts login without STARTTLS" do
+    {user, password, _mailbox} = create_user_with_messages(0)
+    clear_auth_limits(:imap, user.username)
+    port = unused_tcp_port()
+    tls_opts = Application.fetch_env!(:elektrine, :imap_tls_opts)
+
+    start_supervised!(
+      {Elektrine.IMAP.Server,
+       [name: :imap_native_tls_test_server, port: port, transport: :ssl, tls_opts: tls_opts]}
+    )
+
+    {:ok, socket} = connect_ssl(port)
+    greeting = recv_line!(socket)
+    assert String.starts_with?(greeting, "* OK")
+    refute greeting =~ "STARTTLS"
+
+    assert Enum.any?(
+             imap_command(socket, "S001", "LOGIN #{user.username} #{password}"),
+             &String.starts_with?(&1, "S001 OK")
+           )
+
+    assert Enum.any?(
+             imap_command(socket, "S002", "SELECT INBOX"),
+             &String.starts_with?(&1, "S002 OK")
+           )
+
+    _logout = imap_command(socket, "S003", "LOGOUT")
+    :ok = close_socket(socket)
+  end
+
+  test "native POP3S listener accepts login without STLS" do
+    {user, password, _mailbox} = create_user_with_messages(0)
+    clear_auth_limits(:pop3, user.username)
+    port = unused_tcp_port()
+    tls_opts = Application.fetch_env!(:elektrine, :pop3_tls_opts)
+
+    start_supervised!(
+      {Elektrine.POP3.Server,
+       [name: :pop3_native_tls_test_server, port: port, transport: :ssl, tls_opts: tls_opts]}
+    )
+
+    {:ok, socket} = connect_ssl(port)
+    assert String.starts_with?(recv_line!(socket), "+OK")
+
+    {capa_status, capa_lines} = pop3_multiline_command(socket, "CAPA")
+    assert String.starts_with?(capa_status, "+OK")
+    refute "STLS" in capa_lines
+    assert "USER" in capa_lines
+
     assert String.starts_with?(pop3_command(socket, "USER #{user.username}"), "+OK")
     assert String.starts_with?(pop3_command(socket, "PASS #{password}"), "+OK")
     assert String.starts_with?(pop3_command(socket, "QUIT"), "+OK")
@@ -651,6 +814,32 @@ defmodule Elektrine.Mail.ProtocolTranscriptTest do
     end
 
     {user, password, mailbox}
+  end
+
+  defp load_imap_client_transcripts do
+    path =
+      Path.expand(
+        "../../fixtures/imap_client_transcripts.json",
+        __DIR__
+      )
+
+    path
+    |> File.read!()
+    |> Jason.decode!()
+  end
+
+  defp assert_transcript_expectations!(transcript, lines) do
+    Enum.each(transcript["expect_contains"] || [], fn expected ->
+      assert Enum.any?(lines, &String.contains?(&1, expected)),
+             "expected #{transcript["name"]} response to contain #{inspect(expected)}, got #{inspect(lines)}"
+    end)
+
+    Enum.each(transcript["expect_regex"] || [], fn pattern ->
+      regex = Regex.compile!(pattern)
+
+      assert Enum.any?(lines, &String.match?(&1, regex)),
+             "expected #{transcript["name"]} response to match #{inspect(pattern)}, got #{inspect(lines)}"
+    end)
   end
 
   defp clear_auth_limits(:imap, username) do

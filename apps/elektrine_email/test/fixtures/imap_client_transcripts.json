@@ -1,0 +1,32 @@
+[
+  {
+    "name": "Thunderbird folder discovery with LIST-STATUS",
+    "tag": "C003",
+    "command": "LIST \"\" \"*\" RETURN (STATUS (MESSAGES UNSEEN UIDNEXT))",
+    "expect_contains": ["* LIST ", "* STATUS \"INBOX\" ", "C003 OK"]
+  },
+  {
+    "name": "Select inbox before message commands",
+    "tag": "C004",
+    "command": "SELECT INBOX",
+    "expect_contains": ["C004 OK"]
+  },
+  {
+    "name": "Gmail mobile UID search with RETURN options",
+    "tag": "C005",
+    "command": "UID SEARCH RETURN (ALL) UID 1:* UNDELETED",
+    "expect_regex": ["^\\* SEARCH \\d+", "^C005 OK"]
+  },
+  {
+    "name": "Apple Mail header field fetch",
+    "tag": "C006",
+    "command": "UID FETCH 1:* (UID FLAGS INTERNALDATE RFC822.SIZE BODY.PEEK[HEADER.FIELDS (DATE FROM SUBJECT TO CC MESSAGE-ID REFERENCES IN-REPLY-TO)])",
+    "expect_contains": ["BODY[HEADER.FIELDS", "C006 OK"]
+  },
+  {
+    "name": "Outlook-style OR search",
+    "tag": "C007",
+    "command": "UID SEARCH OR FROM \"sender1\" SUBJECT \"Protocol\"",
+    "expect_regex": ["^\\* SEARCH \\d+", "^C007 OK"]
+  }
+]

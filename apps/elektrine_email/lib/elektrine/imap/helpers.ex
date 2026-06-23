@@ -528,137 +528,309 @@ defmodule Elektrine.IMAP.Helpers do
 
   @doc "Check if message matches search criteria"
   def matches_search_criteria?(msg, criteria, sequence_number \\ nil, max_sequence \\ nil) do
-    criteria_upper = String.upcase(criteria)
+    criteria = normalize_search_criteria(criteria)
 
-    cond do
-      criteria_upper == "ALL" ->
-        true
-
-      criteria_upper == "UNSEEN" ->
-        !msg.read
-
-      criteria_upper == "SEEN" ->
-        msg.read
-
-      criteria_upper == "FLAGGED" ->
-        msg.flagged
-
-      criteria_upper == "UNFLAGGED" ->
-        !msg.flagged
-
-      criteria_upper == "DELETED" ->
-        Map.get(msg, :deleted, false)
-
-      criteria_upper == "UNDELETED" ->
-        !Map.get(msg, :deleted, false)
-
-      criteria_upper == "NEW" ->
-        false
-
-      criteria_upper == "OLD" ->
-        true
-
-      criteria_upper == "RECENT" ->
-        false
-
-      criteria_upper == "ANSWERED" ->
-        Map.get(msg, :answered, false)
-
-      criteria_upper == "UNANSWERED" ->
-        !Map.get(msg, :answered, false)
-
-      criteria_upper == "DRAFT" ->
-        Map.get(msg, :status) == "draft"
-
-      criteria_upper == "UNDRAFT" ->
-        Map.get(msg, :status) != "draft"
-
-      String.starts_with?(criteria_upper, "UID ") ->
-        matches_uid_range?(msg, String.replace_prefix(criteria_upper, "UID ", ""))
-
-      String.starts_with?(criteria_upper, "FROM ") ->
-        matches_from?(msg, String.slice(criteria, 5..-1//1))
-
-      String.starts_with?(criteria_upper, "TO ") ->
-        matches_to?(msg, String.slice(criteria, 3..-1//1))
-
-      String.starts_with?(criteria_upper, "CC ") ->
-        matches_cc?(msg, String.slice(criteria, 3..-1//1))
-
-      String.starts_with?(criteria_upper, "BCC ") ->
-        matches_bcc?(msg, String.slice(criteria, 4..-1//1))
-
-      String.starts_with?(criteria_upper, "SUBJECT ") ->
-        matches_subject?(msg, String.slice(criteria, 8..-1//1))
-
-      String.starts_with?(criteria_upper, "BODY ") ->
-        matches_body?(msg, String.slice(criteria, 5..-1//1))
-
-      String.starts_with?(criteria_upper, "TEXT ") ->
-        matches_text?(msg, String.slice(criteria, 5..-1//1))
-
-      String.starts_with?(criteria_upper, "HEADER ") ->
-        matches_header?(msg, String.slice(criteria, 7..-1//1))
-
-      String.starts_with?(criteria_upper, "BEFORE ") ->
-        matches_before?(msg, String.slice(criteria, 7..-1//1))
-
-      String.starts_with?(criteria_upper, "ON ") ->
-        matches_on?(msg, String.slice(criteria, 3..-1//1))
-
-      String.starts_with?(criteria_upper, "SINCE ") ->
-        matches_since?(msg, String.slice(criteria, 6..-1//1))
-
-      String.starts_with?(criteria_upper, "SENTBEFORE ") ->
-        matches_before?(msg, String.slice(criteria, 11..-1//1))
-
-      String.starts_with?(criteria_upper, "SENTON ") ->
-        matches_on?(msg, String.slice(criteria, 7..-1//1))
-
-      String.starts_with?(criteria_upper, "SENTSINCE ") ->
-        matches_since?(msg, String.slice(criteria, 10..-1//1))
-
-      String.starts_with?(criteria_upper, "LARGER ") ->
-        matches_larger?(msg, String.slice(criteria, 7..-1//1))
-
-      String.starts_with?(criteria_upper, "SMALLER ") ->
-        matches_smaller?(msg, String.slice(criteria, 8..-1//1))
-
-      String.starts_with?(criteria_upper, "NOT ") ->
-        !matches_search_criteria?(
-          msg,
-          String.slice(criteria, 4..-1//1),
-          sequence_number,
-          max_sequence
-        )
-
-      String.match?(criteria, ~r/^[\d\*]+(:[\d\*]+)?(,[\d\*]+(:[\d\*]+)?)*$/) ->
-        matches_sequence_set?(sequence_number, max_sequence, criteria)
-
-      true ->
-        true
+    case parse_search_criteria(criteria) do
+      {:ok, ast} -> matches_search_ast?(msg, ast, sequence_number, max_sequence)
+      {:error, _reason} -> true
     end
   end
 
+  defp normalize_search_criteria(criteria) do
+    criteria
+    |> to_string()
+    |> String.trim()
+    |> strip_search_return_options()
+    |> strip_search_charset()
+    |> blank_search_to_all()
+  end
+
+  defp strip_search_return_options(criteria) do
+    String.replace(criteria, ~r/^RETURN\s+\([^)]*\)\s*/i, "")
+  end
+
+  defp strip_search_charset(criteria) do
+    String.replace(criteria, ~r/^CHARSET\s+\S+\s*/i, "")
+  end
+
+  defp blank_search_to_all(""), do: "ALL"
+  defp blank_search_to_all(criteria), do: criteria
+
+  defp parse_search_criteria(criteria) do
+    tokens = tokenize_search_criteria(criteria)
+
+    case parse_search_list(tokens, []) do
+      {:ok, [], []} -> {:ok, :all}
+      {:ok, [single], []} -> {:ok, single}
+      {:ok, terms, []} -> {:ok, {:and, terms}}
+      _ -> {:error, :invalid_search}
+    end
+  end
+
+  defp parse_search_list([], acc), do: {:ok, Enum.reverse(acc), []}
+  defp parse_search_list([")" | rest], acc), do: {:ok, Enum.reverse(acc), [")" | rest]}
+
+  defp parse_search_list(tokens, acc) do
+    case parse_search_term(tokens) do
+      {:ok, term, rest} -> parse_search_list(rest, [term | acc])
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp parse_search_term(["(" | rest]) do
+    case parse_search_list(rest, []) do
+      {:ok, [], [")" | after_group]} -> {:ok, :all, after_group}
+      {:ok, [single], [")" | after_group]} -> {:ok, single, after_group}
+      {:ok, terms, [")" | after_group]} -> {:ok, {:and, terms}, after_group}
+      _ -> {:error, :unclosed_group}
+    end
+  end
+
+  defp parse_search_term([token | rest]) do
+    key = String.upcase(token)
+
+    cond do
+      key == "OR" ->
+        with {:ok, left, after_left} <- parse_search_term(rest),
+             {:ok, right, after_right} <- parse_search_term(after_left) do
+          {:ok, {:or, left, right}, after_right}
+        end
+
+      key == "NOT" ->
+        case parse_search_term(rest) do
+          {:ok, term, after_term} -> {:ok, {:not, term}, after_term}
+          error -> error
+        end
+
+      key == "HEADER" ->
+        case rest do
+          [field, value | after_value] -> {:ok, {:key, key, [field, value]}, after_value}
+          _ -> {:error, :missing_header_args}
+        end
+
+      search_key_value_predicate?(key) ->
+        case rest do
+          [value | after_value] -> {:ok, {:key, key, [value]}, after_value}
+          _ -> {:error, :missing_search_arg}
+        end
+
+      search_flag_predicate?(key) or search_sequence_set?(token) ->
+        {:ok, {:key, key, [token]}, rest}
+
+      true ->
+        {:ok, :all, rest}
+    end
+  end
+
+  defp parse_search_term([]), do: {:error, :missing_term}
+
+  defp matches_search_ast?(_msg, :all, _sequence_number, _max_sequence), do: true
+
+  defp matches_search_ast?(msg, {:and, terms}, sequence_number, max_sequence) do
+    Enum.all?(terms, &matches_search_ast?(msg, &1, sequence_number, max_sequence))
+  end
+
+  defp matches_search_ast?(msg, {:or, left, right}, sequence_number, max_sequence) do
+    matches_search_ast?(msg, left, sequence_number, max_sequence) or
+      matches_search_ast?(msg, right, sequence_number, max_sequence)
+  end
+
+  defp matches_search_ast?(msg, {:not, term}, sequence_number, max_sequence) do
+    not matches_search_ast?(msg, term, sequence_number, max_sequence)
+  end
+
+  defp matches_search_ast?(msg, {:key, key, args}, sequence_number, max_sequence) do
+    matches_search_key?(msg, key, args, sequence_number, max_sequence)
+  end
+
+  defp matches_search_key?(_msg, "ALL", _args, _sequence_number, _max_sequence), do: true
+  defp matches_search_key?(msg, "UNSEEN", _args, _sequence_number, _max_sequence), do: !msg.read
+  defp matches_search_key?(msg, "SEEN", _args, _sequence_number, _max_sequence), do: msg.read
+
+  defp matches_search_key?(msg, "FLAGGED", _args, _sequence_number, _max_sequence),
+    do: msg.flagged
+
+  defp matches_search_key?(msg, "UNFLAGGED", _args, _sequence_number, _max_sequence),
+    do: !msg.flagged
+
+  defp matches_search_key?(msg, "DELETED", _args, _sequence_number, _max_sequence),
+    do: Map.get(msg, :deleted, false)
+
+  defp matches_search_key?(msg, "UNDELETED", _args, _sequence_number, _max_sequence),
+    do: !Map.get(msg, :deleted, false)
+
+  defp matches_search_key?(_msg, "NEW", _args, _sequence_number, _max_sequence), do: false
+  defp matches_search_key?(_msg, "OLD", _args, _sequence_number, _max_sequence), do: true
+  defp matches_search_key?(_msg, "RECENT", _args, _sequence_number, _max_sequence), do: false
+
+  defp matches_search_key?(msg, "ANSWERED", _args, _sequence_number, _max_sequence),
+    do: Map.get(msg, :answered, false)
+
+  defp matches_search_key?(msg, "UNANSWERED", _args, _sequence_number, _max_sequence),
+    do: !Map.get(msg, :answered, false)
+
+  defp matches_search_key?(msg, "DRAFT", _args, _sequence_number, _max_sequence),
+    do: Map.get(msg, :status) == "draft"
+
+  defp matches_search_key?(msg, "UNDRAFT", _args, _sequence_number, _max_sequence),
+    do: Map.get(msg, :status) != "draft"
+
+  defp matches_search_key?(msg, "UID", [range], _sequence_number, _max_sequence),
+    do: matches_uid_range?(msg, range)
+
+  defp matches_search_key?(msg, "FROM", [term], _sequence_number, _max_sequence),
+    do: matches_from?(msg, term)
+
+  defp matches_search_key?(msg, "TO", [term], _sequence_number, _max_sequence),
+    do: matches_to?(msg, term)
+
+  defp matches_search_key?(msg, "CC", [term], _sequence_number, _max_sequence),
+    do: matches_cc?(msg, term)
+
+  defp matches_search_key?(msg, "BCC", [term], _sequence_number, _max_sequence),
+    do: matches_bcc?(msg, term)
+
+  defp matches_search_key?(msg, "SUBJECT", [term], _sequence_number, _max_sequence),
+    do: matches_subject?(msg, term)
+
+  defp matches_search_key?(msg, "BODY", [term], _sequence_number, _max_sequence),
+    do: matches_body?(msg, term)
+
+  defp matches_search_key?(msg, "TEXT", [term], _sequence_number, _max_sequence),
+    do: matches_text?(msg, term)
+
+  defp matches_search_key?(msg, "HEADER", [field, term], _sequence_number, _max_sequence),
+    do: matches_header?(msg, "#{field} #{term}")
+
+  defp matches_search_key?(msg, "BEFORE", [date], _sequence_number, _max_sequence),
+    do: matches_before?(msg, date)
+
+  defp matches_search_key?(msg, "ON", [date], _sequence_number, _max_sequence),
+    do: matches_on?(msg, date)
+
+  defp matches_search_key?(msg, "SINCE", [date], _sequence_number, _max_sequence),
+    do: matches_since?(msg, date)
+
+  defp matches_search_key?(msg, "SENTBEFORE", [date], _sequence_number, _max_sequence),
+    do: matches_before?(msg, date)
+
+  defp matches_search_key?(msg, "SENTON", [date], _sequence_number, _max_sequence),
+    do: matches_on?(msg, date)
+
+  defp matches_search_key?(msg, "SENTSINCE", [date], _sequence_number, _max_sequence),
+    do: matches_since?(msg, date)
+
+  defp matches_search_key?(msg, "LARGER", [size], _sequence_number, _max_sequence),
+    do: matches_larger?(msg, size)
+
+  defp matches_search_key?(msg, "SMALLER", [size], _sequence_number, _max_sequence),
+    do: matches_smaller?(msg, size)
+
+  defp matches_search_key?(_msg, _key, [sequence_set], sequence_number, max_sequence)
+       when is_binary(sequence_set) do
+    if search_sequence_set?(sequence_set) do
+      matches_sequence_set?(sequence_number, max_sequence, sequence_set)
+    else
+      true
+    end
+  end
+
+  defp matches_search_key?(_msg, _key, _args, _sequence_number, _max_sequence), do: true
+
   defp matches_uid_range?(msg, range) do
-    case String.split(range, ":") do
+    case String.split(String.trim(range), ":") do
+      [start_str, "*"] ->
+        case parse_uid_bound(start_str) do
+          start_uid when is_integer(start_uid) -> msg.id >= start_uid
+          _ -> false
+        end
+
+      ["*", end_str] ->
+        case parse_uid_bound(end_str) do
+          end_uid when is_integer(end_uid) -> msg.id <= end_uid
+          _ -> false
+        end
+
       [start_str, end_str] ->
-        with {start_uid, _} <- Integer.parse(start_str),
-             {end_uid, _} <- Integer.parse(end_str) do
-          msg.id >= start_uid and msg.id <= end_uid
+        with start_uid when is_integer(start_uid) <- parse_uid_bound(start_str),
+             end_uid when is_integer(end_uid) <- parse_uid_bound(end_str) do
+          lower = min(start_uid, end_uid)
+          upper = max(start_uid, end_uid)
+          msg.id >= lower and msg.id <= upper
         else
           _ -> false
         end
 
       [uid_str] ->
-        case Integer.parse(uid_str) do
-          {uid, _} -> msg.id == uid
-          _ -> false
-        end
+        uid_str == "*" or parse_uid_bound(uid_str) == msg.id
 
       _ ->
         false
     end
+  end
+
+  defp parse_uid_bound(str) do
+    case Integer.parse(String.trim(str)) do
+      {num, ""} -> num
+      _ -> nil
+    end
+  end
+
+  defp tokenize_search_criteria(criteria) do
+    Regex.scan(~r/[()]|"([^"\\]*(?:\\.[^"\\]*)*)"|([^\s()]+)/, criteria)
+    |> Enum.map(fn
+      ["("] -> "("
+      [")"] -> ")"
+      [_, quoted, ""] -> quoted
+      [_, "", unquoted] -> unquoted
+      [_, quoted] -> quoted
+      [unquoted] -> unquoted
+    end)
+  end
+
+  defp search_key_value_predicate?(key_upper) do
+    key_upper in [
+      "UID",
+      "FROM",
+      "TO",
+      "CC",
+      "BCC",
+      "SUBJECT",
+      "BODY",
+      "TEXT",
+      "BEFORE",
+      "ON",
+      "SINCE",
+      "SENTBEFORE",
+      "SENTON",
+      "SENTSINCE",
+      "LARGER",
+      "SMALLER",
+      "NOT"
+    ]
+  end
+
+  defp search_flag_predicate?(key_upper) do
+    key_upper in [
+      "ALL",
+      "UNSEEN",
+      "SEEN",
+      "FLAGGED",
+      "UNFLAGGED",
+      "DELETED",
+      "UNDELETED",
+      "NEW",
+      "OLD",
+      "RECENT",
+      "ANSWERED",
+      "UNANSWERED",
+      "DRAFT",
+      "UNDRAFT"
+    ]
+  end
+
+  defp search_sequence_set?(token) do
+    String.match?(token, ~r/^[\d\*]+(:[\d\*]+)?(,[\d\*]+(:[\d\*]+)?)*$/)
   end
 
   defp matches_from?(msg, search_term) do

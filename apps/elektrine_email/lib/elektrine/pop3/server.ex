@@ -201,6 +201,8 @@ defmodule Elektrine.POP3.Server do
   end
 
   defp spawn_client_handler(client, client_ip, initial_data, tls_opts, allow_insecure_auth) do
+    connection_transport = transport_for_socket(client)
+
     handler_pid =
       spawn(fn ->
         receive do
@@ -212,7 +214,7 @@ defmodule Elektrine.POP3.Server do
         try do
           handle_client(client, client_ip, initial_data, tls_opts, allow_insecure_auth)
         after
-          decrement_connection_count(client_ip, transport_for_socket(client))
+          decrement_connection_count(client_ip, connection_transport)
         end
       end)
 
@@ -223,7 +225,7 @@ defmodule Elektrine.POP3.Server do
       {:error, reason} ->
         Logger.error("POP3 failed to transfer socket ownership: #{inspect(reason)}")
         Socket.close(client)
-        decrement_connection_count(client_ip, transport_for_socket(client))
+        decrement_connection_count(client_ip, connection_transport)
     end
   end
 
@@ -639,7 +641,6 @@ defmodule Elektrine.POP3.Server do
 
   defp handle_transaction_command("CAPA", _args, state) do
     send_response(state.socket, "+OK Capability list follows")
-    send_response(state.socket, "USER")
     send_response(state.socket, "UIDL")
     send_response(state.socket, "TOP")
     send_response(state.socket, ".")
