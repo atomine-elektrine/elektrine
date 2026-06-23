@@ -34,13 +34,14 @@ defmodule Elektrine.OIDC do
         issuer,
         client_id,
         nonce \\ nil,
-        auth_time \\ nil
+        auth_time \\ nil,
+        opts \\ []
       ) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
     claims = %{
       "iss" => issuer,
-      "sub" => subject_for_user(user),
+      "sub" => subject_for_user(user, opts),
       "aud" => client_id,
       "exp" => DateTime.to_unix(token.valid_until),
       "iat" => DateTime.to_unix(now),
@@ -54,12 +55,15 @@ defmodule Elektrine.OIDC do
         claims
       end
 
+    claims = maybe_add_domain_identity_claims(claims, opts)
+
     jwt_rs256(claims)
   end
 
   @spec userinfo_claims(User.t(), [String.t()], String.t()) :: map()
-  def userinfo_claims(%User{} = user, scopes, issuer) do
-    %{"sub" => subject_for_user(user)}
+  def userinfo_claims(%User{} = user, scopes, issuer, opts \\ []) do
+    %{"sub" => subject_for_user(user, opts)}
+    |> maybe_add_domain_identity_claims(opts)
     |> maybe_add_profile_claims(user, scopes, issuer)
     |> maybe_add_email_claims(user, scopes)
   end
@@ -83,6 +87,8 @@ defmodule Elektrine.OIDC do
         "name",
         "profile",
         "picture",
+        "domain",
+        "did",
         "updated_at",
         "zoneinfo",
         "locale",
@@ -160,12 +166,26 @@ defmodule Elektrine.OIDC do
     }
   end
 
+  defp subject_for_user(user, opts) do
+    Keyword.get(opts, :subject) || subject_for_user(user)
+  end
+
   defp subject_for_user(%User{unique_id: unique_id})
        when is_binary(unique_id) and unique_id != "" do
     unique_id
   end
 
   defp subject_for_user(%User{id: id}), do: to_string(id)
+
+  defp maybe_add_domain_identity_claims(claims, opts) do
+    claims
+    |> maybe_put_claim("domain", Keyword.get(opts, :identity_domain))
+    |> maybe_put_claim("did", Keyword.get(opts, :identity_did))
+  end
+
+  defp maybe_put_claim(claims, _key, nil), do: claims
+  defp maybe_put_claim(claims, _key, ""), do: claims
+  defp maybe_put_claim(claims, key, value), do: Map.put(claims, key, value)
 
   defp jwt_rs256(claims) do
     signing_key = current_signing_key()
