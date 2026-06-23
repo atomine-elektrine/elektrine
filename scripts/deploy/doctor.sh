@@ -181,6 +181,26 @@ for cert_path in \
   fi
 done
 
+if has_profile email; then
+  mail_cert_path="${IMAP_TLS_CERT_PATH:-${MAIL_TLS_CERT_PATH:-}}"
+  mail_key_path="${IMAP_TLS_KEY_PATH:-${MAIL_TLS_KEY_PATH:-}}"
+
+  if present "$mail_cert_path" && present "$mail_key_path"; then
+    check_ok "email profile has IMAPS TLS cert/key paths"
+
+    for mail_tls_path in "$mail_cert_path" "$mail_key_path"; do
+      if host_path_exists "$mail_tls_path"; then
+        check_ok "mail TLS path exists: $mail_tls_path"
+      else
+        check_warn "mail TLS path is set but does not exist on this host: $mail_tls_path"
+      fi
+    done
+  else
+    check_warn "email profile is enabled without IMAP_TLS_CERT_PATH/KEY or MAIL_TLS_CERT_PATH/KEY"
+    echo "Hint: Gmail mobile works best with public IMAPS on 993 and a trusted certificate for the configured mail host." >&2
+  fi
+fi
+
 S3_PUBLIC="${S3_PUBLIC_URL:-${MAGPIE_PUBLIC_URL:-}}"
 S3_BUCKET="${S3_BUCKET_NAME:-${MAGPIE_BUCKET_NAME:-}}"
 S3_ENDPOINT_VALUE="${S3_ENDPOINT:-${MAGPIE_ENDPOINT:-}}"

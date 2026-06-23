@@ -105,6 +105,11 @@ Recommended client settings:
 - use `465` with `SSL/TLS` for SMTP submission; Docker exposes this publicly by default
 - use `587` with `STARTTLS` only if you publish it externally, for example `SMTP_BIND=587:2587`
 
+For Gmail on mobile, use IMAP over SSL/TLS on port `993` with a publicly trusted
+certificate whose hostname matches the configured incoming mail server. If Gmail
+has already cached an empty mailbox state after a protocol or TLS issue, remove
+and re-add the account after the fixed mail service is running.
+
 Required env for native TLS mailbox access and encrypted SMTP submission:
 
 ```dotenv

@@ -23,13 +23,11 @@ defmodule Elektrine.IMAP.Commands do
     "ID",
     "ENABLE",
     "MOVE",
-    "THREAD=REFERENCES",
     "SPECIAL-USE",
     "LIST-EXTENDED",
     "LIST-STATUS",
     "LITERAL+",
     "CHILDREN",
-    "SORT",
     "XLIST",
     "QUOTA",
     "STATUS=SIZE"

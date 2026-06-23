@@ -19,10 +19,11 @@ defmodule Elektrine.IMAP.CommandsTest do
     assert unauth =~ "UIDPLUS"
     assert unauth =~ "IDLE"
     assert unauth =~ "QUOTA"
-    assert unauth =~ "THREAD=REFERENCES"
     assert unauth =~ "LIST-EXTENDED"
     assert unauth =~ "LIST-STATUS"
 
+    refute unauth =~ "THREAD=REFERENCES"
+    refute unauth =~ "SORT"
     refute unauth =~ "IMAP4rev2"
     refute unauth =~ "QRESYNC"
     refute unauth =~ "CONDSTORE"
@@ -32,9 +33,10 @@ defmodule Elektrine.IMAP.CommandsTest do
     refute auth =~ "AUTH=PLAIN"
     refute auth =~ "AUTH=LOGIN"
     assert auth =~ "QUOTA"
-    assert auth =~ "THREAD=REFERENCES"
     assert auth =~ "LIST-EXTENDED"
     assert auth =~ "LIST-STATUS"
+    refute auth =~ "THREAD=REFERENCES"
+    refute auth =~ "SORT"
   end
 
   test "AUTHENTICATE PLAIN accepts initial response and records IMAP access" do
@@ -537,6 +539,65 @@ defmodule Elektrine.IMAP.CommandsTest do
              "BODY[HEADER.FIELDS (DATE FROM SUBJECT TO CC MESSAGE-ID REFERENCES IN-REPLY-TO)]"
 
     assert response =~ "BODY[TEXT]<0> {5}\r\nHello"
+
+    :gen_tcp.close(client_socket)
+    :gen_tcp.close(server_socket)
+  end
+
+  test "UID SEARCH returns messages for Gmail-style wildcard UID range" do
+    user = user_fixture()
+    {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
+    message = message_fixture(%{mailbox_id: mailbox.id, to: mailbox.email, read: false})
+    messages = Email.list_messages_for_imap(mailbox.id, :inbox)
+    {server_socket, client_socket} = socket_pair()
+
+    state = %{
+      socket: server_socket,
+      state: :selected,
+      user: %{id: user.id},
+      mailbox: mailbox,
+      uid_validity: mailbox.id,
+      selected_folder: "INBOX",
+      messages: messages
+    }
+
+    assert {:continue, _state} =
+             Commands.process_command("A075", "UID", "SEARCH UID 1:* UNDELETED", state)
+
+    response = read_until(client_socket, "A075 OK UID SEARCH completed")
+    assert response =~ "* SEARCH #{message.id}\r\n"
+
+    :gen_tcp.close(client_socket)
+    :gen_tcp.close(server_socket)
+  end
+
+  test "UID SEARCH tolerates RETURN options from strict mobile clients" do
+    user = user_fixture()
+    {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
+    message = message_fixture(%{mailbox_id: mailbox.id, to: mailbox.email, read: false})
+    messages = Email.list_messages_for_imap(mailbox.id, :inbox)
+    {server_socket, client_socket} = socket_pair()
+
+    state = %{
+      socket: server_socket,
+      state: :selected,
+      user: %{id: user.id},
+      mailbox: mailbox,
+      uid_validity: mailbox.id,
+      selected_folder: "INBOX",
+      messages: messages
+    }
+
+    assert {:continue, _state} =
+             Commands.process_command(
+               "A076",
+               "UID",
+               "SEARCH RETURN (ALL) UID 1:* UNDELETED",
+               state
+             )
+
+    response = read_until(client_socket, "A076 OK UID SEARCH completed")
+    assert response =~ "* SEARCH #{message.id}\r\n"
 
     :gen_tcp.close(client_socket)
     :gen_tcp.close(server_socket)

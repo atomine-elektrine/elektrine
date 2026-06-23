@@ -30,6 +30,80 @@ defmodule Elektrine.IMAP.HelpersTest do
     assert Helpers.matches_search_criteria?(%{}, "NOT 2:4", 8, 10)
   end
 
+  test "matches_search_criteria?/4 handles Gmail-style UID wildcard searches" do
+    message = %{id: 42, read: false, deleted: false}
+
+    assert Helpers.matches_search_criteria?(message, "UID 1:*", 1, 1)
+    assert Helpers.matches_search_criteria?(message, "UID 1:* UNDELETED", 1, 1)
+    assert Helpers.matches_search_criteria?(message, "RETURN (ALL) UID 1:* UNDELETED", 1, 1)
+    assert Helpers.matches_search_criteria?(message, "UID 42:* UNSEEN", 1, 1)
+    refute Helpers.matches_search_criteria?(message, "UID 43:*", 1, 1)
+  end
+
+  test "matches_search_criteria?/4 handles compound and quoted search values" do
+    message = %{
+      id: 42,
+      read: false,
+      deleted: false,
+      from: "alerts@example.com",
+      to: "user@example.com",
+      subject: "hello mobile world",
+      text_body: "plain text"
+    }
+
+    assert Helpers.matches_search_criteria?(message, ~S(SUBJECT "hello mobile" UNSEEN), 1, 1)
+    assert Helpers.matches_search_criteria?(message, ~S(OR FROM "alerts" TO "other"), 1, 1)
+    refute Helpers.matches_search_criteria?(message, ~S(OR FROM "nobody" TO "other"), 1, 1)
+  end
+
+  test "matches_search_criteria?/4 handles nested groups and NOT expressions" do
+    message = %{
+      id: 42,
+      read: false,
+      deleted: false,
+      from: "alerts@example.com",
+      to: "user@example.com",
+      subject: "quarterly report",
+      text_body: "plain text"
+    }
+
+    assert Helpers.matches_search_criteria?(
+             message,
+             ~S|(OR FROM "alerts" SUBJECT "invoice") (NOT DELETED) UID 1:*|,
+             1,
+             10
+           )
+
+    refute Helpers.matches_search_criteria?(
+             message,
+             ~S|(OR FROM "nobody" SUBJECT "invoice") (NOT DELETED)|,
+             1,
+             10
+           )
+
+    refute Helpers.matches_search_criteria?(message, ~S|NOT (OR FROM "alerts" SEEN)|, 1, 10)
+  end
+
+  test "matches_search_criteria?/4 handles IMAP date criteria" do
+    message = %{
+      id: 42,
+      read: false,
+      deleted: false,
+      inserted_at: ~U[2026-06-23 12:00:00Z]
+    }
+
+    assert Helpers.matches_search_criteria?(message, "ON 23-Jun-2026", 1, 1)
+    assert Helpers.matches_search_criteria?(message, "SINCE 23-Jun-2026", 1, 1)
+    assert Helpers.matches_search_criteria?(message, "BEFORE 24-Jun-2026", 1, 1)
+    assert Helpers.matches_search_criteria?(message, "SENTON 23-Jun-2026", 1, 1)
+    assert Helpers.matches_search_criteria?(message, "SENTSINCE 22-Jun-2026", 1, 1)
+    assert Helpers.matches_search_criteria?(message, "SENTBEFORE 24-Jun-2026", 1, 1)
+
+    refute Helpers.matches_search_criteria?(message, "ON 22-Jun-2026", 1, 1)
+    refute Helpers.matches_search_criteria?(message, "BEFORE 23-Jun-2026", 1, 1)
+    refute Helpers.matches_search_criteria?(message, "SINCE 24-Jun-2026", 1, 1)
+  end
+
   test "decode_auth_login_line/1 decodes valid base64 and supports missing padding" do
     assert {:ok, "user@example.com"} = Helpers.decode_auth_login_line("dXNlckBleGFtcGxlLmNvbQ==")
     assert {:ok, "user@example.com"} = Helpers.decode_auth_login_line("dXNlckBleGFtcGxlLmNvbQ")
