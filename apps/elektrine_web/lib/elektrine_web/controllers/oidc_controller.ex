@@ -2,10 +2,13 @@ defmodule ElektrineWeb.OIDCController do
   use ElektrineWeb, :controller
 
   alias Elektrine.Accounts.Authentication
+  alias Elektrine.DomainAccount
+  alias Elektrine.Domains
   alias Elektrine.OAuth
   alias Elektrine.OAuth.App
   alias Elektrine.OAuth.Scopes
   alias Elektrine.OIDC
+  alias Elektrine.Profiles
   alias ElektrineWeb.UserAuth
 
   def configuration(conn, _params) do
@@ -109,7 +112,15 @@ defmodule ElektrineWeb.OIDCController do
          user when not is_nil(user) <- oauth_token.user,
          :ok <- Authentication.ensure_user_active(user),
          false <- oauth_token_older_than_auth_boundary?(user, oauth_token) do
-      json(conn, OIDC.userinfo_claims(user, oauth_token.scopes, issuer(conn)))
+      json(
+        conn,
+        OIDC.userinfo_claims(
+          user,
+          oauth_token.scopes,
+          issuer(conn),
+          token_identity_opts(oauth_token)
+        )
+      )
     else
       _ ->
         conn
@@ -254,7 +265,8 @@ defmodule ElektrineWeb.OIDCController do
           issuer,
           token.app.client_id,
           nonce,
-          auth_time
+          auth_time,
+          token_identity_opts(token)
         )
       )
     else
@@ -269,13 +281,18 @@ defmodule ElektrineWeb.OIDCController do
   end
 
   defp redirect_with_code(conn, request, user) do
+    identity_attrs = verified_identity_attrs(request.identity_domain, user)
+
     case OAuth.create_authorization(request.app, user, %{
            scopes: request.scopes,
            redirect_uri: request.redirect_uri,
            state: request.state,
            nonce: request.nonce,
            code_challenge: request.code_challenge,
-           code_challenge_method: request.code_challenge_method
+           code_challenge_method: request.code_challenge_method,
+           identity_subject: identity_attrs[:identity_subject],
+           identity_domain: identity_attrs[:identity_domain],
+           identity_did: identity_attrs[:identity_did]
          }) do
       {:ok, auth} ->
         redirect(
@@ -309,6 +326,7 @@ defmodule ElektrineWeb.OIDCController do
          scopes: scopes,
          state: params["state"],
          nonce: params["nonce"],
+         identity_domain: normalize_identity_domain(params["identity_domain"]),
          code_challenge: blank_to_nil(params["code_challenge"]),
          code_challenge_method: blank_to_nil(params["code_challenge_method"]),
          params: Map.put(params, "redirect_uri", redirect_uri)
@@ -358,6 +376,69 @@ defmodule ElektrineWeb.OIDCController do
       true -> invalid_request_error(params)
     end
   end
+
+  defp verified_identity_attrs(nil, _user), do: %{}
+
+  defp verified_identity_attrs(identity_domain, %{id: user_id})
+       when is_binary(identity_domain) and is_integer(user_id) do
+    case Profiles.get_verified_custom_domain(identity_domain) do
+      %{domain: domain, user_id: ^user_id} ->
+        %{
+          identity_subject: DomainAccount.subject(domain),
+          identity_domain: domain,
+          identity_did: DomainAccount.did_for_domain(domain)
+        }
+
+      _ ->
+        verified_builtin_identity_attrs(identity_domain, user_id)
+    end
+  end
+
+  defp verified_identity_attrs(_, _), do: %{}
+
+  defp verified_builtin_identity_attrs(identity_domain, user_id) do
+    case Domains.profile_base_domain_for_host(identity_domain) do
+      nil ->
+        %{}
+
+      base_domain ->
+        suffix = "." <> base_domain
+        handle = String.trim_trailing(identity_domain, suffix)
+
+        with true <- handle != "" and not String.contains?(handle, "."),
+             %{id: ^user_id} <- Elektrine.Accounts.get_user_by_handle(handle) do
+          %{
+            identity_subject: DomainAccount.subject(identity_domain),
+            identity_domain: identity_domain,
+            identity_did: DomainAccount.did_for_domain(identity_domain)
+          }
+        else
+          _ -> %{}
+        end
+    end
+  end
+
+  defp token_identity_opts(token) do
+    [
+      subject: blank_to_nil(Map.get(token, :identity_subject)),
+      identity_domain: blank_to_nil(Map.get(token, :identity_domain)),
+      identity_did: blank_to_nil(Map.get(token, :identity_did))
+    ]
+    |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+  end
+
+  defp normalize_identity_domain(value) when is_binary(value) do
+    value
+    |> String.trim()
+    |> String.downcase()
+    |> String.trim_leading("https://")
+    |> String.trim_leading("http://")
+    |> String.trim_trailing("/")
+    |> String.trim_trailing(".")
+    |> blank_to_nil()
+  end
+
+  defp normalize_identity_domain(_), do: nil
 
   defp validate_token_redirect_uri(%{redirect_uri: nil}, _params), do: :ok
 

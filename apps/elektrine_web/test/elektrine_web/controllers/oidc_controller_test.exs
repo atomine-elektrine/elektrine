@@ -1,10 +1,13 @@
 defmodule ElektrineWeb.OIDCControllerTest do
   use ElektrineWeb.ConnCase, async: true
 
+  import Ecto.Query
   import Elektrine.AccountsFixtures
 
   alias Elektrine.OAuth
   alias Elektrine.OAuth.App
+  alias Elektrine.Profiles
+  alias Elektrine.Repo
 
   @pkce_verifier "challenge-123"
   @pkce_challenge :crypto.hash(:sha256, @pkce_verifier) |> Base.url_encode64(padding: false)
@@ -157,6 +160,92 @@ defmodule ElektrineWeb.OIDCControllerTest do
       assert refreshed_access_token != access_token
       assert %{"aud" => ^expected_aud, "sub" => ^sub} = decode_jwt_payload(refreshed_id_token)
     end
+
+    test "uses verified domain identity for OIDC subject when requested", %{conn: conn} do
+      user = user_fixture(%{username: "oidcdomain", handle: "oidcdomain"})
+      custom_domain = verified_profile_custom_domain_fixture(user, "oidcportable.example")
+
+      {:ok, app} =
+        OAuth.create_app(%{
+          client_name: "Domain Console",
+          redirect_uris: "https://client.example/callback",
+          scopes: ["openid", "profile", "email"]
+        })
+
+      conn = log_in_user(conn, user)
+
+      approval_conn =
+        post(conn, ~p"/oauth/authorize", %{
+          "decision" => "approve",
+          "client_id" => app.client_id,
+          "redirect_uri" => "https://client.example/callback",
+          "response_type" => "code",
+          "scope" => "openid profile email",
+          "state" => "state-domain",
+          "nonce" => "nonce-domain",
+          "identity_domain" => custom_domain.domain,
+          "code_challenge" => @pkce_challenge,
+          "code_challenge_method" => "S256"
+        })
+
+      redirect_url = redirected_to(approval_conn, 302)
+      %URI{query: query} = URI.parse(redirect_url)
+      %{"code" => code} = URI.decode_query(query)
+
+      token_conn =
+        build_conn()
+        |> put_req_header("accept", "application/json")
+        |> post(~p"/oauth/token", %{
+          "grant_type" => "authorization_code",
+          "client_id" => app.client_id,
+          "client_secret" => App.client_secret_value(app),
+          "code" => code,
+          "redirect_uri" => "https://client.example/callback",
+          "code_verifier" => @pkce_verifier
+        })
+
+      assert %{
+               "access_token" => access_token,
+               "id_token" => id_token,
+               "refresh_token" => refresh_token
+             } = json_response(token_conn, 200)
+
+      assert %{
+               "sub" => "domain:oidcportable.example",
+               "did" => "did:web:oidcportable.example",
+               "domain" => "oidcportable.example"
+             } = decode_jwt_payload(id_token)
+
+      userinfo_conn =
+        build_conn()
+        |> put_req_header("accept", "application/json")
+        |> put_req_header("authorization", "Bearer #{access_token}")
+        |> get(~p"/oauth/userinfo")
+
+      assert %{
+               "sub" => "domain:oidcportable.example",
+               "did" => "did:web:oidcportable.example",
+               "domain" => "oidcportable.example"
+             } = json_response(userinfo_conn, 200)
+
+      refresh_conn =
+        build_conn()
+        |> put_req_header("accept", "application/json")
+        |> post(~p"/oauth/token", %{
+          "grant_type" => "refresh_token",
+          "client_id" => app.client_id,
+          "client_secret" => App.client_secret_value(app),
+          "refresh_token" => refresh_token
+        })
+
+      assert %{"id_token" => refreshed_id_token} = json_response(refresh_conn, 200)
+
+      assert %{
+               "sub" => "domain:oidcportable.example",
+               "did" => "did:web:oidcportable.example",
+               "domain" => "oidcportable.example"
+             } = decode_jwt_payload(refreshed_id_token)
+    end
   end
 
   describe "dynamic client registration" do
@@ -238,6 +327,18 @@ defmodule ElektrineWeb.OIDCControllerTest do
     [_header, payload, _signature] = String.split(token, ".")
     {:ok, decoded} = Base.url_decode64(payload, padding: false)
     Jason.decode!(decoded)
+  end
+
+  defp verified_profile_custom_domain_fixture(user, domain) do
+    {:ok, custom_domain} = Profiles.create_custom_domain(user, %{"domain" => domain})
+
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    {1, _} =
+      from(d in Elektrine.Profiles.CustomDomain, where: d.id == ^custom_domain.id)
+      |> Repo.update_all(set: [status: "verified", verified_at: now, last_checked_at: now])
+
+    Profiles.get_verified_custom_domain(domain)
   end
 
   defp errors_on(changeset) do

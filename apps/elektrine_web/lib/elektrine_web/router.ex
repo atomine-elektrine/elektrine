@@ -467,6 +467,14 @@ defmodule ElektrineWeb.Router do
     get("/atproto-did", BlueskyIdentityController, :well_known_did)
   end
 
+  scope "/.well-known", ElektrineWeb do
+    pipe_through(:api)
+
+    get("/domain-account", DomainAccountController, :show)
+    get("/did.json", DomainAccountController, :did)
+    get("/elektrine", DomainAccountController, :show)
+  end
+
   ElektrineWeb.Routes.Social.discovery_routes()
 
   # Routes that don't require authentication (MOVED BEFORE ActivityPub to prioritize browser requests)

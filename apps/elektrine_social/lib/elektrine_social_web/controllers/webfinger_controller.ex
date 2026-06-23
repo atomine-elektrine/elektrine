@@ -342,6 +342,9 @@ defmodule ElektrineSocialWeb.WebFingerController do
     canonical_domain = ActivityPub.instance_domain()
 
     cond do
+      requested != "" and custom_profile_alias_domain?(requested) ->
+        ActivityPub.instance_url_for_domain(requested)
+
       requested != "" and requested == move_from_domain ->
         ActivityPub.instance_url_for_domain(requested)
 
@@ -357,13 +360,18 @@ defmodule ElektrineSocialWeb.WebFingerController do
     requested_domain = normalize_domain(requested_domain || "")
     move_from_domain = Domains.activitypub_move_from_domain()
 
-    if requested_domain != "" and requested_domain == move_from_domain do
-      ActivityPub.actor_uri(
-        requested_identifier,
-        ActivityPub.instance_url_for_domain(requested_domain)
-      )
-    else
-      ActivityPub.actor_uri(user, ActivityPub.instance_url())
+    cond do
+      requested_domain != "" and custom_profile_domain_for_user(user, requested_domain) ->
+        ActivityPub.actor_uri(user, ActivityPub.instance_url_for_domain(requested_domain))
+
+      requested_domain != "" and requested_domain == move_from_domain ->
+        ActivityPub.actor_uri(
+          requested_identifier,
+          ActivityPub.instance_url_for_domain(requested_domain)
+        )
+
+      true ->
+        ActivityPub.actor_uri(user, ActivityPub.instance_url())
     end
   end
 
