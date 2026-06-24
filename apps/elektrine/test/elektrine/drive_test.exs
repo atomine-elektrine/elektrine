@@ -164,6 +164,31 @@ defmodule Elektrine.DriveTest do
     refute File.exists?(Path.join(uploads_dir(), first.storage_key))
   end
 
+  test "local storage rejects poisoned storage keys outside uploads dir", %{
+    user: user,
+    tmp_dir: tmp_dir
+  } do
+    outside_path = Path.join(Path.dirname(tmp_dir), "outside-drive-secret.txt")
+    File.write!(outside_path, "do not read or delete")
+    on_exit(fn -> File.rm(outside_path) end)
+
+    assert {:ok, file} =
+             %Drive.StoredFile{}
+             |> Drive.StoredFile.changeset(%{
+               user_id: user.id,
+               path: "poisoned.txt",
+               storage_key: "../#{Path.basename(outside_path)}",
+               original_filename: "poisoned.txt",
+               content_type: "text/plain",
+               size: 1
+             })
+             |> Repo.insert()
+
+    assert {:error, :invalid_storage_key} = Drive.read_file(file)
+    assert {:error, :invalid_storage_key} = Drive.delete_file(user.id, file.id)
+    assert File.read!(outside_path) == "do not read or delete"
+  end
+
   test "can rename, move, and bulk delete files", %{user: user} do
     assert {:ok, file} = Drive.upload_file(user, "drafts", temp_upload("notes.txt", "hello"))
     assert {:ok, _folder} = Drive.create_folder(user.id, "archive")
@@ -196,7 +221,7 @@ defmodule Elektrine.DriveTest do
     %Plug.Upload{
       path: path,
       filename: filename,
-      content_type: MIME.from_path(filename) || "application/octet-stream"
+      content_type: MIME.from_path(filename)
     }
   end
 

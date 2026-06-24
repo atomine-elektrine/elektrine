@@ -1063,11 +1063,11 @@ defmodule Elektrine.Drive do
 
     case storage_adapter() do
       :local ->
-        path = local_storage_path(storage_key)
-        File.mkdir_p!(Path.dirname(path))
-
-        case File.write(path, binary) do
-          :ok -> {:ok, storage_key}
+        with {:ok, path} <- local_storage_path(storage_key),
+             :ok <- File.mkdir_p(Path.dirname(path)),
+             :ok <- File.write(path, binary) do
+          {:ok, storage_key}
+        else
           {:error, reason} -> {:error, reason}
         end
 
@@ -1083,8 +1083,10 @@ defmodule Elektrine.Drive do
   end
 
   defp read_local(storage_key) do
-    case File.read(local_storage_path(storage_key)) do
-      {:ok, binary} -> {:ok, binary}
+    with {:ok, path} <- local_storage_path(storage_key),
+         {:ok, binary} <- File.read(path) do
+      {:ok, binary}
+    else
       {:error, reason} -> {:error, reason}
     end
   end
@@ -1108,10 +1110,16 @@ defmodule Elektrine.Drive do
   defp delete_storage(storage_key) do
     case storage_adapter() do
       :local ->
-        case File.rm(local_storage_path(storage_key)) do
-          :ok -> :ok
-          {:error, :enoent} -> :ok
-          {:error, reason} -> {:error, reason}
+        case local_storage_path(storage_key) do
+          {:ok, path} ->
+            case File.rm(path) do
+              :ok -> :ok
+              {:error, :enoent} -> :ok
+              {:error, reason} -> {:error, reason}
+            end
+
+          {:error, reason} ->
+            {:error, reason}
         end
 
       :s3 ->
@@ -1156,12 +1164,32 @@ defmodule Elektrine.Drive do
 
   defp sanitize_storage_filename(_), do: "file"
 
-  defp local_storage_path(storage_key) do
+  defp local_storage_path(storage_key) when is_binary(storage_key) do
     uploads_dir =
       Application.get_env(:elektrine, :uploads, [])[:uploads_dir] || "priv/static/uploads"
 
-    Path.join(uploads_dir, storage_key)
+    base = Path.expand(uploads_dir)
+    expanded = Path.expand(Path.join(base, storage_key))
+
+    cond do
+      storage_key == "" ->
+        {:error, :invalid_storage_key}
+
+      Path.type(storage_key) != :relative ->
+        {:error, :invalid_storage_key}
+
+      String.contains?(storage_key, [<<0>>, "\\"]) ->
+        {:error, :invalid_storage_key}
+
+      expanded == base or not String.starts_with?(expanded, base <> "/") ->
+        {:error, :invalid_storage_key}
+
+      true ->
+        {:ok, expanded}
+    end
   end
+
+  defp local_storage_path(_), do: {:error, :invalid_storage_key}
 
   defp storage_adapter do
     Application.get_env(:elektrine, :uploads, [])[:adapter] || :local

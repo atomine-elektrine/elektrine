@@ -130,7 +130,6 @@ defmodule Elektrine.RSSTest do
       {:ok, subscription} = RSS.subscribe(user.id, url)
 
       assert subscription.user_id == user.id
-      assert subscription.feed != nil
       assert subscription.feed.url == url
       assert subscription.show_in_timeline == true
     end
