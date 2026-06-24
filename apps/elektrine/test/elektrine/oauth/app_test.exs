@@ -2,6 +2,7 @@ defmodule Elektrine.OAuth.AppTest do
   use Elektrine.DataCase, async: true
 
   alias Elektrine.OAuth
+  alias Elektrine.OAuth.App
 
   test "rejects native redirect URI schemes and non-localhost http" do
     for redirect_uri <- [
@@ -24,6 +25,20 @@ defmodule Elektrine.OAuth.AppTest do
 
       assert "contains invalid URI" in errors_on(changeset).redirect_uris
     end
+  end
+
+  test "base changeset rejects unsafe redirect URI updates" do
+    {:ok, app} =
+      OAuth.create_app(%{
+        client_name: "Console",
+        redirect_uris: "https://client.example/callback",
+        scopes: ["read"]
+      })
+
+    changeset = App.changeset(app, %{redirect_uris: "http://client.example/callback"})
+
+    refute changeset.valid?
+    assert "contains invalid URI" in errors_on(changeset).redirect_uris
   end
 
   test "rejects unknown and privileged self-service scopes" do
