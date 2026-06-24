@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ENV_FILE="${ENV_FILE:-$ROOT_DIR/.env.production}"
 HARAKA_DEPLOY_DIR="${HARAKA_DEPLOY_DIR:-}"
+HARAKA_COMPOSE_FILES="${HARAKA_COMPOSE_FILES:-}"
 OUTPUT_PATH="${OUTPUT_PATH:-}"
 CERT_DOMAIN="${CERT_DOMAIN:-}"
 CERT_DIR="${CERT_DIR:-}"
@@ -13,6 +14,7 @@ DOCKER_CMD="${DOCKER_CMD:-docker}"
 FORCE=false
 APPLY=false
 CLI_HARAKA_DEPLOY_DIR=""
+CLI_HARAKA_COMPOSE_FILES=()
 CLI_CERT_DOMAIN=""
 CLI_CERT_DIR=""
 CLI_CERT_PATH=""
@@ -34,6 +36,9 @@ Options:
                         and CADDY_TLS_MOUNT_DIR values.
   --haraka-dir PATH     Haraka deployment dir. Defaults to /opt/elektrine-haraka
                         when present, else /opt/elektrine/haraka.
+  --compose-file PATH   Haraka base compose file. May be repeated. Relative
+                        paths resolve from HARAKA_DIR. Prefer setting this, or
+                        HARAKA_COMPOSE_FILES, for reproducible separate repos.
   --domain DOMAIN       Cert basename, e.g. elektrine.com
   --cert-dir PATH       Host cert dir. Defaults to CADDY_TLS_MOUNT_DIR or
                         /opt/elektrine/certs.
@@ -65,6 +70,14 @@ while [[ "$#" -gt 0 ]]; do
     --haraka-dir=*)
       HARAKA_DEPLOY_DIR="${1#*=}"
       CLI_HARAKA_DEPLOY_DIR="${1#*=}"
+      shift
+      ;;
+    --compose-file)
+      CLI_HARAKA_COMPOSE_FILES+=("$2")
+      shift 2
+      ;;
+    --compose-file=*)
+      CLI_HARAKA_COMPOSE_FILES+=("${1#*=}")
       shift
       ;;
     --domain)
@@ -181,6 +194,9 @@ load_env_file "$ENV_FILE"
 # win. Re-apply them after sourcing because the env file may contain the same
 # variable names.
 [[ -n "$CLI_HARAKA_DEPLOY_DIR" ]] && HARAKA_DEPLOY_DIR="$CLI_HARAKA_DEPLOY_DIR"
+if [[ "${#CLI_HARAKA_COMPOSE_FILES[@]}" -gt 0 ]]; then
+  HARAKA_COMPOSE_FILES="$(IFS=,; printf '%s' "${CLI_HARAKA_COMPOSE_FILES[*]}")"
+fi
 [[ -n "$CLI_CERT_DOMAIN" ]] && CERT_DOMAIN="$CLI_CERT_DOMAIN"
 [[ -n "$CLI_CERT_DIR" ]] && CERT_DIR="$CLI_CERT_DIR"
 [[ -n "$CLI_CERT_PATH" ]] && CERT_PATH="$CLI_CERT_PATH"
@@ -268,6 +284,45 @@ append_existing_default_compose_files() {
   [[ "${#default_compose_args_ref[@]}" -gt "$before_count" ]]
 }
 
+normalize_compose_file() {
+  local compose_file="$1"
+
+  case "$compose_file" in
+    /*) printf '%s' "$compose_file" ;;
+    *) printf '%s' "$HARAKA_DEPLOY_DIR/$compose_file" ;;
+  esac
+}
+
+append_explicit_compose_files() {
+  local args_name="$1"
+  local -n explicit_compose_args_ref="$args_name"
+  local compose_files="$2"
+  local compose_file=""
+  local resolved_file=""
+  local before_count="${#explicit_compose_args_ref[@]}"
+
+  [[ -n "$compose_files" ]] || return 1
+
+  compose_files="${compose_files//:/,}"
+  IFS=',' read -r -a explicit_compose_file_list <<< "$compose_files"
+
+  for compose_file in "${explicit_compose_file_list[@]}"; do
+    compose_file="$(printf '%s' "$compose_file" | xargs)"
+    [[ -n "$compose_file" ]] || continue
+
+    resolved_file="$(normalize_compose_file "$compose_file")"
+
+    if [[ ! -f "$resolved_file" ]]; then
+      echo "Configured Haraka compose file does not exist: $resolved_file" >&2
+      exit 1
+    fi
+
+    append_compose_file_arg "$args_name" "$resolved_file"
+  done
+
+  [[ "${#explicit_compose_args_ref[@]}" -gt "$before_count" ]]
+}
+
 compose_apply_args() {
   local args_name="$1"
   local -n apply_compose_args_ref="$args_name"
@@ -277,6 +332,13 @@ compose_apply_args() {
   local config_file=""
   local resolved_file=""
   local before_file_count=0
+
+  if [[ -n "$HARAKA_COMPOSE_FILES" ]]; then
+    apply_compose_args_ref=("--project-directory" "$HARAKA_DEPLOY_DIR")
+    append_explicit_compose_files "$args_name" "$HARAKA_COMPOSE_FILES"
+    apply_compose_args_ref+=("-f" "$OUTPUT_PATH")
+    return 0
+  fi
 
   if container_id="$(find_existing_haraka_container)"; then
     project_dir="$(compose_label "$container_id" "com.docker.compose.project.working_dir")"

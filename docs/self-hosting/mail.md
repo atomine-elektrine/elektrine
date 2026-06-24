@@ -141,11 +141,29 @@ certificate Haraka serves, not only the certificate used by Caddy or Elektrine's
 mail submission container. Do not keep Haraka on a separately copied
 `deployment_ssl-certs` Docker volume; it can go stale after wildcard renewal.
 
+For reproducible split deployments, keep `elektrine-haraka` as a separate
+repo/deployment but make the interface explicit:
+
+- `HARAKA_DEPLOY_DIR` points at the Haraka checkout/deploy directory.
+- `HARAKA_COMPOSE_FILES` lists the committed Haraka base compose file or files.
+  Use commas or colons for multiple files. Relative paths resolve from
+  `HARAKA_DEPLOY_DIR`.
+- Haraka compose services are named `haraka-inbound`, `haraka-submission`,
+  `haraka-outbound`, and `haraka-worker`.
+
+Example Elektrine production env:
+
+```bash
+HARAKA_DEPLOY_DIR=/opt/elektrine-haraka
+HARAKA_COMPOSE_FILES=compose.yml
+```
+
 Use Elektrine's wildcard cert directory as the single source of truth:
 
 ```bash
 scripts/deploy/configure_haraka_wildcard_tls.sh \
   --haraka-dir /opt/elektrine-haraka \
+  --compose-file compose.yml \
   --domain example.com
 ```
 
@@ -169,6 +187,7 @@ Or do both in one command:
 ```bash
 scripts/deploy/configure_haraka_wildcard_tls.sh \
   --haraka-dir /opt/elektrine-haraka \
+  --compose-file compose.yml \
   --domain example.com \
   --apply
 ```
@@ -188,9 +207,11 @@ openssl s_client -starttls smtp -connect localhost:25 \
 The output must include `Verify return code: 0 (ok)`.
 
 When `scripts/deploy/docker_deploy.sh` runs on a host that has a Haraka
-deployment at `/opt/elektrine-haraka` or `/opt/elektrine/haraka`, it performs
-this configuration automatically after ensuring wildcard certs. No extra env is
-needed for the standard layout.
+deployment configured with `HARAKA_DEPLOY_DIR` and `HARAKA_COMPOSE_FILES`, it
+performs this configuration automatically after ensuring wildcard certs. For
+older hosts, it can still try to discover a standard deployment at
+`/opt/elektrine-haraka` or `/opt/elektrine/haraka`, but explicit env is the
+reproducible path.
 
 If you are not ready to run Haraka, keep the `email` module off for production
 hosts. Enabling only Elektrine's `email` module/profile gives you mailbox and
