@@ -1153,7 +1153,10 @@ defmodule Elektrine.IMAP.Helpers do
 
   @doc "Escape string for IMAP protocol"
   def escape_imap_string(str) when is_binary(str) do
-    str |> String.replace("\\", "\\\\") |> String.replace("\"", "\\\"")
+    str
+    |> String.replace(~r/[\x00-\x1F\x7F]/, " ")
+    |> String.replace("\\", "\\\\")
+    |> String.replace("\"", "\\\"")
   end
 
   def escape_imap_string(_) do

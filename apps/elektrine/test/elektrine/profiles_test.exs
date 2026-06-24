@@ -103,6 +103,63 @@ defmodule Elektrine.ProfilesTest do
     end
   end
 
+  describe "profile links" do
+    test "rejects unsafe and malformed profile link URLs" do
+      user = AccountsFixtures.user_fixture()
+      {:ok, profile} = Profiles.create_user_profile(user.id, %{display_name: "Link User"})
+
+      unsafe_urls = [
+        "javascript:alert(1)",
+        "data:text/html,<script>alert(1)</script>",
+        "https://example.com\r\nLocation:https://evil.test",
+        "https://example.com/some path",
+        "mailto:test@example.com\r\nBcc:evil@example.com",
+        "mailto:not-an-address",
+        "tel:+1 555 123 4567",
+        "tel:abc123"
+      ]
+
+      for url <- unsafe_urls do
+        assert {:error, changeset} =
+                 Profiles.create_profile_link(profile.id, %{
+                   title: "Unsafe",
+                   url: url,
+                   platform: "website"
+                 })
+
+        assert %{url: [_ | _]} = errors_on(changeset)
+      end
+    end
+
+    test "accepts trimmed http, mailto, and tel profile link URLs" do
+      user = AccountsFixtures.user_fixture()
+      {:ok, profile} = Profiles.create_user_profile(user.id, %{display_name: "Link User"})
+
+      assert {:ok, link} =
+               Profiles.create_profile_link(profile.id, %{
+                 title: "Site",
+                 url: " https://example.com/path?x=1 ",
+                 platform: "website"
+               })
+
+      assert link.url == "https://example.com/path?x=1"
+
+      assert {:ok, _link} =
+               Profiles.create_profile_link(profile.id, %{
+                 title: "Email",
+                 url: "mailto:test@example.com",
+                 platform: "email"
+               })
+
+      assert {:ok, _link} =
+               Profiles.create_profile_link(profile.id, %{
+                 title: "Phone",
+                 url: "tel:+15551234567",
+                 platform: "phone"
+               })
+    end
+  end
+
   describe "follow_user/2" do
     test "creates a follow relationship" do
       user1 = AccountsFixtures.user_fixture()

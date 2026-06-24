@@ -54,8 +54,7 @@ defmodule ElektrineWeb.LinkController do
         end
 
       %URI{scheme: scheme} when scheme in ["mailto", "tel"] ->
-        # Allow mailto and tel links
-        :ok
+        validate_contact_url(scheme, url)
 
       _ ->
         {:error, :invalid_url_format}
@@ -63,4 +62,30 @@ defmodule ElektrineWeb.LinkController do
   end
 
   defp validate_external_url(_), do: {:error, :invalid_input}
+
+  defp validate_contact_url(_scheme, url) when is_binary(url) do
+    if String.contains?(url, ["\r", "\n", "\0"]) or Regex.match?(~r/[\x00-\x1F\x7F\s]/, url) do
+      {:error, :unsafe_contact_url}
+    else
+      do_validate_contact_url(url)
+    end
+  end
+
+  defp do_validate_contact_url("mailto:" <> address) do
+    if Regex.match?(~r/^[^@<>"']+@[^@<>"']+\.[^@<>"']+$/, address) do
+      :ok
+    else
+      {:error, :invalid_mailto_url}
+    end
+  end
+
+  defp do_validate_contact_url("tel:" <> phone) do
+    if Regex.match?(~r/^\+?[0-9().-]{3,32}$/, phone) do
+      :ok
+    else
+      {:error, :invalid_tel_url}
+    end
+  end
+
+  defp do_validate_contact_url(_url), do: {:error, :invalid_url_format}
 end

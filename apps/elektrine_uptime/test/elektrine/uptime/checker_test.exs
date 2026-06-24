@@ -150,5 +150,39 @@ defmodule Elektrine.Uptime.CheckerTest do
       stub_ping(fn _host, _t -> flunk("ping should not run for a private host") end)
       assert {:down, _reason} = Checker.run(ping_monitor(%{target: "127.0.0.1"}))
     end
+
+    test "default ping terminates options before the host argument" do
+      tmp_dir =
+        Path.join(System.tmp_dir!(), "elektrine-ping-test-#{System.unique_integer([:positive])}")
+
+      File.mkdir_p!(tmp_dir)
+      fake_ping = Path.join(tmp_dir, "ping")
+      args_file = Path.join(tmp_dir, "args")
+      old_path = System.get_env("PATH") || ""
+
+      File.write!(fake_ping, """
+      #!/bin/sh
+      printf '%s\n' "$@" > "$PING_ARGS_FILE"
+      printf '64 bytes: time=4.2 ms\n'
+      exit 0
+      """)
+
+      File.chmod!(fake_ping, 0o755)
+
+      try do
+        Application.delete_env(:elektrine_uptime, :ping_fun)
+        System.put_env("PATH", tmp_dir <> ":" <> old_path)
+        System.put_env("PING_ARGS_FILE", args_file)
+
+        assert {:up, %{response_time_ms: 4}} = Checker.run(ping_monitor())
+
+        assert ["-c", "1", "-W", "5", "--", "example.com"] =
+                 args_file |> File.read!() |> String.split("\n", trim: true)
+      after
+        System.put_env("PATH", old_path)
+        System.delete_env("PING_ARGS_FILE")
+        File.rm_rf(tmp_dir)
+      end
+    end
   end
 end

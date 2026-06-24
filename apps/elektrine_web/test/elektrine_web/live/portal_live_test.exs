@@ -183,6 +183,38 @@ defmodule ElektrineWeb.PortalLiveTest do
     assert html =~ "systems"
   end
 
+  test "portal RSS reader sanitizes selected item HTML", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+    {:ok, feed} = RSS.get_or_create_feed("https://example.com/feed-security.xml")
+    {:ok, feed} = RSS.update_feed(feed, %{title: "Security Feed", status: "active"})
+    {:ok, _subscription} = RSS.subscribe(user.id, feed.url)
+
+    {:ok, item} =
+      RSS.upsert_item(feed.id, %{
+        guid: "portal-reader-hostile-html",
+        title: "Hostile RSS payload",
+        content:
+          ~s|<p>Visible text</p><script>alert(1)</script><img src="x" onerror="alert(2)"><a href="javascript:alert(3)">bad link</a>|,
+        url: "https://example.com/hostile-rss-payload",
+        published_at: ~U[2026-05-14 00:00:00Z]
+      })
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/portal")
+
+    html =
+      view
+      |> element(~s([data-role="rss-reader-list"] a[href*="rss_item=#{item.id}"]))
+      |> render_click()
+
+    assert html =~ "Visible text"
+    refute html =~ "<script"
+    refute html =~ "onerror"
+    refute html =~ "javascript:alert"
+  end
+
   test "portal RSS item selection does not reload the reader list", %{conn: conn} do
     user = AccountsFixtures.user_fixture()
     {:ok, feed} = RSS.get_or_create_feed("https://example.com/stable-reader.xml")
