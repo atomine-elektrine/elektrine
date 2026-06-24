@@ -69,7 +69,7 @@ import {
   VideoBackground,
   StatusSelector,
 } from "./profile_hooks";
-import { ReputationGraph } from "./reputation_graph_hook";
+import { ProofGraph } from "./proof_graph_hook";
 import { UPlotChart } from "./analytics_hooks";
 
 // Timeline/Feed hooks
@@ -172,7 +172,7 @@ export const Hooks = {
   TabTitleTypewriter,
   VideoBackground,
   StatusSelector,
-  ReputationGraph,
+  ProofGraph,
   UPlotChart,
 
   // Timeline/Feed

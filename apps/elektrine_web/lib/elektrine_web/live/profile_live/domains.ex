@@ -1,9 +1,8 @@
 defmodule ElektrineWeb.ProfileLive.Domains do
   use ElektrineWeb, :live_view
 
-  alias Elektrine.DomainAccount
   alias Elektrine.Accounts.User
-  alias Elektrine.{DNS, Domains, Profiles}
+  alias Elektrine.{DNS, DomainAccount, Domains, Profiles}
   alias ElektrineWeb.Platform.Integrations
 
   @impl true

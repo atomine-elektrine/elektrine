@@ -1,11 +1,11 @@
-defmodule Elektrine.Reputation do
+defmodule Elektrine.AtomineProofGraph do
   @moduledoc """
-  Public reputation graph data built from trust, invite lineage, and local follow edges.
+  Public Atomine proof graph data built from trust, invite lineage, and local follow edges.
   """
 
   import Ecto.Query, warn: false
 
-  alias Elektrine.{Accounts, Profiles, Repo, Uploads}
+  alias Elektrine.{Accounts, DomainAccount, Domains, Profiles, Repo, Uploads}
   alias Elektrine.Accounts.{InviteCode, InviteCodeUse, TrustLevel, User}
 
   @sample_limit 4
@@ -59,7 +59,7 @@ defmodule Elektrine.Reputation do
 
   def build_public_graph(%User{} = user, viewer \\ nil) do
     trust_info = TrustLevel.get_level_info(user.trust_level)
-    palette = Elektrine.Theme.reputation_palette(user.trust_level)
+    palette = Elektrine.Theme.proof_palette(user.trust_level)
     handle = display_handle(user)
     account_age_days = account_age_days(user)
     follower_count = Profiles.get_follower_count(user.id)
@@ -69,6 +69,7 @@ defmodule Elektrine.Reputation do
     invitees = invitees(user.id, viewer)
     followers = followers(user.id, viewer)
     following = following(user.id, viewer)
+    proof_identity = proof_identity(user)
 
     subject_id = subject_id(user)
 
@@ -198,7 +199,12 @@ defmodule Elektrine.Reputation do
         display_name: user.display_name || handle,
         avatar_url: Uploads.avatar_url(user.avatar),
         trust_level: user.trust_level,
-        trust_name: trust_info.name
+        trust_name: trust_info.name,
+        domain: proof_identity.domain,
+        domain_subject: proof_identity.subject,
+        did: proof_identity.did,
+        atomine_url: proof_identity.atomine_url,
+        domain_account_url: proof_identity.domain_account_url
       },
       stats: [
         %{label: "Trust", value: "TL#{user.trust_level}", note: trust_info.name},
@@ -226,6 +232,25 @@ defmodule Elektrine.Reputation do
         ),
       nodes: nodes,
       edges: edges
+    }
+  end
+
+  defp proof_identity(%User{} = user) do
+    domain =
+      case Profiles.preferred_verified_domain_for_user(user) do
+        %{domain: domain} when is_binary(domain) ->
+          domain
+
+        _ ->
+          "#{display_handle(user)}.#{Domains.default_profile_domain()}"
+      end
+
+    %{
+      domain: domain,
+      subject: DomainAccount.subject(domain),
+      did: DomainAccount.did_for_domain(domain),
+      atomine_url: "https://#{domain}/.well-known/atomine",
+      domain_account_url: "https://#{domain}/.well-known/domain-account"
     }
   end
 
@@ -366,7 +391,7 @@ defmodule Elektrine.Reputation do
     |> String.upcase()
   end
 
-  defp graph_path(%User{} = user), do: "/reputation/" <> display_handle(user)
+  defp graph_path(%User{} = user), do: "/proofs/" <> display_handle(user)
 
   defp subject_id(%User{} = user), do: "subject:#{user.id}"
   defp sample_id(kind, id), do: "#{kind}:#{id}"
