@@ -96,7 +96,7 @@
         id="encrypted-note-payload"
         type="application/json"
       >
-        <%= Phoenix.HTML.raw(Jason.encode!(@share.encrypted_payload)) %>
+        <%= Phoenix.HTML.raw(script_json(@share.encrypted_payload)) %>
       </script>
       <script nonce={ElektrineWeb.Plugs.SecurityHeaders.script_nonce()}>
         (() => {
