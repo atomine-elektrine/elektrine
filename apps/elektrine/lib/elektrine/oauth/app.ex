@@ -44,6 +44,7 @@ defmodule Elektrine.OAuth.App do
     |> validate_length(:client_name, max: 255)
     |> validate_length(:website, max: 2048)
     |> validate_scopes()
+    |> validate_redirect_uris()
   end
 
   @doc """
@@ -55,7 +56,6 @@ defmodule Elektrine.OAuth.App do
       struct
       |> changeset(params)
       |> validate_required([:client_name, :redirect_uris, :scopes])
-      |> validate_redirect_uris()
 
     if changeset.valid? do
       client_secret = generate_token()
@@ -105,7 +105,6 @@ defmodule Elektrine.OAuth.App do
       %__MODULE__{} = app ->
         app
         |> changeset(params)
-        |> validate_redirect_uris()
         |> Repo.update()
 
       nil ->
