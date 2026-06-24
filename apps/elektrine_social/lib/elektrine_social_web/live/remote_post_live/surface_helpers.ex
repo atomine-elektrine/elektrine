@@ -613,10 +613,47 @@ defmodule ElektrineSocialWeb.RemotePostLive.SurfaceHelpers do
   defp map_get_value(_, _), do: nil
 
   defp existing_atom_map_value(map, key) do
-    Map.get(map, String.to_existing_atom(key))
-  rescue
-    ArgumentError -> nil
+    Map.get(map, remote_post_atom_key(key))
   end
+
+  defp remote_post_atom_key("_mastodon"), do: :_mastodon
+  defp remote_post_atom_key("_mastodon_account"), do: :_mastodon_account
+  defp remote_post_atom_key("account"), do: :account
+  defp remote_post_atom_key("_lemmy"), do: :_lemmy
+  defp remote_post_atom_key("creator"), do: :creator
+  defp remote_post_atom_key("url"), do: :url
+  defp remote_post_atom_key("uri"), do: :uri
+  defp remote_post_atom_key("id"), do: :id
+  defp remote_post_atom_key("acct"), do: :acct
+  defp remote_post_atom_key("username"), do: :username
+  defp remote_post_atom_key("preferredUsername"), do: :preferredUsername
+  defp remote_post_atom_key("display_name"), do: :display_name
+  defp remote_post_atom_key("displayName"), do: :displayName
+  defp remote_post_atom_key("name"), do: :name
+  defp remote_post_atom_key("creator_display_name"), do: :creator_display_name
+  defp remote_post_atom_key("creator_name"), do: :creator_name
+  defp remote_post_atom_key("avatar"), do: :avatar
+  defp remote_post_atom_key("avatar_static"), do: :avatar_static
+  defp remote_post_atom_key("author_avatar"), do: :author_avatar
+  defp remote_post_atom_key("creator_avatar"), do: :creator_avatar
+  defp remote_post_atom_key("avatar_url"), do: :avatar_url
+  defp remote_post_atom_key("icon"), do: :icon
+  defp remote_post_atom_key("_local_like_count"), do: :_local_like_count
+  defp remote_post_atom_key("likes"), do: :likes
+  defp remote_post_atom_key("likesCount"), do: :likesCount
+  defp remote_post_atom_key("_local_share_count"), do: :_local_share_count
+  defp remote_post_atom_key("shares"), do: :shares
+  defp remote_post_atom_key("sharesCount"), do: :sharesCount
+  defp remote_post_atom_key("announcesCount"), do: :announcesCount
+  defp remote_post_atom_key("_local_reply_count"), do: :_local_reply_count
+  defp remote_post_atom_key("repliesCount"), do: :repliesCount
+  defp remote_post_atom_key("replies"), do: :replies
+  defp remote_post_atom_key("comments"), do: :comments
+  defp remote_post_atom_key("_local_message_id"), do: :_local_message_id
+  defp remote_post_atom_key("public_key"), do: :public_key
+  defp remote_post_atom_key("href"), do: :href
+  defp remote_post_atom_key("src"), do: :src
+  defp remote_post_atom_key(_), do: nil
 
   defp normalize_in_reply_to_ref(%{"id" => id}), do: normalize_in_reply_to_ref(id)
   defp normalize_in_reply_to_ref(%{"href" => href}), do: normalize_in_reply_to_ref(href)
@@ -632,13 +669,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.SurfaceHelpers do
   defp normalize_in_reply_to_ref(_), do: nil
 
   defp normalize_http_url(url) when is_binary(url) do
-    trimmed = String.trim(url)
-
-    if String.match?(trimmed, ~r/^https?:\/\//i) do
-      trimmed
-    else
-      nil
-    end
+    ElektrineWeb.HtmlHelpers.safe_external_image_url(url)
   end
 
   defp normalize_http_url(_), do: nil

@@ -143,20 +143,26 @@ defmodule ElektrineSocialWeb.ListLive.Index do
   end
 
   def handle_event("delete_list", %{"list_id" => list_id}, socket) do
-    list_id = String.to_integer(list_id)
+    with {:ok, list_id} <- parse_positive_int(list_id),
+         list when not is_nil(list) <-
+           Social.get_user_list(socket.assigns.current_user.id, list_id) do
+      case Social.delete_list(list) do
+        {:ok, _} ->
+          {:noreply, socket |> refresh_list_data() |> put_flash(:info, "List deleted")}
 
-    case Social.get_user_list(socket.assigns.current_user.id, list_id) do
-      nil ->
+        {:error, _} ->
+          {:noreply, put_flash(socket, :error, "Failed to delete list")}
+      end
+    else
+      _ ->
         {:noreply, put_flash(socket, :error, "List not found")}
+    end
+  end
 
-      list ->
-        case Social.delete_list(list) do
-          {:ok, _} ->
-            {:noreply, socket |> refresh_list_data() |> put_flash(:info, "List deleted")}
-
-          {:error, _} ->
-            {:noreply, put_flash(socket, :error, "Failed to delete list")}
-        end
+  defp parse_positive_int(value) do
+    case Integer.parse(to_string(value)) do
+      {id, ""} when id > 0 -> {:ok, id}
+      _ -> :error
     end
   end
 

@@ -294,7 +294,10 @@ defmodule Elektrine.Email.Receiver do
               _ -> encoded_text
             end
 
-          Base.decode64!(padded)
+          case Base.decode64(padded) do
+            {:ok, decoded} -> decoded
+            :error -> raise ArgumentError, "invalid RFC 2047 base64 payload"
+          end
 
         "Q" ->
           encoded_text |> String.replace("_", " ") |> decode_quoted_printable()
@@ -311,7 +314,12 @@ defmodule Elektrine.Email.Receiver do
   end
 
   defp decode_quoted_printable(text) do
-    Regex.replace(~r/=([0-9A-F]{2})/i, text, fn _, hex -> <<String.to_integer(hex, 16)>> end)
+    Regex.replace(~r/=([0-9A-F]{2})/i, text, fn _, hex ->
+      case Integer.parse(hex, 16) do
+        {byte, ""} when byte in 0..255 -> <<byte>>
+        _ -> ""
+      end
+    end)
   end
 
   defp convert_charset_to_utf8(bytes, charset) do
@@ -519,19 +527,58 @@ defmodule Elektrine.Email.Receiver do
         )
       end
 
-    valid_message_keys = ~w(
-      message_id from to cc bcc subject text_body html_body encrypted_text_body
-      encrypted_html_body search_index status read spam archived deleted flagged
-      answered metadata category stack_at stack_reason reply_later_at
-      reply_later_reminder is_receipt is_notification is_newsletter opened_at
-      first_opened_at open_count attachments has_attachments hash in_reply_to
-      references jmap_blob_id priority scheduled_at expires_at undo_send_until
-      mailbox_id thread_id label_ids folder_id
-    )
+    valid_message_keys = %{
+      "message_id" => :message_id,
+      "from" => :from,
+      "to" => :to,
+      "cc" => :cc,
+      "bcc" => :bcc,
+      "subject" => :subject,
+      "text_body" => :text_body,
+      "html_body" => :html_body,
+      "encrypted_text_body" => :encrypted_text_body,
+      "encrypted_html_body" => :encrypted_html_body,
+      "search_index" => :search_index,
+      "status" => :status,
+      "read" => :read,
+      "spam" => :spam,
+      "archived" => :archived,
+      "deleted" => :deleted,
+      "flagged" => :flagged,
+      "answered" => :answered,
+      "metadata" => :metadata,
+      "category" => :category,
+      "stack_at" => :stack_at,
+      "stack_reason" => :stack_reason,
+      "reply_later_at" => :reply_later_at,
+      "reply_later_reminder" => :reply_later_reminder,
+      "is_receipt" => :is_receipt,
+      "is_notification" => :is_notification,
+      "is_newsletter" => :is_newsletter,
+      "opened_at" => :opened_at,
+      "first_opened_at" => :first_opened_at,
+      "open_count" => :open_count,
+      "attachments" => :attachments,
+      "has_attachments" => :has_attachments,
+      "hash" => :hash,
+      "in_reply_to" => :in_reply_to,
+      "references" => :references,
+      "jmap_blob_id" => :jmap_blob_id,
+      "priority" => :priority,
+      "scheduled_at" => :scheduled_at,
+      "expires_at" => :expires_at,
+      "undo_send_until" => :undo_send_until,
+      "mailbox_id" => :mailbox_id,
+      "thread_id" => :thread_id,
+      "label_ids" => :label_ids,
+      "folder_id" => :folder_id
+    }
 
     message_attrs =
-      for {key, val} <- message_attrs, key in valid_message_keys, into: %{} do
-        {String.to_existing_atom(key), val}
+      for {key, val} <- message_attrs,
+          {_, atom_key} <- [Map.fetch(valid_message_keys, key)],
+          into: %{} do
+        {atom_key, val}
       end
 
     case Email.create_message(message_attrs) do

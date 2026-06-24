@@ -5,6 +5,7 @@ defmodule ElektrineSocialWeb.Components.Social.PollDisplay do
 
   use Phoenix.Component
   import ElektrineWeb.CoreComponents
+  import ElektrineWeb.HtmlHelpers, only: [safe_external_href: 1]
   alias Elektrine.Messaging
   alias Elektrine.Repo
   alias Elektrine.Social
@@ -193,9 +194,11 @@ defmodule ElektrineSocialWeb.Components.Social.PollDisplay do
       </div>
       
     <!-- Link to original for federated polls -->
-      <%= if @message && @message.federated && @message.activitypub_url do %>
+      <% message_href =
+        if @message && @message.federated, do: safe_external_href(@message.activitypub_url) %>
+      <%= if message_href do %>
         <a
-          href={@message.activitypub_url}
+          href={message_href}
           target="_blank"
           rel="noopener noreferrer"
           class="btn btn-sm btn-ghost btn-primary w-full mt-3"

@@ -1,10 +1,9 @@
 defmodule ElektrineWeb.ProfileNavigation do
   @moduledoc false
 
-  import Phoenix.LiveView, only: [push_navigate: 2, redirect: 2]
+  alias ElektrineWeb.SafeLiveNavigation
 
   alias Elektrine.{Accounts, Domains}
-  alias Elektrine.Security.SafeExternalURL
 
   def navigate(socket, params) when is_map(params) do
     params
@@ -49,14 +48,8 @@ defmodule ElektrineWeb.ProfileNavigation do
 
   defp navigate_to_url(nil, socket), do: {:noreply, socket}
 
-  defp navigate_to_url("http" <> _ = url, socket) do
-    case SafeExternalURL.normalize(url) do
-      {:ok, safe_url} -> {:noreply, redirect(socket, external: safe_url)}
-      {:error, _reason} -> {:noreply, push_navigate(socket, to: "/")}
-    end
-  end
-
-  defp navigate_to_url(path, socket), do: {:noreply, push_navigate(socket, to: path)}
+  defp navigate_to_url(url, socket),
+    do: SafeLiveNavigation.noreply(socket, url, invalid_message: nil, invalid_path: "/")
 
   defp parse_user_id(value) when is_integer(value), do: value
 

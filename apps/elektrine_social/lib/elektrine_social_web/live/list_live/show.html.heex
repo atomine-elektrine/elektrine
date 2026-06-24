@@ -88,9 +88,9 @@
                         </div>
                       <% else %>
                         <div class="flex items-center gap-2 p-2 bg-base-200 rounded-lg">
-                          <%= if result.actor.avatar_url do %>
+                          <%= if avatar_url = safe_external_image_url(result.actor.avatar_url) do %>
                             <img
-                              src={result.actor.avatar_url}
+                              src={avatar_url}
                               alt={result.actor.username}
                               class="w-8 h-8 rounded-full"
                             />
@@ -206,9 +206,9 @@
                   <div class="text-xs opacity-70">@{member.user.username}</div>
                 </div>
               <% else %>
-                <%= if member.remote_actor.avatar_url do %>
+                <%= if avatar_url = safe_external_image_url(member.remote_actor.avatar_url) do %>
                   <img
-                    src={member.remote_actor.avatar_url}
+                    src={avatar_url}
                     alt={member.remote_actor.username}
                     class="w-8 h-8 rounded-full"
                   />
@@ -279,13 +279,14 @@
                               name="hero-arrow-path"
                               class="w-4 h-4 text-success flex-shrink-0"
                             /> <span class="flex-shrink-0">Boosted by</span>
-                            <%= if booster["avatar_url"] do %>
+                            <%= if booster_avatar_url =
+                                  safe_external_image_url(booster["avatar_url"]) do %>
                               <.link
                                 navigate={"/remote/#{booster["username"]}@#{booster["domain"]}"}
                                 class="flex-shrink-0"
                               >
                                 <img
-                                  src={ensure_https(booster["avatar_url"])}
+                                  src={booster_avatar_url}
                                   alt=""
                                   class="w-5 h-5 rounded-full object-cover"
                                 />
@@ -371,9 +372,9 @@
                             navigate={"/remote/#{post.remote_actor.username}@#{post.remote_actor.domain}"}
                             class="w-10 h-10 block"
                           >
-                            <%= if post.remote_actor.avatar_url do %>
+                            <%= if avatar_url = safe_external_image_url(post.remote_actor.avatar_url) do %>
                               <img
-                                src={post.remote_actor.avatar_url}
+                                src={avatar_url}
                                 alt={post.remote_actor.username}
                                 class="w-10 h-10 rounded-full"
                               />
@@ -442,9 +443,11 @@
                           show_save={false}
                         />
                         <!-- View Post Button -->
-                        <%= if post.remote_actor && post.activitypub_url do %>
+                        <% post_href =
+                          if post.remote_actor, do: safe_external_href(post.activitypub_url) %>
+                        <%= if post_href do %>
                           <a
-                            href={post.activitypub_url}
+                            href={post_href}
                             target="_blank"
                             rel="noopener noreferrer"
                             class="btn btn-sm btn-ghost"
@@ -494,9 +497,10 @@
                                       </div>
                                     </div>
                                   <% else %>
-                                    <%= if reply.remote_actor.avatar_url do %>
+                                    <%= if avatar_url =
+                                          safe_external_image_url(reply.remote_actor.avatar_url) do %>
                                       <img
-                                        src={reply.remote_actor.avatar_url}
+                                        src={avatar_url}
                                         alt={reply.remote_actor.username}
                                         class="w-8 h-8 rounded-full"
                                       />

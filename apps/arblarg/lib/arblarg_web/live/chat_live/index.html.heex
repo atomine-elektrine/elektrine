@@ -172,8 +172,8 @@
           ]}
           title={server.name}
         >
-          <%= if is_binary(server.icon_url) and String.trim(server.icon_url) != "" do %>
-            <img src={server.icon_url} alt={server.name} class="w-full h-full object-cover" />
+          <%= if icon_url = safe_chat_image_url(server.icon_url) do %>
+            <img src={icon_url} alt={server.name} class="w-full h-full object-cover" />
           <% else %>
             <%= case String.trim(server.name || "") do %>
               <% "" -> %>
@@ -1347,7 +1347,10 @@
                   
 <!-- Direct Image URLs Preview (only if no uploaded media) -->
                   <%= if (message.media_urls == nil || message.media_urls == []) do %>
-                    <% image_urls = Message.extract_image_urls(message.content) %>
+                    <% image_urls =
+                      message.content
+                      |> Message.extract_image_urls()
+                      |> ElektrineWeb.HtmlHelpers.safe_external_image_urls() %>
                     <%= if image_urls != [] do %>
                       <div class="mt-2 space-y-2">
                         <%= for {image_url, index} <- Enum.with_index(image_urls) do %>
@@ -1385,17 +1388,23 @@
                   
 <!-- Link Preview (skip when rendered as a YouTube embed) -->
                   <% link_preview = Map.get(message, :link_preview) %>
-                  <%= if !youtube_url && social_link_preview_success?(link_preview) do %>
+                  <% link_preview_url =
+                    if social_link_preview_success?(link_preview),
+                      do: ElektrineWeb.HtmlHelpers.safe_external_href(link_preview.url) %>
+                  <%= if !youtube_url && link_preview_url do %>
                     <a
-                      href={link_preview.url}
+                      href={link_preview_url}
                       target="_blank"
                       rel="noopener noreferrer"
                       class="block mt-2 border border-base-300 rounded-lg overflow-hidden hover:border-error/50 transition-colors group"
                     >
-                      <%= if link_preview.image_url do %>
+                      <%= if preview_image_url =
+                            ElektrineWeb.HtmlHelpers.safe_external_image_url(
+                              link_preview.image_url
+                            ) do %>
                         <div class="aspect-video bg-base-200 relative overflow-hidden">
                           <img
-                            src={ensure_https(link_preview.image_url)}
+                            src={preview_image_url}
                             alt={link_preview.title || "Link preview"}
                             loading="lazy"
                             decoding="async"
@@ -1415,10 +1424,13 @@
                           </p>
                         <% end %>
                         <div class="flex items-center gap-2 mt-2 text-xs opacity-50">
-                          <%= if link_preview.favicon_url do %>
+                          <%= if favicon_url =
+                                ElektrineWeb.HtmlHelpers.safe_external_image_url(
+                                  link_preview.favicon_url
+                                ) do %>
                             <img
                               id={"chat-link-preview-favicon-#{:erlang.phash2(link_preview.favicon_url)}"}
-                              src={ensure_https(link_preview.favicon_url)}
+                              src={favicon_url}
                               alt=""
                               loading="lazy"
                               decoding="async"
@@ -1427,7 +1439,7 @@
                             />
                           <% end %>
                           <span class="truncate">
-                            {URI.parse(link_preview.url).host}
+                            {URI.parse(link_preview_url).host}
                           </span>
                         </div>
                       </div>
@@ -1455,7 +1467,7 @@
                           ]}
                           title={Enum.join(users, ", ")}
                         >
-                          {Phoenix.HTML.raw(render_custom_emojis(emoji))} {count}
+                          {Phoenix.HTML.raw(render_reaction_emoji(emoji))} {count}
                         </button>
                       <% end %>
                     </div>
@@ -1652,7 +1664,10 @@
                     class="btn btn-sm btn-ghost hover:bg-base-300 p-1"
                     title={":" <> emoji.shortcode <> ":"}
                   >
-                    <img src={emoji.image_url} alt={emoji.shortcode} class="w-5 h-5" />
+                    <%= if emoji_url =
+                          ElektrineWeb.HtmlHelpers.safe_external_image_url(emoji.image_url) do %>
+                      <img src={emoji_url} alt={emoji.shortcode} class="w-5 h-5" />
+                    <% end %>
                   </button>
                 <% end %>
               <% else %>
@@ -1666,7 +1681,10 @@
                       class="btn btn-sm btn-ghost hover:bg-base-300 p-1"
                       title={":" <> emoji.shortcode <> ":"}
                     >
-                      <img src={emoji.image_url} alt={emoji.shortcode} class="w-5 h-5" />
+                      <%= if emoji_url =
+                            ElektrineWeb.HtmlHelpers.safe_external_image_url(emoji.image_url) do %>
+                        <img src={emoji_url} alt={emoji.shortcode} class="w-5 h-5" />
+                      <% end %>
                     </button>
                   <% end %>
                   <%= if Enum.empty?(@custom_emojis) do %>

@@ -15,6 +15,7 @@ defmodule Elektrine.Developer.ExportWorker do
   alias Elektrine.Developer
   alias Elektrine.Developer.DataExport
   alias Elektrine.Developer.Exports.{AccountExporter, ChatExporter, EmailExporter, SocialExporter}
+  alias Elektrine.Security.FilePath
 
   # Export directory - configurable via :elektrine, :export_dir
   defp export_dir, do: Application.get_env(:elektrine, :export_dir, "/tmp/elektrine/exports")
@@ -51,12 +52,7 @@ defmodule Elektrine.Developer.ExportWorker do
       file_path = Path.join(export_dir(), filename)
 
       # Security: Verify the path doesn't escape the export directory
-      expanded_path = Path.expand(file_path)
-      expanded_dir = Path.expand(export_dir())
-
-      unless String.starts_with?(expanded_path, expanded_dir <> "/") do
-        raise "Security: Invalid export path detected"
-      end
+      {:ok, file_path} = FilePath.validate_child_path(file_path, export_dir())
 
       # Run the appropriate exporter
       result = run_exporter(export, file_path)
@@ -162,7 +158,7 @@ defmodule Elektrine.Developer.ExportWorker do
       {:ok, total_count}
     after
       # Clean up temp directory
-      File.rm_rf!(temp_dir)
+      _ = File.rm_rf(temp_dir)
     end
   end
 end

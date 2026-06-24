@@ -60,8 +60,8 @@ services:
       MIX_ENV: prod
       ELEKTRINE_ENABLED_MODULES: ${ELEKTRINE_ENABLED_MODULES:-chat,social,nerve,atomine}
       ACME_HOME: ${ACME_HOME:-/data/acme.sh}
+      ACME_SH_BIN: ${ACME_SH_BIN:-/data/acme.sh/acme.sh}
       ACME_WILDCARD_RENEWAL_ENABLED: ${ACME_WILDCARD_RENEWAL_ENABLED:-false}
-      ACME_RENEW_COMMAND: ${ACME_RENEW_COMMAND:-/data/acme.sh/acme.sh --cron --home /data/acme.sh}
       ELEKTRINE_API_BASE: ${ELEKTRINE_API_BASE:-http://app:8080}
       CADDY_TLS_MOUNT_DIR: ${CADDY_TLS_MOUNT_DIR:-/opt/elektrine/certs}
       RELOAD_CMD: ${ACME_RELOAD_CMD:-true}

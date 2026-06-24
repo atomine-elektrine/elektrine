@@ -9,6 +9,7 @@ defmodule Elektrine.Uploads do
   alias Elektrine.Constants
   alias Elektrine.Messaging.{ChatConversationMember, ChatMessage}
   alias Elektrine.Repo
+  alias Elektrine.Security.FilePath
   alias Elektrine.Telemetry.Events
   @default_max_file_size 5 * 1024 * 1024
   @default_max_background_size 10 * 1024 * 1024
@@ -50,6 +51,11 @@ defmodule Elektrine.Uploads do
   ]
   @chat_attachment_extensions ~w[.jpg .jpeg .png .gif .webp .heic .heif .avif .mp4 .webm .ogv .mov .mp3 .wav .m4a .aac .flac .pdf .doc .docx .xls .xlsx .txt]
   @max_chat_attachment_size Constants.max_chat_attachment_size()
+  @voice_message_mime_types ~w[
+    audio/webm
+    audio/mp4
+    audio/ogg
+  ]
   @background_mime_types ~w[
     image/jpeg
     image/jpg
@@ -373,28 +379,53 @@ defmodule Elektrine.Uploads do
     max_size = 10 * 1024 * 1024
 
     result =
-      if byte_size(audio_binary) > max_size do
-        {:error, :file_too_large}
-      else
-        file_size = byte_size(audio_binary)
-
-        upload_result =
-          case get_config(:adapter) do
-            :local -> upload_binary_local(audio_binary, filename, user_id, "voice-messages")
-            :s3 -> upload_binary_s3(audio_binary, filename, mime_type, user_id, "voice-messages")
-          end
-
-        case upload_result do
-          {:ok, key} ->
-            {:ok, %{key: key, filename: filename, content_type: mime_type, size: file_size}}
-
-          error ->
-            error
-        end
+      with :ok <- validate_voice_message(audio_binary, mime_type, max_size, user_id) do
+        store_voice_message(audio_binary, filename, mime_type, user_id)
       end
 
     emit_upload_result(:voice_message, result)
     result
+  end
+
+  defp validate_voice_message(audio_binary, mime_type, max_size, user_id) do
+    file_size = byte_size(audio_binary)
+
+    cond do
+      file_size == 0 ->
+        {:error, {:empty_file, "File is empty"}}
+
+      file_size > max_size ->
+        {:error, :file_too_large}
+
+      mime_type not in @voice_message_mime_types ->
+        {:error,
+         {:invalid_file_type,
+          "File type #{mime_type} not allowed. Allowed types: #{Enum.join(@voice_message_mime_types, ", ")}"}}
+
+      true ->
+        with :ok <- check_user_storage_limit(user_id, file_size),
+             :ok <- validate_magic_bytes(audio_binary, mime_type) do
+          scan_for_malicious_content(audio_binary)
+        end
+    end
+  end
+
+  defp store_voice_message(audio_binary, filename, mime_type, user_id) do
+    file_size = byte_size(audio_binary)
+
+    upload_result =
+      case get_config(:adapter) do
+        :local -> upload_binary_local(audio_binary, filename, user_id, "voice-messages")
+        :s3 -> upload_binary_s3(audio_binary, filename, mime_type, user_id, "voice-messages")
+      end
+
+    case upload_result do
+      {:ok, key} ->
+        {:ok, %{key: key, filename: filename, content_type: mime_type, size: file_size}}
+
+      error ->
+        error
+    end
   end
 
   defp upload_binary_local(binary, filename, user_id, folder) do
@@ -904,20 +935,19 @@ defmodule Elektrine.Uploads do
     key =
       cond do
         String.starts_with?(value, "/uploads/") ->
-          String.trim_leading(value, "/uploads/")
+          strip_exact_prefix(value, "/uploads/")
 
         String.starts_with?(value, "uploads/") ->
-          String.trim_leading(value, "uploads/")
+          strip_exact_prefix(value, "uploads/")
 
         String.starts_with?(value, "http://") or String.starts_with?(value, "https://") ->
           value
           |> URI.parse()
           |> Map.get(:path, "")
-          |> String.trim_leading("/uploads/")
-          |> String.trim_leading("/")
+          |> normalize_local_delete_path()
 
         String.starts_with?(value, "/") ->
-          String.trim_leading(value, "/")
+          strip_exact_prefix(value, "/")
 
         true ->
           value
@@ -937,16 +967,16 @@ defmodule Elektrine.Uploads do
           value
           |> URI.parse()
           |> Map.get(:path, "")
-          |> String.trim_leading("/")
+          |> normalize_s3_delete_path()
 
         String.starts_with?(value, "/uploads/") ->
-          String.trim_leading(value, "/uploads/")
+          strip_exact_prefix(value, "/uploads/")
 
         String.starts_with?(value, "uploads/") ->
-          String.trim_leading(value, "uploads/")
+          strip_exact_prefix(value, "uploads/")
 
         String.starts_with?(value, "/") ->
-          String.trim_leading(value, "/")
+          strip_exact_prefix(value, "/")
 
         true ->
           value
@@ -959,12 +989,35 @@ defmodule Elektrine.Uploads do
     end
   end
 
+  defp normalize_local_delete_path(path) when is_binary(path) do
+    cond do
+      String.starts_with?(path, "/uploads/") -> strip_exact_prefix(path, "/uploads/")
+      String.starts_with?(path, "/") -> strip_exact_prefix(path, "/")
+      true -> path
+    end
+  end
+
+  defp normalize_s3_delete_path(path) when is_binary(path) do
+    path
+    |> normalize_local_delete_path()
+    |> strip_exact_prefix("uploads/")
+  end
+
+  defp strip_exact_prefix(value, prefix) when is_binary(value) and is_binary(prefix) do
+    if String.starts_with?(value, prefix) do
+      binary_part(value, byte_size(prefix), byte_size(value) - byte_size(prefix))
+    else
+      value
+    end
+  end
+
   defp allowed_delete_prefix?(key) when is_binary(key) do
     Enum.any?(@deletable_upload_prefixes, &String.starts_with?(key, &1))
   end
 
   defp invalid_delete_key?(key) when is_binary(key) do
-    String.contains?(key, ["..", "\\"])
+    String.contains?(key, ["..", "\\", <<0>>]) or String.starts_with?(key, "/") or
+      String.contains?(key, "//") or String.match?(key, ~r/[\x00-\x1F\x7F]/)
   end
 
   defp allowed_private_attachment_prefix?(key) when is_binary(key) do
@@ -1265,11 +1318,12 @@ defmodule Elektrine.Uploads do
         not String.starts_with?(filepath, uploads_root <> "/") ->
           {:error, :invalid_attachment_key}
 
-        File.regular?(filepath) ->
-          {:ok, filepath}
-
         true ->
-          {:error, :not_found}
+          case FilePath.validate_existing_file(filepath, uploads_root) do
+            {:ok, filepath} -> {:ok, filepath}
+            {:error, :file_not_found} -> {:error, :not_found}
+            {:error, _reason} -> {:error, :invalid_attachment_key}
+          end
       end
     end
   end

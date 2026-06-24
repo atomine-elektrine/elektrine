@@ -97,7 +97,8 @@ defmodule ElektrineWeb.AuthLive.Register do
   defp registration_field("registration_access_token"), do: :registration_access_token
   defp registration_field("agree_to_terms"), do: :agree_to_terms
   defp registration_field("captcha"), do: :captcha
-  defp registration_field(field) when is_binary(field), do: String.to_existing_atom(field)
+  defp registration_field(field) when is_atom(field), do: field
+  defp registration_field(_field), do: :base
 
   defp via_tor_request?(socket, session) do
     session["via_tor"] ||

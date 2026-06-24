@@ -3,6 +3,7 @@ defmodule ElektrineSocialWeb.ListLive.Show do
   require Logger
   alias Elektrine.Social
   alias Elektrine.Social.Recommendations
+  alias Elektrine.Utils.SafeConvert
   import ElektrineSocialWeb.Components.Platform.ENav
   import ElektrineSocialWeb.Components.Social.EmbeddedPost, only: [embedded_post: 1]
   import Elektrine.Components.User.UsernameEffects
@@ -11,7 +12,7 @@ defmodule ElektrineSocialWeb.ListLive.Show do
   @impl true
   def mount(%{"id" => list_id}, _session, socket) do
     user = socket.assigns[:current_user]
-    list_id = String.to_integer(list_id)
+    list_id = event_id(list_id)
 
     if user do
       list = Social.get_user_list(user.id, list_id) || Social.get_public_list(list_id)
@@ -202,54 +203,62 @@ defmodule ElektrineSocialWeb.ListLive.Show do
   end
 
   def handle_event("add_member", %{"user_id" => user_id}, socket) do
-    user_id = String.to_integer(user_id)
-
     if socket.assigns[:is_owner] != true do
       {:noreply, put_flash(socket, :error, "Only the list owner can add members")}
     else
-      case Elektrine.Social.Lists.add_to_list(
-             socket.assigns.current_user.id,
-             socket.assigns.list.id,
-             %{user_id: user_id}
-           ) do
-        {:ok, _} ->
-          list = Social.get_user_list(socket.assigns.current_user.id, socket.assigns.list.id)
+      case SafeConvert.parse_id(user_id) do
+        {:ok, user_id} ->
+          case Elektrine.Social.Lists.add_to_list(
+                 socket.assigns.current_user.id,
+                 socket.assigns.list.id,
+                 %{user_id: user_id}
+               ) do
+            {:ok, _} ->
+              list = Social.get_user_list(socket.assigns.current_user.id, socket.assigns.list.id)
 
-          {:noreply,
-           socket
-           |> assign(:list, list)
-           |> assign(:search_results, [])
-           |> assign(:search_query, "")
-           |> put_flash(:info, "Added to list")}
+              {:noreply,
+               socket
+               |> assign(:list, list)
+               |> assign(:search_results, [])
+               |> assign(:search_query, "")
+               |> put_flash(:info, "Added to list")}
 
-        {:error, _} ->
+            {:error, _} ->
+              {:noreply, put_flash(socket, :error, "Failed to add to list")}
+          end
+
+        {:error, :invalid_id} ->
           {:noreply, put_flash(socket, :error, "Failed to add to list")}
       end
     end
   end
 
   def handle_event("add_member", %{"remote_actor_id" => remote_actor_id}, socket) do
-    remote_actor_id = String.to_integer(remote_actor_id)
-
     if socket.assigns[:is_owner] != true do
       {:noreply, put_flash(socket, :error, "Only the list owner can add members")}
     else
-      case Elektrine.Social.Lists.add_to_list(
-             socket.assigns.current_user.id,
-             socket.assigns.list.id,
-             %{remote_actor_id: remote_actor_id}
-           ) do
-        {:ok, _} ->
-          list = Social.get_user_list(socket.assigns.current_user.id, socket.assigns.list.id)
+      case SafeConvert.parse_id(remote_actor_id) do
+        {:ok, remote_actor_id} ->
+          case Elektrine.Social.Lists.add_to_list(
+                 socket.assigns.current_user.id,
+                 socket.assigns.list.id,
+                 %{remote_actor_id: remote_actor_id}
+               ) do
+            {:ok, _} ->
+              list = Social.get_user_list(socket.assigns.current_user.id, socket.assigns.list.id)
 
-          {:noreply,
-           socket
-           |> assign(:list, list)
-           |> assign(:search_results, [])
-           |> assign(:search_query, "")
-           |> put_flash(:info, "Added to list")}
+              {:noreply,
+               socket
+               |> assign(:list, list)
+               |> assign(:search_results, [])
+               |> assign(:search_query, "")
+               |> put_flash(:info, "Added to list")}
 
-        {:error, _} ->
+            {:error, _} ->
+              {:noreply, put_flash(socket, :error, "Failed to add to list")}
+          end
+
+        {:error, :invalid_id} ->
           {:noreply, put_flash(socket, :error, "Failed to add to list")}
       end
     end
@@ -378,12 +387,16 @@ defmodule ElektrineSocialWeb.ListLive.Show do
   end
 
   def handle_event("remove_member", %{"member_id" => member_id}, socket) do
-    member_id = String.to_integer(member_id)
-
     if socket.assigns[:is_owner] != true do
       {:noreply, put_flash(socket, :error, "Only the list owner can remove members")}
     else
-      do_remove_member(socket, member_id)
+      case SafeConvert.parse_id(member_id) do
+        {:ok, member_id} ->
+          do_remove_member(socket, member_id)
+
+        {:error, :invalid_id} ->
+          {:noreply, put_flash(socket, :error, "Failed to remove from list")}
+      end
     end
   end
 
@@ -393,31 +406,36 @@ defmodule ElektrineSocialWeb.ListLive.Show do
 
   def handle_event("like_post", %{"message_id" => message_id}, socket) do
     user_id = socket.assigns.current_user.id
-    message_id = String.to_integer(message_id)
+    message_id = event_id(message_id)
 
-    if Map.get(socket.assigns.user_likes, message_id, false) do
-      {:noreply, socket}
-    else
-      case Social.like_post(user_id, message_id) do
-        {:ok, _} ->
-          {updated_posts, updated_replies} =
-            update_message_count(
-              socket.assigns.posts,
-              socket.assigns.post_replies,
-              message_id,
-              :like_count,
-              1
-            )
+    cond do
+      not timeline_message?(socket, message_id) ->
+        {:noreply, put_flash(socket, :error, "Failed to like post")}
 
-          {:noreply,
-           socket
-           |> assign(:posts, updated_posts)
-           |> assign(:post_replies, updated_replies)
-           |> assign(:user_likes, Map.put(socket.assigns.user_likes, message_id, true))}
+      Map.get(socket.assigns.user_likes, message_id, false) ->
+        {:noreply, socket}
 
-        {:error, _} ->
-          {:noreply, put_flash(socket, :error, "Failed to like post")}
-      end
+      true ->
+        case Social.like_post(user_id, message_id) do
+          {:ok, _} ->
+            {updated_posts, updated_replies} =
+              update_message_count(
+                socket.assigns.posts,
+                socket.assigns.post_replies,
+                message_id,
+                :like_count,
+                1
+              )
+
+            {:noreply,
+             socket
+             |> assign(:posts, updated_posts)
+             |> assign(:post_replies, updated_replies)
+             |> assign(:user_likes, Map.put(socket.assigns.user_likes, message_id, true))}
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Failed to like post")}
+        end
     end
   end
 
@@ -427,31 +445,36 @@ defmodule ElektrineSocialWeb.ListLive.Show do
 
   def handle_event("unlike_post", %{"message_id" => message_id}, socket) do
     user_id = socket.assigns.current_user.id
-    message_id = String.to_integer(message_id)
+    message_id = event_id(message_id)
 
-    if Map.get(socket.assigns.user_likes, message_id, false) do
-      case Social.unlike_post(user_id, message_id) do
-        {:ok, _} ->
-          {updated_posts, updated_replies} =
-            update_message_count(
-              socket.assigns.posts,
-              socket.assigns.post_replies,
-              message_id,
-              :like_count,
-              -1
-            )
+    cond do
+      not timeline_message?(socket, message_id) ->
+        {:noreply, put_flash(socket, :error, "Failed to unlike post")}
 
-          {:noreply,
-           socket
-           |> assign(:posts, updated_posts)
-           |> assign(:post_replies, updated_replies)
-           |> assign(:user_likes, Map.put(socket.assigns.user_likes, message_id, false))}
+      Map.get(socket.assigns.user_likes, message_id, false) ->
+        case Social.unlike_post(user_id, message_id) do
+          {:ok, _} ->
+            {updated_posts, updated_replies} =
+              update_message_count(
+                socket.assigns.posts,
+                socket.assigns.post_replies,
+                message_id,
+                :like_count,
+                -1
+              )
 
-        {:error, _} ->
-          {:noreply, put_flash(socket, :error, "Failed to unlike post")}
-      end
-    else
-      {:noreply, socket}
+            {:noreply,
+             socket
+             |> assign(:posts, updated_posts)
+             |> assign(:post_replies, updated_replies)
+             |> assign(:user_likes, Map.put(socket.assigns.user_likes, message_id, false))}
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Failed to unlike post")}
+        end
+
+      true ->
+        {:noreply, socket}
     end
   end
 
@@ -461,31 +484,36 @@ defmodule ElektrineSocialWeb.ListLive.Show do
 
   def handle_event("boost_post", %{"message_id" => message_id}, socket) do
     user_id = socket.assigns.current_user.id
-    message_id = String.to_integer(message_id)
+    message_id = event_id(message_id)
 
-    if Map.get(socket.assigns.user_boosts, message_id, false) do
-      {:noreply, socket}
-    else
-      case Social.boost_post(user_id, message_id) do
-        {:ok, _} ->
-          {updated_posts, updated_replies} =
-            update_message_count(
-              socket.assigns.posts,
-              socket.assigns.post_replies,
-              message_id,
-              :share_count,
-              1
-            )
+    cond do
+      not timeline_message?(socket, message_id) ->
+        {:noreply, put_flash(socket, :error, "Failed to boost")}
 
-          {:noreply,
-           socket
-           |> assign(:posts, updated_posts)
-           |> assign(:post_replies, updated_replies)
-           |> assign(:user_boosts, Map.put(socket.assigns.user_boosts, message_id, true))}
+      Map.get(socket.assigns.user_boosts, message_id, false) ->
+        {:noreply, socket}
 
-        {:error, _} ->
-          {:noreply, put_flash(socket, :error, "Failed to boost")}
-      end
+      true ->
+        case Social.boost_post(user_id, message_id) do
+          {:ok, _} ->
+            {updated_posts, updated_replies} =
+              update_message_count(
+                socket.assigns.posts,
+                socket.assigns.post_replies,
+                message_id,
+                :share_count,
+                1
+              )
+
+            {:noreply,
+             socket
+             |> assign(:posts, updated_posts)
+             |> assign(:post_replies, updated_replies)
+             |> assign(:user_boosts, Map.put(socket.assigns.user_boosts, message_id, true))}
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Failed to boost")}
+        end
     end
   end
 
@@ -495,31 +523,36 @@ defmodule ElektrineSocialWeb.ListLive.Show do
 
   def handle_event("unboost_post", %{"message_id" => message_id}, socket) do
     user_id = socket.assigns.current_user.id
-    message_id = String.to_integer(message_id)
+    message_id = event_id(message_id)
 
-    if Map.get(socket.assigns.user_boosts, message_id, false) do
-      case Social.unboost_post(user_id, message_id) do
-        {:ok, _} ->
-          {updated_posts, updated_replies} =
-            update_message_count(
-              socket.assigns.posts,
-              socket.assigns.post_replies,
-              message_id,
-              :share_count,
-              -1
-            )
+    cond do
+      not timeline_message?(socket, message_id) ->
+        {:noreply, put_flash(socket, :error, "Failed to unboost")}
 
-          {:noreply,
-           socket
-           |> assign(:posts, updated_posts)
-           |> assign(:post_replies, updated_replies)
-           |> assign(:user_boosts, Map.put(socket.assigns.user_boosts, message_id, false))}
+      Map.get(socket.assigns.user_boosts, message_id, false) ->
+        case Social.unboost_post(user_id, message_id) do
+          {:ok, _} ->
+            {updated_posts, updated_replies} =
+              update_message_count(
+                socket.assigns.posts,
+                socket.assigns.post_replies,
+                message_id,
+                :share_count,
+                -1
+              )
 
-        {:error, _} ->
-          {:noreply, put_flash(socket, :error, "Failed to unboost")}
-      end
-    else
-      {:noreply, socket}
+            {:noreply,
+             socket
+             |> assign(:posts, updated_posts)
+             |> assign(:post_replies, updated_replies)
+             |> assign(:user_boosts, Map.put(socket.assigns.user_boosts, message_id, false))}
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Failed to unboost")}
+        end
+
+      true ->
+        {:noreply, socket}
     end
   end
 
@@ -530,7 +563,7 @@ defmodule ElektrineSocialWeb.ListLive.Show do
   def handle_event("show_reply_to_reply_form", %{"reply_id" => reply_id}, socket) do
     {:noreply,
      socket
-     |> assign(:reply_to_reply_id, String.to_integer(reply_id))
+     |> assign(:reply_to_reply_id, event_id(reply_id))
      |> assign(:reply_content, "")}
   end
 
@@ -544,7 +577,7 @@ defmodule ElektrineSocialWeb.ListLive.Show do
 
   def handle_event("create_reply", %{"content" => content, "reply_to_id" => reply_to_id}, socket) do
     if Elektrine.Strings.present?(content) do
-      reply_to_id = String.to_integer(reply_to_id)
+      reply_to_id = event_id(reply_to_id)
       user = socket.assigns.current_user
 
       parent_reply =
@@ -553,56 +586,59 @@ defmodule ElektrineSocialWeb.ListLive.Show do
         |> List.flatten()
         |> Enum.find(&(&1.id == reply_to_id))
 
-      reply_visibility =
-        (parent_reply && parent_reply.visibility) || user.default_post_visibility || "public"
+      if parent_reply do
+        reply_visibility = parent_reply.visibility || user.default_post_visibility || "public"
 
-      case Social.create_timeline_post(
-             user.id,
-             content,
-             visibility: reply_visibility,
-             reply_to_id: reply_to_id
-           ) do
-        {:ok, _new_reply} ->
-          Social.increment_reply_count(reply_to_id)
+        case Social.create_timeline_post(
+               user.id,
+               content,
+               visibility: reply_visibility,
+               reply_to_id: reply_to_id
+             ) do
+          {:ok, _new_reply} ->
+            Social.increment_reply_count(reply_to_id)
 
-          root_post =
-            socket.assigns.posts
-            |> Enum.find(fn post ->
-              Map.get(socket.assigns.post_replies, post.id, [])
-              |> Enum.any?(&(&1.id == reply_to_id))
-            end)
-
-          if root_post do
-            reloaded_replies =
-              Social.get_direct_replies_for_posts([root_post.id],
-                user_id: user.id,
-                limit_per_post: 3
-              )
-
-            updated_post_replies = Map.merge(socket.assigns.post_replies, reloaded_replies)
-
-            updated_posts =
-              Enum.map(socket.assigns.posts, fn post ->
-                if post.id == root_post.id do
-                  %{post | reply_count: (post.reply_count || 0) + 1}
-                else
-                  post
-                end
+            root_post =
+              socket.assigns.posts
+              |> Enum.find(fn post ->
+                Map.get(socket.assigns.post_replies, post.id, [])
+                |> Enum.any?(&(&1.id == reply_to_id))
               end)
 
-            {:noreply,
-             socket
-             |> assign(:posts, updated_posts)
-             |> assign(:post_replies, updated_post_replies)
-             |> assign(:reply_to_reply_id, nil)
-             |> assign(:reply_content, "")
-             |> put_flash(:info, "Reply posted!")}
-          else
-            {:noreply, put_flash(socket, :error, "Failed to post reply")}
-          end
+            if root_post do
+              reloaded_replies =
+                Social.get_direct_replies_for_posts([root_post.id],
+                  user_id: user.id,
+                  limit_per_post: 3
+                )
 
-        {:error, _} ->
-          {:noreply, put_flash(socket, :error, "Failed to post reply")}
+              updated_post_replies = Map.merge(socket.assigns.post_replies, reloaded_replies)
+
+              updated_posts =
+                Enum.map(socket.assigns.posts, fn post ->
+                  if post.id == root_post.id do
+                    %{post | reply_count: (post.reply_count || 0) + 1}
+                  else
+                    post
+                  end
+                end)
+
+              {:noreply,
+               socket
+               |> assign(:posts, updated_posts)
+               |> assign(:post_replies, updated_post_replies)
+               |> assign(:reply_to_reply_id, nil)
+               |> assign(:reply_content, "")
+               |> put_flash(:info, "Reply posted!")}
+            else
+              {:noreply, put_flash(socket, :error, "Failed to post reply")}
+            end
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Failed to post reply")}
+        end
+      else
+        {:noreply, put_flash(socket, :error, "Failed to post reply")}
       end
     else
       {:noreply, put_flash(socket, :error, "Reply cannot be empty")}
@@ -843,6 +879,21 @@ defmodule ElektrineSocialWeb.ListLive.Show do
   end
 
   def relay_actor?(_), do: false
+
+  defp event_id(value) do
+    case SafeConvert.parse_id(value) do
+      {:ok, id} -> id
+      {:error, :invalid_id} -> 0
+    end
+  end
+
+  defp timeline_message?(socket, message_id) do
+    Enum.any?(socket.assigns.posts, &(&1.id == message_id)) ||
+      socket.assigns.post_replies
+      |> Map.values()
+      |> List.flatten()
+      |> Enum.any?(&(&1.id == message_id))
+  end
 
   defp update_message_count(posts, post_replies, message_id, field, delta) do
     updated_posts =

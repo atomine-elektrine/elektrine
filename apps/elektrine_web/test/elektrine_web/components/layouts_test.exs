@@ -47,6 +47,37 @@ defmodule ElektrineWeb.LayoutsTest do
     end
   end
 
+  describe "current_url/1" do
+    test "returns only safe absolute URLs" do
+      assert Layouts.current_url(%{current_url: " https://example.com/timeline "}) ==
+               "https://example.com/timeline"
+
+      refute Layouts.current_url(%{current_url: "javascript:alert(1)"})
+      refute Layouts.current_url(%{current_url: "https://user:pass@example.com/"})
+
+      refute Layouts.current_url(%{
+               current_url: "https://example.com/\r\nLocation:https://evil.test"
+             })
+    end
+  end
+
+  describe "og_image_url/1" do
+    test "allows safe absolute and local image URLs" do
+      assert Layouts.og_image_url(%{og_image: "https://cdn.example/og.png"}) ==
+               "https://cdn.example/og.png"
+
+      assert Layouts.og_image_url(%{og_image: "/images/custom-og.png"}) =~ "/images/custom-og.png"
+    end
+
+    test "falls back to the default image for unsafe image URLs" do
+      default = Layouts.og_image_url(%{})
+
+      assert Layouts.og_image_url(%{og_image: "javascript:alert(1)"}) == default
+      assert Layouts.og_image_url(%{og_image: "https://user:pass@example.com/og.png"}) == default
+      assert Layouts.og_image_url(%{og_image: "//evil.test/og.png"}) == default
+    end
+  end
+
   test "root layout uses a dead-page timezone detector" do
     html =
       render_component(&Layouts.root/1,

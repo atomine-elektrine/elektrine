@@ -12,11 +12,12 @@ defmodule ElektrineEmailWeb.EmailLive.Operations.MessageOperations do
 
   alias Elektrine.Email
   alias Elektrine.Email.Cached
+  alias Elektrine.Utils.SafeConvert
 
   def handle_event("stack", %{"id" => id}, socket) do
     Logger.info("Set aside event called for message #{id}")
 
-    case Email.get_user_message(String.to_integer(id), socket.assigns.current_user.id) do
+    case Email.get_user_message(event_id(id), socket.assigns.current_user.id) do
       {:ok, message} ->
         Logger.info("Setting aside message #{id}")
         {:ok, _} = Email.stack_message(message, "User deferred for later processing")
@@ -59,7 +60,7 @@ defmodule ElektrineEmailWeb.EmailLive.Operations.MessageOperations do
   end
 
   def handle_event("move_to_digest", %{"id" => id}, socket) do
-    case Email.get_user_message(String.to_integer(id), socket.assigns.current_user.id) do
+    case Email.get_user_message(event_id(id), socket.assigns.current_user.id) do
       {:ok, message} ->
         {:ok, _} = Email.move_to_digest(message)
 
@@ -97,7 +98,7 @@ defmodule ElektrineEmailWeb.EmailLive.Operations.MessageOperations do
   end
 
   def handle_event("move_to_ledger", %{"id" => id}, socket) do
-    case Email.get_user_message(String.to_integer(id), socket.assigns.current_user.id) do
+    case Email.get_user_message(event_id(id), socket.assigns.current_user.id) do
       {:ok, message} ->
         {:ok, _} = Email.move_to_ledger(message)
 
@@ -135,7 +136,7 @@ defmodule ElektrineEmailWeb.EmailLive.Operations.MessageOperations do
   end
 
   def handle_event("clear_stack", %{"id" => id}, socket) do
-    case Email.get_user_message(String.to_integer(id), socket.assigns.current_user.id) do
+    case Email.get_user_message(event_id(id), socket.assigns.current_user.id) do
       {:ok, message} ->
         {:ok, _} = Email.unstack_message(message)
 
@@ -173,7 +174,7 @@ defmodule ElektrineEmailWeb.EmailLive.Operations.MessageOperations do
   end
 
   def handle_event("mark_as_unread", %{"id" => id}, socket) do
-    case Email.get_user_message(String.to_integer(id), socket.assigns.current_user.id) do
+    case Email.get_user_message(event_id(id), socket.assigns.current_user.id) do
       {:ok, message} ->
         {:ok, _} = Email.mark_as_unread(message)
 
@@ -213,8 +214,8 @@ defmodule ElektrineEmailWeb.EmailLive.Operations.MessageOperations do
   # Label management
   def handle_event("add_label", %{"message_id" => message_id, "label_id" => label_id}, socket) do
     user_id = socket.assigns.current_user.id
-    message_id_int = String.to_integer(message_id)
-    label_id_int = String.to_integer(label_id)
+    message_id_int = event_id(message_id)
+    label_id_int = event_id(label_id)
 
     with {:ok, _message} <- Email.get_user_message(message_id_int, user_id),
          %{} <- Email.get_label(label_id_int, user_id) do
@@ -254,8 +255,8 @@ defmodule ElektrineEmailWeb.EmailLive.Operations.MessageOperations do
 
   def handle_event("remove_label", %{"message_id" => message_id, "label_id" => label_id}, socket) do
     user_id = socket.assigns.current_user.id
-    message_id_int = String.to_integer(message_id)
-    label_id_int = String.to_integer(label_id)
+    message_id_int = event_id(message_id)
+    label_id_int = event_id(label_id)
 
     with {:ok, _message} <- Email.get_user_message(message_id_int, user_id),
          %{} <- Email.get_label(label_id_int, user_id) do
@@ -301,13 +302,9 @@ defmodule ElektrineEmailWeb.EmailLive.Operations.MessageOperations do
       ) do
     user_id = socket.assigns.current_user.id
 
-    folder_id_int =
-      case folder_id do
-        "" -> nil
-        id -> String.to_integer(id)
-      end
+    folder_id_int = optional_event_id(folder_id)
 
-    case Email.get_user_message(String.to_integer(message_id), user_id) do
+    case Email.get_user_message(event_id(message_id), user_id) do
       {:ok, message} ->
         case Email.move_message_to_folder(message, folder_id_int) do
           {:ok, _} ->
@@ -335,7 +332,7 @@ defmodule ElektrineEmailWeb.EmailLive.Operations.MessageOperations do
   def handle_event("block_sender_from_message", %{"message_id" => message_id}, socket) do
     user_id = socket.assigns.current_user.id
 
-    case Email.get_user_message(String.to_integer(message_id), user_id) do
+    case Email.get_user_message(event_id(message_id), user_id) do
       {:ok, message} ->
         from = message.from || ""
 
@@ -363,4 +360,14 @@ defmodule ElektrineEmailWeb.EmailLive.Operations.MessageOperations do
         {:noreply, notify_error(socket, "Message not found")}
     end
   end
+
+  defp event_id(value) do
+    case SafeConvert.parse_id(value) do
+      {:ok, id} -> id
+      {:error, :invalid_id} -> 0
+    end
+  end
+
+  defp optional_event_id(value) when value in [nil, ""], do: nil
+  defp optional_event_id(value), do: event_id(value)
 end

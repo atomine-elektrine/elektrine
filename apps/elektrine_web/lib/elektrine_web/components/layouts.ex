@@ -7,6 +7,7 @@ defmodule ElektrineWeb.Layouts do
 
   alias Elektrine.Platform.Modules
   alias Elektrine.RuntimeEnv
+  alias Elektrine.Security.SafeExternalURL
   alias Elektrine.Theme
 
   @footer_wordmark_palette [
@@ -346,7 +347,10 @@ defmodule ElektrineWeb.Layouts do
 
   @doc ~s|Gets the current URL from assigns if available.\n|
   def current_url(assigns) do
-    assigns[:current_url]
+    case SafeExternalURL.normalize_href(assigns[:current_url]) do
+      {:ok, safe_url} -> safe_url
+      {:error, _reason} -> nil
+    end
   end
 
   @doc ~s|Returns true when the current request host is an onion service.\n|
@@ -389,16 +393,33 @@ defmodule ElektrineWeb.Layouts do
   def og_image_url(assigns) do
     case assigns[:og_image] do
       nil ->
-        ElektrineWeb.Endpoint.url() <> "/images/og-image.png"
+        default_og_image_url()
 
       image_url when is_binary(image_url) ->
-        if String.starts_with?(image_url, "http") do
-          image_url
-        else
+        safe_og_image_url(image_url) || default_og_image_url()
+    end
+  end
+
+  defp default_og_image_url, do: ElektrineWeb.Endpoint.url() <> "/images/og-image.png"
+
+  defp safe_og_image_url(image_url) do
+    case SafeExternalURL.normalize_href(image_url) do
+      {:ok, safe_url} ->
+        safe_url
+
+      {:error, _reason} ->
+        if safe_local_image_path?(image_url) do
           ElektrineWeb.Endpoint.url() <> image_url
         end
     end
   end
+
+  defp safe_local_image_path?(path) when is_binary(path) do
+    String.starts_with?(path, "/") and not String.starts_with?(path, "//") and
+      not Regex.match?(~r/[\x00-\x1F\x7F]/, path)
+  end
+
+  defp safe_local_image_path?(_path), do: false
 
   @doc ~s|Returns a stable hard-stop gradient for the footer wordmark.\n|
   def footer_wordmark_style(assigns \\ %{}) do

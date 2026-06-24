@@ -52,6 +52,24 @@ defmodule ElektrineWeb.ProfileLiveDomainsTest do
     assert html =~ "Sync DKIM"
   end
 
+  test "domain event handlers tolerate malformed ids", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/domains")
+
+    assert render_hook(view, "toggle_per_site_identity", %{"id" => "1abc"}) =~
+             "Per-site identity not found"
+
+    assert render_hook(view, "verify_profile_domain", %{"id" => "1abc"}) =~
+             "Profile domain not found"
+
+    assert render_hook(view, "verify_email_domain", %{"id" => "1abc"}) =~
+             "Email domain not found"
+  end
+
   defp log_in_user(conn, user) do
     token =
       Phoenix.Token.sign(ElektrineWeb.Endpoint, "user auth", %{

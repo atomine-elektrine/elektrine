@@ -30,17 +30,19 @@ defmodule ElektrineEmailWeb.API.AliasController do
   def show(conn, %{"id" => id}) do
     user = conn.assigns[:current_user]
 
-    case Aliases.get_alias(String.to_integer(id), user.id) do
-      %Alias{} = alias_record ->
-        conn
-        |> put_status(:ok)
-        |> json(%{alias: format_alias(alias_record)})
+    with_alias_id(conn, id, fn alias_id ->
+      case Aliases.get_alias(alias_id, user.id) do
+        %Alias{} = alias_record ->
+          conn
+          |> put_status(:ok)
+          |> json(%{alias: format_alias(alias_record)})
 
-      nil ->
-        conn
-        |> put_status(:not_found)
-        |> json(%{error: "Alias not found"})
-    end
+        nil ->
+          conn
+          |> put_status(:not_found)
+          |> json(%{error: "Alias not found"})
+      end
+    end)
   end
 
   @doc """
@@ -107,37 +109,39 @@ defmodule ElektrineEmailWeb.API.AliasController do
   def update(conn, %{"id" => id} = params) do
     user = conn.assigns[:current_user]
 
-    case Aliases.get_alias(String.to_integer(id), user.id) do
-      %Alias{} = alias_record ->
-        # Build update attrs from allowed params
-        alias_params = Map.get(params, "alias", %{})
+    with_alias_id(conn, id, fn alias_id ->
+      case Aliases.get_alias(alias_id, user.id) do
+        %Alias{} = alias_record ->
+          # Build update attrs from allowed params
+          alias_params = Map.get(params, "alias", %{})
 
-        update_attrs =
-          %{}
-          |> maybe_put(:enabled, alias_params["enabled"] || params["enabled"])
-          |> maybe_put(:target_email, alias_params["target_email"] || params["target_email"])
-          |> maybe_put(:description, alias_params["description"] || params["description"])
+          update_attrs =
+            %{}
+            |> maybe_put(:enabled, alias_params["enabled"] || params["enabled"])
+            |> maybe_put(:target_email, alias_params["target_email"] || params["target_email"])
+            |> maybe_put(:description, alias_params["description"] || params["description"])
 
-        case Aliases.update_alias(alias_record, update_attrs) do
-          {:ok, updated_alias} ->
-            conn
-            |> put_status(:ok)
-            |> json(%{
-              message: "Alias updated successfully",
-              alias: format_alias(updated_alias)
-            })
+          case Aliases.update_alias(alias_record, update_attrs) do
+            {:ok, updated_alias} ->
+              conn
+              |> put_status(:ok)
+              |> json(%{
+                message: "Alias updated successfully",
+                alias: format_alias(updated_alias)
+              })
 
-          {:error, %Ecto.Changeset{} = changeset} ->
-            conn
-            |> put_status(:unprocessable_entity)
-            |> json(%{error: "Failed to update alias", errors: format_errors(changeset)})
-        end
+            {:error, %Ecto.Changeset{} = changeset} ->
+              conn
+              |> put_status(:unprocessable_entity)
+              |> json(%{error: "Failed to update alias", errors: format_errors(changeset)})
+          end
 
-      nil ->
-        conn
-        |> put_status(:not_found)
-        |> json(%{error: "Alias not found"})
-    end
+        nil ->
+          conn
+          |> put_status(:not_found)
+          |> json(%{error: "Alias not found"})
+      end
+    end)
   end
 
   @doc """
@@ -147,28 +151,52 @@ defmodule ElektrineEmailWeb.API.AliasController do
   def delete(conn, %{"id" => id}) do
     user = conn.assigns[:current_user]
 
-    case Aliases.get_alias(String.to_integer(id), user.id) do
-      %Alias{} = alias_record ->
-        case Aliases.delete_alias(alias_record) do
-          {:ok, _deleted} ->
-            conn
-            |> put_status(:ok)
-            |> json(%{message: "Alias deleted successfully"})
+    with_alias_id(conn, id, fn alias_id ->
+      case Aliases.get_alias(alias_id, user.id) do
+        %Alias{} = alias_record ->
+          case Aliases.delete_alias(alias_record) do
+            {:ok, _deleted} ->
+              conn
+              |> put_status(:ok)
+              |> json(%{message: "Alias deleted successfully"})
 
-          {:error, _reason} ->
-            conn
-            |> put_status(:unprocessable_entity)
-            |> json(%{error: "Failed to delete alias"})
-        end
+            {:error, _reason} ->
+              conn
+              |> put_status(:unprocessable_entity)
+              |> json(%{error: "Failed to delete alias"})
+          end
 
-      nil ->
-        conn
-        |> put_status(:not_found)
-        |> json(%{error: "Alias not found"})
-    end
+        nil ->
+          conn
+          |> put_status(:not_found)
+          |> json(%{error: "Alias not found"})
+      end
+    end)
   end
 
   # Private helpers
+  defp with_alias_id(conn, value, fun) when is_function(fun, 1) do
+    case parse_id(value) do
+      {:ok, id} ->
+        fun.(id)
+
+      :error ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{error: "Invalid alias id"})
+    end
+  end
+
+  defp parse_id(value) when is_integer(value) and value > 0, do: {:ok, value}
+
+  defp parse_id(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {id, ""} when id > 0 -> {:ok, id}
+      _ -> :error
+    end
+  end
+
+  defp parse_id(_value), do: :error
 
   defp format_alias(alias_record) do
     %{

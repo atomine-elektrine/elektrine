@@ -185,6 +185,24 @@ defmodule ElektrineWeb.PasswordResetControllerTest do
       assert {:error, :invalid_token} =
                Accounts.validate_password_reset_token(raw_token)
     end
+
+    test "rejects legacy plaintext tokens stored in the database", %{user: user} do
+      plaintext_token = "legacy_password_reset_token_12345678901234"
+      expires_at = DateTime.utc_now() |> DateTime.add(30, :minute) |> DateTime.truncate(:second)
+
+      user
+      |> change(%{
+        password_reset_token: plaintext_token,
+        password_reset_token_expires_at: expires_at,
+        recovery_email: "recovery@example.com"
+      })
+      |> Repo.update!()
+
+      assert {:error, :invalid_token} =
+               Accounts.validate_password_reset_token(plaintext_token)
+
+      assert is_nil(Accounts.get_user_by_password_reset_token(plaintext_token))
+    end
   end
 
   describe "Password reset with token" do

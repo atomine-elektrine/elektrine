@@ -12,6 +12,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
     router: ElektrineWeb.Router
 
   alias Elektrine.{Messaging, Repo, Social}
+  alias Elektrine.Utils.SafeConvert
   alias ElektrineSocialWeb.DiscussionsLive.Operations.SortHelpers
 
   # Toggle new post form visibility
@@ -102,9 +103,11 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
     alt_texts =
       params
       |> Enum.filter(fn {key, _value} -> String.starts_with?(key, "alt_text_") end)
-      |> Enum.map(fn {key, value} ->
-        index = key |> String.replace("alt_text_", "") |> String.to_integer()
-        {to_string(index), value}
+      |> Enum.flat_map(fn {key, value} ->
+        case parse_prefixed_index(key, "alt_text_") do
+          {:ok, index} -> [{to_string(index), value}]
+          :error -> []
+        end
       end)
       |> Map.new()
 
@@ -183,12 +186,16 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
 
   # Remove poll option
   def handle_event("remove_poll_option", %{"index" => index}, socket) do
-    index = String.to_integer(index)
+    case parse_event_int(index) do
+      {:ok, index} when index >= 0 ->
+        {:noreply,
+         update(socket, :poll_options, fn options ->
+           List.delete_at(options, index)
+         end)}
 
-    {:noreply,
-     update(socket, :poll_options, fn options ->
-       List.delete_at(options, index)
-     end)}
+      _ ->
+        {:noreply, socket}
+    end
   end
 
   # Create discussion post (dispatches to specific type handlers)
@@ -242,7 +249,8 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
 
   # View discussion post
   def handle_event("view_discussion", %{"message_id" => message_id}, socket) do
-    post = Enum.find(socket.assigns.discussion_posts, &(&1.id == String.to_integer(message_id)))
+    message_id = event_id(message_id)
+    post = Enum.find(socket.assigns.discussion_posts, &(&1.id == message_id))
 
     if post do
       url = generate_discussion_url(socket.assigns.community, post)
@@ -254,7 +262,8 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
 
   # Copy discussion link to clipboard
   def handle_event("copy_discussion_link", %{"message_id" => message_id}, socket) do
-    post = Enum.find(socket.assigns.discussion_posts, &(&1.id == String.to_integer(message_id)))
+    message_id = event_id(message_id)
+    post = Enum.find(socket.assigns.discussion_posts, &(&1.id == message_id))
 
     if post do
       url =
@@ -271,7 +280,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
 
   # Delete discussion (by author)
   def handle_event("delete_discussion", %{"message_id" => message_id}, socket) do
-    message_id = String.to_integer(message_id)
+    message_id = event_id(message_id)
     post = Enum.find(socket.assigns.discussion_posts, &(&1.id == message_id))
 
     if post && post.sender_id == socket.assigns.current_user.id do
@@ -295,7 +304,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
   # Delete discussion (by admin)
   def handle_event("delete_discussion_admin", %{"message_id" => message_id}, socket) do
     if socket.assigns.current_user && socket.assigns.current_user.is_admin do
-      message_id = String.to_integer(message_id)
+      message_id = event_id(message_id)
 
       case Messaging.delete_message(message_id, socket.assigns.current_user.id, true) do
         {:ok, _} ->
@@ -318,7 +327,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
   def handle_event("delete_post_mod", %{"message_id" => message_id}, socket) do
     if socket.assigns.is_moderator ||
          (socket.assigns.current_user && socket.assigns.current_user.is_admin) do
-      message_id = String.to_integer(message_id)
+      message_id = event_id(message_id)
 
       case Messaging.delete_message(message_id, socket.assigns.current_user.id) do
         {:ok, _} ->
@@ -344,7 +353,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
   def handle_event("pin_post", %{"message_id" => message_id}, socket) do
     if socket.assigns.is_moderator ||
          (socket.assigns.current_user && socket.assigns.current_user.is_admin) do
-      message_id = String.to_integer(message_id)
+      message_id = event_id(message_id)
 
       case Messaging.pin_message(message_id, socket.assigns.current_user.id) do
         {:ok, _pinned_message} ->
@@ -367,7 +376,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
   def handle_event("unpin_post", %{"message_id" => message_id}, socket) do
     if socket.assigns.is_moderator ||
          (socket.assigns.current_user && socket.assigns.current_user.is_admin) do
-      message_id = String.to_integer(message_id)
+      message_id = event_id(message_id)
 
       case Messaging.unpin_message(message_id, socket.assigns.current_user.id) do
         {:ok, _} ->
@@ -390,7 +399,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
   def handle_event("set_pin_role", %{"message_id" => message_id, "role" => role}, socket) do
     if socket.assigns.is_moderator ||
          (socket.assigns.current_user && socket.assigns.current_user.is_admin) do
-      message_id = String.to_integer(message_id)
+      message_id = event_id(message_id)
       normalized_role = normalize_pin_role(role)
 
       if Enum.any?(socket.assigns.pinned_posts, &(&1.id == message_id)) do
@@ -437,7 +446,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
   def handle_event("lock_thread", %{"message_id" => message_id}, socket) do
     if socket.assigns.is_moderator ||
          (socket.assigns.current_user && socket.assigns.current_user.is_admin) do
-      message_id = String.to_integer(message_id)
+      message_id = event_id(message_id)
 
       case Elektrine.Messaging.ModerationTools.lock_thread(
              message_id,
@@ -473,7 +482,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
   def handle_event("unlock_thread", %{"message_id" => message_id}, socket) do
     if socket.assigns.is_moderator ||
          (socket.assigns.current_user && socket.assigns.current_user.is_admin) do
-      message_id = String.to_integer(message_id)
+      message_id = event_id(message_id)
 
       case Elektrine.Messaging.ModerationTools.unlock_thread(
              message_id,
@@ -507,7 +516,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
   # Show reply form
   def handle_event("show_reply_form", %{"message_id" => message_id}, socket) do
     if socket.assigns.current_user do
-      message_id = String.to_integer(message_id)
+      message_id = event_id(message_id)
       reply_to_post = Enum.find(socket.assigns.discussion_posts, &(&1.id == message_id))
 
       {:noreply,
@@ -660,7 +669,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
   # Share to timeline
   def handle_event("share_to_timeline", %{"message_id" => message_id}, socket) do
     if socket.assigns.current_user do
-      message_id = String.to_integer(message_id)
+      message_id = event_id(message_id)
 
       case Social.share_to_timeline(
              message_id,
@@ -686,6 +695,40 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
   end
 
   # Private helper functions
+
+  defp event_id(value) do
+    case SafeConvert.parse_id(value) do
+      {:ok, id} -> id
+      {:error, :invalid_id} -> 0
+    end
+  end
+
+  defp parse_event_int(value) do
+    case Integer.parse(to_string(value)) do
+      {integer, ""} -> {:ok, integer}
+      _ -> :error
+    end
+  end
+
+  defp event_int(value, default) do
+    case parse_event_int(value || default) do
+      {:ok, integer} -> integer
+      :error -> default
+    end
+  end
+
+  defp optional_event_id(value) when value in [nil, ""], do: nil
+  defp optional_event_id(value), do: event_id(value)
+
+  defp parse_prefixed_index(key, prefix) do
+    with true <- String.starts_with?(key, prefix),
+         {:ok, index} <- parse_event_int(String.replace_prefix(key, prefix, "")),
+         true <- index >= 0 do
+      {:ok, index}
+    else
+      _ -> :error
+    end
+  end
 
   defp create_text_post(params, socket) do
     content = params["content"]
@@ -830,10 +873,14 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
     poll_options =
       params
       |> Enum.filter(fn {key, _value} -> String.starts_with?(key, "poll_option_") end)
-      |> Enum.sort_by(fn {key, _value} ->
-        key |> String.replace("poll_option_", "") |> String.to_integer()
+      |> Enum.flat_map(fn {key, value} ->
+        case parse_prefixed_index(key, "poll_option_") do
+          {:ok, index} -> [{index, value}]
+          :error -> []
+        end
       end)
-      |> Enum.map(fn {_key, value} -> String.trim(value) end)
+      |> Enum.sort_by(fn {index, _value} -> index end)
+      |> Enum.map(fn {_index, value} -> String.trim(value) end)
       |> Enum.reject(&(not Elektrine.Strings.present?(&1)))
 
     cond do
@@ -879,7 +926,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
                  |> Repo.update() do
               {:ok, updated_message} ->
                 # Create poll
-                poll_duration_days = String.to_integer(params["poll_duration_days"] || "7")
+                poll_duration_days = event_int(params["poll_duration_days"], 7)
                 allow_multiple = params["poll_allow_multiple"] == "on"
                 hide_totals = params["poll_hide_totals"] == "on"
 
@@ -919,12 +966,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
   end
 
   defp base_discussion_attrs(params, title) do
-    flair_id =
-      case params["flair_id"] do
-        "" -> nil
-        nil -> nil
-        id -> String.to_integer(id)
-      end
+    flair_id = optional_event_id(params["flair_id"])
 
     %{
       title: title,
@@ -936,12 +978,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
   end
 
   defp finalize_discussion_post(message, params, title, is_auto_title, socket) do
-    flair_id =
-      case params["flair_id"] do
-        "" -> nil
-        nil -> nil
-        id -> String.to_integer(id)
-      end
+    flair_id = optional_event_id(params["flair_id"])
 
     updated_attrs = %{
       title: title,

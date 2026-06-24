@@ -412,6 +412,54 @@ defmodule Elektrine.Email.SanitizerTest do
       assert String.contains?(result, ~s(style="color:#1DA1F2;"))
       assert String.contains?(result, "Sale ends tonight")
     end
+
+    test "removes entity-obfuscated dangerous CSS URLs" do
+      html = """
+      <style>
+        .a { background-image: url(&#x6a;avascript:alert(1)); }
+        .b { background: url("v&#x62;script:msgbox(1)"); }
+        .c { list-style-image: url('data:text/html,<svg onload=alert(1)>'); }
+      </style>
+      <div style="background:url(&#106;ava&#x73;cript:alert(2)); color: #111;">Hello</div>
+      """
+
+      result = Sanitizer.sanitize_html_content(html)
+      result_downcase = String.downcase(result)
+
+      refute String.contains?(result_downcase, "javascript:")
+      refute String.contains?(result_downcase, "vbscript:")
+      refute String.contains?(result_downcase, "data:text/html")
+      assert String.contains?(result_downcase, "background:none")
+      assert String.contains?(result_downcase, "background-image: none")
+      assert String.contains?(result, "Hello")
+    end
+
+    test "removes control-character-obfuscated dangerous CSS URLs" do
+      html = """
+      <style>
+        .a { background-image: url(ja
+        vascript:alert(1)); }
+      </style>
+      <div style="background:url(ja\tvascript:alert(2)); color: #111;">Hello</div>
+      """
+
+      result = Sanitizer.sanitize_html_content(html)
+      result_downcase = String.downcase(result)
+
+      refute String.contains?(result_downcase, "javascript:")
+      assert String.contains?(result_downcase, "background:none")
+      assert String.contains?(result_downcase, "background-image: none")
+    end
+
+    test "keeps safe CSS URLs" do
+      html =
+        ~s|<div style="background:url(https://example.com/email.png); color:#111;">Hello</div>|
+
+      result = Sanitizer.sanitize_html_content(html)
+
+      assert String.contains?(result, "background:url(https://example.com/email.png)")
+      assert String.contains?(result, "color:#111;")
+    end
   end
 
   describe "fix common encoding issues (mojibake)" do

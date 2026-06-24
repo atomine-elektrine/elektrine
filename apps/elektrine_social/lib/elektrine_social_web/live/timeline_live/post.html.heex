@@ -156,9 +156,9 @@
               <% else %>
                 <%!-- Federated post --%>
                 <%= if Ecto.assoc_loaded?(@post.remote_actor) && @post.remote_actor do %>
-                  <%= if @post.remote_actor.avatar_url do %>
+                  <%= if avatar_url = safe_external_image_url(@post.remote_actor.avatar_url) do %>
                     <img
-                      src={@post.remote_actor.avatar_url}
+                      src={avatar_url}
                       alt={@post.remote_actor.username}
                       class="w-12 h-12 rounded-full"
                     />
@@ -393,7 +393,10 @@
             />
             
 <!-- Direct Image URLs from content -->
-            <% image_urls = Elektrine.Social.Message.extract_image_urls(@post.content || "") %>
+            <% image_urls =
+              (@post.content || "")
+              |> Elektrine.Social.Message.extract_image_urls()
+              |> safe_external_image_urls() %>
             <%= if image_urls != [] do %>
               <div class="mt-4 grid grid-cols-1 gap-2">
                 <%= for {image_url, idx} <- Enum.with_index(image_urls) do %>
@@ -420,18 +423,22 @@
             <% end %>
             
 <!-- Link Preview -->
-            <%= if match?(%Elektrine.Social.LinkPreview{}, @post.link_preview) && @post.link_preview.status == "success" do %>
+            <% preview_url =
+              if match?(%Elektrine.Social.LinkPreview{}, @post.link_preview) &&
+                   @post.link_preview.status == "success",
+                 do: safe_external_href(@post.link_preview.url) %>
+            <%= if preview_url do %>
               <div class="my-4 border border-base-200 rounded-lg overflow-hidden hover:border-base-300 transition-colors">
                 <a
-                  href={@post.link_preview.url}
+                  href={preview_url}
                   target="_blank"
                   rel="noopener noreferrer"
                   class="block"
                 >
-                  <%= if @post.link_preview.image_url do %>
+                  <%= if preview_image_url = safe_external_image_url(@post.link_preview.image_url) do %>
                     <div class="aspect-video bg-base-200">
                       <img
-                        src={@post.link_preview.image_url}
+                        src={preview_image_url}
                         alt={@post.link_preview.title || ""}
                         class="w-full h-full object-cover"
                       />
@@ -439,11 +446,11 @@
                   <% end %>
                   <div class="p-4">
                     <div class="flex items-center gap-2 mb-2">
-                      <%= if @post.link_preview.favicon_url do %>
-                        <img src={@post.link_preview.favicon_url} alt="" class="w-4 h-4" />
+                      <%= if favicon_url = safe_external_image_url(@post.link_preview.favicon_url) do %>
+                        <img src={favicon_url} alt="" class="w-4 h-4" />
                       <% end %>
                       <span class="text-xs text-base-content/60">
-                        {@post.link_preview.site_name || URI.parse(@post.link_preview.url).host}
+                        {@post.link_preview.site_name || URI.parse(preview_url).host}
                       </span>
                     </div>
                     <%= if @post.link_preview.title do %>
@@ -786,9 +793,10 @@
                   <span class="text-xs opacity-60">@{@quote_target_post.sender.username}</span>
                 <% else %>
                   <%= if Ecto.assoc_loaded?(@quote_target_post.remote_actor) && @quote_target_post.remote_actor do %>
-                    <%= if @quote_target_post.remote_actor.avatar_url do %>
+                    <%= if avatar_url =
+                          safe_external_image_url(@quote_target_post.remote_actor.avatar_url) do %>
                       <img
-                        src={@quote_target_post.remote_actor.avatar_url}
+                        src={avatar_url}
                         alt=""
                         class="w-6 h-6 rounded-full"
                       />
@@ -821,7 +829,7 @@
               </div>
               <%= if @quote_target_post.media_urls && length(@quote_target_post.media_urls) > 0 do %>
                 <div class="mt-2 flex gap-1">
-                  <%= for url <- Enum.take(@quote_target_post.media_urls, 4) do %>
+                  <%= for url <- @quote_target_post.media_urls |> safe_external_image_urls() |> Enum.take(4) do %>
                     <img src={url} alt="" class="w-12 h-12 rounded object-cover" />
                   <% end %>
                 </div>

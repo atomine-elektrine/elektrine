@@ -6,6 +6,7 @@ defmodule ElektrineEmailWeb.Plugs.EmailOwnershipGuard do
 
   import Plug.Conn
   import Phoenix.Controller, only: [redirect: 2, put_flash: 3]
+  alias Elektrine.Utils.SafeConvert
   require Logger
 
   def init(opts), do: opts
@@ -28,7 +29,7 @@ defmodule ElektrineEmailWeb.Plugs.EmailOwnershipGuard do
         _ -> nil
       end
 
-    message_id = get_message_id_from_params(conn.params)
+    message_id_result = get_message_id_from_params(conn.params)
 
     cond do
       is_nil(user_id) ->
@@ -38,11 +39,19 @@ defmodule ElektrineEmailWeb.Plugs.EmailOwnershipGuard do
         |> redirect(to: "/login")
         |> halt()
 
-      is_nil(message_id) ->
+      message_id_result == :none ->
         # No message ID in params, continue
         conn
 
+      message_id_result == :invalid ->
+        conn
+        |> put_status(:bad_request)
+        |> put_flash(:error, "Invalid email id")
+        |> redirect(to: "/email")
+        |> halt()
+
       true ->
+        {:ok, message_id} = message_id_result
         validate_message_ownership(conn, message_id, user_id)
     end
   end
@@ -104,11 +113,16 @@ defmodule ElektrineEmailWeb.Plugs.EmailOwnershipGuard do
   # Extract message ID from params
   defp get_message_id_from_params(params) do
     cond do
-      params["id"] -> String.to_integer(params["id"])
-      params["message_id"] -> String.to_integer(params["message_id"])
-      true -> nil
+      params["id"] -> parse_message_id(params["id"])
+      params["message_id"] -> parse_message_id(params["message_id"])
+      true -> :none
     end
-  rescue
-    _ -> nil
+  end
+
+  defp parse_message_id(value) do
+    case SafeConvert.parse_id(value) do
+      {:ok, id} -> {:ok, id}
+      {:error, :invalid_id} -> :invalid
+    end
   end
 end

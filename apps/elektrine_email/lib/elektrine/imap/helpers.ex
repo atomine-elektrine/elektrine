@@ -997,13 +997,23 @@ defmodule Elektrine.IMAP.Helpers do
       [_, day, month, year] ->
         month_num = month_to_number(month)
 
-        case Date.new(String.to_integer(year), month_num, String.to_integer(day)) do
-          {:ok, date} -> {:ok, DateTime.new!(date, ~T[00:00:00], "Etc/UTC")}
+        with {:ok, year} <- parse_positive_int(year),
+             {:ok, day} <- parse_positive_int(day),
+             {:ok, date} <- Date.new(year, month_num, day) do
+          {:ok, DateTime.new!(date, ~T[00:00:00], "Etc/UTC")}
+        else
           _ -> {:error, :invalid_date}
         end
 
       _ ->
         {:error, :invalid_format}
+    end
+  end
+
+  defp parse_positive_int(value) do
+    case Integer.parse(to_string(value)) do
+      {parsed, ""} when parsed > 0 -> {:ok, parsed}
+      _ -> :error
     end
   end
 

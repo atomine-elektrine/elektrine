@@ -33,24 +33,26 @@ defmodule ArblargWeb.API.ConversationController do
   def show(conn, %{"id" => id}) do
     user = conn.assigns[:current_user]
 
-    case Messaging.get_conversation!(String.to_integer(id), user.id) do
-      {:ok, conversation} ->
-        {conv_data, messages} = format_conversation_with_messages(conversation, user.id)
+    with_valid_id(conn, id, fn conversation_id ->
+      case Messaging.get_conversation!(conversation_id, user.id) do
+        {:ok, conversation} ->
+          {conv_data, messages} = format_conversation_with_messages(conversation, user.id)
 
-        conn
-        |> put_status(:ok)
-        |> json(%{conversation: conv_data, messages: messages})
+          conn
+          |> put_status(:ok)
+          |> json(%{conversation: conv_data, messages: messages})
 
-      {:error, :not_found} ->
-        conn
-        |> put_status(:not_found)
-        |> json(%{error: "Conversation not found"})
+        {:error, :not_found} ->
+          conn
+          |> put_status(:not_found)
+          |> json(%{error: "Conversation not found"})
 
-      {:error, :not_member} ->
-        conn
-        |> put_status(:forbidden)
-        |> json(%{error: "You are not a member of this conversation"})
-    end
+        {:error, :not_member} ->
+          conn
+          |> put_status(:forbidden)
+          |> json(%{error: "You are not a member of this conversation"})
+      end
+    end)
   end
 
   @doc """
@@ -68,40 +70,42 @@ defmodule ArblargWeb.API.ConversationController do
   def create(conn, %{"type" => "dm", "user_id" => target_user_id}) do
     user = conn.assigns[:current_user]
 
-    case Messaging.create_dm_conversation(user.id, String.to_integer(target_user_id)) do
-      {:ok, conversation} ->
-        conn
-        |> put_status(:created)
-        |> json(%{
-          message: "Conversation created",
-          conversation: format_conversation(conversation, user.id)
-        })
+    with_valid_id(conn, target_user_id, fn parsed_target_user_id ->
+      case Messaging.create_dm_conversation(user.id, parsed_target_user_id) do
+        {:ok, conversation} ->
+          conn
+          |> put_status(:created)
+          |> json(%{
+            message: "Conversation created",
+            conversation: format_conversation(conversation, user.id)
+          })
 
-      {:error, :self_dm} ->
-        conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{error: "Cannot create conversation with yourself"})
+        {:error, :self_dm} ->
+          conn
+          |> put_status(:unprocessable_entity)
+          |> json(%{error: "Cannot create conversation with yourself"})
 
-      {:error, :user_not_found} ->
-        conn
-        |> put_status(:not_found)
-        |> json(%{error: "User not found"})
+        {:error, :user_not_found} ->
+          conn
+          |> put_status(:not_found)
+          |> json(%{error: "User not found"})
 
-      {:error, :privacy_blocked} ->
-        conn
-        |> put_status(:forbidden)
-        |> json(%{error: "Cannot message this user due to privacy settings"})
+        {:error, :privacy_blocked} ->
+          conn
+          |> put_status(:forbidden)
+          |> json(%{error: "Cannot message this user due to privacy settings"})
 
-      {:error, :rate_limited} ->
-        conn
-        |> put_status(:too_many_requests)
-        |> json(%{error: "Too many conversations created. Please try again later."})
+        {:error, :rate_limited} ->
+          conn
+          |> put_status(:too_many_requests)
+          |> json(%{error: "Too many conversations created. Please try again later."})
 
-      {:error, reason} ->
-        conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{error: "Failed to create conversation: #{inspect(reason)}"})
-    end
+        {:error, reason} ->
+          conn
+          |> put_status(:unprocessable_entity)
+          |> json(%{error: "Failed to create conversation: #{inspect(reason)}"})
+      end
+    end)
   end
 
   def create(conn, %{"type" => "group"} = params) do
@@ -191,51 +195,52 @@ defmodule ArblargWeb.API.ConversationController do
   """
   def update(conn, %{"id" => id} = params) do
     user = conn.assigns[:current_user]
-    conversation_id = String.to_integer(id)
 
-    # Check if user has permission to update
-    case Messaging.get_conversation_member(conversation_id, user.id) do
-      nil ->
-        conn
-        |> put_status(:not_found)
-        |> json(%{error: "Conversation not found"})
+    with_valid_id(conn, id, fn conversation_id ->
+      # Check if user has permission to update
+      case Messaging.get_conversation_member(conversation_id, user.id) do
+        nil ->
+          conn
+          |> put_status(:not_found)
+          |> json(%{error: "Conversation not found"})
 
-      member when member.role not in ["owner", "admin"] ->
-        conn
-        |> put_status(:forbidden)
-        |> json(%{error: "Only owners and admins can update conversations"})
+        member when member.role not in ["owner", "admin"] ->
+          conn
+          |> put_status(:forbidden)
+          |> json(%{error: "Only owners and admins can update conversations"})
 
-      _member ->
-        # Get the conversation and update it
-        case Messaging.get_conversation!(conversation_id, user.id) do
-          {:ok, conversation} ->
-            attrs =
-              %{}
-              |> maybe_put(:name, params["name"])
-              |> maybe_put(:description, params["description"])
-              |> maybe_put(:avatar_url, params["avatar_url"])
+        _member ->
+          # Get the conversation and update it
+          case Messaging.get_conversation!(conversation_id, user.id) do
+            {:ok, conversation} ->
+              attrs =
+                %{}
+                |> maybe_put(:name, params["name"])
+                |> maybe_put(:description, params["description"])
+                |> maybe_put(:avatar_url, params["avatar_url"])
 
-            case Messaging.update_conversation(conversation, attrs) do
-              {:ok, updated} ->
-                conn
-                |> put_status(:ok)
-                |> json(%{
-                  message: "Conversation updated",
-                  conversation: format_conversation(updated, user.id)
-                })
+              case Messaging.update_conversation(conversation, attrs) do
+                {:ok, updated} ->
+                  conn
+                  |> put_status(:ok)
+                  |> json(%{
+                    message: "Conversation updated",
+                    conversation: format_conversation(updated, user.id)
+                  })
 
-              {:error, %Ecto.Changeset{} = changeset} ->
-                conn
-                |> put_status(:unprocessable_entity)
-                |> json(%{error: "Validation failed", errors: format_errors(changeset)})
-            end
+                {:error, %Ecto.Changeset{} = changeset} ->
+                  conn
+                  |> put_status(:unprocessable_entity)
+                  |> json(%{error: "Validation failed", errors: format_errors(changeset)})
+              end
 
-          {:error, _} ->
-            conn
-            |> put_status(:not_found)
-            |> json(%{error: "Conversation not found"})
-        end
-    end
+            {:error, _} ->
+              conn
+              |> put_status(:not_found)
+              |> json(%{error: "Conversation not found"})
+          end
+      end
+    end)
   end
 
   @doc """
@@ -244,43 +249,44 @@ defmodule ArblargWeb.API.ConversationController do
   """
   def delete(conn, %{"id" => id}) do
     user = conn.assigns[:current_user]
-    conversation_id = String.to_integer(id)
 
-    case Messaging.get_conversation_member(conversation_id, user.id) do
-      nil ->
-        conn
-        |> put_status(:not_found)
-        |> json(%{error: "Conversation not found"})
+    with_valid_id(conn, id, fn conversation_id ->
+      case Messaging.get_conversation_member(conversation_id, user.id) do
+        nil ->
+          conn
+          |> put_status(:not_found)
+          |> json(%{error: "Conversation not found"})
 
-      member ->
-        if member.role == "owner" do
-          # Owner deletes the entire conversation
-          case Messaging.delete_conversation(conversation_id) do
-            {:ok, _} ->
-              conn
-              |> put_status(:ok)
-              |> json(%{message: "Conversation deleted"})
+        member ->
+          if member.role == "owner" do
+            # Owner deletes the entire conversation
+            case Messaging.delete_conversation(conversation_id) do
+              {:ok, _} ->
+                conn
+                |> put_status(:ok)
+                |> json(%{message: "Conversation deleted"})
 
-            {:error, reason} ->
-              conn
-              |> put_status(:unprocessable_entity)
-              |> json(%{error: "Failed to delete: #{inspect(reason)}"})
+              {:error, reason} ->
+                conn
+                |> put_status(:unprocessable_entity)
+                |> json(%{error: "Failed to delete: #{inspect(reason)}"})
+            end
+          else
+            # Non-owner leaves the conversation
+            case Messaging.remove_member_from_conversation(conversation_id, user.id) do
+              {:ok, _} ->
+                conn
+                |> put_status(:ok)
+                |> json(%{message: "Left conversation"})
+
+              {:error, reason} ->
+                conn
+                |> put_status(:unprocessable_entity)
+                |> json(%{error: "Failed to leave: #{inspect(reason)}"})
+            end
           end
-        else
-          # Non-owner leaves the conversation
-          case Messaging.remove_member_from_conversation(conversation_id, user.id) do
-            {:ok, _} ->
-              conn
-              |> put_status(:ok)
-              |> json(%{message: "Left conversation"})
-
-            {:error, reason} ->
-              conn
-              |> put_status(:unprocessable_entity)
-              |> json(%{error: "Failed to leave: #{inspect(reason)}"})
-          end
-        end
-    end
+      end
+    end)
   end
 
   @doc """
@@ -289,54 +295,55 @@ defmodule ArblargWeb.API.ConversationController do
   """
   def join(conn, %{"conversation_id" => id}) do
     user = conn.assigns[:current_user]
-    conversation_id = String.to_integer(id)
 
-    case Messaging.join_conversation(conversation_id, user.id) do
-      {:ok, :pending} ->
-        conn
-        |> put_status(:accepted)
-        |> json(%{message: "Join request sent"})
+    with_valid_id(conn, id, fn conversation_id ->
+      case Messaging.join_conversation(conversation_id, user.id) do
+        {:ok, :pending} ->
+          conn
+          |> put_status(:accepted)
+          |> json(%{message: "Join request sent"})
 
-      {:ok, _member} ->
-        {:ok, conversation} = Messaging.get_conversation!(conversation_id, user.id)
+        {:ok, _member} ->
+          {:ok, conversation} = Messaging.get_conversation!(conversation_id, user.id)
 
-        conn
-        |> put_status(:ok)
-        |> json(%{
-          message: "Joined conversation",
-          conversation: format_conversation(conversation, user.id)
-        })
+          conn
+          |> put_status(:ok)
+          |> json(%{
+            message: "Joined conversation",
+            conversation: format_conversation(conversation, user.id)
+          })
 
-      {:error, :not_found} ->
-        conn
-        |> put_status(:not_found)
-        |> json(%{error: "Conversation not found"})
+        {:error, :not_found} ->
+          conn
+          |> put_status(:not_found)
+          |> json(%{error: "Conversation not found"})
 
-      {:error, :not_public} ->
-        conn
-        |> put_status(:forbidden)
-        |> json(%{error: "This conversation is not public"})
+        {:error, :not_public} ->
+          conn
+          |> put_status(:forbidden)
+          |> json(%{error: "This conversation is not public"})
 
-      {:error, :not_public_channel} ->
-        conn
-        |> put_status(:forbidden)
-        |> json(%{error: "This conversation is not public"})
+        {:error, :not_public_channel} ->
+          conn
+          |> put_status(:forbidden)
+          |> json(%{error: "This conversation is not public"})
 
-      {:error, :must_join_server} ->
-        conn
-        |> put_status(:forbidden)
-        |> json(%{error: "Join the server first before joining this channel"})
+        {:error, :must_join_server} ->
+          conn
+          |> put_status(:forbidden)
+          |> json(%{error: "Join the server first before joining this channel"})
 
-      {:error, :already_member} ->
-        conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{error: "Already a member of this conversation"})
+        {:error, :already_member} ->
+          conn
+          |> put_status(:unprocessable_entity)
+          |> json(%{error: "Already a member of this conversation"})
 
-      {:error, reason} ->
-        conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{error: "Failed to join: #{inspect(reason)}"})
-    end
+        {:error, reason} ->
+          conn
+          |> put_status(:unprocessable_entity)
+          |> json(%{error: "Failed to join: #{inspect(reason)}"})
+      end
+    end)
   end
 
   @doc """
@@ -345,29 +352,30 @@ defmodule ArblargWeb.API.ConversationController do
   """
   def leave(conn, %{"conversation_id" => id}) do
     user = conn.assigns[:current_user]
-    conversation_id = String.to_integer(id)
 
-    case Messaging.remove_member_from_conversation(conversation_id, user.id) do
-      {:ok, _} ->
-        conn
-        |> put_status(:ok)
-        |> json(%{message: "Left conversation"})
+    with_valid_id(conn, id, fn conversation_id ->
+      case Messaging.remove_member_from_conversation(conversation_id, user.id) do
+        {:ok, _} ->
+          conn
+          |> put_status(:ok)
+          |> json(%{message: "Left conversation"})
 
-      {:error, :not_found} ->
-        conn
-        |> put_status(:not_found)
-        |> json(%{error: "Conversation not found or not a member"})
+        {:error, :not_found} ->
+          conn
+          |> put_status(:not_found)
+          |> json(%{error: "Conversation not found or not a member"})
 
-      {:error, :owner_cannot_leave} ->
-        conn
-        |> put_status(:forbidden)
-        |> json(%{error: "Owners must transfer ownership or delete the conversation"})
+        {:error, :owner_cannot_leave} ->
+          conn
+          |> put_status(:forbidden)
+          |> json(%{error: "Owners must transfer ownership or delete the conversation"})
 
-      {:error, reason} ->
-        conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{error: "Failed to leave: #{inspect(reason)}"})
-    end
+        {:error, reason} ->
+          conn
+          |> put_status(:unprocessable_entity)
+          |> json(%{error: "Failed to leave: #{inspect(reason)}"})
+      end
+    end)
   end
 
   @doc """
@@ -376,19 +384,20 @@ defmodule ArblargWeb.API.ConversationController do
   """
   def mark_read(conn, %{"conversation_id" => id}) do
     user = conn.assigns[:current_user]
-    conversation_id = String.to_integer(id)
 
-    case Messaging.mark_as_read(conversation_id, user.id) do
-      {:ok, _} ->
-        conn
-        |> put_status(:ok)
-        |> json(%{message: "Marked as read"})
+    with_valid_id(conn, id, fn conversation_id ->
+      case Messaging.mark_as_read(conversation_id, user.id) do
+        {:ok, _} ->
+          conn
+          |> put_status(:ok)
+          |> json(%{message: "Marked as read"})
 
-      {:error, reason} ->
-        conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{error: "Failed to mark as read: #{inspect(reason)}"})
-    end
+        {:error, reason} ->
+          conn
+          |> put_status(:unprocessable_entity)
+          |> json(%{error: "Failed to mark as read: #{inspect(reason)}"})
+      end
+    end)
   end
 
   @doc """
@@ -397,22 +406,23 @@ defmodule ArblargWeb.API.ConversationController do
   """
   def members(conn, %{"conversation_id" => id}) do
     user = conn.assigns[:current_user]
-    conversation_id = String.to_integer(id)
 
-    # Verify user is a member
-    case Messaging.get_conversation_member(conversation_id, user.id) do
-      nil ->
-        conn
-        |> put_status(:forbidden)
-        |> json(%{error: "Not a member of this conversation"})
+    with_valid_id(conn, id, fn conversation_id ->
+      # Verify user is a member
+      case Messaging.get_conversation_member(conversation_id, user.id) do
+        nil ->
+          conn
+          |> put_status(:forbidden)
+          |> json(%{error: "Not a member of this conversation"})
 
-      _member ->
-        members = Messaging.get_conversation_members(conversation_id)
+        _member ->
+          members = Messaging.get_conversation_members(conversation_id)
 
-        conn
-        |> put_status(:ok)
-        |> json(%{members: Enum.map(members, &format_member/1)})
-    end
+          conn
+          |> put_status(:ok)
+          |> json(%{members: Enum.map(members, &format_member/1)})
+      end
+    end)
   end
 
   @doc """
@@ -421,21 +431,22 @@ defmodule ArblargWeb.API.ConversationController do
   """
   def pending_remote_join_requests(conn, %{"conversation_id" => id}) do
     user = conn.assigns[:current_user]
-    conversation_id = String.to_integer(id)
 
-    case manage_conversation_membership_permission(conversation_id, user.id) do
-      :ok ->
-        requests = Messaging.list_pending_remote_join_requests(conversation_id)
+    with_valid_id(conn, id, fn conversation_id ->
+      case manage_conversation_membership_permission(conversation_id, user.id) do
+        :ok ->
+          requests = Messaging.list_pending_remote_join_requests(conversation_id)
 
-        conn
-        |> put_status(:ok)
-        |> json(%{requests: Enum.map(requests, &format_remote_join_request/1)})
+          conn
+          |> put_status(:ok)
+          |> json(%{requests: Enum.map(requests, &format_remote_join_request/1)})
 
-      {:error, status, error} ->
-        conn
-        |> put_status(status)
-        |> json(%{error: error})
-    end
+        {:error, status, error} ->
+          conn
+          |> put_status(status)
+          |> json(%{error: error})
+      end
+    end)
   end
 
   @doc """
@@ -466,58 +477,61 @@ defmodule ArblargWeb.API.ConversationController do
   """
   def add_member(conn, %{"conversation_id" => id, "user_id" => target_user_id}) do
     user = conn.assigns[:current_user]
-    conversation_id = String.to_integer(id)
 
-    # Check if user has permission to add members
-    case Messaging.get_conversation_member(conversation_id, user.id) do
-      nil ->
-        conn
-        |> put_status(:not_found)
-        |> json(%{error: "Conversation not found"})
-
-      member when member.role not in ["owner", "admin", "moderator"] ->
-        conn
-        |> put_status(:forbidden)
-        |> json(%{error: "You don't have permission to add members"})
-
-      _member ->
-        role = "member"
-
-        case Messaging.add_member_to_conversation(
-               conversation_id,
-               String.to_integer(target_user_id),
-               role,
-               user.id
-             ) do
-          {:ok, new_member} ->
-            conn
-            |> put_status(:created)
-            |> json(%{
-              message: "Member added",
-              member: format_member(new_member)
-            })
-
-          {:error, :user_not_found} ->
+    with_valid_id(conn, id, fn conversation_id ->
+      with_valid_id(conn, target_user_id, fn parsed_target_user_id ->
+        # Check if user has permission to add members
+        case Messaging.get_conversation_member(conversation_id, user.id) do
+          nil ->
             conn
             |> put_status(:not_found)
-            |> json(%{error: "User not found"})
+            |> json(%{error: "Conversation not found"})
 
-          {:error, :already_member} ->
-            conn
-            |> put_status(:unprocessable_entity)
-            |> json(%{error: "User is already a member"})
-
-          {:error, :privacy_blocked} ->
+          member when member.role not in ["owner", "admin", "moderator"] ->
             conn
             |> put_status(:forbidden)
-            |> json(%{error: "Cannot add user due to privacy settings"})
+            |> json(%{error: "You don't have permission to add members"})
 
-          {:error, reason} ->
-            conn
-            |> put_status(:unprocessable_entity)
-            |> json(%{error: "Failed to add member: #{inspect(reason)}"})
+          _member ->
+            role = "member"
+
+            case Messaging.add_member_to_conversation(
+                   conversation_id,
+                   parsed_target_user_id,
+                   role,
+                   user.id
+                 ) do
+              {:ok, new_member} ->
+                conn
+                |> put_status(:created)
+                |> json(%{
+                  message: "Member added",
+                  member: format_member(new_member)
+                })
+
+              {:error, :user_not_found} ->
+                conn
+                |> put_status(:not_found)
+                |> json(%{error: "User not found"})
+
+              {:error, :already_member} ->
+                conn
+                |> put_status(:unprocessable_entity)
+                |> json(%{error: "User is already a member"})
+
+              {:error, :privacy_blocked} ->
+                conn
+                |> put_status(:forbidden)
+                |> json(%{error: "Cannot add user due to privacy settings"})
+
+              {:error, reason} ->
+                conn
+                |> put_status(:unprocessable_entity)
+                |> json(%{error: "Failed to add member: #{inspect(reason)}"})
+            end
         end
-    end
+      end)
+    end)
   end
 
   def add_member(conn, _params) do
@@ -532,44 +546,47 @@ defmodule ArblargWeb.API.ConversationController do
   """
   def remove_member(conn, %{"conversation_id" => id, "user_id" => target_user_id}) do
     user = conn.assigns[:current_user]
-    conversation_id = String.to_integer(id)
-    target_id = String.to_integer(target_user_id)
 
-    # Check if user has permission to remove members
-    case Messaging.get_conversation_member(conversation_id, user.id) do
-      nil ->
-        conn
-        |> put_status(:not_found)
-        |> json(%{error: "Conversation not found"})
-
-      member when member.role not in ["owner", "admin", "moderator"] and user.id != target_id ->
-        conn
-        |> put_status(:forbidden)
-        |> json(%{error: "You don't have permission to remove members"})
-
-      _member ->
-        case Messaging.remove_member_from_conversation(conversation_id, target_id) do
-          {:ok, _} ->
-            conn
-            |> put_status(:ok)
-            |> json(%{message: "Member removed"})
-
-          {:error, :not_found} ->
+    with_valid_id(conn, id, fn conversation_id ->
+      with_valid_id(conn, target_user_id, fn target_id ->
+        # Check if user has permission to remove members
+        case Messaging.get_conversation_member(conversation_id, user.id) do
+          nil ->
             conn
             |> put_status(:not_found)
-            |> json(%{error: "Member not found"})
+            |> json(%{error: "Conversation not found"})
 
-          {:error, :owner_cannot_leave} ->
+          member
+          when member.role not in ["owner", "admin", "moderator"] and user.id != target_id ->
             conn
             |> put_status(:forbidden)
-            |> json(%{error: "Cannot remove the owner"})
+            |> json(%{error: "You don't have permission to remove members"})
 
-          {:error, reason} ->
-            conn
-            |> put_status(:unprocessable_entity)
-            |> json(%{error: "Failed to remove member: #{inspect(reason)}"})
+          _member ->
+            case Messaging.remove_member_from_conversation(conversation_id, target_id) do
+              {:ok, _} ->
+                conn
+                |> put_status(:ok)
+                |> json(%{message: "Member removed"})
+
+              {:error, :not_found} ->
+                conn
+                |> put_status(:not_found)
+                |> json(%{error: "Member not found"})
+
+              {:error, :owner_cannot_leave} ->
+                conn
+                |> put_status(:forbidden)
+                |> json(%{error: "Cannot remove the owner"})
+
+              {:error, reason} ->
+                conn
+                |> put_status(:unprocessable_entity)
+                |> json(%{error: "Failed to remove member: #{inspect(reason)}"})
+            end
         end
-    end
+      end)
+    end)
   end
 
   # Private helpers
@@ -577,9 +594,9 @@ defmodule ArblargWeb.API.ConversationController do
   defp review_remote_join_request(conn, conversation_id, remote_actor_id, decision)
        when decision in [:approve, :decline] do
     user = conn.assigns[:current_user]
-    parsed_conversation_id = String.to_integer(conversation_id)
 
-    with {:ok, parsed_remote_actor_id} <- parse_remote_actor_id(remote_actor_id),
+    with {:ok, parsed_conversation_id} <- parse_id(conversation_id),
+         {:ok, parsed_remote_actor_id} <- parse_remote_actor_id(remote_actor_id),
          :ok <- manage_conversation_membership_permission(parsed_conversation_id, user.id) do
       review_result =
         case decision do
@@ -622,6 +639,9 @@ defmodule ArblargWeb.API.ConversationController do
           |> json(%{error: "Failed to review remote join request: #{inspect(reason)}"})
       end
     else
+      :error ->
+        invalid_id_response(conn)
+
       {:error, :invalid_remote_actor_id} ->
         conn
         |> put_status(:bad_request)
@@ -635,12 +655,19 @@ defmodule ArblargWeb.API.ConversationController do
   end
 
   defp parse_remote_actor_id(remote_actor_id) when is_integer(remote_actor_id),
-    do: {:ok, remote_actor_id}
+    do:
+      if(remote_actor_id > 0,
+        do: {:ok, remote_actor_id},
+        else: {:error, :invalid_remote_actor_id}
+      )
 
   defp parse_remote_actor_id(remote_actor_id) when is_binary(remote_actor_id) do
     case Integer.parse(remote_actor_id) do
-      {parsed_remote_actor_id, ""} -> {:ok, parsed_remote_actor_id}
-      _ -> {:error, :invalid_remote_actor_id}
+      {parsed_remote_actor_id, ""} when parsed_remote_actor_id > 0 ->
+        {:ok, parsed_remote_actor_id}
+
+      _ ->
+        {:error, :invalid_remote_actor_id}
     end
   end
 
@@ -762,46 +789,47 @@ defmodule ArblargWeb.API.ConversationController do
   """
   def upload_media(conn, %{"conversation_id" => conversation_id, "file" => upload}) do
     user = conn.assigns[:current_user]
-    conv_id = String.to_integer(conversation_id)
 
-    # Verify user is a member
-    case Messaging.get_conversation_member(conv_id, user.id) do
-      nil ->
-        conn
-        |> put_status(:forbidden)
-        |> json(%{error: "Not a member of this conversation"})
+    with_valid_id(conn, conversation_id, fn conv_id ->
+      # Verify user is a member
+      case Messaging.get_conversation_member(conv_id, user.id) do
+        nil ->
+          conn
+          |> put_status(:forbidden)
+          |> json(%{error: "Not a member of this conversation"})
 
-      _member ->
-        case Elektrine.Uploads.upload_chat_attachment(upload, user.id) do
-          {:ok, metadata} ->
-            url = Elektrine.Uploads.attachment_url(metadata.key, %{type: "dm"})
+        _member ->
+          case Elektrine.Uploads.upload_chat_attachment(upload, user.id) do
+            {:ok, metadata} ->
+              url = Elektrine.Uploads.attachment_url(metadata.key, %{type: "dm"})
 
-            conn
-            |> put_status(:created)
-            |> json(%{
-              url: url,
-              key: metadata.key,
-              filename: metadata.filename,
-              content_type: metadata.content_type,
-              size: metadata.size
-            })
+              conn
+              |> put_status(:created)
+              |> json(%{
+                url: url,
+                key: metadata.key,
+                filename: metadata.filename,
+                content_type: metadata.content_type,
+                size: metadata.size
+              })
 
-          {:error, {:file_too_large, msg}} ->
-            conn
-            |> put_status(:request_entity_too_large)
-            |> json(%{error: msg})
+            {:error, {:file_too_large, msg}} ->
+              conn
+              |> put_status(:request_entity_too_large)
+              |> json(%{error: msg})
 
-          {:error, {:invalid_file_type, msg}} ->
-            conn
-            |> put_status(:unsupported_media_type)
-            |> json(%{error: msg})
+            {:error, {:invalid_file_type, msg}} ->
+              conn
+              |> put_status(:unsupported_media_type)
+              |> json(%{error: msg})
 
-          {:error, reason} ->
-            conn
-            |> put_status(:unprocessable_entity)
-            |> json(%{error: "Upload failed: #{inspect(reason)}"})
-        end
-    end
+            {:error, reason} ->
+              conn
+              |> put_status(:unprocessable_entity)
+              |> json(%{error: "Upload failed: #{inspect(reason)}"})
+          end
+      end
+    end)
   end
 
   def upload_media(conn, %{"conversation_id" => _conversation_id}) do
@@ -843,13 +871,37 @@ defmodule ArblargWeb.API.ConversationController do
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
 
+  defp with_valid_id(conn, value, fun) when is_function(fun, 1) do
+    case parse_id(value) do
+      {:ok, id} -> fun.(id)
+      :error -> invalid_id_response(conn)
+    end
+  end
+
+  defp invalid_id_response(conn) do
+    conn
+    |> put_status(:bad_request)
+    |> json(%{error: "Invalid id"})
+  end
+
+  defp parse_id(value) when is_integer(value) and value > 0, do: {:ok, value}
+
+  defp parse_id(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {int, ""} when int > 0 -> {:ok, int}
+      _ -> :error
+    end
+  end
+
+  defp parse_id(_value), do: :error
+
   defp parse_int(nil, default), do: default
   defp parse_int(value, _default) when is_integer(value), do: value
 
   defp parse_int(value, default) when is_binary(value) do
     case Integer.parse(value) do
-      {int, _} -> int
-      :error -> default
+      {int, ""} -> int
+      _ -> default
     end
   end
 end

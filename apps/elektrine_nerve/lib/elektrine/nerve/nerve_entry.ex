@@ -6,6 +6,7 @@ defmodule Elektrine.Nerve.NerveEntry do
   import Ecto.Changeset
 
   alias Elektrine.Accounts.User
+  alias Elektrine.Security.SafeExternalURL
 
   schema "nerve_entries" do
     field :title, :string
@@ -95,14 +96,16 @@ defmodule Elektrine.Nerve.NerveEntry do
         if valid_website?(website) do
           changeset
         else
-          add_error(changeset, :website, "must start with http:// or https://")
+          add_error(changeset, :website, "must be a safe http:// or https:// URL")
         end
     end
   end
 
   defp valid_website?(website) when is_binary(website) do
-    uri = URI.parse(website)
-    uri.scheme in ["http", "https"] and is_binary(uri.host) and uri.host != ""
+    case SafeExternalURL.normalize_href(website) do
+      {:ok, _safe_url} -> true
+      {:error, _reason} -> false
+    end
   end
 
   defp normalize_string(changeset, field) do

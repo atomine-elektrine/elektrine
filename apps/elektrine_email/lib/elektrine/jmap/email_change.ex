@@ -43,7 +43,10 @@ defmodule Elektrine.JMAP.EmailChange do
     result =
       Multi.new()
       |> Multi.run(:state_counter, fn _repo, _changes ->
-        {:ok, State.increment_state(mailbox_id, "Email") |> String.to_integer()}
+        case Integer.parse(State.increment_state(mailbox_id, "Email")) do
+          {state_counter, ""} when state_counter >= 0 -> {:ok, state_counter}
+          _ -> {:error, :invalid_state_counter}
+        end
       end)
       |> Multi.insert(:change, fn %{state_counter: state_counter} ->
         changeset(%__MODULE__{}, %{

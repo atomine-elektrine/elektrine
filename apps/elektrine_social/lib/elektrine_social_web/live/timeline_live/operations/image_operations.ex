@@ -33,42 +33,30 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.ImageOperations do
   # Opens the image modal with image URL, array of images, current index, and post data.
   def handle_event(
         "open_image_modal",
-        %{"url" => url, "images" => images_json, "index" => index, "post_id" => post_id},
+        %{"images" => images_json, "index" => index, "post_id" => post_id} = params,
         socket
       ) do
-    images = Jason.decode!(images_json)
-    post_id_int = String.to_integer(post_id)
-    modal_post = Enum.find(socket.assigns.timeline_posts, fn post -> post.id == post_id_int end)
+    with {:ok, decoded_images} <- Jason.decode(images_json),
+         images when images != [] <- Enum.filter(decoded_images, &is_binary/1),
+         {:ok, post_id_int} <- parse_positive_int(post_id) do
+      index_int = parse_non_negative_int(index, 0) |> min(length(images) - 1)
+      url = params["url"] || Enum.at(images, index_int, List.first(images))
 
-    {:noreply,
-     socket
-     |> assign(:show_image_modal, true)
-     |> assign(:modal_image_url, url)
-     |> assign(:modal_images, images)
-     |> assign(:modal_image_index, String.to_integer(index))
-     |> assign(:modal_post, modal_post)}
-  end
+      modal_post =
+        socket.assigns
+        |> Map.get(:timeline_posts, [])
+        |> Enum.find(fn post -> post.id == post_id_int end)
 
-  # Opens the image modal for Lemmy posts where URL is derived from images array.
-  def handle_event(
-        "open_image_modal",
-        %{"images" => images_json, "index" => index, "post_id" => post_id},
-        socket
-      ) do
-    images = Jason.decode!(images_json)
-    index_int = String.to_integer(index)
-    url = Enum.at(images, index_int, List.first(images))
-
-    post_id_int = String.to_integer(post_id)
-    modal_post = Enum.find(socket.assigns.timeline_posts, fn post -> post.id == post_id_int end)
-
-    {:noreply,
-     socket
-     |> assign(:show_image_modal, true)
-     |> assign(:modal_image_url, url)
-     |> assign(:modal_images, images)
-     |> assign(:modal_image_index, index_int)
-     |> assign(:modal_post, modal_post)}
+      {:noreply,
+       socket
+       |> assign(:show_image_modal, true)
+       |> assign(:modal_image_url, url)
+       |> assign(:modal_images, images)
+       |> assign(:modal_image_index, index_int)
+       |> assign(:modal_post, modal_post)}
+    else
+      _ -> {:noreply, socket}
+    end
   end
 
   # Closes the image modal and resets modal state.
@@ -140,9 +128,11 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.ImageOperations do
     alt_texts =
       params
       |> Enum.filter(fn {key, _value} -> String.starts_with?(key, "alt_text_") end)
-      |> Enum.map(fn {key, value} ->
-        index = key |> String.replace("alt_text_", "") |> String.to_integer()
-        {to_string(index), value}
+      |> Enum.flat_map(fn {key, value} ->
+        case parse_non_negative_int(String.replace(key, "alt_text_", ""), nil) do
+          index when is_integer(index) -> [{to_string(index), value}]
+          nil -> []
+        end
       end)
       |> Map.new()
 
@@ -223,4 +213,28 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.ImageOperations do
       end
     end
   end
+
+  defp parse_positive_int(value) when is_integer(value) and value > 0, do: {:ok, value}
+
+  defp parse_positive_int(value) when is_binary(value) do
+    case Integer.parse(String.trim(value)) do
+      {parsed, ""} when parsed > 0 -> {:ok, parsed}
+      _ -> :error
+    end
+  end
+
+  defp parse_positive_int(_), do: :error
+
+  defp parse_non_negative_int(value, _default) when is_integer(value) and value >= 0, do: value
+  defp parse_non_negative_int(value, _default) when is_integer(value) and value < 0, do: 0
+
+  defp parse_non_negative_int(value, default) when is_binary(value) do
+    case Integer.parse(String.trim(value)) do
+      {parsed, ""} when parsed >= 0 -> parsed
+      {parsed, ""} when parsed < 0 -> 0
+      _ -> default
+    end
+  end
+
+  defp parse_non_negative_int(_value, default), do: default
 end

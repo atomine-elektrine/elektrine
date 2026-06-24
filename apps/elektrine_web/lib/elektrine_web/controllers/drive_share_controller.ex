@@ -64,28 +64,34 @@ defmodule ElektrineWeb.DriveShareController do
       |> put_resp_header("x-content-type-options", "nosniff")
 
     if Drive.share_inline_view?(share) do
+      {:ok, content_type} = Drive.inline_content_type(file.content_type)
+
       conn
-      |> put_resp_content_type(file.content_type)
+      |> put_resp_content_type(content_type)
       |> send_resp(200, binary)
     else
       send_download(conn, {:binary, binary},
-        filename: file.original_filename,
-        content_type: file.content_type
+        filename: Drive.safe_download_filename(file.original_filename),
+        content_type: Drive.safe_download_content_type(file.content_type)
       )
     end
   end
 
   defp password_authorized?(conn, share) do
     not Drive.share_requires_password?(share) or
-      share.token in get_session(conn, "drive_share_access", [])
+      share.token_hash in get_session(conn, "drive_share_access", [])
   end
 
   defp grant_token_access(conn, token) do
-    (get_session(conn, "drive_share_access", []) ++ [token]) |> Enum.uniq()
+    token_hash = Drive.share_token_hash(token)
+
+    (get_session(conn, "drive_share_access", []) ++ [token_hash])
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
   end
 
   defp share_rate_limit_key(conn, token) do
-    "drive_share:" <> token <> ":" <> ClientIP.rate_limit_ip(conn)
+    "drive_share:" <> Drive.share_token_hash(token) <> ":" <> ClientIP.rate_limit_ip(conn)
   end
 
   defp share_cache_control(share) do

@@ -10,6 +10,8 @@ defmodule ElektrineSocialWeb.Components.UI.ImageModal do
   import Elektrine.Components.User.UsernameEffects
   import ElektrineWeb.HtmlHelpers
 
+  alias Elektrine.Security.SafeExternalURL
+
   attr :show, :boolean, default: false
   attr :image_url, :string, default: nil
   attr :images, :list, default: []
@@ -39,6 +41,7 @@ defmodule ElektrineSocialWeb.Components.UI.ImageModal do
       assigns
       |> assign(:modal_id, modal_id)
       |> assign(:display_like_count, display_like_count)
+      |> assign(:safe_media_url, safe_media_url(assigns.image_url))
 
     ~H"""
     <%= if @show do %>
@@ -108,9 +111,9 @@ defmodule ElektrineSocialWeb.Components.UI.ImageModal do
                   href={"/remote/#{@post.remote_actor.username}@#{@post.remote_actor.domain}"}
                   class="w-8 h-8 flex-shrink-0"
                 >
-                  <%= if @post.remote_actor.avatar_url do %>
+                  <%= if avatar_url = safe_external_image_url(@post.remote_actor.avatar_url) do %>
                     <img
-                      src={@post.remote_actor.avatar_url}
+                      src={avatar_url}
                       alt={@post.remote_actor.username}
                       class="w-8 h-8 rounded-full object-cover"
                     />
@@ -166,20 +169,24 @@ defmodule ElektrineSocialWeb.Components.UI.ImageModal do
             
     <!-- Media (Image, Video, or Audio) -->
             <%= cond do %>
-              <% video_url?(@image_url) -> %>
+              <% is_nil(@safe_media_url) -> %>
+                <div class="min-h-[40vh] flex items-center justify-center text-base-content/60">
+                  <.icon name="hero-photo" class="w-16 h-16 opacity-40" />
+                </div>
+              <% video_url?(@safe_media_url) -> %>
                 <video
-                  src={@image_url}
+                  src={@safe_media_url}
                   controls
                   preload="metadata"
                   class="w-full h-auto max-h-[80vh]"
                 >
                   Your browser does not support the video tag.
                 </video>
-              <% audio_url?(@image_url) -> %>
+              <% audio_url?(@safe_media_url) -> %>
                 <div class="p-8 bg-base-200 flex flex-col items-center justify-center min-h-[40vh]">
                   <.icon name="hero-musical-note" class="w-24 h-24 opacity-30 mb-6" />
                   <audio
-                    src={@image_url}
+                    src={@safe_media_url}
                     controls
                     preload="metadata"
                     class="w-full max-w-lg"
@@ -189,7 +196,7 @@ defmodule ElektrineSocialWeb.Components.UI.ImageModal do
                 </div>
               <% true -> %>
                 <img
-                  src={@image_url}
+                  src={@safe_media_url}
                   alt="Full size image"
                   class="w-full h-auto max-h-[80vh] object-contain"
                 />
@@ -312,16 +319,42 @@ defmodule ElektrineSocialWeb.Components.UI.ImageModal do
     """
   end
 
-  defp video_url?(nil), do: false
-
   defp video_url?(url) when is_binary(url) do
     String.match?(url, ~r/\.(mp4|webm|ogv|mov|avi|mkv)(\?.*)?$/i)
   end
 
-  defp audio_url?(nil), do: false
-
   defp audio_url?(url) when is_binary(url) do
     String.match?(url, ~r/\.(mp3|wav|ogg|m4a|aac|flac)(\?.*)?$/i)
+  end
+
+  defp safe_media_url(url) when is_binary(url) do
+    trimmed = String.trim(url)
+
+    cond do
+      trimmed == "" ->
+        nil
+
+      Regex.match?(~r/[\x00-\x1F\x7F]/, trimmed) ->
+        nil
+
+      String.starts_with?(trimmed, "uploads/") ->
+        "/" <> trimmed
+
+      safe_local_media_path?(trimmed) ->
+        trimmed
+
+      true ->
+        case SafeExternalURL.normalize(trimmed) do
+          {:ok, safe_url} -> safe_url
+          {:error, _reason} -> nil
+        end
+    end
+  end
+
+  defp safe_media_url(_), do: nil
+
+  defp safe_local_media_path?(url) when is_binary(url) do
+    String.starts_with?(url, ["/uploads/", "/api/private-attachments/"])
   end
 
   defp remote_actor_name(remote_actor) do

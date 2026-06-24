@@ -2,6 +2,7 @@ defmodule Elektrine.Social.LinkPreview do
   @moduledoc false
   use Ecto.Schema
   import Ecto.Changeset
+  alias Elektrine.Security.SafeExternalURL
 
   @max_varchar_length 255
   @max_url_length 2048
@@ -34,6 +35,9 @@ defmodule Elektrine.Social.LinkPreview do
       :error_message,
       :fetched_at
     ])
+    |> trim_field(:url)
+    |> trim_field(:image_url)
+    |> trim_field(:favicon_url)
     |> update_change(:fetched_at, &Elektrine.Time.truncate/1)
     |> truncate_field(:title, @max_varchar_length)
     |> truncate_field(:site_name, @max_varchar_length)
@@ -41,8 +45,17 @@ defmodule Elektrine.Social.LinkPreview do
     |> nilify_overlong_field(:favicon_url, @max_url_length)
     |> validate_required([:url])
     |> validate_inclusion(:status, ["pending", "success", "failed"])
-    |> validate_url(:url)
+    |> validate_safe_href(:url)
+    |> validate_optional_safe_href(:image_url)
+    |> validate_optional_safe_href(:favicon_url)
     |> unique_constraint(:url)
+  end
+
+  defp trim_field(changeset, field) do
+    update_change(changeset, field, fn
+      value when is_binary(value) -> String.trim(value)
+      value -> value
+    end)
   end
 
   defp truncate_field(changeset, field, max_length) do
@@ -65,15 +78,25 @@ defmodule Elektrine.Social.LinkPreview do
     end)
   end
 
-  defp validate_url(changeset, field) do
+  defp validate_safe_href(changeset, field) do
     validate_change(changeset, field, fn _, url ->
-      uri = URI.parse(url)
-
-      if uri.scheme in ["http", "https"] and uri.host do
-        []
-      else
-        [{field, "must be a valid HTTP or HTTPS URL"}]
-      end
+      safe_href_errors(field, url)
     end)
+  end
+
+  defp validate_optional_safe_href(changeset, field) do
+    validate_change(changeset, field, fn
+      _, nil -> []
+      _, "" -> []
+      _, url -> safe_href_errors(field, url)
+    end)
+  end
+
+  defp safe_href_errors(field, url) do
+    case SafeExternalURL.normalize_href(url) do
+      {:ok, _url} -> []
+      {:error, :userinfo_not_allowed} -> [{field, "must not include username or password"}]
+      {:error, _reason} -> [{field, "must be a valid HTTP or HTTPS URL"}]
+    end
   end
 end

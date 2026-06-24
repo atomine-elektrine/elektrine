@@ -135,6 +135,43 @@ defmodule ElektrineEmailWeb.EmailControllerTest do
     assert html =~ ~s(src="/email/message/#{message.id}/attachment/attachment_0/download")
   end
 
+  test "attachment download falls back when stored content type is unsafe", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+    mailbox = ensure_mailbox(user)
+
+    {:ok, message} =
+      Email.create_message(%{
+        mailbox_id: mailbox.id,
+        from: "sender@example.com",
+        to: mailbox.email,
+        subject: "Unsafe attachment content type",
+        html_body: "<p>Attachment</p>",
+        attachments: %{
+          "attachment_0" => %{
+            "filename" => "report.html",
+            "content_type" => "text/html\r\nx-injected: yes",
+            "data" => Base.encode64("<script>alert(1)</script>"),
+            "encoding" => "base64"
+          }
+        },
+        message_id: "<unsafe-attachment-#{System.unique_integer([:positive])}@example.com>"
+      })
+
+    conn =
+      conn
+      |> log_in_user(user)
+      |> get(~p"/email/message/#{message.id}/attachment/attachment_0/download")
+
+    assert response(conn, 200) == "<script>alert(1)</script>"
+    assert get_resp_header(conn, "content-type") == ["application/octet-stream; charset=utf-8"]
+    assert get_resp_header(conn, "x-injected") == []
+    assert get_resp_header(conn, "x-content-type-options") == ["nosniff"]
+
+    assert get_resp_header(conn, "content-disposition") == [
+             "attachment; filename=\"report.html\""
+           ]
+  end
+
   test "iframe content keeps marketing-email layout assets permissive", %{conn: conn} do
     user = AccountsFixtures.user_fixture()
     mailbox = ensure_mailbox(user)

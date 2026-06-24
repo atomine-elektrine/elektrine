@@ -4,6 +4,7 @@ defmodule Elektrine.Social.Message do
   import Ecto.Changeset
 
   alias Elektrine.ActivityPub.Mentions
+  alias Elektrine.Security.SafeExternalURL
 
   @varchar_limit 255
   @local_content_max 20_000
@@ -210,6 +211,7 @@ defmodule Elektrine.Social.Message do
     |> validate_length(:content, max: @local_content_max)
     |> validate_content_security()
     |> validate_media_urls_security()
+    |> validate_optional_safe_href(:primary_url)
     |> validate_content_or_media()
     |> normalize_activitypub_refs()
     |> foreign_key_constraint(:conversation_id)
@@ -265,6 +267,7 @@ defmodule Elektrine.Social.Message do
     |> put_change(:federated, true)
     |> validate_inclusion(:visibility, ["public", "unlisted", "followers", "private", "direct"])
     |> validate_length(:content, max: @federated_content_max)
+    |> validate_optional_safe_href(:primary_url)
     |> foreign_key_constraint(:conversation_id)
     |> unique_constraint(:activitypub_id,
       name: :activitypub_id_index,
@@ -342,13 +345,9 @@ defmodule Elektrine.Social.Message do
   defp sanitize_federated_media_urls(_), do: []
 
   defp sanitize_federated_remote_url(url) when is_binary(url) do
-    case URI.parse(String.trim(url)) do
-      %URI{scheme: scheme} = parsed
-      when scheme in ["http", "https"] and is_binary(parsed.host) and parsed.host != "" ->
-        URI.to_string(parsed)
-
-      _ ->
-        nil
+    case SafeExternalURL.normalize_href(url) do
+      {:ok, safe_url} -> safe_url
+      {:error, _reason} -> nil
     end
   end
 
@@ -845,6 +844,22 @@ defmodule Elektrine.Social.Message do
     end
   end
 
+  defp validate_optional_safe_href(changeset, field) do
+    validate_change(changeset, field, fn
+      _, nil -> []
+      _, "" -> []
+      _, url -> safe_href_errors(field, url)
+    end)
+  end
+
+  defp safe_href_errors(field, url) do
+    case SafeExternalURL.normalize_href(url) do
+      {:ok, _url} -> []
+      {:error, :userinfo_not_allowed} -> [{field, "must not include username or password"}]
+      {:error, _reason} -> [{field, "must be a valid HTTP or HTTPS URL"}]
+    end
+  end
+
   defp validate_spam_patterns(changeset, content) do
     cond do
       # Too many mentions
@@ -864,7 +879,9 @@ defmodule Elektrine.Social.Message do
     # Allow local uploads (paths starting with /uploads/)
     cond do
       String.starts_with?(url, "/uploads/") ->
-        owned_public_media_key?(String.trim_leading(url, "/uploads/"), sender_id)
+        url
+        |> String.trim_leading("/uploads/")
+        |> owned_public_media_key?(sender_id)
 
       # Allow S3-compatible keys (paths starting with various attachment folders)
       String.starts_with?(url, "timeline-attachments/") or
@@ -885,24 +902,29 @@ defmodule Elektrine.Social.Message do
           Application.get_env(:elektrine, :uploads)[:domain] || "localhost"
         ]
 
-        uri = URI.parse(url)
+        case SafeExternalURL.normalize_href(url) do
+          {:ok, safe_url} ->
+            uri = URI.parse(safe_url)
+            uri.scheme == "https" and uri.host in trusted_domains
 
-        # Must be HTTPS and from trusted domain for external URLs
-        uri.scheme == "https" and
-          uri.host in trusted_domains
+          {:error, _reason} ->
+            false
+        end
     end
+  rescue
+    _ -> false
   end
 
   defp owned_public_media_key?(key, sender_id) when is_binary(key) and is_integer(sender_id) do
-    normalized = String.trim_leading(key, "/")
+    normalized = key |> String.trim() |> String.trim_leading("/")
 
     case String.split(normalized, "/", parts: 2) do
       [prefix, filename]
       when prefix in ["timeline-attachments", "discussion-attachments", "gallery-attachments"] ->
-        String.starts_with?(filename, "#{sender_id}_")
+        safe_public_media_filename?(filename) and String.starts_with?(filename, "#{sender_id}_")
 
       [prefix, _filename] when prefix in ["avatars", "backgrounds"] ->
-        true
+        safe_public_media_key?(normalized)
 
       _ ->
         false
@@ -910,6 +932,14 @@ defmodule Elektrine.Social.Message do
   end
 
   defp owned_public_media_key?(_key, _sender_id), do: false
+
+  defp safe_public_media_key?(key) when is_binary(key) do
+    not String.contains?(key, ["..", "\\"]) and not Regex.match?(~r/[\x00-\x1F\x7F]/, key)
+  end
+
+  defp safe_public_media_filename?(filename) when is_binary(filename) do
+    safe_public_media_key?(filename) and not String.contains?(filename, "/")
+  end
 
   defp emoji?(grapheme) do
     # Simple emoji detection - check for common emoji codepoints

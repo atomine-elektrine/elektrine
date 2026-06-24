@@ -2,6 +2,7 @@ defmodule ElektrineWeb.SettingsLive.RSS do
   use ElektrineWeb, :live_view
 
   alias Elektrine.RSS
+  alias Elektrine.Utils.SafeConvert
 
   on_mount {ElektrineWeb.Live.AuthHooks, :require_authenticated_user}
   on_mount {ElektrineWeb.Live.Hooks.NotificationCountHook, :default}
@@ -74,7 +75,7 @@ defmodule ElektrineWeb.SettingsLive.RSS do
 
   @impl true
   def handle_event("remove_feed", %{"feed_id" => feed_id}, socket) do
-    feed_id = String.to_integer(feed_id)
+    feed_id = event_id(feed_id)
 
     case RSS.unsubscribe(socket.assigns.current_user.id, feed_id) do
       {:ok, _} ->
@@ -93,7 +94,7 @@ defmodule ElektrineWeb.SettingsLive.RSS do
 
   @impl true
   def handle_event("toggle_timeline", %{"subscription_id" => subscription_id}, socket) do
-    subscription_id = String.to_integer(subscription_id)
+    subscription_id = event_id(subscription_id)
 
     subscription =
       Enum.find(socket.assigns.subscriptions, &(&1.id == subscription_id))
@@ -115,6 +116,13 @@ defmodule ElektrineWeb.SettingsLive.RSS do
       end
     else
       {:noreply, socket}
+    end
+  end
+
+  defp event_id(value) do
+    case SafeConvert.parse_id(value) do
+      {:ok, id} -> id
+      {:error, :invalid_id} -> 0
     end
   end
 
@@ -199,10 +207,14 @@ defmodule ElektrineWeb.SettingsLive.RSS do
                 <%= for subscription <- @subscriptions do %>
                   <div class="flex items-center gap-4 p-4 bg-base-200/50 rounded-lg">
                     <div class="flex-shrink-0">
-                      <%= if subscription.feed && subscription.feed.favicon_url do %>
+                      <%= if favicon_url =
+                            subscription.feed &&
+                              ElektrineWeb.HtmlHelpers.safe_external_image_url(
+                                subscription.feed.favicon_url
+                              ) do %>
                         <img
                           id={"rss-feed-favicon-#{subscription.id}"}
-                          src={subscription.feed.favicon_url}
+                          src={favicon_url}
                           alt=""
                           class="w-8 h-8 rounded"
                           phx-hook="ImageFallback"

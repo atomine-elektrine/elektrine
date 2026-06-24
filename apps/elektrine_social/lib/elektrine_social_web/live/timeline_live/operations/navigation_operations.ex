@@ -52,7 +52,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.NavigationOperations do
 
   # Navigate to an embedded post by URL.
   def handle_event("navigate_to_embedded_post", %{"url" => url}, socket) do
-    {:noreply, push_navigate(socket, to: url)}
+    ElektrineWeb.SafeLiveNavigation.noreply(socket, url)
   end
 
   # Navigate to remote post view by ActivityPub ID (passed as url).
@@ -97,7 +97,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.NavigationOperations do
 
   # Navigate to the original content location.
   def handle_event("navigate_to_origin", %{"url" => url}, socket) do
-    {:noreply, push_navigate(socket, to: url)}
+    ElektrineWeb.SafeLiveNavigation.noreply(socket, url)
   end
 
   # Navigate to a local user's profile page.

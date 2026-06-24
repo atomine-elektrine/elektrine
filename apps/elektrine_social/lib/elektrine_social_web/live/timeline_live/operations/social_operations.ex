@@ -31,54 +31,13 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.SocialOperations do
   end
 
   def handle_event("toggle_follow", %{"user_id" => user_id}, socket) do
-    user_id = String.to_integer(user_id)
-    current_user_id = socket.assigns.current_user.id
-    currently_following = Map.get(socket.assigns.user_follows, {:local, user_id}, false)
+    case parse_positive_int(user_id) do
+      {:ok, user_id} ->
+        toggle_local_follow(socket, user_id)
 
-    if currently_following do
-      case Profiles.unfollow_user(current_user_id, user_id) do
-        {:ok, :unfollowed} ->
-          updated_posts = Enum.reject(socket.assigns.timeline_posts, &(&1.sender_id == user_id))
-          updated_follows = Map.delete(socket.assigns.user_follows, {:local, user_id})
-
-          {:noreply,
-           socket
-           |> assign(:user_follows, updated_follows)
-           |> assign(:timeline_posts, updated_posts)
-           |> Helpers.apply_timeline_filter()
-           |> put_flash(:info, "Unfollowed user.")}
-
-        {:ok, :not_following} ->
-          updated_posts = Enum.reject(socket.assigns.timeline_posts, &(&1.sender_id == user_id))
-          updated_follows = Map.delete(socket.assigns.user_follows, {:local, user_id})
-
-          {:noreply,
-           socket
-           |> assign(:user_follows, updated_follows)
-           |> assign(:timeline_posts, updated_posts)
-           |> Helpers.apply_timeline_filter()
-           |> put_flash(:info, "Unfollowed user.")}
-      end
-    else
-      case Profiles.follow_user(current_user_id, user_id) do
-        {:ok, _} ->
-          updated_suggestions = Enum.reject(socket.assigns.suggested_follows, &(&1.id == user_id))
-          updated_follows = Map.put(socket.assigns.user_follows, {:local, user_id}, true)
-
-          updated_socket =
-            socket
-            |> assign(:user_follows, updated_follows)
-            |> assign(:suggested_follows, updated_suggestions)
-            |> Helpers.refresh_posts_for_sender(user_id)
-            |> put_flash(:info, "Now following user.")
-
-          send(self(), {:load_followed_user_posts, user_id})
-          {:noreply, updated_socket}
-
-        {:error, _} ->
-          {:noreply,
-           put_flash(socket, :error, "Couldn't follow this user right now. Please try again.")}
-      end
+      :error ->
+        {:noreply,
+         put_flash(socket, :error, "Couldn't follow this user right now. Please try again.")}
     end
   end
 
@@ -252,116 +211,12 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.SocialOperations do
     current_user = socket.assigns.current_user
 
     if current_user do
-      remote_actor_id = String.to_integer(remote_actor_id)
+      case parse_positive_int(remote_actor_id) do
+        {:ok, remote_actor_id} ->
+          toggle_remote_follow(socket, current_user, remote_actor_id)
 
-      currently_following =
-        remote_follow_state(socket.assigns.user_follows, remote_actor_id)
-
-      is_pending = remote_follow_state(socket.assigns.pending_follows, remote_actor_id)
-
-      if currently_following || is_pending do
-        case Profiles.unfollow_remote_actor(current_user.id, remote_actor_id) do
-          {:ok, :unfollowed} ->
-            updated_follows =
-              clear_remote_follow_state(socket.assigns.user_follows, remote_actor_id)
-
-            updated_pending =
-              clear_remote_follow_state(socket.assigns.pending_follows, remote_actor_id)
-
-            {:noreply,
-             socket
-             |> assign(:user_follows, updated_follows)
-             |> assign(:pending_follows, updated_pending)
-             |> Helpers.put_remote_follow_override(remote_actor_id, :none)
-             |> Helpers.push_remote_follow_state(remote_actor_id, :none)
-             |> put_flash(:info, "Unfollowed")}
-
-          {:error, reason} ->
-            Logger.error("Failed to unfollow remote actor: #{inspect(reason)}")
-            {:noreply, put_flash(socket, :error, "Failed to unfollow user")}
-        end
-      else
-        socket =
-          socket
-          |> assign(
-            :user_follows,
-            clear_remote_follow_state(socket.assigns.user_follows, remote_actor_id)
-          )
-          |> assign(
-            :pending_follows,
-            put_remote_follow_state(socket.assigns.pending_follows, remote_actor_id, true)
-          )
-
-        case Profiles.follow_remote_actor(current_user.id, remote_actor_id) do
-          {:ok, follow} ->
-            if follow.pending do
-              {:noreply,
-               socket
-               |> Helpers.put_remote_follow_override(remote_actor_id, :pending)
-               |> Helpers.push_remote_follow_state(remote_actor_id, :pending)
-               |> put_flash(:info, "Follow request sent!")}
-            else
-              updated_follows =
-                put_remote_follow_state(socket.assigns.user_follows, remote_actor_id, true)
-
-              updated_pending =
-                clear_remote_follow_state(socket.assigns.pending_follows, remote_actor_id)
-
-              {:noreply,
-               socket
-               |> assign(:user_follows, updated_follows)
-               |> assign(:pending_follows, updated_pending)
-               |> Helpers.put_remote_follow_override(remote_actor_id, :following)
-               |> Helpers.push_remote_follow_state(remote_actor_id, :following)
-               |> put_flash(:info, "Following!")}
-            end
-
-          {:error, :already_following} ->
-            follow = Profiles.get_follow_to_remote_actor(current_user.id, remote_actor_id)
-
-            if follow && follow.pending do
-              {:noreply,
-               socket
-               |> assign(
-                 :pending_follows,
-                 put_remote_follow_state(socket.assigns.pending_follows, remote_actor_id, true)
-               )
-               |> assign(
-                 :user_follows,
-                 clear_remote_follow_state(socket.assigns.user_follows, remote_actor_id)
-               )
-               |> Helpers.put_remote_follow_override(remote_actor_id, :pending)
-               |> Helpers.push_remote_follow_state(remote_actor_id, :pending)
-               |> put_flash(:info, "Follow request already sent")}
-            else
-              updated_follows =
-                put_remote_follow_state(socket.assigns.user_follows, remote_actor_id, true)
-
-              updated_pending =
-                clear_remote_follow_state(socket.assigns.pending_follows, remote_actor_id)
-
-              {:noreply,
-               socket
-               |> assign(:user_follows, updated_follows)
-               |> assign(:pending_follows, updated_pending)
-               |> Helpers.put_remote_follow_override(remote_actor_id, :following)
-               |> Helpers.push_remote_follow_state(remote_actor_id, :following)
-               |> put_flash(:info, "Already following this user")}
-            end
-
-          {:error, reason} ->
-            reverted_pending =
-              clear_remote_follow_state(socket.assigns.pending_follows, remote_actor_id)
-
-            Logger.error("Failed to follow remote actor #{remote_actor_id}: #{inspect(reason)}")
-
-            {:noreply,
-             socket
-             |> assign(:pending_follows, reverted_pending)
-             |> Helpers.put_remote_follow_override(remote_actor_id, :none)
-             |> Helpers.push_remote_follow_state(remote_actor_id, :none)
-             |> put_flash(:error, "Failed to follow user")}
-        end
+        :error ->
+          {:noreply, put_flash(socket, :error, "Failed to follow user")}
       end
     else
       {:noreply, put_flash(socket, :error, "You must be signed in to follow users")}
@@ -373,26 +228,200 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.SocialOperations do
         %{"message_id" => _message_id, "target_user_id" => target_user_id},
         socket
       ) do
-    target_user_id = String.to_integer(target_user_id)
+    case parse_positive_int(target_user_id) do
+      {:ok, target_user_id} ->
+        case Elektrine.Messaging.create_dm_conversation(
+               socket.assigns.current_user.id,
+               target_user_id
+             ) do
+          {:ok, dm_conversation} ->
+            {:noreply, socket |> push_navigate(to: Elektrine.Paths.chat_path(dm_conversation))}
 
-    case Elektrine.Messaging.create_dm_conversation(
-           socket.assigns.current_user.id,
-           target_user_id
-         ) do
-      {:ok, dm_conversation} ->
-        {:noreply, socket |> push_navigate(to: Elektrine.Paths.chat_path(dm_conversation))}
+          {:error, :rate_limited} ->
+            {:noreply,
+             put_flash(
+               socket,
+               :error,
+               "You are creating too many conversations. Please wait a moment and try again."
+             )}
 
-      {:error, :rate_limited} ->
-        {:noreply,
-         put_flash(
-           socket,
-           :error,
-           "You are creating too many conversations. Please wait a moment and try again."
-         )}
+          {:error, reason} ->
+            error_message = Elektrine.Privacy.privacy_error_message(reason)
+            {:noreply, put_flash(socket, :error, error_message)}
+        end
 
-      {:error, reason} ->
-        error_message = Elektrine.Privacy.privacy_error_message(reason)
-        {:noreply, put_flash(socket, :error, error_message)}
+      :error ->
+        {:noreply, put_flash(socket, :error, "Failed to start chat")}
+    end
+  end
+
+  defp toggle_local_follow(socket, user_id) do
+    current_user_id = socket.assigns.current_user.id
+    currently_following = Map.get(socket.assigns.user_follows, {:local, user_id}, false)
+
+    if currently_following do
+      case Profiles.unfollow_user(current_user_id, user_id) do
+        {:ok, :unfollowed} ->
+          updated_posts = Enum.reject(socket.assigns.timeline_posts, &(&1.sender_id == user_id))
+          updated_follows = Map.delete(socket.assigns.user_follows, {:local, user_id})
+
+          {:noreply,
+           socket
+           |> assign(:user_follows, updated_follows)
+           |> assign(:timeline_posts, updated_posts)
+           |> Helpers.apply_timeline_filter()
+           |> put_flash(:info, "Unfollowed user.")}
+
+        {:ok, :not_following} ->
+          updated_posts = Enum.reject(socket.assigns.timeline_posts, &(&1.sender_id == user_id))
+          updated_follows = Map.delete(socket.assigns.user_follows, {:local, user_id})
+
+          {:noreply,
+           socket
+           |> assign(:user_follows, updated_follows)
+           |> assign(:timeline_posts, updated_posts)
+           |> Helpers.apply_timeline_filter()
+           |> put_flash(:info, "Unfollowed user.")}
+      end
+    else
+      case Profiles.follow_user(current_user_id, user_id) do
+        {:ok, _} ->
+          updated_suggestions = Enum.reject(socket.assigns.suggested_follows, &(&1.id == user_id))
+          updated_follows = Map.put(socket.assigns.user_follows, {:local, user_id}, true)
+
+          updated_socket =
+            socket
+            |> assign(:user_follows, updated_follows)
+            |> assign(:suggested_follows, updated_suggestions)
+            |> Helpers.refresh_posts_for_sender(user_id)
+            |> put_flash(:info, "Now following user.")
+
+          send(self(), {:load_followed_user_posts, user_id})
+          {:noreply, updated_socket}
+
+        {:error, _} ->
+          {:noreply,
+           put_flash(socket, :error, "Couldn't follow this user right now. Please try again.")}
+      end
+    end
+  end
+
+  defp toggle_remote_follow(socket, current_user, remote_actor_id) do
+    currently_following =
+      remote_follow_state(socket.assigns.user_follows, remote_actor_id)
+
+    is_pending = remote_follow_state(socket.assigns.pending_follows, remote_actor_id)
+
+    if currently_following || is_pending do
+      case Profiles.unfollow_remote_actor(current_user.id, remote_actor_id) do
+        {:ok, :unfollowed} ->
+          updated_follows =
+            clear_remote_follow_state(socket.assigns.user_follows, remote_actor_id)
+
+          updated_pending =
+            clear_remote_follow_state(socket.assigns.pending_follows, remote_actor_id)
+
+          {:noreply,
+           socket
+           |> assign(:user_follows, updated_follows)
+           |> assign(:pending_follows, updated_pending)
+           |> Helpers.put_remote_follow_override(remote_actor_id, :none)
+           |> Helpers.push_remote_follow_state(remote_actor_id, :none)
+           |> put_flash(:info, "Unfollowed")}
+
+        {:error, reason} ->
+          Logger.error("Failed to unfollow remote actor: #{inspect(reason)}")
+          {:noreply, put_flash(socket, :error, "Failed to unfollow user")}
+      end
+    else
+      socket =
+        socket
+        |> assign(
+          :user_follows,
+          clear_remote_follow_state(socket.assigns.user_follows, remote_actor_id)
+        )
+        |> assign(
+          :pending_follows,
+          put_remote_follow_state(socket.assigns.pending_follows, remote_actor_id, true)
+        )
+
+      case Profiles.follow_remote_actor(current_user.id, remote_actor_id) do
+        {:ok, follow} ->
+          if follow.pending do
+            {:noreply,
+             socket
+             |> Helpers.put_remote_follow_override(remote_actor_id, :pending)
+             |> Helpers.push_remote_follow_state(remote_actor_id, :pending)
+             |> put_flash(:info, "Follow request sent!")}
+          else
+            updated_follows =
+              put_remote_follow_state(socket.assigns.user_follows, remote_actor_id, true)
+
+            updated_pending =
+              clear_remote_follow_state(socket.assigns.pending_follows, remote_actor_id)
+
+            {:noreply,
+             socket
+             |> assign(:user_follows, updated_follows)
+             |> assign(:pending_follows, updated_pending)
+             |> Helpers.put_remote_follow_override(remote_actor_id, :following)
+             |> Helpers.push_remote_follow_state(remote_actor_id, :following)
+             |> put_flash(:info, "Following!")}
+          end
+
+        {:error, :already_following} ->
+          follow = Profiles.get_follow_to_remote_actor(current_user.id, remote_actor_id)
+
+          if follow && follow.pending do
+            {:noreply,
+             socket
+             |> assign(
+               :pending_follows,
+               put_remote_follow_state(socket.assigns.pending_follows, remote_actor_id, true)
+             )
+             |> assign(
+               :user_follows,
+               clear_remote_follow_state(socket.assigns.user_follows, remote_actor_id)
+             )
+             |> Helpers.put_remote_follow_override(remote_actor_id, :pending)
+             |> Helpers.push_remote_follow_state(remote_actor_id, :pending)
+             |> put_flash(:info, "Follow request already sent")}
+          else
+            updated_follows =
+              put_remote_follow_state(socket.assigns.user_follows, remote_actor_id, true)
+
+            updated_pending =
+              clear_remote_follow_state(socket.assigns.pending_follows, remote_actor_id)
+
+            {:noreply,
+             socket
+             |> assign(:user_follows, updated_follows)
+             |> assign(:pending_follows, updated_pending)
+             |> Helpers.put_remote_follow_override(remote_actor_id, :following)
+             |> Helpers.push_remote_follow_state(remote_actor_id, :following)
+             |> put_flash(:info, "Already following this user")}
+          end
+
+        {:error, reason} ->
+          reverted_pending =
+            clear_remote_follow_state(socket.assigns.pending_follows, remote_actor_id)
+
+          Logger.error("Failed to follow remote actor #{remote_actor_id}: #{inspect(reason)}")
+
+          {:noreply,
+           socket
+           |> assign(:pending_follows, reverted_pending)
+           |> Helpers.put_remote_follow_override(remote_actor_id, :none)
+           |> Helpers.push_remote_follow_state(remote_actor_id, :none)
+           |> put_flash(:error, "Failed to follow user")}
+      end
+    end
+  end
+
+  defp parse_positive_int(value) do
+    case Integer.parse(to_string(value)) do
+      {int, ""} when int > 0 -> {:ok, int}
+      _ -> :error
     end
   end
 

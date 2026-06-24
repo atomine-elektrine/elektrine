@@ -1,6 +1,7 @@
 defmodule ElektrineWeb.HtmlHelpers do
   @moduledoc ~s|Centralized HTML helper functions for safe content rendering.\n\nCRITICAL: Always escape user input BEFORE processing to prevent XSS attacks.\nNever use raw() without first escaping user content.\n"""  @doc ~s"""Safely converts user content to HTML with clickable links and hashtags.\n\nSECURITY: This function ALWAYS escapes user input first to prevent XSS,\nthen processes URLs and hashtags on the already-escaped content.\n\n## Examples\n\n    iex> make_content_safe_with_links(\"<script>alert('XSS')</script>\")\n    \"&lt;script&gt;alert(&#39;XSS&#39;)&lt;/script&gt;\"\n\n    iex> make_content_safe_with_links(\"Check out https://example.com\")\n    \"Check out <a href=\"https://example.com\" ...>https://example.com</a>\"\n|
   alias Elektrine.Paths
+  alias Elektrine.Security.SafeExternalURL
 
   @mention_link_classes "text-primary hover:text-accent hover:underline decoration-2 underline-offset-2 font-medium transition-all duration-200"
 
@@ -80,10 +81,14 @@ defmodule ElektrineWeb.HtmlHelpers do
         String.match?(token, ~r/^https?:\/\//) ->
           clean_url = String.replace(token, ~r/[.!?,;:]$/, "")
 
-          if valid_linkify_url?(clean_url) do
-            ~s(<a href="#{clean_url}" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline font-medium">#{clean_url}</a>)
-          else
-            token
+          case safe_linkify_url(clean_url) do
+            {:ok, safe_url} ->
+              escaped_url = escape_html(safe_url)
+
+              ~s(<a href="#{escaped_url}" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline font-medium">#{escaped_url}</a>)
+
+            :error ->
+              token
           end
 
         String.match?(token, ~r/^#\w+/) ->
@@ -197,10 +202,14 @@ defmodule ElektrineWeb.HtmlHelpers do
       else
         clean_url = String.replace(url, ~r/[.!?,;:]$/, "")
 
-        if valid_linkify_url?(clean_url) do
-          ~s(<a href="#{clean_url}" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline font-medium">#{clean_url}</a>)
-        else
-          url
+        case safe_linkify_url(clean_url) do
+          {:ok, safe_url} ->
+            escaped_url = escape_html(safe_url)
+
+            ~s(<a href="#{escaped_url}" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline font-medium">#{escaped_url}</a>)
+
+          :error ->
+            url
         end
       end
     end)
@@ -210,16 +219,69 @@ defmodule ElektrineWeb.HtmlHelpers do
     content
   end
 
-  defp valid_linkify_url?(url) when is_binary(url) do
-    case URI.parse(url) do
-      %URI{scheme: scheme} when scheme in ["http", "https"] -> true
-      _ -> false
+  defp safe_linkify_url(url) when is_binary(url) do
+    candidate = HtmlEntities.decode(url)
+
+    case SafeExternalURL.normalize_href(candidate) do
+      {:ok, safe_url} -> {:ok, safe_url}
+      {:error, _reason} -> :error
     end
   end
 
-  defp valid_linkify_url?(_) do
-    false
+  defp safe_linkify_url(_), do: :error
+
+  defp sanitize_rendered_remote_urls(html) when is_binary(html) do
+    Regex.replace(~r/\s(href|src)="([^"]*)"/i, html, fn _full, attr, value ->
+      case safe_rendered_url(attr, value) do
+        {:ok, safe_value} -> ~s( #{attr}="#{escape_html(safe_value)}")
+        :error -> ""
+      end
+    end)
   end
+
+  defp sanitize_rendered_remote_urls(content), do: content
+
+  defp safe_rendered_url(attr, value) when is_binary(attr) and is_binary(value) do
+    attr = String.downcase(attr)
+    decoded = value |> HtmlEntities.decode() |> String.trim()
+
+    cond do
+      attr == "src" ->
+        safe_rendered_image_url(decoded)
+
+      attr == "href" and safe_local_href?(decoded) ->
+        {:ok, decoded}
+
+      attr == "href" and safe_mailto_href?(decoded) ->
+        {:ok, decoded}
+
+      true ->
+        safe_linkify_url(decoded)
+    end
+  end
+
+  defp safe_rendered_url(_attr, _value), do: :error
+
+  defp safe_rendered_image_url(url) when is_binary(url) do
+    case SafeExternalURL.normalize(url) do
+      {:ok, safe_url} -> {:ok, safe_url}
+      {:error, _reason} -> :error
+    end
+  end
+
+  defp safe_local_href?(href) when is_binary(href) do
+    String.starts_with?(href, "/") and not String.starts_with?(href, "//") and
+      not Regex.match?(~r/[\x00-\x1F\x7F]/, href)
+  end
+
+  defp safe_local_href?(_), do: false
+
+  defp safe_mailto_href?(href) when is_binary(href) do
+    String.starts_with?(String.downcase(href), "mailto:") and
+      not Regex.match?(~r/[\x00-\x1F\x7F<>"']/, href)
+  end
+
+  defp safe_mailto_href?(_), do: false
 
   @doc ~s|Converts hashtags in already-escaped HTML to clickable links.\n\nIMPORTANT: Only call this on already-escaped content!\n|
   def linkify_hashtags(escaped_html) when is_binary(escaped_html) do
@@ -527,25 +589,72 @@ defmodule ElektrineWeb.HtmlHelpers do
   defp url_like_actor_display_name?(_), do: false
 
   @doc ~s|Ensures a URL uses HTTPS instead of HTTP to prevent mixed content warnings.\nReturns nil if the input is nil.\n\n## Examples\n\n    iex> ensure_https(\"http://example.com/image.png\")\n    \"https://example.com/image.png\"\n\n    iex> ensure_https(\"https://example.com/image.png\")\n    \"https://example.com/image.png\"\n\n    iex> ensure_https(nil)\n    nil\n|
-  def ensure_https(nil) do
-    nil
-  end
-
-  def ensure_https("") do
-    ""
-  end
-
   def ensure_https(url) when is_binary(url) do
-    if String.starts_with?(url, "http://") do
-      String.replace_prefix(url, "http://", "https://")
-    else
-      url
+    case SafeExternalURL.normalize_href(url) do
+      {:ok, safe_url} -> String.replace_prefix(safe_url, "http://", "https://")
+      {:error, _reason} -> nil
     end
   end
 
-  def ensure_https(url) do
-    url
+  def ensure_https(_url), do: nil
+
+  @doc """
+  Returns a safe external href for rendering user- or federation-supplied links.
+  """
+  def safe_external_href(url) when is_binary(url) do
+    case SafeExternalURL.normalize_href(url) do
+      {:ok, safe_url} -> safe_url
+      {:error, _reason} -> nil
+    end
   end
+
+  def safe_external_href(_url), do: nil
+
+  @doc """
+  Returns a safe external image URL for rendering user- or federation-supplied media.
+
+  Unlike href sanitization, image sanitization rejects private/local network targets because
+  browsers fetch image resources automatically.
+  """
+  def safe_external_image_url(url) when is_binary(url) do
+    trimmed = String.trim(url)
+
+    if external_image_url?(trimmed) do
+      case SafeExternalURL.normalize(trimmed) do
+        {:ok, safe_url} -> safe_url
+        {:error, _reason} -> nil
+      end
+    end
+  end
+
+  def safe_external_image_url(_url), do: nil
+
+  @doc """
+  Returns safe external image URLs, dropping unsafe or non-image entries.
+  """
+  def safe_external_image_urls(urls) when is_list(urls) do
+    urls
+    |> Enum.map(&safe_external_image_url/1)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  def safe_external_image_urls(_urls), do: []
+
+  @doc """
+  Returns a safe host label for a user- or federation-supplied external URL.
+  """
+  def safe_external_host(url) do
+    case safe_external_href(url) do
+      nil -> nil
+      safe_url -> URI.parse(safe_url).host
+    end
+  end
+
+  defp external_image_url?(url) when is_binary(url) do
+    String.match?(url, ~r/^https?:\/\/.+\.(jpg|jpeg|png|gif|webp|avif|svg)(\?.*)?$/i)
+  end
+
+  defp external_image_url?(_url), do: false
 
   @doc ~s|Safely sanitizes HTML using basic_html, with fallback to strip_tags if parsing fails.\n\nUse this instead of calling HtmlSanitizeEx.basic_html() directly in templates,\nas malformed HTML can crash the mochiweb_html parser.\n\n## Examples\n\n    iex> safe_basic_html(\"<p>Hello</p>\")\n    \"<p>Hello</p>\"\n\n    iex> safe_basic_html(\"<malformed with nil attrs>\")\n    \"malformed with nil attrs\"  # Falls back to stripped tags\n|
   def safe_basic_html(nil) do
@@ -558,6 +667,7 @@ defmodule ElektrineWeb.HtmlHelpers do
 
   def safe_basic_html(html) when is_binary(html) do
     HtmlSanitizeEx.basic_html(html)
+    |> sanitize_rendered_remote_urls()
   rescue
     _ -> fallback_plain_html(html)
   end
@@ -586,6 +696,7 @@ defmodule ElektrineWeb.HtmlHelpers do
     |> render_custom_emojis(instance_domain)
     |> add_paragraph_spacing()
     |> convert_newlines_to_breaks()
+    |> sanitize_rendered_remote_urls()
   rescue
     _ -> fallback_plain_html(bio)
   end
@@ -623,6 +734,7 @@ defmodule ElektrineWeb.HtmlHelpers do
     |> add_paragraph_spacing()
     |> trim_leading_post_spacing()
     |> normalize_remote_render_output()
+    |> sanitize_rendered_remote_urls()
   rescue
     _ -> fallback_remote_post_html(content, instance_domain, mention_domain_hints)
   end
@@ -734,15 +846,27 @@ defmodule ElektrineWeb.HtmlHelpers do
 
   defp render_image_tag(alt, url) do
     if trusted_image_url?(url) do
-      ~s(<img src="#{HtmlEntities.encode(url)}" alt="#{HtmlEntities.encode(alt)}" class="max-w-full rounded-lg my-2" loading="lazy" />)
+      case safe_rendered_image_url(url) do
+        {:ok, safe_url} ->
+          ~s(<img src="#{escape_html(safe_url)}" alt="#{escape_html(alt)}" class="max-w-full rounded-lg my-2" loading="lazy" />)
+
+        :error ->
+          escaped_image_label(alt)
+      end
     else
-      ~s(<a href="#{HtmlEntities.encode(url)}" target="_blank" rel="noopener noreferrer" class="text-primary hover:text-accent hover:underline">#{if alt == "" do
-        "Image"
-      else
-        HtmlEntities.encode(alt)
-      end}</a>)
+      case safe_linkify_url(url) do
+        {:ok, safe_url} ->
+          ~s(<a href="#{escape_html(safe_url)}" target="_blank" rel="noopener noreferrer" class="text-primary hover:text-accent hover:underline">#{escaped_image_label(alt)}</a>)
+
+        :error ->
+          escaped_image_label(alt)
+      end
     end
   end
+
+  defp escaped_image_label(""), do: "Image"
+  defp escaped_image_label(alt) when is_binary(alt), do: escape_html(alt)
+  defp escaped_image_label(_), do: "Image"
 
   defp trusted_image_url?(url) do
     trusted_patterns = [
@@ -776,10 +900,14 @@ defmodule ElektrineWeb.HtmlHelpers do
           fn _match, url ->
             clean_url = String.replace(url, ~r/[.!?,;:]+$/, "")
 
-            if valid_linkify_url?(clean_url) do
-              ~s(<a href="#{clean_url}" target="_blank" rel="noopener noreferrer" class="text-primary hover:text-accent hover:underline decoration-2 underline-offset-2 font-medium transition-all duration-200">#{clean_url}</a>)
-            else
-              url
+            case safe_linkify_url(clean_url) do
+              {:ok, safe_url} ->
+                escaped_url = escape_html(safe_url)
+
+                ~s(<a href="#{escaped_url}" target="_blank" rel="noopener noreferrer" class="text-primary hover:text-accent hover:underline decoration-2 underline-offset-2 font-medium transition-all duration-200">#{escaped_url}</a>)
+
+              :error ->
+                url
             end
           end
         )

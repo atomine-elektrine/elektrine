@@ -449,7 +449,8 @@ defmodule Elektrine.StaticSites do
   """
   def upload_zip(user, zip_binary) do
     with {:ok, entries} <- preflight_zip(user.id, zip_binary),
-         :ok <- validate_zip_limits(user.id, entries) do
+         :ok <- validate_zip_limits(user.id, entries),
+         :ok <- validate_zip_contents(zip_binary, entries) do
       upload_zip_entries(user, zip_binary, entries)
     end
   end
@@ -463,6 +464,7 @@ defmodule Elektrine.StaticSites do
   def replace_with_zip(user, zip_binary) do
     with {:ok, entries} <- preflight_zip(user.id, zip_binary),
          :ok <- validate_zip_limits(user.id, entries),
+         :ok <- validate_zip_contents(zip_binary, entries),
          {_count, nil} <- delete_all_files(user.id) do
       upload_zip_entries(user, zip_binary, entries)
     else
@@ -706,6 +708,35 @@ defmodule Elektrine.StaticSites do
 
       true ->
         :ok
+    end
+  end
+
+  defp validate_zip_contents(zip_binary, entries) do
+    case :zip.zip_open(zip_binary, [:memory]) do
+      {:ok, handle} ->
+        try do
+          entries
+          |> Enum.reduce_while({:ok, 0}, fn entry, {:ok, extracted_size} ->
+            with {:ok, content} <- zip_entry_content(handle, entry),
+                 new_extracted_size <- extracted_size + byte_size(content),
+                 :ok <- validate_extracted_zip_size(new_extracted_size),
+                 content_type <- static_site_content_type(entry.path),
+                 :ok <- validate_content_type(entry.path, content, content_type) do
+              {:cont, {:ok, new_extracted_size}}
+            else
+              {:error, reason} -> {:halt, {:error, reason}}
+            end
+          end)
+          |> case do
+            {:ok, _extracted_size} -> :ok
+            {:error, reason} -> {:error, reason}
+          end
+        after
+          :zip.zip_close(handle)
+        end
+
+      {:error, reason} ->
+        {:error, {:invalid_zip, reason}}
     end
   end
 

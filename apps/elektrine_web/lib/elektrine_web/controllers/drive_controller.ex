@@ -14,8 +14,8 @@ defmodule ElektrineWeb.DriveController do
         |> put_resp_header("cache-control", "private, max-age=300")
         |> put_resp_header("x-content-type-options", "nosniff")
         |> send_download({:binary, binary},
-          filename: file.original_filename,
-          content_type: file.content_type
+          filename: Drive.safe_download_filename(file.original_filename),
+          content_type: Drive.safe_download_content_type(file.content_type)
         )
       else
         :error -> send_resp(conn, 404, "Not found")
@@ -34,12 +34,12 @@ defmodule ElektrineWeb.DriveController do
     if Drive.user_can_access?(current_user) do
       with {file_id, ""} <- Integer.parse(id),
            %Drive.StoredFile{} = file <- Drive.get_file(current_user.id, file_id),
-           true <- Drive.inline_viewable_content_type?(file.content_type),
+           {:ok, content_type} <- Drive.inline_content_type(file.content_type),
            {:ok, binary} <- Drive.read_file(file) do
         conn
         |> put_resp_header("cache-control", "private, max-age=300")
         |> put_resp_header("x-content-type-options", "nosniff")
-        |> put_resp_content_type(file.content_type)
+        |> put_resp_content_type(content_type)
         |> send_resp(200, binary)
       else
         false -> send_resp(conn, 404, "Not found")

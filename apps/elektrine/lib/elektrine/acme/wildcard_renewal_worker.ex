@@ -35,34 +35,51 @@ defmodule Elektrine.ACME.WildcardRenewalWorker do
 
   defp run_renewal do
     with :ok <- bootstrap_if_needed() do
-      run_command(System.get_env("ACME_RENEW_COMMAND") || default_renew_command(), "renewal")
+      run_command(acme_sh(), ["--cron", "--home", acme_home()], "renewal")
     end
   end
 
   defp bootstrap_if_needed do
-    acme_home = acme_home()
-    acme_sh = System.get_env("ACME_SH_BIN") || Path.join(acme_home, "acme.sh")
+    acme_sh = acme_sh()
 
-    if File.exists?(acme_sh) do
-      :ok
-    else
-      run_command(System.get_env("ACME_ISSUE_COMMAND") || default_issue_command(), "bootstrap")
+    case validate_executable_path(acme_sh) do
+      :ok ->
+        if File.exists?(acme_sh) do
+          :ok
+        else
+          run_command(default_issue_executable(), [], "bootstrap")
+        end
+
+      {:error, reason} ->
+        Logger.error("Wildcard ACME bootstrap failed: #{reason}")
+        {:error, :invalid_executable}
     end
   end
 
-  defp run_command(command, action) do
+  defp run_command(executable, args, action) when is_binary(executable) and is_list(args) do
     timeout = timeout_ms()
 
     Logger.info("Running wildcard ACME #{action}")
 
-    case System.cmd("/bin/sh", ["-lc", command], stderr_to_stdout: true, timeout: timeout) do
-      {output, 0} ->
-        log_output(:info, "Wildcard ACME #{action} completed", output)
-        :ok
+    case validate_executable_path(executable) do
+      :ok ->
+        case run_system_command(executable, args, timeout) do
+          {output, 0} ->
+            log_output(:info, "Wildcard ACME #{action} completed", output)
+            :ok
 
-      {output, status} ->
-        log_output(:error, "Wildcard ACME #{action} failed with status #{status}", output)
-        {:error, :acme_failed}
+          {output, status} ->
+            log_output(:error, "Wildcard ACME #{action} failed with status #{status}", output)
+            {:error, :acme_failed}
+
+          :timeout ->
+            Logger.error("Wildcard ACME #{action} timed out")
+            {:error, :acme_timeout}
+        end
+
+      {:error, reason} ->
+        Logger.error("Wildcard ACME #{action} failed: #{reason}")
+        {:error, :invalid_executable}
     end
   rescue
     error ->
@@ -70,14 +87,16 @@ defmodule Elektrine.ACME.WildcardRenewalWorker do
       {:error, :acme_crashed}
   end
 
-  defp default_renew_command do
-    acme_home = acme_home()
-    acme_sh = System.get_env("ACME_SH_BIN") || Path.join(acme_home, "acme.sh")
-
-    "#{shell_escape(acme_sh)} --cron --home #{shell_escape(acme_home)}"
+  defp run_command(_executable, _args, action) do
+    Logger.error("Wildcard ACME #{action} failed: invalid executable")
+    {:error, :invalid_executable}
   end
 
-  defp default_issue_command do
+  defp acme_sh do
+    System.get_env("ACME_SH_BIN") || Path.join(acme_home(), "acme.sh")
+  end
+
+  defp default_issue_executable do
     "/app/scripts/acme/issue_elektrine_wildcard_cert.sh"
   end
 
@@ -92,8 +111,29 @@ defmodule Elektrine.ACME.WildcardRenewalWorker do
     end
   end
 
-  defp shell_escape(value) do
-    "'" <> String.replace(to_string(value), "'", "'\\''") <> "'"
+  defp validate_executable_path(executable) do
+    cond do
+      String.contains?(executable, "\0") ->
+        {:error, "executable path contains NUL"}
+
+      Path.type(executable) != :absolute ->
+        {:error, "executable path must be absolute"}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp run_system_command(executable, args, timeout) do
+    task =
+      Task.async(fn ->
+        System.cmd(executable, args, stderr_to_stdout: true)
+      end)
+
+    case Task.yield(task, timeout) || Task.shutdown(task, :brutal_kill) do
+      {:ok, result} -> result
+      nil -> :timeout
+    end
   end
 
   defp log_output(level, message, output) do

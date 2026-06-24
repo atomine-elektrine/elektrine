@@ -214,28 +214,27 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.ReplyOperations do
 
   # Navigates to the original context of a cross-posted message.
   def handle_event("view_original_context", %{"message_id" => original_message_id}, socket) do
-    original_message_id = String.to_integer(original_message_id)
+    with {:ok, original_message_id} <- SafeConvert.parse_id(original_message_id),
+         %Elektrine.Social.Message{} = message <-
+           Elektrine.Repo.get(Elektrine.Social.Message, original_message_id) do
+      message = Elektrine.Repo.preload(message, :conversation)
 
-    case Elektrine.Repo.get(Elektrine.Social.Message, original_message_id) do
-      nil ->
+      case message.conversation.type do
+        "timeline" ->
+          {:noreply, push_navigate(socket, to: Elektrine.Paths.post_path(message.id))}
+
+        "community" ->
+          {:noreply,
+           push_navigate(socket,
+             to: ~p"/communities/#{message.conversation.name}/post/#{message.id}"
+           )}
+
+        _ ->
+          {:noreply, push_navigate(socket, to: Elektrine.Paths.chat_path(message.conversation))}
+      end
+    else
+      _ ->
         {:noreply, put_flash(socket, :error, "Original content not found")}
-
-      message ->
-        message = Elektrine.Repo.preload(message, :conversation)
-
-        case message.conversation.type do
-          "timeline" ->
-            {:noreply, push_navigate(socket, to: Elektrine.Paths.post_path(message.id))}
-
-          "community" ->
-            {:noreply,
-             push_navigate(socket,
-               to: ~p"/communities/#{message.conversation.name}/post/#{message.id}"
-             )}
-
-          _ ->
-            {:noreply, push_navigate(socket, to: Elektrine.Paths.chat_path(message.conversation))}
-        end
     end
   end
 

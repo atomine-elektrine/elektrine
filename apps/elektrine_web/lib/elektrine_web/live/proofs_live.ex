@@ -4,6 +4,7 @@ defmodule ElektrineWeb.ProofsLive do
   alias Atomine.CreditEarningPolicy
   alias Elektrine.Accounts.Capabilities
   alias Elektrine.Platform.ENav
+  alias Elektrine.Security.SafeExternalURL
   alias ElektrineWeb.AtominePow
 
   @proof_kinds [
@@ -384,9 +385,18 @@ defmodule ElektrineWeb.ProofsLive do
                           </div>
                           <p class="break-all font-medium">{claim_subject_label(proof)}</p>
                           <p :if={proof.evidence_url} class="break-all text-sm text-base-content/70">
-                            <a href={proof.evidence_url} target="_blank" class="link link-primary">
+                            <a
+                              :if={safe_evidence_url(proof)}
+                              href={safe_evidence_url(proof)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              class="link link-primary"
+                            >
                               {proof.evidence_url}
                             </a>
+                            <span :if={!safe_evidence_url(proof)}>
+                              {proof.evidence_url}
+                            </span>
                           </p>
                         </div>
                         <div class="flex items-center gap-3 text-sm sm:block sm:text-right">
@@ -1009,6 +1019,15 @@ defmodule ElektrineWeb.ProofsLive do
   end
 
   defp proof_status_count(_, _), do: 0
+
+  defp safe_evidence_url(%{evidence_url: url}) when is_binary(url) do
+    case SafeExternalURL.normalize_href(url) do
+      {:ok, safe_url} -> safe_url
+      {:error, _reason} -> nil
+    end
+  end
+
+  defp safe_evidence_url(_proof), do: nil
 
   defp proof_kind_label("dns"), do: "DNS TXT"
   defp proof_kind_label("web"), do: "Web page"

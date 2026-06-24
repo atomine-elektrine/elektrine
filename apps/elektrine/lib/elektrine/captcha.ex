@@ -161,7 +161,8 @@ defmodule Elektrine.Captcha do
   defp verify_answer(user_answer, stored_hash) do
     expected_hash = hash_answer(user_answer)
 
-    if Plug.Crypto.secure_compare(expected_hash, stored_hash) do
+    if byte_size(expected_hash) == byte_size(stored_hash) and
+         Plug.Crypto.secure_compare(expected_hash, stored_hash) do
       :ok
     else
       {:error, :wrong_answer}

@@ -46,7 +46,7 @@ defmodule ElektrineEmailWeb.EmailLive.Search do
   @impl true
   def handle_params(params, _url, socket) do
     query = Map.get(params, "q", "")
-    page = String.to_integer(Map.get(params, "page", "1"))
+    page = parse_page(Map.get(params, "page", "1"))
 
     socket = assign(socket, :search_query, query)
 
@@ -104,42 +104,55 @@ defmodule ElektrineEmailWeb.EmailLive.Search do
 
   @impl true
   def handle_event("quick_action", %{"action" => action, "message_id" => message_id}, socket) do
-    case Email.get_user_message(String.to_integer(message_id), socket.assigns.current_user.id) do
-      {:ok, message} ->
-        case action do
-          "archive" ->
-            {:ok, _} = Email.archive_message(message)
-            # Refresh search results
-            if socket.assigns.search_results do
-              search_results =
-                Cached.search_messages(
-                  socket.assigns.current_user.id,
-                  socket.assigns.mailbox.id,
-                  socket.assigns.search_query,
-                  socket.assigns.search_results.page,
-                  20
-                )
+    with {:ok, message_id} <- parse_positive_int(message_id),
+         {:ok, message} <- Email.get_user_message(message_id, socket.assigns.current_user.id) do
+      case action do
+        "archive" ->
+          {:ok, _} = Email.archive_message(message)
+          # Refresh search results
+          if socket.assigns.search_results do
+            search_results =
+              Cached.search_messages(
+                socket.assigns.current_user.id,
+                socket.assigns.mailbox.id,
+                socket.assigns.search_query,
+                socket.assigns.search_results.page,
+                20
+              )
 
-              {:noreply,
-               socket
-               |> assign(:search_results, search_results)
-               |> notify_info("Message archived.")}
-            else
-              {:noreply, notify_info(socket, "Message archived.")}
-            end
+            {:noreply,
+             socket
+             |> assign(:search_results, search_results)
+             |> notify_info("Message archived.")}
+          else
+            {:noreply, notify_info(socket, "Message archived.")}
+          end
 
-          "reply" ->
-            {:noreply, push_navigate(socket, to: ~p"/email/compose?reply=#{message.id}")}
+        "reply" ->
+          {:noreply, push_navigate(socket, to: ~p"/email/compose?reply=#{message.id}")}
 
-          "forward" ->
-            {:noreply, push_navigate(socket, to: ~p"/email/compose?forward=#{message.id}")}
+        "forward" ->
+          {:noreply, push_navigate(socket, to: ~p"/email/compose?forward=#{message.id}")}
 
-          _ ->
-            {:noreply, socket}
-        end
+        _ ->
+          {:noreply, socket}
+      end
+    else
+      _ -> {:noreply, notify_error(socket, "Message not found or access denied")}
+    end
+  end
 
-      {:error, _} ->
-        {:noreply, notify_error(socket, "Message not found or access denied")}
+  defp parse_page(value) do
+    case parse_positive_int(value) do
+      {:ok, page} -> page
+      :error -> 1
+    end
+  end
+
+  defp parse_positive_int(value) do
+    case Integer.parse(to_string(value)) do
+      {int, ""} when int > 0 -> {:ok, int}
+      _ -> :error
     end
   end
 

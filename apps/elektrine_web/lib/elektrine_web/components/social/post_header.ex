@@ -256,7 +256,7 @@ defmodule ElektrineWeb.Components.Social.PostHeader do
           handle: post.remote_actor.username,
           domain: post.remote_actor.domain,
           display_name: post.remote_actor.display_name || post.remote_actor.username,
-          avatar_url: post.remote_actor.avatar_url,
+          avatar_url: safe_external_image_url(post.remote_actor.avatar_url),
           timestamp: post.inserted_at,
           edited_at: post.edited_at,
           visibility: nil,

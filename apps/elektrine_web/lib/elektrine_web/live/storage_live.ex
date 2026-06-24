@@ -2,6 +2,7 @@ defmodule ElektrineWeb.StorageLive do
   use ElektrineWeb, :live_view
   alias Elektrine.Accounts.Storage
   alias Elektrine.Drive
+  alias Elektrine.Utils.SafeConvert
   alias ElektrineWeb.Platform.Integrations
   require Logger
 
@@ -85,7 +86,7 @@ defmodule ElektrineWeb.StorageLive do
         %{"message_id" => message_id, "attachment_id" => attachment_id},
         socket
       ) do
-    message_id = String.to_integer(message_id)
+    message_id = event_id(message_id)
 
     case Integrations.delete_storage_email_attachment(
            socket.assigns.current_user.id,
@@ -120,7 +121,7 @@ defmodule ElektrineWeb.StorageLive do
 
   @impl true
   def handle_event("delete_chat_attachment", %{"message_id" => message_id}, socket) do
-    message_id = String.to_integer(message_id)
+    message_id = event_id(message_id)
     message = Elektrine.Repo.get(Elektrine.Social.Message, message_id)
 
     if message && message.sender_id == socket.assigns.current_user.id do
@@ -264,6 +265,13 @@ defmodule ElektrineWeb.StorageLive do
 
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Failed to delete image")}
+    end
+  end
+
+  defp event_id(value) do
+    case SafeConvert.parse_id(value) do
+      {:ok, id} -> id
+      {:error, :invalid_id} -> 0
     end
   end
 

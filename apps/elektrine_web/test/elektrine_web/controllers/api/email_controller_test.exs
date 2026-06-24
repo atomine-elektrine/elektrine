@@ -120,4 +120,29 @@ defmodule ElektrineEmailWeb.API.EmailControllerTest do
       assert [%{"id" => "att-1", "filename" => "report.pdf"}] = response["attachments"]
     end
   end
+
+  describe "email alias API malformed ids" do
+    test "returns 400 for malformed alias show/update/delete ids", %{conn: conn, token: token} do
+      show_conn =
+        conn
+        |> auth_conn(token)
+        |> get("/api/aliases/not-an-id")
+
+      assert json_response(show_conn, 400)["error"] == "Invalid alias id"
+
+      update_conn =
+        build_conn()
+        |> auth_conn(token)
+        |> put("/api/aliases/not-an-id", %{alias: %{description: "updated"}})
+
+      assert json_response(update_conn, 400)["error"] == "Invalid alias id"
+
+      delete_conn =
+        build_conn()
+        |> auth_conn(token)
+        |> delete("/api/aliases/not-an-id")
+
+      assert json_response(delete_conn, 400)["error"] == "Invalid alias id"
+    end
+  end
 end

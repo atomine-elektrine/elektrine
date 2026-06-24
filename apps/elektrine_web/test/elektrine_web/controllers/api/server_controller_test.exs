@@ -80,7 +80,27 @@ defmodule ArblargWeb.API.ServerControllerTest do
     end
   end
 
+  describe "GET /api/servers/:id" do
+    test "returns 400 for malformed server id", %{conn: conn, token: token} do
+      conn =
+        conn
+        |> auth_conn(token)
+        |> get("/api/servers/not-an-id")
+
+      assert json_response(conn, 400)["error"] == "Invalid id"
+    end
+  end
+
   describe "POST /api/servers/:server_id/join" do
+    test "returns 400 for malformed server id", %{conn: conn, token: token} do
+      conn =
+        conn
+        |> auth_conn(token)
+        |> post("/api/servers/not-an-id/join")
+
+      assert json_response(conn, 400)["error"] == "Invalid id"
+    end
+
     test "joins a public server", %{conn: conn} do
       owner = AccountsFixtures.user_fixture()
       joiner = AccountsFixtures.user_fixture()
@@ -100,6 +120,15 @@ defmodule ArblargWeb.API.ServerControllerTest do
   end
 
   describe "POST /api/servers/:server_id/channels" do
+    test "returns 400 for malformed server id", %{conn: conn, token: token} do
+      conn =
+        conn
+        |> auth_conn(token)
+        |> post("/api/servers/not-an-id/channels", %{name: "private-mod"})
+
+      assert json_response(conn, 400)["error"] == "Invalid id"
+    end
+
     test "prevents regular members from creating channels", %{conn: conn} do
       owner = AccountsFixtures.user_fixture()
       member = AccountsFixtures.user_fixture()

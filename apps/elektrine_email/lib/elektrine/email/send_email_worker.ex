@@ -95,25 +95,44 @@ defmodule Elektrine.Email.SendEmailWorker do
 
   # Convert string keys back to atoms for Sender compatibility
   # Allowlist of valid keys for email sending to prevent atom exhaustion DoS
-  @valid_email_keys ~w(
-    to from cc bcc subject text_body html_body reply_to message_id in_reply_to
-    references attachments headers priority content_type charset
-    mailbox_id user_id scheduled_at expires_at list_id
-  )
+  @valid_email_keys %{
+    "to" => :to,
+    "from" => :from,
+    "cc" => :cc,
+    "bcc" => :bcc,
+    "subject" => :subject,
+    "text_body" => :text_body,
+    "html_body" => :html_body,
+    "reply_to" => :reply_to,
+    "message_id" => :message_id,
+    "in_reply_to" => :in_reply_to,
+    "references" => :references,
+    "attachments" => :attachments,
+    "headers" => :headers,
+    "priority" => :priority,
+    "content_type" => :content_type,
+    "charset" => :charset,
+    "mailbox_id" => :mailbox_id,
+    "user_id" => :user_id,
+    "scheduled_at" => :scheduled_at,
+    "expires_at" => :expires_at,
+    "list_id" => :list_id
+  }
 
   defp atomize_keys(nil), do: nil
 
   defp atomize_keys(map) when is_map(map) do
     Map.new(map, fn
       {k, v} when is_binary(k) ->
-        if k in @valid_email_keys do
-          {String.to_existing_atom(k), atomize_keys(v)}
-        else
-          # Skip unknown keys instead of creating atoms
-          {k, atomize_keys(v)}
+        case Map.fetch(@valid_email_keys, k) do
+          {:ok, atom_key} -> {atom_key, atomize_keys(v)}
+          :error -> {k, atomize_keys(v)}
         end
 
       {k, v} when is_atom(k) ->
+        {k, atomize_keys(v)}
+
+      {k, v} ->
         {k, atomize_keys(v)}
     end)
   end

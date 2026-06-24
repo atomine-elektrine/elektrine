@@ -36,20 +36,22 @@ defmodule ArblargWeb.API.ServerController do
   def show(conn, %{"id" => id}) do
     user = conn.assigns[:current_user]
 
-    case Messaging.get_server(String.to_integer(id), user.id) do
-      {:ok, server} ->
-        conn
-        |> put_status(:ok)
-        |> json(%{
-          server: format_server_summary(server, user.id),
-          channels: Enum.map(server.channels, &format_channel/1)
-        })
+    with_valid_id(conn, id, fn server_id ->
+      case Messaging.get_server(server_id, user.id) do
+        {:ok, server} ->
+          conn
+          |> put_status(:ok)
+          |> json(%{
+            server: format_server_summary(server, user.id),
+            channels: Enum.map(server.channels, &format_channel/1)
+          })
 
-      {:error, :not_found} ->
-        conn
-        |> put_status(:not_found)
-        |> json(%{error: "Server not found"})
-    end
+        {:error, :not_found} ->
+          conn
+          |> put_status(:not_found)
+          |> json(%{error: "Server not found"})
+      end
+    end)
   end
 
   @doc """
@@ -100,49 +102,51 @@ defmodule ArblargWeb.API.ServerController do
   def join(conn, %{"server_id" => server_id}) do
     user = conn.assigns[:current_user]
 
-    case Messaging.join_server(String.to_integer(server_id), user.id) do
-      {:ok, _member} ->
-        case Messaging.get_server(String.to_integer(server_id), user.id) do
-          {:ok, server} ->
-            conn
-            |> put_status(:ok)
-            |> json(%{
-              message: "Joined server",
-              server: format_server_summary(server, user.id),
-              channels: Enum.map(server.channels, &format_channel/1)
-            })
+    with_valid_id(conn, server_id, fn parsed_server_id ->
+      case Messaging.join_server(parsed_server_id, user.id) do
+        {:ok, _member} ->
+          case Messaging.get_server(parsed_server_id, user.id) do
+            {:ok, server} ->
+              conn
+              |> put_status(:ok)
+              |> json(%{
+                message: "Joined server",
+                server: format_server_summary(server, user.id),
+                channels: Enum.map(server.channels, &format_channel/1)
+              })
 
-          {:error, :not_found} ->
-            conn
-            |> put_status(:not_found)
-            |> json(%{error: "Server not found"})
-        end
+            {:error, :not_found} ->
+              conn
+              |> put_status(:not_found)
+              |> json(%{error: "Server not found"})
+          end
 
-      {:error, :not_found} ->
-        conn
-        |> put_status(:not_found)
-        |> json(%{error: "Server not found"})
+        {:error, :not_found} ->
+          conn
+          |> put_status(:not_found)
+          |> json(%{error: "Server not found"})
 
-      {:error, :not_public} ->
-        conn
-        |> put_status(:forbidden)
-        |> json(%{error: "This server is private"})
+        {:error, :not_public} ->
+          conn
+          |> put_status(:forbidden)
+          |> json(%{error: "This server is private"})
 
-      {:error, :already_member} ->
-        conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{error: "Already a member of this server"})
+        {:error, :already_member} ->
+          conn
+          |> put_status(:unprocessable_entity)
+          |> json(%{error: "Already a member of this server"})
 
-      {:error, :federation_sync_unavailable} ->
-        conn
-        |> put_status(:service_unavailable)
-        |> json(%{error: "This federated server is temporarily unavailable to join"})
+        {:error, :federation_sync_unavailable} ->
+          conn
+          |> put_status(:service_unavailable)
+          |> json(%{error: "This federated server is temporarily unavailable to join"})
 
-      {:error, reason} ->
-        conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{error: "Failed to join server: #{inspect(reason)}"})
-    end
+        {:error, reason} ->
+          conn
+          |> put_status(:unprocessable_entity)
+          |> json(%{error: "Failed to join server: #{inspect(reason)}"})
+      end
+    end)
   end
 
   @doc """
@@ -159,36 +163,62 @@ defmodule ArblargWeb.API.ServerController do
       channel_position: parse_int(params["channel_position"], nil)
     }
 
-    case Messaging.create_server_channel(String.to_integer(server_id), user.id, attrs) do
-      {:ok, channel} ->
-        conn
-        |> put_status(:created)
-        |> json(%{
-          message: "Channel created",
-          channel: format_channel(channel)
-        })
+    with_valid_id(conn, server_id, fn parsed_server_id ->
+      case Messaging.create_server_channel(parsed_server_id, user.id, attrs) do
+        {:ok, channel} ->
+          conn
+          |> put_status(:created)
+          |> json(%{
+            message: "Channel created",
+            channel: format_channel(channel)
+          })
 
-      {:error, :not_found} ->
-        conn
-        |> put_status(:not_found)
-        |> json(%{error: "Server not found"})
+        {:error, :not_found} ->
+          conn
+          |> put_status(:not_found)
+          |> json(%{error: "Server not found"})
 
-      {:error, :unauthorized} ->
-        conn
-        |> put_status(:forbidden)
-        |> json(%{error: "You don't have permission to create channels in this server"})
+        {:error, :unauthorized} ->
+          conn
+          |> put_status(:forbidden)
+          |> json(%{error: "You don't have permission to create channels in this server"})
 
-      {:error, %Ecto.Changeset{} = changeset} ->
-        conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{error: "Validation failed", errors: format_errors(changeset)})
+        {:error, %Ecto.Changeset{} = changeset} ->
+          conn
+          |> put_status(:unprocessable_entity)
+          |> json(%{error: "Validation failed", errors: format_errors(changeset)})
 
-      {:error, reason} ->
-        conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{error: "Failed to create channel: #{inspect(reason)}"})
+        {:error, reason} ->
+          conn
+          |> put_status(:unprocessable_entity)
+          |> json(%{error: "Failed to create channel: #{inspect(reason)}"})
+      end
+    end)
+  end
+
+  defp with_valid_id(conn, value, fun) when is_function(fun, 1) do
+    case parse_id(value) do
+      {:ok, id} -> fun.(id)
+      :error -> invalid_id_response(conn)
     end
   end
+
+  defp invalid_id_response(conn) do
+    conn
+    |> put_status(:bad_request)
+    |> json(%{error: "Invalid id"})
+  end
+
+  defp parse_id(value) when is_integer(value) and value > 0, do: {:ok, value}
+
+  defp parse_id(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {int, ""} when int > 0 -> {:ok, int}
+      _ -> :error
+    end
+  end
+
+  defp parse_id(_value), do: :error
 
   defp format_server_summary(server, current_user_id) do
     role =
@@ -254,8 +284,8 @@ defmodule ArblargWeb.API.ServerController do
 
   defp parse_int(value, default) when is_binary(value) do
     case Integer.parse(value) do
-      {int, _} -> int
-      :error -> default
+      {int, ""} -> int
+      _ -> default
     end
   end
 

@@ -91,7 +91,10 @@ defmodule ElektrineSocialWeb.MediaProxyController do
     if byte_size(body) > @max_file_size do
       send_error(conn, 413, "File too large")
     else
-      content_type = get_header(headers, "content-type") || "application/octet-stream"
+      content_type =
+        headers
+        |> get_header("content-type")
+        |> safe_response_content_type()
 
       conn
       |> put_resp_header("content-type", content_type)
@@ -131,27 +134,40 @@ defmodule ElektrineSocialWeb.MediaProxyController do
 
   @doc false
   def inline_safe_content_type?(content_type) when is_binary(content_type) do
-    content_type
-    |> String.downcase()
-    |> String.split(";")
-    |> List.first()
-    |> case do
-      "image/svg+xml" -> false
-      "image/svg+xml-compressed" -> false
-      "image/jpeg" -> true
-      "image/jpg" -> true
-      "image/png" -> true
-      "image/gif" -> true
-      "image/webp" -> true
-      "image/avif" -> true
-      "video/" <> _rest -> true
-      "audio/" <> _rest -> true
-      "text/plain" -> true
-      _ -> false
+    normalized = normalize_media_type(content_type)
+
+    cond do
+      not safe_media_type?(normalized) -> false
+      normalized in ["image/svg+xml", "image/svg+xml-compressed"] -> false
+      normalized in ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"] -> true
+      normalized == "image/avif" -> true
+      String.starts_with?(normalized, ["video/", "audio/"]) -> true
+      normalized == "text/plain" -> true
+      true -> false
     end
   end
 
   def inline_safe_content_type?(_content_type), do: false
+
+  defp safe_response_content_type(content_type) do
+    normalized = normalize_media_type(content_type)
+
+    if safe_media_type?(normalized), do: normalized, else: "application/octet-stream"
+  end
+
+  defp normalize_media_type(content_type) do
+    content_type
+    |> to_string()
+    |> String.downcase()
+    |> String.split(";", parts: 2)
+    |> List.first()
+    |> to_string()
+    |> String.trim()
+  end
+
+  defp safe_media_type?(content_type) do
+    Regex.match?(~r/^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/, content_type)
+  end
 
   defp maybe_put_content_disposition(conn, content_type) do
     if inline_safe_content_type?(content_type) do

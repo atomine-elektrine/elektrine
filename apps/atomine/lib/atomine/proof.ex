@@ -9,6 +9,8 @@ defmodule Atomine.Proof do
   use Ecto.Schema
   import Ecto.Changeset
 
+  alias Elektrine.Security.SafeExternalURL
+
   @kinds ~w(web dns social vouch payment passkey manual)
   @claim_types ~w(positive negative)
   @proof_modes ~w(snapshot live)
@@ -82,7 +84,9 @@ defmodule Atomine.Proof do
     |> normalize_string(:live_status)
     |> normalize_string(:verification_method)
     |> normalize_string(:status)
+    |> normalize_string(:evidence_url)
     |> normalize_subject()
+    |> empty_to_nil(:evidence_url)
     |> validate_required([
       :user_id,
       :kind,
@@ -105,6 +109,7 @@ defmodule Atomine.Proof do
     |> validate_length(:subject, min: 1, max: 500)
     |> validate_length(:challenge, min: 16, max: 2_000)
     |> validate_length(:evidence_url, max: 2_000)
+    |> validate_evidence_url()
     |> validate_length(:review_notes, max: 5_000)
     |> validate_number(:score_weight, greater_than_or_equal_to: 0, less_than_or_equal_to: 100)
     |> validate_number(:failed_check_count, greater_than_or_equal_to: 0)
@@ -118,6 +123,29 @@ defmodule Atomine.Proof do
       name: :atomine_proofs_active_subject_unique,
       message: "already has an active proof for this subject"
     )
+  end
+
+  defp empty_to_nil(changeset, field) do
+    update_change(changeset, field, fn
+      "" -> nil
+      value -> value
+    end)
+  end
+
+  defp validate_evidence_url(changeset) do
+    case get_change(changeset, :evidence_url) do
+      nil ->
+        changeset
+
+      evidence_url ->
+        case SafeExternalURL.normalize_href(evidence_url) do
+          {:ok, safe_url} ->
+            put_change(changeset, :evidence_url, safe_url)
+
+          {:error, _reason} ->
+            add_error(changeset, :evidence_url, "must be a safe http:// or https:// URL")
+        end
+    end
   end
 
   defp validate_live_status_matches_mode(changeset) do

@@ -451,11 +451,7 @@ defmodule Elektrine.Profiles.UserProfile do
   defp extract_upload_key(url) when is_binary(url) do
     cond do
       String.starts_with?(url, "http://") or String.starts_with?(url, "https://") ->
-        url
-        |> URI.parse()
-        |> Map.get(:path, "")
-        |> String.trim_leading("/")
-        |> String.trim_leading("uploads/")
+        nil
 
       String.starts_with?(url, "/uploads/") ->
         String.trim_leading(url, "/uploads/")
@@ -472,6 +468,7 @@ defmodule Elektrine.Profiles.UserProfile do
   end
 
   defp safe_upload_key_for_field?("", _field), do: false
+  defp safe_upload_key_for_field?(nil, _field), do: false
 
   defp safe_upload_key_for_field?(key, field) when is_binary(key) do
     allowed_prefixes =

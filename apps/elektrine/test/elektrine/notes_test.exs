@@ -51,8 +51,17 @@ defmodule Elektrine.NotesTest do
     assert {:ok, share} = Notes.create_note_share(user.id, note)
     assert share.note_id == note.id
     assert is_binary(share.token)
+    assert share.token_hash == Notes.share_token_hash(share.token)
     assert Notes.get_active_share_for_note(user.id, note.id).id == share.id
     assert Notes.get_public_share(share.token).id == share.id
+
+    [stored_token, stored_token_hash] =
+      Repo.query!("SELECT token, token_hash FROM note_shares WHERE id = $1", [share.id]).rows
+      |> List.first()
+
+    assert EncryptedString.encrypted?(stored_token)
+    refute stored_token == share.token
+    assert stored_token_hash == Notes.share_token_hash(share.token)
 
     assert {:ok, %{revoked_count: 1}} = Notes.revoke_note_share(user.id, note)
     assert is_nil(Notes.get_active_share_for_note(user.id, note.id))

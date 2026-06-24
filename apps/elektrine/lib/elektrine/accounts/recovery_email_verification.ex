@@ -393,7 +393,6 @@ defmodule Elektrine.Accounts.RecoveryEmailVerification do
     hashed_token = User.hash_sensitive_token(token)
 
     from(u in User, where: u.recovery_email_verification_token == ^hashed_token)
-    |> maybe_allow_legacy_token_lookup(:recovery_email_verification_token, token)
     |> Repo.one()
   end
 
@@ -471,20 +470,6 @@ defmodule Elektrine.Accounts.RecoveryEmailVerification do
         has_recovery_email = !is_nil(user.recovery_email) && user.recovery_email != ""
         has_recovery_email && !user.recovery_email_verified
     end
-  end
-
-  @legacy_recovery_token_pattern ~r/^[A-Za-z0-9_-]{43}$/
-
-  defp maybe_allow_legacy_token_lookup(query, field_name, token) do
-    if legacy_recovery_token?(token) do
-      from(u in query, or_where: field(u, ^field_name) == ^token)
-    else
-      query
-    end
-  end
-
-  defp legacy_recovery_token?(token) when is_binary(token) do
-    Regex.match?(@legacy_recovery_token_pattern, token)
   end
 
   @doc """

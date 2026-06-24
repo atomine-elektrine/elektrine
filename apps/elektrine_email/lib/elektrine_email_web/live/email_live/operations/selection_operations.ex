@@ -7,26 +7,31 @@ defmodule ElektrineEmailWeb.EmailLive.Operations.SelectionOperations do
   import Phoenix.Component
 
   def handle_event("toggle_message_selection", %{"message_id" => message_id}, socket) do
-    message_id = String.to_integer(message_id)
-    selected_messages = socket.assigns.selected_messages
+    case parse_positive_int(message_id) do
+      {:ok, message_id} ->
+        selected_messages = socket.assigns.selected_messages
 
-    updated_selected =
-      if message_id in selected_messages do
-        List.delete(selected_messages, message_id)
-      else
-        [message_id | selected_messages]
-      end
+        updated_selected =
+          if message_id in selected_messages do
+            List.delete(selected_messages, message_id)
+          else
+            [message_id | selected_messages]
+          end
 
-    select_all = length(updated_selected) == length(socket.assigns.messages)
+        select_all = length(updated_selected) == length(socket.assigns.messages)
 
-    {:noreply,
-     socket
-     |> assign(:selected_messages, updated_selected)
-     |> assign(:select_all, select_all)
-     |> push_event("update_checkboxes", %{
-       selected_ids: updated_selected,
-       select_all: select_all
-     })}
+        {:noreply,
+         socket
+         |> assign(:selected_messages, updated_selected)
+         |> assign(:select_all, select_all)
+         |> push_event("update_checkboxes", %{
+           selected_ids: updated_selected,
+           select_all: select_all
+         })}
+
+      :error ->
+        {:noreply, socket}
+    end
   end
 
   def handle_event("select_all_messages", _params, socket) do
@@ -70,5 +75,12 @@ defmodule ElektrineEmailWeb.EmailLive.Operations.SelectionOperations do
     # This is handled by JavaScript for shift-click functionality
     # Just return without changes
     {:noreply, socket}
+  end
+
+  defp parse_positive_int(value) do
+    case Integer.parse(to_string(value)) do
+      {id, ""} when id > 0 -> {:ok, id}
+      _ -> :error
+    end
   end
 end

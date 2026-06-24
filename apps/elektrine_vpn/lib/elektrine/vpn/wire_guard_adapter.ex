@@ -68,9 +68,15 @@ defmodule Elektrine.VPN.WireGuardAdapter do
   end
 
   defp run_wg(args) do
-    case System.cmd("wg", args, stderr_to_stdout: true) do
-      {output, 0} -> {:ok, output}
-      {output, status} -> {:error, {status, String.trim(output)}}
+    case System.find_executable("wg") do
+      nil ->
+        {:error, {:command_failed, "wg executable not found"}}
+
+      wg ->
+        case System.cmd(wg, args, stderr_to_stdout: true) do
+          {output, 0} -> {:ok, output}
+          {output, status} -> {:error, {status, String.trim(output)}}
+        end
     end
   rescue
     e in ErlangError -> {:error, {:command_failed, Exception.message(e)}}
@@ -78,8 +84,8 @@ defmodule Elektrine.VPN.WireGuardAdapter do
 
   defp parse_integer(value) do
     case Integer.parse(value) do
-      {parsed, _} -> parsed
-      :error -> 0
+      {parsed, ""} -> parsed
+      _ -> 0
     end
   end
 

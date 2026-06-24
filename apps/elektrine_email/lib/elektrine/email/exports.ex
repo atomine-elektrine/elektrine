@@ -6,6 +6,7 @@ defmodule Elektrine.Email.Exports do
   alias Elektrine.Email.Export
   alias Elektrine.Email.Message
   alias Elektrine.Repo
+  alias Elektrine.Security.FilePath
 
   require Logger
 
@@ -128,8 +129,11 @@ defmodule Elektrine.Email.Exports do
   """
   def delete_export(%Export{} = export) do
     # Delete file if exists
-    if export.file_path && File.exists?(export.file_path) do
-      File.rm(export.file_path)
+    if export.file_path do
+      case FilePath.validate_existing_file(export.file_path, export_dir()) do
+        {:ok, file_path} -> File.rm(file_path)
+        {:error, _reason} -> :ok
+      end
     end
 
     Repo.delete(export)
@@ -140,10 +144,9 @@ defmodule Elektrine.Email.Exports do
   """
   def get_download_path(%Export{file_path: file_path, status: "completed"})
       when is_binary(file_path) do
-    if File.exists?(file_path) do
-      {:ok, file_path}
-    else
-      {:error, :file_not_found}
+    case FilePath.validate_existing_file(file_path, export_dir()) do
+      {:ok, file_path} -> {:ok, file_path}
+      {:error, _reason} -> {:error, :file_not_found}
     end
   end
 

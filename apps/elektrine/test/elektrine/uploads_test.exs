@@ -72,6 +72,62 @@ defmodule Elektrine.UploadsTest do
     assert Uploads.attachment_url("chat-attachments/private.jpg", %{type: "dm"}) == nil
   end
 
+  test "accepts voice messages with allowed MIME type and matching bytes", %{
+    tmp_dir: tmp_dir,
+    user: user
+  } do
+    assert {:ok, %{key: "/uploads/voice-messages/" <> stored_filename}} =
+             Uploads.upload_voice_message(
+               <<26, 69, 223, 163, "audio">>,
+               "clip.webm",
+               "audio/webm",
+               user.id
+             )
+
+    assert File.exists?(Path.join([tmp_dir, "voice-messages", stored_filename]))
+  end
+
+  test "rejects voice messages with disallowed MIME types", %{tmp_dir: tmp_dir, user: user} do
+    assert {:error, {:invalid_file_type, _}} =
+             Uploads.upload_voice_message(
+               <<26, 69, 223, 163, "audio">>,
+               "clip.html",
+               "text/html",
+               user.id
+             )
+
+    refute File.exists?(Path.join(tmp_dir, "voice-messages"))
+  end
+
+  test "rejects voice messages whose bytes do not match the declared type", %{
+    tmp_dir: tmp_dir,
+    user: user
+  } do
+    assert {:error, {:invalid_file_format, _}} =
+             Uploads.upload_voice_message("not webm", "clip.webm", "audio/webm", user.id)
+
+    refute File.exists?(Path.join(tmp_dir, "voice-messages"))
+  end
+
+  test "malformed local delete keys do not normalize into deletable upload paths", %{
+    tmp_dir: tmp_dir
+  } do
+    avatar_dir = Path.join(tmp_dir, "avatars")
+    File.mkdir_p!(avatar_dir)
+    victim_path = Path.join(avatar_dir, "victim.txt")
+    File.write!(victim_path, "keep")
+
+    assert {:error, :invalid_upload_key} =
+             Uploads.delete_uploaded_file("uploads/uploads/avatars/victim.txt")
+
+    assert File.read!(victim_path) == "keep"
+
+    assert {:error, :invalid_upload_key} =
+             Uploads.delete_uploaded_file("/uploads//avatars/victim.txt")
+
+    assert File.read!(victim_path) == "keep"
+  end
+
   defp upload_fixture(tmp_dir, filename, content_type, content) do
     path = Path.join(tmp_dir, "#{System.unique_integer([:positive])}-#{filename}")
     File.write!(path, content)

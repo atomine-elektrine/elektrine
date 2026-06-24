@@ -198,6 +198,119 @@ docker_cmd() {
   "${docker_args[@]}" "$@"
 }
 
+find_existing_haraka_container() {
+  local service_name
+  local container_id
+
+  for service_name in haraka-inbound haraka-submission haraka-outbound haraka-worker; do
+    container_id="$(
+      docker_cmd ps \
+        --filter "label=com.docker.compose.service=$service_name" \
+        --format '{{.ID}}' \
+        | head -n 1
+    )"
+
+    if [[ -n "$container_id" ]]; then
+      printf '%s' "$container_id"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+compose_label() {
+  local container_id="$1"
+  local label_name="$2"
+
+  docker_cmd inspect "$container_id" \
+    --format "{{ index .Config.Labels \"$label_name\" }}" 2>/dev/null || true
+}
+
+append_compose_file_arg() {
+  local -n args_ref="$1"
+  local file_path="$2"
+
+  [[ -f "$file_path" ]] || return 1
+  args_ref+=("-f" "$file_path")
+}
+
+append_existing_default_compose_files() {
+  local -n args_ref="$1"
+  local compose_dir="$2"
+  local before_count="${#args_ref[@]}"
+  local file_name
+
+  for file_name in compose.yml compose.yaml docker-compose.yml docker-compose.yaml; do
+    append_compose_file_arg args_ref "$compose_dir/$file_name" || true
+  done
+
+  [[ "${#args_ref[@]}" -gt "$before_count" ]]
+}
+
+compose_apply_args() {
+  local -n args_ref="$1"
+  local container_id=""
+  local project_dir=""
+  local config_files=""
+  local config_file=""
+  local resolved_file=""
+  local before_file_count=0
+
+  if container_id="$(find_existing_haraka_container)"; then
+    project_dir="$(compose_label "$container_id" "com.docker.compose.project.working_dir")"
+    config_files="$(compose_label "$container_id" "com.docker.compose.project.config_files")"
+
+    if [[ -n "$project_dir" && "$project_dir" != "<no value>" ]]; then
+      args_ref+=("--project-directory" "$project_dir")
+    fi
+
+    if [[ -n "$config_files" && "$config_files" != "<no value>" ]]; then
+      before_file_count="${#args_ref[@]}"
+
+      IFS=',' read -r -a config_file_list <<< "$config_files"
+      for config_file in "${config_file_list[@]}"; do
+        config_file="$(printf '%s' "$config_file" | xargs)"
+        [[ -n "$config_file" ]] || continue
+
+        case "$config_file" in
+          /*) resolved_file="$config_file" ;;
+          *) resolved_file="${project_dir:-$HARAKA_DEPLOY_DIR}/$config_file" ;;
+        esac
+
+        append_compose_file_arg args_ref "$resolved_file" || true
+      done
+
+      if [[ "${#args_ref[@]}" -gt "$before_file_count" ]]; then
+        args_ref+=("-f" "$OUTPUT_PATH")
+        return 0
+      fi
+    fi
+
+    if [[ -n "$project_dir" && "$project_dir" != "<no value>" ]]; then
+      before_file_count="${#args_ref[@]}"
+      append_existing_default_compose_files args_ref "$project_dir" || true
+
+      if [[ "${#args_ref[@]}" -gt "$before_file_count" ]]; then
+        args_ref+=("-f" "$OUTPUT_PATH")
+        return 0
+      fi
+    fi
+  fi
+
+  args_ref=()
+  args_ref+=("--project-directory" "$HARAKA_DEPLOY_DIR")
+  before_file_count="${#args_ref[@]}"
+  append_existing_default_compose_files args_ref "$HARAKA_DEPLOY_DIR" || true
+
+  if [[ "${#args_ref[@]}" -gt "$before_file_count" ]]; then
+    args_ref+=("-f" "$OUTPUT_PATH")
+    return 0
+  fi
+
+  return 1
+}
+
 if [[ -z "$HARAKA_DEPLOY_DIR" ]]; then
   if [[ -d /opt/elektrine-haraka ]]; then
     HARAKA_DEPLOY_DIR=/opt/elektrine-haraka
@@ -290,10 +403,15 @@ if [[ "$APPLY" == true ]]; then
     exit 1
   fi
 
-  (
-    cd "$HARAKA_DEPLOY_DIR"
-    docker_cmd compose up -d --force-recreate haraka-inbound haraka-submission haraka-outbound haraka-worker
-  )
+  compose_args=()
+
+  if compose_apply_args compose_args; then
+    docker_cmd compose "${compose_args[@]}" up -d --force-recreate \
+      haraka-inbound haraka-submission haraka-outbound haraka-worker
+  else
+    echo "Warn: could not infer Haraka Docker Compose base file; wrote $OUTPUT_PATH but did not apply it." >&2
+    echo "      Recreate Haraka with its normal compose file plus -f $OUTPUT_PATH." >&2
+  fi
 fi
 
 cat <<MSG

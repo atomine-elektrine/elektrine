@@ -467,46 +467,58 @@ defmodule ArblargWeb.ChatLive.Operations.MessageOperations do
         %{"message_id" => message_id_str, "emoji" => emoji},
         socket
       ) do
-    message_id = String.to_integer(message_id_str)
-
-    if Map.get(
-         socket.assigns.moderation.user_timeout_status,
-         socket.assigns.current_user.id,
-         false
-       ) do
-      {:noreply, notify_error(socket, "You are currently timed out and cannot react to messages")}
-    else
+    with {:ok, message_id} <- parse_positive_int(message_id_str),
+         false <-
+           Map.get(
+             socket.assigns.moderation.user_timeout_status,
+             socket.assigns.current_user.id,
+             false
+           ) do
       case Messaging.add_chat_reaction(message_id, socket.assigns.current_user.id, emoji) do
         {:ok, _reaction} -> {:noreply, socket}
         {:error, _} -> {:noreply, socket}
       end
+    else
+      true ->
+        {:noreply,
+         notify_error(socket, "You are currently timed out and cannot react to messages")}
+
+      :error ->
+        {:noreply, socket}
     end
   end
 
   def handle_event("delete_message", %{"message_id" => message_id}, socket) do
     if socket.assigns.current_user do
-      message_id = String.to_integer(message_id)
+      case parse_positive_int(message_id) do
+        {:ok, message_id} ->
+          case Messaging.delete_chat_message(message_id, socket.assigns.current_user.id) do
+            {:ok, _deleted_message} ->
+              {:noreply,
+               socket
+               |> hide_message_context_menu()
+               |> notify_info("Message deleted")}
 
-      case Messaging.delete_chat_message(message_id, socket.assigns.current_user.id) do
-        {:ok, _deleted_message} ->
-          {:noreply,
-           socket
-           |> hide_message_context_menu()
-           |> notify_info("Message deleted")}
+            {:error, :unauthorized} ->
+              {:noreply,
+               socket
+               |> hide_message_context_menu()
+               |> notify_error("You can only delete your own messages")}
 
-        {:error, :unauthorized} ->
-          {:noreply,
-           socket
-           |> hide_message_context_menu()
-           |> notify_error("You can only delete your own messages")}
+            {:error, :not_found} ->
+              {:noreply,
+               socket
+               |> hide_message_context_menu()
+               |> notify_error("Message not found")}
 
-        {:error, :not_found} ->
-          {:noreply,
-           socket
-           |> hide_message_context_menu()
-           |> notify_error("Message not found")}
+            {:error, _} ->
+              {:noreply,
+               socket
+               |> hide_message_context_menu()
+               |> notify_error("Failed to delete message")}
+          end
 
-        {:error, _} ->
+        :error ->
           {:noreply,
            socket
            |> hide_message_context_menu()
@@ -519,40 +531,47 @@ defmodule ArblargWeb.ChatLive.Operations.MessageOperations do
 
   def handle_event("delete_message_admin", %{"message_id" => message_id}, socket) do
     if Helpers.conversation_admin_socket?(socket) do
-      message_id = String.to_integer(message_id)
+      case parse_positive_int(message_id) do
+        {:ok, message_id} ->
+          case Messaging.delete_chat_message(message_id, socket.assigns.current_user.id, true) do
+            {:ok, deleted_message} ->
+              conversation_id =
+                socket.assigns.conversation.selected && socket.assigns.conversation.selected.id
 
-      case Messaging.delete_chat_message(message_id, socket.assigns.current_user.id, true) do
-        {:ok, deleted_message} ->
-          conversation_id =
-            socket.assigns.conversation.selected && socket.assigns.conversation.selected.id
+              Messaging.log_moderation_action(
+                "delete_message",
+                deleted_message.sender_id,
+                socket.assigns.current_user.id,
+                conversation_id: conversation_id,
+                reason: "Admin message deletion",
+                details: %{message_id: message_id, message_content: deleted_message.content}
+              )
 
-          Messaging.log_moderation_action(
-            "delete_message",
-            deleted_message.sender_id,
-            socket.assigns.current_user.id,
-            conversation_id: conversation_id,
-            reason: "Admin message deletion",
-            details: %{message_id: message_id, message_content: deleted_message.content}
-          )
+              {:noreply,
+               socket
+               |> hide_message_context_menu()
+               |> notify_info("Message deleted")}
 
-          {:noreply,
-           socket
-           |> hide_message_context_menu()
-           |> notify_info("Message deleted")}
+            {:error, :not_found} ->
+              {:noreply,
+               socket
+               |> hide_message_context_menu()
+               |> notify_info("Message not found")}
 
-        {:error, :not_found} ->
-          {:noreply,
-           socket
-           |> hide_message_context_menu()
-           |> notify_info("Message not found")}
+            {:error, :already_deleted} ->
+              {:noreply,
+               socket
+               |> hide_message_context_menu()
+               |> notify_info("Message already deleted")}
 
-        {:error, :already_deleted} ->
-          {:noreply,
-           socket
-           |> hide_message_context_menu()
-           |> notify_info("Message already deleted")}
+            {:error, _} ->
+              {:noreply,
+               socket
+               |> hide_message_context_menu()
+               |> notify_error("Failed to delete message")}
+          end
 
-        {:error, _} ->
+        :error ->
           {:noreply,
            socket
            |> hide_message_context_menu()
@@ -633,7 +652,11 @@ defmodule ArblargWeb.ChatLive.Operations.MessageOperations do
   end
 
   def handle_event("reply_to_message", %{"message_id" => message_id}, socket) do
-    message = Enum.find(socket.assigns.messages, &(&1.id == String.to_integer(message_id)))
+    message =
+      case parse_positive_int(message_id) do
+        {:ok, message_id} -> Enum.find(socket.assigns.messages, &(&1.id == message_id))
+        :error -> nil
+      end
 
     {:noreply,
      socket
@@ -642,31 +665,46 @@ defmodule ArblargWeb.ChatLive.Operations.MessageOperations do
   end
 
   def handle_event("copy_message", %{"message_id" => message_id}, socket) do
-    message = Enum.find(socket.assigns.messages, &(&1.id == String.to_integer(message_id)))
+    message =
+      case parse_positive_int(message_id) do
+        {:ok, message_id} -> Enum.find(socket.assigns.messages, &(&1.id == message_id))
+        :error -> nil
+      end
 
-    {:noreply,
-     socket
-     |> hide_message_context_menu()
-     |> push_event("copy_to_clipboard", %{text: message.content, type: "message"})}
+    socket = hide_message_context_menu(socket)
+
+    if message do
+      {:noreply,
+       push_event(socket, "copy_to_clipboard", %{text: message.content, type: "message"})}
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_event("pin_message", %{"message_id" => message_id}, socket) do
-    message_id = String.to_integer(message_id)
+    case parse_positive_int(message_id) do
+      {:ok, message_id} ->
+        case Messaging.pin_message(message_id, socket.assigns.current_user.id) do
+          {:ok, _message} ->
+            {:noreply,
+             socket
+             |> hide_message_context_menu()
+             |> notify_info("Message pinned")}
 
-    case Messaging.pin_message(message_id, socket.assigns.current_user.id) do
-      {:ok, _message} ->
-        {:noreply,
-         socket
-         |> hide_message_context_menu()
-         |> notify_info("Message pinned")}
+          {:error, :unauthorized} ->
+            {:noreply,
+             socket
+             |> hide_message_context_menu()
+             |> notify_error("Only moderators can pin messages")}
 
-      {:error, :unauthorized} ->
-        {:noreply,
-         socket
-         |> hide_message_context_menu()
-         |> notify_error("Only moderators can pin messages")}
+          {:error, _} ->
+            {:noreply,
+             socket
+             |> hide_message_context_menu()
+             |> notify_error("Failed to pin message")}
+        end
 
-      {:error, _} ->
+      :error ->
         {:noreply,
          socket
          |> hide_message_context_menu()
@@ -675,22 +713,29 @@ defmodule ArblargWeb.ChatLive.Operations.MessageOperations do
   end
 
   def handle_event("unpin_message", %{"message_id" => message_id}, socket) do
-    message_id = String.to_integer(message_id)
+    case parse_positive_int(message_id) do
+      {:ok, message_id} ->
+        case Messaging.unpin_message(message_id, socket.assigns.current_user.id) do
+          {:ok, _message} ->
+            {:noreply,
+             socket
+             |> hide_message_context_menu()
+             |> notify_info("Message unpinned")}
 
-    case Messaging.unpin_message(message_id, socket.assigns.current_user.id) do
-      {:ok, _message} ->
-        {:noreply,
-         socket
-         |> hide_message_context_menu()
-         |> notify_info("Message unpinned")}
+          {:error, :unauthorized} ->
+            {:noreply,
+             socket
+             |> hide_message_context_menu()
+             |> notify_error("Only moderators can unpin messages")}
 
-      {:error, :unauthorized} ->
-        {:noreply,
-         socket
-         |> hide_message_context_menu()
-         |> notify_error("Only moderators can unpin messages")}
+          {:error, _} ->
+            {:noreply,
+             socket
+             |> hide_message_context_menu()
+             |> notify_error("Failed to unpin message")}
+        end
 
-      {:error, _} ->
+      :error ->
         {:noreply,
          socket
          |> hide_message_context_menu()
@@ -943,6 +988,13 @@ defmodule ArblargWeb.ChatLive.Operations.MessageOperations do
   end
 
   defp parse_int(_), do: nil
+
+  defp parse_positive_int(value) do
+    case parse_int(value) do
+      integer when is_integer(integer) and integer > 0 -> {:ok, integer}
+      _ -> :error
+    end
+  end
 
   defp hide_message_context_menu(socket) do
     assign(socket, :context_menu, %{

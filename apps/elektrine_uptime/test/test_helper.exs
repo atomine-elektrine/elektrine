@@ -1,5 +1,5 @@
 unless Code.ensure_loaded?(Elektrine.DataCase) do
-  Code.require_file("support/data_case.ex", __DIR__)
+  Code.require_file("../test_support/data_case.ex", __DIR__)
 end
 
 unless Code.ensure_loaded?(ElektrineWeb.ConnCase) do

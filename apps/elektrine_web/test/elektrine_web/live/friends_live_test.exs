@@ -92,4 +92,21 @@ defmodule ElektrineWeb.FriendsLiveTest do
 
     assert string_index(rendered, "alphasort") < string_index(rendered, "zedsort")
   end
+
+  test "forged friend events with malformed ids do not crash", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/friends")
+
+    assert render_hook(view, "accept_request", %{"request_id" => "12abc"}) =~ "Friends"
+
+    assert render_hook(view, "reject_follow_request", %{"follow-id" => "12abc"}) =~
+             "Follow request not found"
+
+    assert render_hook(view, "show_unfriend_modal", %{"user_id" => "12abc"}) =~ "Friends"
+    assert render_hook(view, "confirm_unfriend", %{}) =~ "Friend not found"
+  end
 end

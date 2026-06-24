@@ -330,9 +330,12 @@
                           navigate={"/remote/#{request.remote_actor.username}@#{request.remote_actor.domain}"}
                           class="flex-shrink-0"
                         >
-                          <%= if request.remote_actor.avatar_url do %>
+                          <%= if avatar_url =
+                                ElektrineWeb.HtmlHelpers.safe_external_image_url(
+                                  request.remote_actor.avatar_url
+                                ) do %>
                             <img
-                              src={request.remote_actor.avatar_url}
+                              src={avatar_url}
                               class="w-10 h-10 rounded-full"
                               alt={request.remote_actor.username}
                             />

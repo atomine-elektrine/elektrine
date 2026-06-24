@@ -251,6 +251,63 @@ defmodule ElektrineEmailWeb.EmailLive.IndexTest do
     refute html =~ "Preserve unread hidden read message"
   end
 
+  test "forged message operation ids do not crash the inbox", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+    mailbox = ensure_mailbox(user)
+
+    {:ok, message} =
+      Email.create_message(%{
+        mailbox_id: mailbox.id,
+        from: "sender@example.com",
+        to: mailbox.email,
+        subject: "Malformed inbox operation ids",
+        text_body: "Body",
+        html_body: "<p>Body</p>",
+        message_id:
+          "<malformed-inbox-operation-#{System.unique_integer([:positive])}@example.com>"
+      })
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/email")
+
+    assert render_hook(view, "stack", %{"id" => "12abc"}) =~ "Message not found"
+    assert render_hook(view, "move_to_digest", %{"id" => "12abc"}) =~ "Message not found"
+    assert render_hook(view, "move_to_ledger", %{"id" => "12abc"}) =~ "Message not found"
+    assert render_hook(view, "clear_stack", %{"id" => "12abc"}) =~ "Message not found"
+    assert render_hook(view, "mark_as_unread", %{"id" => "12abc"}) =~ "Message not found"
+
+    assert render_hook(view, "add_label", %{
+             "message_id" => "12abc",
+             "label_id" => "34abc"
+           }) =~ "Failed to add label"
+
+    assert render_hook(view, "remove_label", %{
+             "message_id" => "12abc",
+             "label_id" => "34abc"
+           }) =~ "Failed to remove label"
+
+    assert render_hook(view, "move_to_folder", %{
+             "message_id" => "12abc",
+             "folder_id" => "34abc"
+           }) =~ "Message not found"
+
+    assert render_hook(view, "block_sender_from_message", %{"message_id" => "12abc"}) =~
+             "Message not found"
+
+    assert render_hook(view, "show_reply_later_modal", %{"id" => "12abc"}) =~
+             "Message not found"
+
+    assert render_hook(view, "schedule_reply_later", %{"id" => "12abc", "days" => "1"}) =~
+             "Message not found"
+
+    assert render_hook(view, "schedule_reply_later", %{"id" => "#{message.id}", "days" => "abc"}) =~
+             "Invalid reply later interval"
+
+    assert render_hook(view, "clear_reply_later", %{"id" => "12abc"}) =~ "Message not found"
+  end
+
   defp ensure_mailbox(user) do
     Email.get_user_mailbox(user.id) ||
       case Email.ensure_user_has_mailbox(user) do

@@ -149,7 +149,37 @@ defmodule Elektrine.NerveTest do
           "user_id" => user.id
         })
 
-      assert {"must start with http:// or https://", _opts} = changeset.errors[:website]
+      assert {"must be a safe http:// or https:// URL", _opts} = changeset.errors[:website]
+    end
+
+    test "form changeset rejects unsafe website URLs", %{user: user} do
+      for website <- [
+            "javascript:alert(1)",
+            "https://user:pass@example.com",
+            "https://example.com\r\nLocation:https://evil.test",
+            "//example.com"
+          ] do
+        changeset =
+          NerveEntry.form_changeset(%NerveEntry{}, %{
+            "title" => "Bad Website",
+            "website" => website,
+            "user_id" => user.id
+          })
+
+        assert {"must be a safe http:// or https:// URL", _opts} = changeset.errors[:website]
+      end
+    end
+
+    test "form changeset accepts safe website URLs", %{user: user} do
+      changeset =
+        NerveEntry.form_changeset(%NerveEntry{}, %{
+          "title" => "Safe Website",
+          "website" => " https://example.com/path?x=1 ",
+          "user_id" => user.id
+        })
+
+      assert changeset.valid?
+      assert get_change(changeset, :website) == "https://example.com/path?x=1"
     end
 
     test "list_entries/1 only returns entries for the user", %{user: user, other_user: other_user} do

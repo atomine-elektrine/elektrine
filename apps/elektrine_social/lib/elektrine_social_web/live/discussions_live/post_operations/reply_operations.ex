@@ -71,8 +71,13 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.ReplyOperations do
 
   def handle_event("show_nested_reply_form", %{"message_id" => message_id}, socket) do
     if socket.assigns.current_user do
-      message_id = String.to_integer(message_id)
-      {:noreply, assign(socket, :nested_reply_to, message_id)}
+      case parse_positive_int(message_id) do
+        {:ok, message_id} ->
+          {:noreply, assign(socket, :nested_reply_to, message_id)}
+
+        :error ->
+          {:noreply, notify_error(socket, "Reply not found")}
+      end
     else
       {:noreply, notify_error(socket, "You must be signed in to reply")}
     end
@@ -105,30 +110,34 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.ReplyOperations do
           {:noreply, notify_error(socket, "Reply cannot be empty")}
 
         true ->
-          reply_to_id = String.to_integer(reply_to_id)
+          case parse_positive_int(reply_to_id) do
+            {:ok, reply_to_id} ->
+              case Messaging.create_text_message(
+                     socket.assigns.community.id,
+                     socket.assigns.current_user.id,
+                     content,
+                     reply_to_id
+                   ) do
+                {:ok, _reply_message} ->
+                  {:ok, _post, updated_replies} =
+                    get_post_with_replies_expanded(
+                      socket.assigns.post.id,
+                      socket.assigns.community.id,
+                      socket.assigns.expanded_threads
+                    )
 
-          case Messaging.create_text_message(
-                 socket.assigns.community.id,
-                 socket.assigns.current_user.id,
-                 content,
-                 reply_to_id
-               ) do
-            {:ok, _reply_message} ->
-              {:ok, _post, updated_replies} =
-                get_post_with_replies_expanded(
-                  socket.assigns.post.id,
-                  socket.assigns.community.id,
-                  socket.assigns.expanded_threads
-                )
+                  {:noreply,
+                   socket
+                   |> assign(:nested_reply_content, "")
+                   |> assign(:nested_reply_to, nil)
+                   |> assign(:replies, updated_replies)
+                   |> notify_info("Reply posted!")}
 
-              {:noreply,
-               socket
-               |> assign(:nested_reply_content, "")
-               |> assign(:nested_reply_to, nil)
-               |> assign(:replies, updated_replies)
-               |> notify_info("Reply posted!")}
+                {:error, _} ->
+                  {:noreply, notify_error(socket, "Failed to post reply")}
+              end
 
-            {:error, _} ->
+            :error ->
               {:noreply, notify_error(socket, "Failed to post reply")}
           end
       end
@@ -142,23 +151,35 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.ReplyOperations do
   end
 
   def handle_event("load_more_replies", %{"parent_id" => parent_id}, socket) do
-    parent_id = String.to_integer(parent_id)
-    expanded_threads = MapSet.put(socket.assigns.expanded_threads, parent_id)
+    case parse_positive_int(parent_id) do
+      {:ok, parent_id} ->
+        expanded_threads = MapSet.put(socket.assigns.expanded_threads, parent_id)
 
-    {:ok, _post, updated_replies} =
-      get_post_with_replies_expanded(
-        socket.assigns.post.id,
-        socket.assigns.community.id,
-        expanded_threads
-      )
+        {:ok, _post, updated_replies} =
+          get_post_with_replies_expanded(
+            socket.assigns.post.id,
+            socket.assigns.community.id,
+            expanded_threads
+          )
 
-    {:noreply,
-     socket
-     |> assign(:replies, updated_replies)
-     |> assign(:expanded_threads, expanded_threads)}
+        {:noreply,
+         socket
+         |> assign(:replies, updated_replies)
+         |> assign(:expanded_threads, expanded_threads)}
+
+      :error ->
+        {:noreply, notify_error(socket, "Replies not found")}
+    end
   end
 
   # Helper functions
+
+  defp parse_positive_int(value) do
+    case Integer.parse(to_string(value)) do
+      {int, ""} when int > 0 -> {:ok, int}
+      _ -> :error
+    end
+  end
 
   defp member?(community_id, user_id) do
     import Ecto.Query

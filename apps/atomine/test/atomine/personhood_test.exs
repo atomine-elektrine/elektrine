@@ -32,6 +32,27 @@ defmodule Atomine.PersonhoodTest do
       assert Personhood.page_snippet(proof) == proof.challenge
     end
 
+    test "rejects unsafe evidence URLs" do
+      user = user_fixture()
+
+      for evidence_url <- [
+            "javascript:alert(1)",
+            "https://user:pass@example.com/proof",
+            "https://example.com\r\nLocation:https://evil.test",
+            "//example.com/proof"
+          ] do
+        assert {:error, changeset} =
+                 Personhood.create_proof(user, %{
+                   kind: "manual",
+                   subject: "manual-#{System.unique_integer([:positive])}",
+                   evidence_url: evidence_url
+                 })
+
+        assert %{evidence_url: ["must be a safe http:// or https:// URL"]} =
+                 errors_on(changeset)
+      end
+    end
+
     test "creates signed challenge statements" do
       user = user_fixture()
 

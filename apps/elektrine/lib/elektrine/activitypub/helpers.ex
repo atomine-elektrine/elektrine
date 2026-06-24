@@ -559,8 +559,8 @@ defmodule Elektrine.ActivityPub.Helpers do
 
   defp parse_count(value) when is_binary(value) do
     case Integer.parse(String.trim(value)) do
-      {count, _} -> max(count, 0)
-      :error -> 0
+      {count, ""} -> max(count, 0)
+      _ -> 0
     end
   end
 
@@ -649,12 +649,9 @@ defmodule Elektrine.ActivityPub.Helpers do
 
   defp extract_poll_option_votes(option) do
     case option["replies"] do
-      %{"totalItems" => count} when is_integer(count) -> count
-      %{"totalItems" => count} when is_binary(count) -> String.to_integer(count)
-      %{} = replies -> replies["totalItems"] || 0
+      %{"totalItems" => count} -> parse_count(count)
+      %{} = replies -> parse_count(replies["totalItems"])
       _ -> 0
     end
-  rescue
-    _ -> 0
   end
 end

@@ -89,6 +89,33 @@ defmodule ElektrineWeb.Admin.UsersControllerTest do
       assert log.new_level == 2
       assert log.reason == "manual"
     end
+
+    test "renders an error for malformed trust-level values", %{conn: conn} do
+      admin = admin_user_fixture()
+      user = AccountsFixtures.user_fixture()
+      {:ok, user} = Accounts.admin_update_user(user, %{trust_level: 1})
+      request_path = "/pripyat/users/#{user.id}"
+
+      conn =
+        conn
+        |> with_elektrine_host()
+        |> log_in_as(admin)
+        |> AdminSecurity.initialize_admin_session(admin, auth_method: :passkey)
+
+      action_grant = AdminSecurity.issue_action_grant(conn, admin, "PUT", request_path)
+
+      conn =
+        put(conn, request_path, %{
+          "_admin_action_grant" => action_grant,
+          "user" => %{
+            "username" => user.username,
+            "trust_level" => "2abc"
+          }
+        })
+
+      assert html_response(conn, 200) =~ "Invalid trust level."
+      assert Accounts.get_user!(user.id).trust_level == 1
+    end
   end
 
   defp admin_user_fixture do

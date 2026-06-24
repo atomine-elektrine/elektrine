@@ -1186,11 +1186,19 @@ defmodule Elektrine.Bluesky do
 
     candidate_path = Path.expand(relative_path, uploads_dir)
 
-    if String.starts_with?(candidate_path, uploads_dir <> "/") or candidate_path == uploads_dir do
+    if safe_local_media_child_path?(relative_path, candidate_path, uploads_dir) do
       {:ok, candidate_path, fallback_content_type}
     else
       :error
     end
+  end
+
+  defp safe_local_media_child_path?(relative_path, candidate_path, uploads_dir) do
+    is_binary(relative_path) and
+      relative_path != "" and
+      Path.type(relative_path) == :relative and
+      not String.contains?(relative_path, ["\0", "\\"]) and
+      String.starts_with?(candidate_path, uploads_dir <> "/")
   end
 
   defp media_alt_text(%Message{media_metadata: media_metadata}, media_source, index) do

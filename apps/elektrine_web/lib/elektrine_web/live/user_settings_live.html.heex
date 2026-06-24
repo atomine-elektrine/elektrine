@@ -2105,9 +2105,13 @@
                             class="flex-shrink-0"
                             phx-hook="ImageFallback"
                           >
-                            <%= if subscription.feed && subscription.feed.favicon_url do %>
+                            <%= if favicon_url =
+                                  subscription.feed &&
+                                    ElektrineWeb.HtmlHelpers.safe_external_image_url(
+                                      subscription.feed.favicon_url
+                                    ) do %>
                               <img
-                                src={subscription.feed.favicon_url}
+                                src={favicon_url}
                                 alt=""
                                 class="w-6 h-6 rounded"
                               />
@@ -2594,9 +2598,9 @@
                             <div class="text-xs text-base-content/60 mt-1 space-y-1">
                               <code class="block break-all">{webhook.url}</code>
                               <div>
-                                {gettext("Secret")}:
+                                {gettext("Secret fingerprint")}:
                                 <code class="font-mono">
-                                  {String.slice(webhook.secret, 0, 8)}...
+                                  {Elektrine.Developer.Webhook.secret_fingerprint(webhook)}
                                 </code>
                               </div>
 

@@ -78,6 +78,25 @@ defmodule ElektrineWeb.HtmlHelpersActorTest do
     refute html =~ ~s(href="/remote/lait@pleroma.soykaf.com")
   end
 
+  test "safe_basic_html strips private-network image sources" do
+    html =
+      HtmlHelpers.safe_basic_html(
+        ~s(<p>Hello</p><img src="http://127.0.0.1/admin.png" alt="local">)
+      )
+
+    assert html =~ "<img"
+    refute html =~ "127.0.0.1"
+    refute html =~ ~s(src=)
+  end
+
+  test "render_markdown_images does not emit private-network image sources" do
+    html = HtmlHelpers.render_markdown_images("![local](http://127.0.0.1/pictrs/image/a.png)")
+
+    refute html =~ "<img"
+    refute html =~ "127.0.0.1"
+    assert html =~ "local"
+  end
+
   test "render_remote_post_content links short mentions using the origin domain" do
     html =
       HtmlHelpers.render_remote_post_content(
@@ -148,6 +167,135 @@ defmodule ElektrineWeb.HtmlHelpersActorTest do
 
     assert html =~ ~s(href="/remote/lait-accompli@shitposter.world")
     assert html =~ ">@lait-accompli@shitposter.world</a>"
+  end
+
+  test "make_content_safe_with_links does not link unsafe http urls" do
+    html = HtmlHelpers.make_content_safe_with_links("See https://user:pass@example.com/post")
+
+    refute html =~ "<a "
+    assert html =~ "https://user:pass@example.com/post"
+  end
+
+  test "make_content_safe_with_links escapes normalized href values" do
+    html = HtmlHelpers.make_content_safe_with_links("See https://example.com/post?a=1&b=2")
+
+    assert html =~ ~s(href="https://example.com/post?a=1&amp;b=2")
+    assert html =~ "https://example.com/post?a=1&amp;b=2"
+  end
+
+  test "render_remote_post_content does not link unsafe plain text urls" do
+    html =
+      HtmlHelpers.render_remote_post_content(
+        "<p>See https://user:pass@example.com/post</p>",
+        "mastodon.social"
+      )
+
+    refute html =~ ~s(href="https://user:pass@example.com/post")
+    assert html =~ "https://user:pass@example.com/post"
+  end
+
+  test "render_remote_post_content strips unsafe hrefs from sanitized remote anchors" do
+    html =
+      HtmlHelpers.render_remote_post_content(
+        ~s(<p><a href="https://user:pass@example.com/post">remote</a></p>),
+        "mastodon.social"
+      )
+
+    refute html =~ ~s(href="https://user:pass@example.com/post")
+    assert html =~ ">remote</a>"
+  end
+
+  test "render_remote_post_content keeps safe remote and local hrefs" do
+    html =
+      HtmlHelpers.render_remote_post_content(
+        ~s(<p><a href="https://example.com/post?a=1&amp;b=2">remote</a> <a href="/hashtag/elixir">local</a></p>),
+        "mastodon.social"
+      )
+
+    assert html =~ ~s(href="https://example.com/post?a=1&amp;b=2")
+    assert html =~ ~s(href="/hashtag/elixir")
+  end
+
+  test "render_remote_post_content strips unsafe image srcs from sanitized remote content" do
+    html =
+      HtmlHelpers.render_remote_post_content(
+        ~s(<p><img src="https://user:pass@example.com/image.png" alt="bad"></p>),
+        "mastodon.social"
+      )
+
+    refute html =~ ~s(src="https://user:pass@example.com/image.png")
+    assert html =~ ~s(alt="bad")
+  end
+
+  test "safe_basic_html strips unsafe hrefs and srcs from sanitized HTML" do
+    html =
+      HtmlHelpers.safe_basic_html(
+        ~s|<p>body</p><a href="javascript:alert(1)">bad</a><img src="javascript:alert(2)" alt="bad"><a href="https://example.com/safe">safe</a>|
+      )
+
+    assert html =~ "body"
+    assert html =~ ~s(<a>bad</a>)
+    assert html =~ ~s(<img alt="bad" />)
+    assert html =~ ~s(href="https://example.com/safe")
+    refute html =~ "javascript:"
+  end
+
+  test "ensure_https rejects unsafe URLs" do
+    assert HtmlHelpers.ensure_https("http://example.com/image.png") ==
+             "https://example.com/image.png"
+
+    assert HtmlHelpers.ensure_https("https://example.com/image.png") ==
+             "https://example.com/image.png"
+
+    refute HtmlHelpers.ensure_https("javascript:alert(1)")
+    refute HtmlHelpers.ensure_https("https://user:pass@example.com/image.png")
+    refute HtmlHelpers.ensure_https("https://example.com/image.png\r\nLocation:https://evil.test")
+    refute HtmlHelpers.ensure_https(nil)
+  end
+
+  test "safe_external_href rejects dangerous rendered links" do
+    assert HtmlHelpers.safe_external_href("https://example.com/post?a=1&b=2") ==
+             "https://example.com/post?a=1&b=2"
+
+    refute HtmlHelpers.safe_external_href("javascript:alert(1)")
+    refute HtmlHelpers.safe_external_href("https://user:pass@example.com/post")
+
+    refute HtmlHelpers.safe_external_href(
+             "https://example.com/post\r\nLocation:https://evil.test"
+           )
+
+    refute HtmlHelpers.safe_external_href(nil)
+  end
+
+  test "safe_external_image_url rejects unsafe auto-loaded image targets" do
+    assert HtmlHelpers.safe_external_image_url("https://example.com/avatar.png") ==
+             "https://example.com/avatar.png"
+
+    assert HtmlHelpers.safe_external_image_url("http://example.com/avatar.webp?size=128") ==
+             "http://example.com/avatar.webp?size=128"
+
+    refute HtmlHelpers.safe_external_image_url("javascript:alert(1)")
+    refute HtmlHelpers.safe_external_image_url("https://example.com/profile")
+    refute HtmlHelpers.safe_external_image_url("https://user:pass@example.com/avatar.png")
+    refute HtmlHelpers.safe_external_image_url("http://127.0.0.1/admin.png")
+
+    refute HtmlHelpers.safe_external_image_url(
+             "https://example.com/avatar.png\r\nLocation:https://evil.test"
+           )
+
+    refute HtmlHelpers.safe_external_image_url(nil)
+  end
+
+  test "safe_external_image_urls filters unsafe list entries" do
+    assert HtmlHelpers.safe_external_image_urls([
+             "https://example.com/one.jpg",
+             "https://user:pass@example.com/two.jpg",
+             "http://127.0.0.1/three.jpg",
+             "https://example.com/four.avif"
+           ]) == [
+             "https://example.com/one.jpg",
+             "https://example.com/four.avif"
+           ]
   end
 
   test "render_post_content prefers reply-author domain for short mentions" do

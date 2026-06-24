@@ -3893,7 +3893,7 @@ defmodule ElektrineWeb.PortalLive.Index do
       id: entry.user_id || entry.remote_actor_id,
       href: entry.href,
       title: entry.name,
-      preview: handle,
+      preview: ElektrineWeb.HtmlHelpers.escape_html(handle),
       meta: if(direction == :followers, do: "followed you", else: "you follow"),
       at: entry.followed_at,
       count_label: nil,

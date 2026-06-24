@@ -7,6 +7,7 @@ defmodule ElektrineWeb.UserSettingsLive do
   alias Elektrine.Developer.ApiToken
   alias Elektrine.Platform.Modules
   alias Elektrine.RSS
+  alias Elektrine.Utils.SafeConvert
   alias ElektrineWeb.Platform.Integrations
   alias ElektrineWeb.UserAuth
   on_mount({ElektrineWeb.Live.AuthHooks, :require_authenticated_user})
@@ -604,7 +605,7 @@ defmodule ElektrineWeb.UserSettingsLive do
 
   @impl true
   def handle_event("remove_rss_feed", %{"feed_id" => feed_id}, socket) do
-    feed_id = String.to_integer(feed_id)
+    feed_id = event_id(feed_id)
 
     case RSS.unsubscribe(socket.assigns.current_user.id, feed_id) do
       {:ok, _} ->
@@ -622,7 +623,7 @@ defmodule ElektrineWeb.UserSettingsLive do
 
   @impl true
   def handle_event("toggle_rss_timeline", %{"subscription_id" => subscription_id}, socket) do
-    subscription_id = String.to_integer(subscription_id)
+    subscription_id = event_id(subscription_id)
     subscription = Enum.find(socket.assigns.rss_subscriptions, &(&1.id == subscription_id))
 
     if subscription do
@@ -970,6 +971,13 @@ defmodule ElektrineWeb.UserSettingsLive do
       {:error, changeset} ->
         error_msg = changeset_error_to_string(changeset)
         {:noreply, notify_error(socket, "Failed to start export: #{error_msg}")}
+    end
+  end
+
+  defp event_id(value) do
+    case SafeConvert.parse_id(value) do
+      {:ok, id} -> id
+      {:error, :invalid_id} -> 0
     end
   end
 

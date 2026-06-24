@@ -75,11 +75,11 @@ defmodule ArblargWeb.ChatLive.Operations.UIOperations do
   end
 
   def handle_event("navigate_to_origin", %{"url" => url}, socket) do
-    {:noreply, push_navigate(socket, to: url)}
+    ElektrineWeb.SafeLiveNavigation.noreply(socket, url)
   end
 
   def handle_event("navigate_to_embedded_post", %{"url" => url}, socket) do
-    {:noreply, push_navigate(socket, to: url)}
+    ElektrineWeb.SafeLiveNavigation.noreply(socket, url)
   end
 
   def handle_event("show_message_search", _params, socket) do
@@ -99,11 +99,17 @@ defmodule ArblargWeb.ChatLive.Operations.UIOperations do
   end
 
   def handle_event("show_report_modal", %{"type" => type, "id" => id}, socket) do
-    {:noreply,
-     socket
-     |> assign(:show_report_modal, true)
-     |> assign(:report_type, type)
-     |> assign(:report_id, String.to_integer(id))}
+    case parse_positive_int(id) do
+      {:ok, id} ->
+        {:noreply,
+         socket
+         |> assign(:show_report_modal, true)
+         |> assign(:report_type, type)
+         |> assign(:report_id, id)}
+
+      :error ->
+        {:noreply, put_flash(socket, :error, "Invalid report target")}
+    end
   end
 
   def handle_event("close_report_modal", _params, socket) do
@@ -121,26 +127,20 @@ defmodule ArblargWeb.ChatLive.Operations.UIOperations do
         %{"images" => images_json, "index" => index} = params,
         socket
       ) do
-    images = Jason.decode!(images_json)
-    index_int = String.to_integer(index)
-    url = params["url"] || Enum.at(images, index_int, List.first(images))
+    with {:ok, images} when is_list(images) <- Jason.decode(images_json),
+         {:ok, index_int} <- parse_non_negative_int(index) do
+      url = params["url"] || Enum.at(images, index_int, List.first(images))
 
-    # For chat messages, the post context is the message itself
-    modal_post =
-      if params["message_id"] do
-        message_id = String.to_integer(params["message_id"])
-        Enum.find(socket.assigns.messages, fn msg -> msg.id == message_id end)
-      else
-        nil
-      end
-
-    {:noreply,
-     socket
-     |> assign(:show_image_modal, true)
-     |> assign(:modal_image_url, url)
-     |> assign(:modal_images, images)
-     |> assign(:modal_image_index, index_int)
-     |> assign(:modal_post, modal_post)}
+      {:noreply,
+       socket
+       |> assign(:show_image_modal, true)
+       |> assign(:modal_image_url, url)
+       |> assign(:modal_images, images)
+       |> assign(:modal_image_index, index_int)
+       |> assign(:modal_post, modal_message(params["message_id"], socket))}
+    else
+      _ -> {:noreply, put_flash(socket, :error, "Unable to open image")}
+    end
   end
 
   def handle_event("close_image_modal", _params, socket) do
@@ -233,6 +233,29 @@ defmodule ArblargWeb.ChatLive.Operations.UIOperations do
          |> assign(:modal_image_index, 0)
          |> assign(:modal_image_url, new_url)}
       end
+    end
+  end
+
+  defp modal_message(nil, _socket), do: nil
+
+  defp modal_message(message_id, socket) do
+    case parse_positive_int(message_id) do
+      {:ok, message_id} -> Enum.find(socket.assigns.messages, fn msg -> msg.id == message_id end)
+      :error -> nil
+    end
+  end
+
+  defp parse_positive_int(value) do
+    case Integer.parse(to_string(value)) do
+      {int, ""} when int > 0 -> {:ok, int}
+      _ -> :error
+    end
+  end
+
+  defp parse_non_negative_int(value) do
+    case Integer.parse(to_string(value)) do
+      {int, ""} when int >= 0 -> {:ok, int}
+      _ -> :error
     end
   end
 end

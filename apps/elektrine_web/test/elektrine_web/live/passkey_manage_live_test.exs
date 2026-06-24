@@ -53,4 +53,18 @@ defmodule ElektrineWeb.PasskeyManageLiveTest do
 
     assert html =~ "requires a recent login"
   end
+
+  test "forged passkey events with malformed ids do not crash", %{conn: conn, user: user} do
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(user, recent_auth_at: System.system_time(:second))
+      |> live(~p"/account/passkeys")
+
+    assert render_hook(view, "start_rename", %{"id" => "12abc"}) =~ "Passkeys"
+
+    assert render_hook(view, "save_rename", %{"passkey_id" => "12abc", "name" => "Work key"}) =~
+             "Failed to rename passkey"
+
+    assert render_hook(view, "delete_passkey", %{"id" => "12abc"}) =~ "Failed to delete passkey"
+  end
 end

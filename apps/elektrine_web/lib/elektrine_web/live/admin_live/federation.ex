@@ -1209,9 +1209,10 @@ defmodule ElektrineWeb.AdminLive.Federation do
                   <tr>
                     <td>
                       <div class="flex items-center gap-2">
-                        <%= if actor.avatar_url do %>
+                        <%= if avatar_url =
+                              ElektrineWeb.HtmlHelpers.safe_external_image_url(actor.avatar_url) do %>
                           <img
-                            src={actor.avatar_url}
+                            src={avatar_url}
                             class="w-8 h-8 rounded-full object-cover"
                             alt=""
                           />

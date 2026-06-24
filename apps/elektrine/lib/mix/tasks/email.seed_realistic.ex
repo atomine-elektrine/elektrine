@@ -134,11 +134,16 @@ defmodule Mix.Tasks.Email.SeedRealistic do
   defp seed_version(metadata) do
     case Map.get(metadata, "image_seed_version") do
       version when is_integer(version) -> version
-      version when is_binary(version) -> String.to_integer(version)
+      version when is_binary(version) -> parse_seed_version(version)
       _ -> 0
     end
-  rescue
-    ArgumentError -> 0
+  end
+
+  defp parse_seed_version(version) do
+    case Integer.parse(version) do
+      {parsed, ""} -> parsed
+      _ -> 0
+    end
   end
 
   defp realistic_emails(target_email, sender_email, now) do

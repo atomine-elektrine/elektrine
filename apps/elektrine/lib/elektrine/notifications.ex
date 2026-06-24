@@ -187,12 +187,19 @@ defmodule Elektrine.Notifications do
 
   defp extract_conversation_id(url) when is_binary(url) do
     case Regex.run(~r/\/chat\/(\d+)/, url) do
-      [_, id] -> String.to_integer(id)
+      [_, id] -> parse_positive_integer(id)
       _ -> nil
     end
   end
 
   defp extract_conversation_id(_), do: nil
+
+  defp parse_positive_integer(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {id, ""} when id > 0 -> id
+      _ -> nil
+    end
+  end
 
   defp build_chat_group(notifs, conversation_id) do
     sorted = Enum.sort_by(notifs, & &1.inserted_at, :desc)

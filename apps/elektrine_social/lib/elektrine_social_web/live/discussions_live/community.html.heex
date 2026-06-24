@@ -1121,10 +1121,13 @@
                                 class="dropdown-content z-30 menu p-2 rounded-box w-52 z-30"
                               >
                                 <!-- Regular User Actions -->
-                                <%= if post.activitypub_id do %>
+                                <%= if remote_post_url =
+                                      ElektrineWeb.HtmlHelpers.safe_external_href(
+                                        post.activitypub_id
+                                      ) do %>
                                   <li>
                                     <a
-                                      href={post.activitypub_id}
+                                      href={remote_post_url}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                     >

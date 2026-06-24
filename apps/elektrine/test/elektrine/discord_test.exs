@@ -57,4 +57,12 @@ defmodule Elektrine.DiscordTest do
 
     assert log =~ "user not monitored"
   end
+
+  test "rejects invalid Discord IDs before building a request" do
+    request_fun = fn _request, _opts -> flunk("invalid Discord IDs must not be fetched") end
+
+    assert Discord.get_user_presence("../status?x=1", request_fun: request_fun) == nil
+    assert Discord.get_user_presence("123", request_fun: request_fun) == nil
+    assert Discord.get_user_presence("1234567890123456", request_fun: request_fun) == nil
+  end
 end

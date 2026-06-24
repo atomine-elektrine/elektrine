@@ -32,6 +32,7 @@ defmodule Elektrine.Email.Unsubscribe do
     ])
     |> validate_required([:email, :token, :unsubscribed_at])
     |> validate_format(:email, ~r/^[^\s@]+@[^\s@]+\.[^\s@]+$/)
+    |> validate_length(:token, is: 64)
     |> unique_constraint([:email, :list_id])
   end
 end

@@ -59,9 +59,10 @@ defmodule ElektrineWeb.OIDCClientController do
         |> Map.put("user_id", conn.assigns.current_user.id)
 
       case OAuth.create_app(attrs) do
-        {:ok, _app} ->
+        {:ok, app} ->
           conn
-          |> put_flash(:info, "OAuth client created.")
+          |> put_flash(:info, "OAuth client created. Copy the client secret now.")
+          |> put_flash(:client_secret, OAuth.App.client_secret_value(app))
           |> redirect(to: ~p"/account/developer/oidc/clients")
 
         {:error, changeset} ->
@@ -137,9 +138,10 @@ defmodule ElektrineWeb.OIDCClientController do
   def rotate_secret(conn, %{"id" => id}) do
     if recent_auth_valid?(conn) do
       case OAuth.rotate_app_secret(conn.assigns.current_user, id) do
-        {:ok, _app} ->
+        {:ok, app} ->
           conn
-          |> put_flash(:info, "Client secret rotated.")
+          |> put_flash(:info, "Client secret rotated. Copy the new secret now.")
+          |> put_flash(:client_secret, OAuth.App.client_secret_value(app))
           |> redirect(to: ~p"/account/developer/oidc/clients")
 
         nil ->

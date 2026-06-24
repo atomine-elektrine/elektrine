@@ -5,6 +5,7 @@ defmodule Elektrine.Profiles.StaticSiteDeployment do
 
   use Ecto.Schema
   import Ecto.Changeset
+  alias Elektrine.Secrets.EncryptedString
 
   schema "static_site_deployments" do
     field :provider, :string, default: "github"
@@ -13,7 +14,7 @@ defmodule Elektrine.Profiles.StaticSiteDeployment do
     field :branch, :string, default: "main"
     field :site_dir, :string, default: "auto"
     field :build_command, :string
-    field :webhook_secret, :string
+    field :webhook_secret, EncryptedString
     field :webhook_id, :string
     field :deploy_status, :string, default: "idle"
     field :last_deploy_error, :string
@@ -61,6 +62,7 @@ defmodule Elektrine.Profiles.StaticSiteDeployment do
     |> validate_format(:repo_owner, ~r/^[a-z0-9_.-]+$/)
     |> validate_format(:repo_name, ~r/^[a-z0-9_.-]+$/)
     |> validate_format(:branch, ~r/^[A-Za-z0-9._\/-]+$/)
+    |> validate_change(:branch, &validate_branch_path/2)
     |> validate_length(:build_command, max: 2_000)
     |> foreign_key_constraint(:user_id)
     |> unique_constraint([:provider, :repo_owner, :repo_name])
@@ -83,6 +85,22 @@ defmodule Elektrine.Profiles.StaticSiteDeployment do
   end
 
   defp normalize_branch(value), do: value
+
+  defp validate_branch_path(:branch, branch) when is_binary(branch) do
+    if valid_branch_segments?(branch) do
+      []
+    else
+      [branch: "contains invalid path segment"]
+    end
+  end
+
+  defp validate_branch_path(:branch, _branch), do: [branch: "is invalid"]
+
+  defp valid_branch_segments?(branch) do
+    branch
+    |> String.split("/")
+    |> Enum.all?(&(&1 not in ["", ".", ".."]))
+  end
 
   defp normalize_site_dir(value) when is_binary(value) do
     case String.trim(value) do

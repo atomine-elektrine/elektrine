@@ -280,6 +280,12 @@ defmodule Elektrine.OAuth.App do
 
   def client_secret_value(_), do: nil
 
+  def client_secret_fingerprint(%__MODULE__{client_secret: secret}) when is_binary(secret) do
+    "sha256:" <> String.slice(secret, 0, 12) <> "..."
+  end
+
+  def client_secret_fingerprint(_), do: "not available"
+
   defp hash_secret(secret) when is_binary(secret) do
     :crypto.hash(:sha256, secret) |> Base.encode16(case: :lower)
   end

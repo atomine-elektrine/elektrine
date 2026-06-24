@@ -38,65 +38,81 @@ defmodule ElektrineWeb.AdminLive.BadgeManagement do
   end
 
   def handle_event("select_user", %{"user_id" => user_id}, socket) do
-    user_id = String.to_integer(user_id)
-    user = Accounts.get_user!(user_id)
-    badges = Profiles.list_user_badges(user_id)
+    with {:ok, user_id} <- parse_positive_int(user_id),
+         %Accounts.User{} = user <- Elektrine.Repo.get(Accounts.User, user_id) do
+      badges = Profiles.list_user_badges(user_id)
 
-    {:noreply,
-     socket
-     |> assign(:selected_user, user)
-     |> assign(:user_badges, badges)
-     |> assign(:search_results, [])}
+      {:noreply,
+       socket
+       |> assign(:selected_user, user)
+       |> assign(:user_badges, badges)
+       |> assign(:search_results, [])}
+    else
+      _ -> {:noreply, put_flash(socket, :error, "User not found")}
+    end
   end
 
   def handle_event("grant_badge", %{"user_id" => user_id, "badge_type" => badge_type}, socket) do
-    user_id = String.to_integer(user_id)
+    case parse_positive_int(user_id) do
+      {:ok, user_id} ->
+        attrs = %{
+          user_id: user_id,
+          badge_type: badge_type,
+          granted_by_id: socket.assigns.current_user.id,
+          badge_text: get_badge_text(badge_type),
+          badge_color: get_badge_color(badge_type),
+          badge_icon: get_badge_icon(badge_type),
+          tooltip: get_badge_tooltip(badge_type)
+        }
 
-    attrs = %{
-      user_id: user_id,
-      badge_type: badge_type,
-      granted_by_id: socket.assigns.current_user.id,
-      badge_text: get_badge_text(badge_type),
-      badge_color: get_badge_color(badge_type),
-      badge_icon: get_badge_icon(badge_type),
-      tooltip: get_badge_tooltip(badge_type)
-    }
+        case Profiles.create_badge(attrs) do
+          {:ok, _badge} ->
+            badges = Profiles.list_user_badges(user_id)
 
-    case Profiles.create_badge(attrs) do
-      {:ok, _badge} ->
-        # Reload badges
-        badges = Profiles.list_user_badges(user_id)
+            {:noreply,
+             socket
+             |> assign(:user_badges, badges)
+             |> put_flash(:info, "Badge granted successfully!")}
 
-        {:noreply,
-         socket
-         |> assign(:user_badges, badges)
-         |> put_flash(:info, "Badge granted successfully!")}
+          {:error, _changeset} ->
+            {:noreply, put_flash(socket, :error, "Failed to grant badge")}
+        end
 
-      {:error, _changeset} ->
+      :error ->
         {:noreply, put_flash(socket, :error, "Failed to grant badge")}
     end
   end
 
   def handle_event("revoke_badge", %{"badge_id" => badge_id}, socket) do
-    badge_id = String.to_integer(badge_id)
+    case parse_positive_int(badge_id) do
+      {:ok, badge_id} ->
+        case Profiles.delete_badge(badge_id) do
+          {:ok, _} ->
+            badges =
+              if socket.assigns.selected_user do
+                Profiles.list_user_badges(socket.assigns.selected_user.id)
+              else
+                []
+              end
 
-    case Profiles.delete_badge(badge_id) do
-      {:ok, _} ->
-        # Reload badges
-        badges =
-          if socket.assigns.selected_user do
-            Profiles.list_user_badges(socket.assigns.selected_user.id)
-          else
-            []
-          end
+            {:noreply,
+             socket
+             |> assign(:user_badges, badges)
+             |> put_flash(:info, "Badge revoked successfully!")}
 
-        {:noreply,
-         socket
-         |> assign(:user_badges, badges)
-         |> put_flash(:info, "Badge revoked successfully!")}
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Failed to revoke badge")}
+        end
 
-      {:error, _} ->
+      :error ->
         {:noreply, put_flash(socket, :error, "Failed to revoke badge")}
+    end
+  end
+
+  defp parse_positive_int(value) do
+    case Integer.parse(to_string(value)) do
+      {int, ""} when int > 0 -> {:ok, int}
+      _ -> :error
     end
   end
 

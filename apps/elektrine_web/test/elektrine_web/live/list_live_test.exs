@@ -177,6 +177,17 @@ defmodule ElektrineSocialWeb.ListLiveTest do
     assert has_element?(view, ~s(#list-create-form option[value="public"][selected]))
   end
 
+  test "delete list rejects malformed ids", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/lists")
+
+    assert render_submit(view, "delete_list", %{"list_id" => "12abc"}) =~ "List not found"
+  end
+
   test "liked posts can be unliked from a list timeline", %{conn: conn} do
     viewer = AccountsFixtures.user_fixture()
     author = AccountsFixtures.user_fixture()
@@ -199,5 +210,39 @@ defmodule ElektrineSocialWeb.ListLiveTest do
     render_hook(view, "unlike_post", %{"message_id" => Integer.to_string(post.id)})
 
     refute Social.user_liked_post?(viewer.id, post.id)
+  end
+
+  test "forged list action ids do not crash the list timeline", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    author = AccountsFixtures.user_fixture()
+    list = list_fixture(viewer, members: [author])
+
+    {:ok, _post} =
+      Social.create_timeline_post(author.id, "List malformed action target", visibility: "public")
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/lists/#{list.id}")
+
+    assert render_hook(view, "add_member", %{"user_id" => "12abc"}) =~
+             "Failed to add to list"
+
+    assert render_hook(view, "remove_member", %{"member_id" => "12abc"}) =~
+             "Failed to remove from list"
+
+    assert render_hook(view, "like_post", %{"message_id" => "12abc"}) =~
+             "Failed to like post"
+
+    assert render_hook(view, "boost_post", %{"message_id" => "12abc"}) =~
+             "Failed to boost"
+
+    assert render_hook(view, "show_reply_to_reply_form", %{"reply_id" => "12abc"}) =~
+             "List malformed action target"
+
+    assert render_hook(view, "create_reply", %{
+             "reply_to_id" => "12abc",
+             "content" => "forged reply"
+           }) =~ "Failed to post reply"
   end
 end

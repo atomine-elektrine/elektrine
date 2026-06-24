@@ -174,8 +174,9 @@ defmodule ElektrineWeb.Live.Hooks.PresenceHook do
             end
 
           # Update database with last_seen timestamp via Accounts context (async)
-          db_user_id = if is_binary(user_id), do: String.to_integer(user_id), else: user_id
-          Elektrine.Accounts.update_last_seen_async(db_user_id)
+          if db_user_id = parse_user_id(user_id) do
+            Elektrine.Accounts.update_last_seen_async(db_user_id)
+          end
 
           # Keep user in map but update to offline status with last_seen
           Map.update(
@@ -588,6 +589,17 @@ defmodule ElektrineWeb.Live.Hooks.PresenceHook do
   defp status_priority("dnd"), do: 3
   defp status_priority("offline"), do: 4
   defp status_priority(_), do: 5
+
+  defp parse_user_id(user_id) when is_integer(user_id) and user_id > 0, do: user_id
+
+  defp parse_user_id(user_id) when is_binary(user_id) do
+    case Integer.parse(user_id) do
+      {parsed, ""} when parsed > 0 -> parsed
+      _ -> nil
+    end
+  end
+
+  defp parse_user_id(_user_id), do: nil
 
   # Generate unique connection ID for multi-device tracking
   defp generate_connection_id do

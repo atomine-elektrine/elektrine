@@ -215,9 +215,15 @@ defmodule Elektrine.Uptime.Checker do
   end
 
   defp default_ping_fun(host, timeout_seconds) do
-    System.cmd("ping", ["-c", "1", "-W", to_string(timeout_seconds), "--", host],
-      stderr_to_stdout: true
-    )
+    case System.find_executable("ping") do
+      nil ->
+        {"ping executable not found", 127}
+
+      ping ->
+        System.cmd(ping, ["-c", "1", "-W", to_string(timeout_seconds), "--", host],
+          stderr_to_stdout: true
+        )
+    end
   end
 
   ## Helpers

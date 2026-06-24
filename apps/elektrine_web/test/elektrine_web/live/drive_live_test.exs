@@ -147,7 +147,7 @@ defmodule ElektrineWeb.DriveLiveTest do
     %Plug.Upload{
       path: path,
       filename: filename,
-      content_type: MIME.from_path(filename) || "application/octet-stream"
+      content_type: MIME.from_path(filename)
     }
   end
 end

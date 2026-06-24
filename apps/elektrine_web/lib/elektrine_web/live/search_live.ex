@@ -2,6 +2,7 @@ defmodule ElektrineWeb.SearchLive do
   use ElektrineWeb, :live_view
   alias Elektrine.Search
   alias Elektrine.Search.RateLimiter, as: SearchRateLimiter
+  alias Elektrine.Security.SafeExternalURL
   import ElektrineWeb.Components.Platform.ENav
 
   @impl true
@@ -149,7 +150,7 @@ defmodule ElektrineWeb.SearchLive do
     case Search.execute_action(socket.assigns.current_user, query, source: "search_live") do
       {:ok, %{mode: :navigate, url: url}} when is_binary(url) ->
         if Elektrine.Strings.present?(url) do
-          {:noreply, push_navigate(socket, to: url)}
+          ElektrineWeb.SafeLiveNavigation.noreply(socket, url)
         else
           {:noreply, socket}
         end
@@ -157,7 +158,9 @@ defmodule ElektrineWeb.SearchLive do
       {:ok, %{mode: :operation, message: message, url: url}}
       when is_binary(url) ->
         if Elektrine.Strings.present?(url) do
-          {:noreply, socket |> put_flash(:info, message) |> push_navigate(to: url)}
+          socket
+          |> put_flash(:info, message)
+          |> ElektrineWeb.SafeLiveNavigation.noreply(url)
         else
           {:noreply, socket |> put_flash(:info, message) |> perform_search(query)}
         end
@@ -335,7 +338,12 @@ defmodule ElektrineWeb.SearchLive do
           {:ok, results} ->
             results
             |> Enum.with_index()
-            |> Enum.map(fn {result, index} -> external_result(result, index, kind) end)
+            |> Enum.flat_map(fn {result, index} ->
+              case external_result(result, index, kind) do
+                nil -> []
+                safe_result -> [safe_result]
+              end
+            end)
 
           {:error, _reason} ->
             []
@@ -346,19 +354,25 @@ defmodule ElektrineWeb.SearchLive do
   end
 
   defp external_result(result, index, kind) do
-    %{
-      id: "#{kind}-#{index}-#{:erlang.phash2(result.url)}",
-      type: external_result_type(result, kind),
-      title: result.title,
-      content: result.snippet,
-      url: result.url,
-      updated_at: result.published_at,
-      source: result.source,
-      image_url: result.metadata[:image_url],
-      duration: result.metadata[:duration],
-      publisher: result.metadata[:publisher],
-      relevance: external_relevance(kind, index)
-    }
+    case SafeExternalURL.normalize_href(result.url) do
+      {:ok, safe_url} ->
+        %{
+          id: "#{kind}-#{index}-#{:erlang.phash2(safe_url)}",
+          type: external_result_type(result, kind),
+          title: result.title,
+          content: result.snippet,
+          url: safe_url,
+          updated_at: result.published_at,
+          source: result.source,
+          image_url: safe_optional_url(result.metadata[:image_url]),
+          duration: result.metadata[:duration],
+          publisher: result.metadata[:publisher],
+          relevance: external_relevance(kind, index)
+        }
+
+      {:error, _reason} ->
+        nil
+    end
   end
 
   defp external_relevance(:web, index), do: 0.6 - index / 1000
@@ -668,32 +682,35 @@ defmodule ElektrineWeb.SearchLive do
     ~H"""
     <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
       <%= for result <- @results do %>
-        <a
-          href={result.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          class="group card panel-card overflow-hidden transition hover:border-base-content/20"
-        >
-          <div class="surface-subtle aspect-video">
-            <img
-              :if={result[:image_url]}
-              src={result.image_url}
-              alt={result.title}
-              class="h-full w-full object-cover"
-              loading="lazy"
-            />
-            <div
-              :if={!result[:image_url]}
-              class="flex h-full items-center justify-center text-base-content/40"
-            >
-              <.icon name="hero-photo" class="h-10 w-10" />
+        <%= if result_url = safe_optional_url(result.url) do %>
+          <a
+            href={result_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="group card panel-card overflow-hidden transition hover:border-base-content/20"
+          >
+            <div class="surface-subtle aspect-video">
+              <%= if image_url = result_image_url(result) do %>
+                <img
+                  src={image_url}
+                  alt={result.title}
+                  class="h-full w-full object-cover"
+                  loading="lazy"
+                />
+              <% else %>
+                <div class="flex h-full items-center justify-center text-base-content/40">
+                  <.icon name="hero-photo" class="h-10 w-10" />
+                </div>
+              <% end %>
             </div>
-          </div>
-          <div class="min-h-20 space-y-1 p-3">
-            <p class="line-clamp-2 text-sm font-semibold group-hover:underline">{result.title}</p>
-            <p class="truncate text-xs text-base-content/50">{display_url(result.url)}</p>
-          </div>
-        </a>
+            <div class="min-h-20 space-y-1 p-3">
+              <p class="line-clamp-2 text-sm font-semibold group-hover:underline">
+                {result.title}
+              </p>
+              <p class="truncate text-xs text-base-content/50">{display_url(result_url)}</p>
+            </div>
+          </a>
+        <% end %>
       <% end %>
     </div>
     """
@@ -703,34 +720,35 @@ defmodule ElektrineWeb.SearchLive do
     ~H"""
     <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       <%= for result <- @results do %>
-        <a
-          href={result.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          class="group card panel-card overflow-hidden transition hover:border-base-content/20"
-        >
-          <div class="surface-subtle aspect-video">
-            <img
-              :if={result[:image_url]}
-              src={result.image_url}
-              alt=""
-              class="h-full w-full object-cover"
-              loading="lazy"
-            />
-            <div
-              :if={!result[:image_url]}
-              class="flex h-full items-center justify-center text-base-content/40"
-            >
-              <.icon name="hero-play-circle" class="h-10 w-10" />
+        <%= if result_url = safe_optional_url(result.url) do %>
+          <a
+            href={result_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="group card panel-card overflow-hidden transition hover:border-base-content/20"
+          >
+            <div class="surface-subtle aspect-video">
+              <%= if image_url = result_image_url(result) do %>
+                <img
+                  src={image_url}
+                  alt=""
+                  class="h-full w-full object-cover"
+                  loading="lazy"
+                />
+              <% else %>
+                <div class="flex h-full items-center justify-center text-base-content/40">
+                  <.icon name="hero-play-circle" class="h-10 w-10" />
+                </div>
+              <% end %>
             </div>
-          </div>
-          <div class="min-h-20 space-y-1 p-3">
-            <p class="line-clamp-2 text-sm font-semibold group-hover:underline">
-              {plain_text(result.title)}
-            </p>
-            <p class="truncate text-xs text-base-content/50">{display_url(result.url)}</p>
-          </div>
-        </a>
+            <div class="min-h-20 space-y-1 p-3">
+              <p class="line-clamp-2 text-sm font-semibold group-hover:underline">
+                {plain_text(result.title)}
+              </p>
+              <p class="truncate text-xs text-base-content/50">{display_url(result_url)}</p>
+            </div>
+          </a>
+        <% end %>
       <% end %>
     </div>
     """
@@ -794,33 +812,35 @@ defmodule ElektrineWeb.SearchLive do
       <div class="card-body gap-3 p-4">
         <h2 class="text-sm font-semibold text-base-content">{@title}</h2>
         <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <a
-            :for={result <- @results}
-            href={result.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            class="group min-w-0"
-          >
-            <div class="surface-subtle aspect-video overflow-hidden rounded">
-              <img
-                :if={result[:image_url]}
-                src={result.image_url}
-                alt=""
-                class="h-full w-full object-cover transition group-hover:scale-[1.02]"
-                loading="lazy"
-              />
-              <div
-                :if={!result[:image_url]}
-                class="flex h-full items-center justify-center text-base-content/40"
+          <%= for result <- @results do %>
+            <%= if result_url = safe_optional_url(result.url) do %>
+              <a
+                href={result_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="group min-w-0"
               >
-                <.icon name={result_icon(result.type)} class="h-8 w-8" />
-              </div>
-            </div>
-            <p class="mt-2 line-clamp-2 text-sm font-medium leading-5 group-hover:underline">
-              {plain_text(result.title)}
-            </p>
-            <p class="truncate text-xs text-base-content/50">{display_url(result.url)}</p>
-          </a>
+                <div class="surface-subtle aspect-video overflow-hidden rounded">
+                  <%= if image_url = result_image_url(result) do %>
+                    <img
+                      src={image_url}
+                      alt=""
+                      class="h-full w-full object-cover transition group-hover:scale-[1.02]"
+                      loading="lazy"
+                    />
+                  <% else %>
+                    <div class="flex h-full items-center justify-center text-base-content/40">
+                      <.icon name={result_icon(result.type)} class="h-8 w-8" />
+                    </div>
+                  <% end %>
+                </div>
+                <p class="mt-2 line-clamp-2 text-sm font-medium leading-5 group-hover:underline">
+                  {plain_text(result.title)}
+                </p>
+                <p class="truncate text-xs text-base-content/50">{display_url(result_url)}</p>
+              </a>
+            <% end %>
+          <% end %>
         </div>
       </div>
     </section>
@@ -861,14 +881,17 @@ defmodule ElektrineWeb.SearchLive do
 
   defp search_result_link(%{result: %{type: "web"}} = assigns) do
     ~H"""
-    <a
-      href={@result.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      class="group block px-4 py-3 transition hover:bg-[color-mix(in_srgb,var(--surface-panel-bg-fallback)_82%,var(--color-base-300)_18%)] sm:px-5"
-    >
-      <.search_result_content result={@result} />
-    </a>
+    <%= if result_url = safe_optional_url(@result.url) do %>
+      <% result = Map.put(@result, :url, result_url) %>
+      <a
+        href={result_url}
+        target="_blank"
+        rel="noopener noreferrer"
+        class="group block px-4 py-3 transition hover:bg-[color-mix(in_srgb,var(--surface-panel-bg-fallback)_82%,var(--color-base-300)_18%)] sm:px-5"
+      >
+        <.search_result_content result={result} />
+      </a>
+    <% end %>
     """
   end
 
@@ -928,13 +951,14 @@ defmodule ElektrineWeb.SearchLive do
         </div>
       </div>
 
-      <img
-        :if={@result[:image_url] && @result.type != "image"}
-        src={@result.image_url}
-        alt=""
-        class="hidden h-20 w-28 shrink-0 rounded object-cover sm:block"
-        loading="lazy"
-      />
+      <%= if thumbnail_url = result_thumbnail_url(@result) do %>
+        <img
+          src={thumbnail_url}
+          alt=""
+          class="hidden h-20 w-28 shrink-0 rounded object-cover sm:block"
+          loading="lazy"
+        />
+      <% end %>
     </article>
     """
   end
@@ -1055,4 +1079,23 @@ defmodule ElektrineWeb.SearchLive do
   end
 
   defp format_relative_time(nil), do: "Unknown"
+
+  defp result_thumbnail_url(%{type: "image"}), do: nil
+
+  defp result_thumbnail_url(result) do
+    result_image_url(result)
+  end
+
+  defp result_image_url(result) do
+    ElektrineWeb.HtmlHelpers.safe_external_image_url(result[:image_url])
+  end
+
+  defp safe_optional_url(nil), do: nil
+
+  defp safe_optional_url(url) do
+    case SafeExternalURL.normalize_href(url) do
+      {:ok, safe_url} -> safe_url
+      {:error, _reason} -> nil
+    end
+  end
 end

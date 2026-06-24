@@ -497,8 +497,14 @@ defmodule ElektrineWeb.PortalLive.Reader do
         nil
 
       url ->
-        "background-image: linear-gradient(180deg, rgba(0,0,0,0.04), rgba(0,0,0,0.34)), url('#{url}')"
+        "background-image: linear-gradient(180deg, rgba(0,0,0,0.04), rgba(0,0,0,0.34)), url(\"#{css_string_escape(url)}\")"
     end
+  end
+
+  defp css_string_escape(value) when is_binary(value) do
+    value
+    |> String.replace("\\", "\\\\")
+    |> String.replace("\"", "\\\"")
   end
 
   defp remove_duplicate_rss_hero_image(html, item) when is_binary(html) do

@@ -106,11 +106,24 @@ defmodule Elektrine.Secrets.Backfill do
   end
 
   defp decode_json_map(value) when is_binary(value) do
-    case Jason.decode!(value) do
-      decoded when is_map(decoded) -> decoded
-      decoded when is_binary(decoded) -> Jason.decode!(decoded)
+    with {:ok, decoded} <- Jason.decode(value),
+         {:ok, normalized} <- normalize_decoded_json_map(decoded) do
+      normalized
+    else
+      _ -> %{}
     end
   end
+
+  defp normalize_decoded_json_map(decoded) when is_map(decoded), do: {:ok, decoded}
+
+  defp normalize_decoded_json_map(decoded) when is_binary(decoded) do
+    case Jason.decode(decoded) do
+      {:ok, nested} when is_map(nested) -> {:ok, nested}
+      _ -> :error
+    end
+  end
+
+  defp normalize_decoded_json_map(_), do: :error
 
   defp secret_fields do
     [

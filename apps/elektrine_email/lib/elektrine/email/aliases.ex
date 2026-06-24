@@ -94,18 +94,39 @@ defmodule Elektrine.Email.Aliases do
 
       %{"username" => username, "domain" => domain, "user_id" => user_id}
       when is_binary(username) and is_binary(domain) ->
-        create_single_domain_alias(username, domain, String.to_integer(user_id), attrs)
+        create_single_domain_alias_with_parsed_user_id(username, domain, user_id, attrs)
 
       # Legacy dual-domain creation (for backwards compatibility)
       %{username: username, user_id: user_id} when is_binary(username) and is_integer(user_id) ->
         create_dual_domain_aliases(username, user_id, attrs)
 
       %{"username" => username, "user_id" => user_id} when is_binary(username) ->
-        create_dual_domain_aliases(username, String.to_integer(user_id), attrs)
+        create_dual_domain_aliases_with_parsed_user_id(username, user_id, attrs)
 
       # Legacy single alias creation (for backwards compatibility)
       _ ->
         create_single_alias(attrs)
+    end
+  end
+
+  defp create_single_domain_alias_with_parsed_user_id(username, domain, user_id, attrs) do
+    case parse_positive_int(user_id) do
+      {:ok, user_id} -> create_single_domain_alias(username, domain, user_id, attrs)
+      :error -> create_single_alias(attrs)
+    end
+  end
+
+  defp create_dual_domain_aliases_with_parsed_user_id(username, user_id, attrs) do
+    case parse_positive_int(user_id) do
+      {:ok, user_id} -> create_dual_domain_aliases(username, user_id, attrs)
+      :error -> create_single_alias(attrs)
+    end
+  end
+
+  defp parse_positive_int(value) do
+    case Integer.parse(to_string(value)) do
+      {id, ""} when id > 0 -> {:ok, id}
+      _ -> :error
     end
   end
 

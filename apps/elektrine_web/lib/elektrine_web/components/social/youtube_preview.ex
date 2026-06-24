@@ -3,7 +3,7 @@ defmodule ElektrineWeb.Components.Social.YoutubePreview do
   use Phoenix.Component
 
   alias Elektrine.Social.Message
-  import ElektrineWeb.HtmlHelpers, only: [ensure_https: 1]
+  import ElektrineWeb.HtmlHelpers, only: [safe_external_href: 1, safe_external_image_url: 1]
 
   attr :url, :string, required: true
   attr :title, :string, default: nil
@@ -56,7 +56,8 @@ defmodule ElektrineWeb.Components.Social.YoutubePreview do
       assigns
       |> assign(:preview, preview)
       |> assign(:embed_url, Message.extract_youtube_embed_url(assigns.url))
-      |> assign(:host, URI.parse(assigns.url).host || assigns.url)
+      |> assign(:safe_url, safe_external_href(assigns.url))
+      |> assign(:host, safe_preview_host(assigns.url))
 
     ~H"""
     <%= cond do %>
@@ -74,17 +75,17 @@ defmodule ElektrineWeb.Components.Social.YoutubePreview do
             </div>
           <% end %>
         </div>
-      <% @preview -> %>
+      <% @preview && @safe_url -> %>
         <a
-          href={@url}
+          href={@safe_url}
           target="_blank"
           rel="noopener noreferrer"
           class={["block", @wrapper_class, @card_class]}
         >
-          <%= if @preview.image_url do %>
+          <%= if preview_image_url = safe_external_image_url(@preview.image_url) do %>
             <div class="aspect-video bg-base-200 relative overflow-hidden">
               <img
-                src={ensure_https(@preview.image_url)}
+                src={preview_image_url}
                 alt={@preview.title || "Link preview"}
                 class="w-full h-full object-cover"
               />
@@ -98,10 +99,10 @@ defmodule ElektrineWeb.Components.Social.YoutubePreview do
               <p class="text-xs opacity-70 line-clamp-2">{@preview.description}</p>
             <% end %>
             <div class="flex items-center gap-2 mt-2 text-xs opacity-50">
-              <%= if @preview.favicon_url do %>
+              <%= if favicon_url = safe_external_image_url(@preview.favicon_url) do %>
                 <img
                   id={"youtube-preview-favicon-#{:erlang.phash2(@preview.favicon_url)}"}
-                  src={ensure_https(@preview.favicon_url)}
+                  src={favicon_url}
                   alt=""
                   class="w-4 h-4"
                   phx-hook="ImageFallback"
@@ -111,24 +112,33 @@ defmodule ElektrineWeb.Components.Social.YoutubePreview do
             </div>
           </div>
         </a>
-      <% true -> %>
+      <% @safe_url -> %>
         <div class={["block", @wrapper_class, @fallback_card_class]}>
           <div class="bg-base-200/50 p-4 flex items-center gap-3">
             <span class="ui-icon hero-arrow-top-right-on-square w-5 h-5 flex-shrink-0"></span>
             <div class="flex-1 min-w-0">
               <div class="font-medium text-sm truncate">{@host}</div>
               <a
-                href={@url}
+                href={@safe_url}
                 target="_blank"
                 rel="noopener noreferrer"
                 class="text-xs opacity-70 truncate hover:text-primary"
               >
-                {@url}
+                {@safe_url}
               </a>
             </div>
           </div>
         </div>
+      <% true -> %>
+        <% nil %>
     <% end %>
     """
+  end
+
+  defp safe_preview_host(url) do
+    case safe_external_href(url) do
+      nil -> ""
+      safe_url -> URI.parse(safe_url).host || safe_url
+    end
   end
 end

@@ -12,12 +12,13 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.ModerationOperations do
     router: ElektrineWeb.Router
 
   alias Elektrine.{Messaging, Repo}
+  alias Elektrine.Utils.SafeConvert
   alias ElektrineSocialWeb.DiscussionsLive.Operations.SortHelpers
 
   @doc "Show ban modal"
   def handle_event("show_ban_modal", %{"user_id" => user_id}, socket) do
     if moderator?(socket) do
-      user_id = String.to_integer(user_id)
+      user_id = event_id(user_id)
       user = Repo.get(Elektrine.Accounts.User, user_id)
 
       {:noreply,
@@ -38,9 +39,9 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.ModerationOperations do
 
   def handle_event("ban_user", params, socket) do
     if moderator?(socket) do
-      user_id = String.to_integer(params["user_id"])
+      user_id = event_id(params["user_id"])
       reason = String.trim(params["reason"] || "Banned by moderator")
-      duration_days = String.to_integer(params["duration_days"] || "0")
+      duration_days = event_int(params["duration_days"], 0)
 
       expires_at =
         if duration_days > 0 do
@@ -86,7 +87,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.ModerationOperations do
 
   def handle_event("unban_user", %{"user_id" => user_id}, socket) do
     if moderator?(socket) do
-      user_id = String.to_integer(user_id)
+      user_id = event_id(user_id)
 
       case Messaging.unban_user_from_community(
              socket.assigns.community.id,
@@ -112,13 +113,8 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.ModerationOperations do
 
   def handle_event("show_warning_modal", params, socket) do
     if moderator?(socket) do
-      user_id = String.to_integer(params["user_id"])
-
-      message_id =
-        case params["message_id"] do
-          nil -> nil
-          id -> String.to_integer(id)
-        end
+      user_id = event_id(params["user_id"])
+      message_id = optional_event_id(params["message_id"])
 
       user = Repo.get(Elektrine.Accounts.User, user_id)
 
@@ -142,16 +138,10 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.ModerationOperations do
 
   def handle_event("warn_user", params, socket) do
     if moderator?(socket) do
-      user_id = String.to_integer(params["user_id"])
+      user_id = event_id(params["user_id"])
       reason = String.trim(params["reason"])
       severity = params["severity"] || "low"
-
-      message_id =
-        case params["message_id"] do
-          "" -> nil
-          nil -> nil
-          id -> String.to_integer(id)
-        end
+      message_id = optional_event_id(params["message_id"])
 
       case Elektrine.Messaging.ModerationTools.warn_user(
              socket.assigns.community.id,
@@ -186,7 +176,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.ModerationOperations do
 
   def handle_event("show_timeout_modal", %{"user_id" => user_id}, socket) do
     if moderator?(socket) do
-      user_id = String.to_integer(user_id)
+      user_id = event_id(user_id)
       user = Repo.get(Elektrine.Accounts.User, user_id)
 
       {:noreply,
@@ -207,9 +197,9 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.ModerationOperations do
 
   def handle_event("timeout_user", params, socket) do
     if moderator?(socket) do
-      user_id = String.to_integer(params["user_id"])
+      user_id = event_id(params["user_id"])
       reason = String.trim(params["reason"] || "Timed out by moderator")
-      duration_minutes = String.to_integer(params["duration_minutes"])
+      duration_minutes = event_int(params["duration_minutes"], 0)
 
       case Elektrine.Messaging.ModerationTools.timeout_user(
              socket.assigns.community.id,
@@ -242,7 +232,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.ModerationOperations do
 
   def handle_event("show_note_modal", %{"user_id" => user_id}, socket) do
     if moderator?(socket) do
-      user_id = String.to_integer(user_id)
+      user_id = event_id(user_id)
       user = Repo.get(Elektrine.Accounts.User, user_id)
 
       notes =
@@ -270,7 +260,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.ModerationOperations do
 
   def handle_event("add_moderator_note", params, socket) do
     if moderator?(socket) do
-      user_id = String.to_integer(params["user_id"])
+      user_id = event_id(params["user_id"])
       note_text = String.trim(params["note"])
       is_important = params["is_important"] == "on"
 
@@ -304,7 +294,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.ModerationOperations do
 
   def handle_event("approve_post", %{"message_id" => message_id}, socket) do
     if moderator?(socket) do
-      message_id = String.to_integer(message_id)
+      message_id = event_id(message_id)
 
       case Elektrine.Messaging.ModerationTools.approve_post(
              message_id,
@@ -334,7 +324,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.ModerationOperations do
 
   def handle_event("reject_post", %{"message_id" => message_id}, socket) do
     if moderator?(socket) do
-      message_id = String.to_integer(message_id)
+      message_id = event_id(message_id)
 
       case Elektrine.Messaging.ModerationTools.reject_post(
              message_id,
@@ -414,19 +404,25 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.ModerationOperations do
 
   def handle_event("toggle_automod_rule", %{"rule_id" => rule_id}, socket) do
     if moderator?(socket) do
-      rule = Repo.get!(Elektrine.Messaging.AutoModRule, String.to_integer(rule_id))
-
-      case Elektrine.Messaging.ModerationTools.update_auto_mod_rule(rule, %{
-             enabled: !rule.enabled
-           }) do
-        {:ok, _} ->
-          rules =
-            Elektrine.Messaging.ModerationTools.list_auto_mod_rules(socket.assigns.community.id)
-
-          {:noreply, assign(socket, :auto_mod_rules, rules)}
-
-        {:error, _} ->
+      case Repo.get(Elektrine.Messaging.AutoModRule, event_id(rule_id)) do
+        nil ->
           {:noreply, notify_error(socket, "Failed to toggle rule")}
+
+        rule ->
+          case Elektrine.Messaging.ModerationTools.update_auto_mod_rule(rule, %{
+                 enabled: !rule.enabled
+               }) do
+            {:ok, _} ->
+              rules =
+                Elektrine.Messaging.ModerationTools.list_auto_mod_rules(
+                  socket.assigns.community.id
+                )
+
+              {:noreply, assign(socket, :auto_mod_rules, rules)}
+
+            {:error, _} ->
+              {:noreply, notify_error(socket, "Failed to toggle rule")}
+          end
       end
     else
       {:noreply, notify_error(socket, "Unauthorized")}
@@ -435,17 +431,23 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.ModerationOperations do
 
   def handle_event("delete_automod_rule", %{"rule_id" => rule_id}, socket) do
     if moderator?(socket) do
-      rule = Repo.get!(Elektrine.Messaging.AutoModRule, String.to_integer(rule_id))
-
-      case Repo.delete(rule) do
-        {:ok, _} ->
-          rules =
-            Elektrine.Messaging.ModerationTools.list_auto_mod_rules(socket.assigns.community.id)
-
-          {:noreply, assign(socket, :auto_mod_rules, rules)}
-
-        {:error, _} ->
+      case Repo.get(Elektrine.Messaging.AutoModRule, event_id(rule_id)) do
+        nil ->
           {:noreply, notify_error(socket, "Failed to delete rule")}
+
+        rule ->
+          case Repo.delete(rule) do
+            {:ok, _} ->
+              rules =
+                Elektrine.Messaging.ModerationTools.list_auto_mod_rules(
+                  socket.assigns.community.id
+                )
+
+              {:noreply, assign(socket, :auto_mod_rules, rules)}
+
+            {:error, _} ->
+              {:noreply, notify_error(socket, "Failed to delete rule")}
+          end
       end
     else
       {:noreply, notify_error(socket, "Unauthorized")}
@@ -454,7 +456,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.ModerationOperations do
 
   def handle_event("show_user_mod_status", %{"user_id" => user_id}, socket) do
     if moderator?(socket) do
-      user_id = String.to_integer(user_id)
+      user_id = event_id(user_id)
       user = Repo.get(Elektrine.Accounts.User, user_id)
 
       # Load all moderation data for this user
@@ -517,7 +519,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.ModerationOperations do
 
   def handle_event("unban_from_status", %{"user_id" => user_id}, socket) do
     if moderator?(socket) do
-      user_id = String.to_integer(user_id)
+      user_id = event_id(user_id)
 
       case Messaging.unban_user_from_community(
              socket.assigns.community.id,
@@ -546,7 +548,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.ModerationOperations do
   # Remove timeout from status modal
   def handle_event("remove_timeout_from_status", %{"user_id" => user_id}, socket) do
     if moderator?(socket) do
-      user_id = String.to_integer(user_id)
+      user_id = event_id(user_id)
 
       case Elektrine.Messaging.ModerationTools.remove_timeout(
              socket.assigns.community.id,
@@ -569,6 +571,23 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.ModerationOperations do
   end
 
   # Private helpers
+
+  defp event_id(value) do
+    case SafeConvert.parse_id(value) do
+      {:ok, id} -> id
+      {:error, :invalid_id} -> 0
+    end
+  end
+
+  defp optional_event_id(value) when value in [nil, ""], do: nil
+  defp optional_event_id(value), do: event_id(value)
+
+  defp event_int(value, default) do
+    case Integer.parse(to_string(value || default)) do
+      {integer, ""} -> integer
+      _ -> default
+    end
+  end
 
   defp notify_error(socket, message) do
     put_flash(socket, :error, message)

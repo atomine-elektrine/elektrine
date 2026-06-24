@@ -5,6 +5,7 @@ defmodule ElektrineWeb.ProofsLiveTest do
 
   alias Atomine.Credits
   alias Atomine.Personhood
+  alias Atomine.Proof
   alias Elektrine.Accounts.User
   alias Elektrine.{AccountsFixtures, Repo}
 
@@ -96,6 +97,31 @@ defmodule ElektrineWeb.ProofsLiveTest do
     assert html =~ "https://example.com/proof"
     assert html =~ web_proof.challenge
     assert html =~ "validates the Identity signature"
+  end
+
+  test "unsafe legacy evidence URLs are not rendered as clickable links", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+
+    Repo.insert!(%Proof{
+      user_id: user.id,
+      kind: "manual",
+      claim_type: "positive",
+      proof_mode: "snapshot",
+      verification_method: "manual",
+      subject: "legacy-bad-evidence",
+      status: "pending",
+      challenge: "legacy challenge with enough bytes",
+      evidence_url: "javascript:alert(1)",
+      score_weight: 0
+    })
+
+    {:ok, _view, html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/account/proofs")
+
+    assert html =~ "javascript:alert(1)"
+    refute html =~ ~s|href="javascript:alert(1)"|
   end
 
   test "deleting a pending proof refreshes the nav badge", %{conn: conn} do

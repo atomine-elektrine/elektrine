@@ -5,6 +5,7 @@ defmodule ElektrineWeb.Components.EmojiPicker do
   """
   use Phoenix.Component
   import ElektrineWeb.CoreComponents
+  alias Elektrine.Emojis.CustomEmoji
 
   # Popular Unicode emojis organized by category
   @emoji_categories %{
@@ -74,6 +75,7 @@ defmodule ElektrineWeb.Components.EmojiPicker do
   def emoji_picker(assigns) do
     assigns = assign_new(assigns, :categories, fn -> @emoji_categories end)
     assigns = assign_new(assigns, :active_tab, fn -> "Smileys" end)
+    assigns = update(assigns, :custom_emojis, &safe_custom_emojis/1)
 
     # Filter emojis based on search
     filtered_emojis =
@@ -132,7 +134,10 @@ defmodule ElektrineWeb.Components.EmojiPicker do
                   class="btn btn-sm btn-ghost hover:bg-base-300 p-1"
                   title={":" <> emoji.shortcode <> ":"}
                 >
-                  <img src={emoji.image_url} alt={emoji.shortcode} class="w-5 h-5" />
+                  <%= if emoji_url =
+                        ElektrineWeb.HtmlHelpers.safe_external_image_url(emoji.image_url) do %>
+                    <img src={emoji_url} alt={emoji.shortcode} class="w-5 h-5" />
+                  <% end %>
                 </button>
               <% end %>
             <% end %>
@@ -186,7 +191,10 @@ defmodule ElektrineWeb.Components.EmojiPicker do
                   class="btn btn-sm btn-ghost hover:bg-base-300 p-1"
                   title={":" <> emoji.shortcode <> ":"}
                 >
-                  <img src={emoji.image_url} alt={emoji.shortcode} class="w-5 h-5" />
+                  <%= if emoji_url =
+                        ElektrineWeb.HtmlHelpers.safe_external_image_url(emoji.image_url) do %>
+                    <img src={emoji_url} alt={emoji.shortcode} class="w-5 h-5" />
+                  <% end %>
                 </button>
               <% end %>
             </div>
@@ -229,4 +237,15 @@ defmodule ElektrineWeb.Components.EmojiPicker do
 
     matching_custom
   end
+
+  defp safe_custom_emojis(custom_emojis) when is_list(custom_emojis) do
+    Enum.flat_map(custom_emojis, fn emoji ->
+      case CustomEmoji.validate_image_url(emoji.image_url) do
+        {:ok, safe_url} -> [%{emoji | image_url: safe_url}]
+        {:error, _reason} -> []
+      end
+    end)
+  end
+
+  defp safe_custom_emojis(_custom_emojis), do: []
 end

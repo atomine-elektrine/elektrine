@@ -94,10 +94,7 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
           nil
 
         id ->
-          case Email.get_user_message(String.to_integer(id), user.id) do
-            {:ok, message} -> message
-            {:error, _} -> nil
-          end
+          get_original_message(id, user.id)
       end
 
     available_from_addresses = get_available_from_addresses(mailbox, fresh_user)
@@ -187,10 +184,7 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
           nil
 
         id ->
-          case Email.get_user_message(String.to_integer(id), socket.assigns.current_user.id) do
-            {:ok, message} -> message
-            {:error, _} -> nil
-          end
+          get_original_message(id, socket.assigns.current_user.id)
       end
 
     from_address = determine_from_address(original_message, socket.assigns.mailbox)
@@ -292,24 +286,24 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
   def handle_event("apply_template", %{"template_id" => template_id}, socket) do
     user_id = socket.assigns.current_user.id
 
-    case Email.get_template(String.to_integer(template_id), user_id) do
-      nil ->
+    with {:ok, template_id} <- parse_positive_int(template_id),
+         template when not is_nil(template) <- Email.get_template(template_id, user_id) do
+      current_form = socket.assigns.form.params || %{}
+
+      updated_form =
+        current_form
+        |> Map.put("subject", template.subject || current_form["subject"] || "")
+        |> put_template_body(socket.assigns.mode, template.body || "")
+
+      {:noreply,
+       socket
+       |> assign(:form, to_form(updated_form))
+       |> assign(:body_char_count, String.length(template.body || ""))
+       |> assign(:body_word_count, count_words(template.body || ""))
+       |> put_flash(:info, "Template \"#{template.name}\" applied")}
+    else
+      _ ->
         {:noreply, put_flash(socket, :error, "Template not found")}
-
-      template ->
-        current_form = socket.assigns.form.params || %{}
-
-        updated_form =
-          current_form
-          |> Map.put("subject", template.subject || current_form["subject"] || "")
-          |> put_template_body(socket.assigns.mode, template.body || "")
-
-        {:noreply,
-         socket
-         |> assign(:form, to_form(updated_form))
-         |> assign(:body_char_count, String.length(template.body || ""))
-         |> assign(:body_word_count, count_words(template.body || ""))
-         |> put_flash(:info, "Template \"#{template.name}\" applied")}
     end
   end
 
@@ -1278,137 +1272,130 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
   end
 
   defp build_draft_data(draft_id, mailbox) do
-    draft_id_int =
-      if is_binary(draft_id) do
-        String.to_integer(draft_id)
-      else
-        draft_id
-      end
-
-    case Email.get_draft(draft_id_int, mailbox.id) do
+    with {:ok, draft_id} <- parse_positive_int(draft_id),
+         draft when not is_nil(draft) <- Email.get_draft(draft_id, mailbox.id) do
+      %{
+        "to" => draft.to || "",
+        "cc" => draft.cc || "",
+        "bcc" => draft.bcc || "",
+        "subject" => draft.subject || "",
+        "body" => draft.text_body || "",
+        "body_format" => body_format(draft.metadata || %{}),
+        "encryption_mode" => "auto",
+        "draft_id" => draft.id
+      }
+    else
       nil ->
-        Logger.warning("Draft not found: #{draft_id}")
+        Logger.warning("Draft not found: #{inspect(draft_id)}")
+        empty_draft_data()
 
-        %{
-          "to" => "",
-          "cc" => "",
-          "bcc" => "",
-          "subject" => "",
-          "body" => "",
-          "body_format" => "markdown",
-          "encryption_mode" => "auto",
-          "draft_id" => nil
-        }
-
-      draft ->
-        %{
-          "to" => draft.to || "",
-          "cc" => draft.cc || "",
-          "bcc" => draft.bcc || "",
-          "subject" => draft.subject || "",
-          "body" => draft.text_body || "",
-          "body_format" => body_format(draft.metadata || %{}),
-          "encryption_mode" => "auto",
-          "draft_id" => draft.id
-        }
+      :error ->
+        Logger.warning("Invalid draft id: #{inspect(draft_id)}")
+        empty_draft_data()
     end
   end
 
   defp build_reply_data(message_id, mailbox, reply_type) do
-    message_id_int =
-      if is_binary(message_id) do
-        String.to_integer(message_id)
-      else
-        message_id
-      end
+    with {:ok, message_id} <- parse_positive_int(message_id),
+         {:ok, message} <- Email.get_user_message(message_id, mailbox.user_id) do
+      subject =
+        case message.subject do
+          nil ->
+            "Re: "
 
-    case Email.get_user_message(message_id_int, mailbox.user_id) do
-      {:error, _} ->
-        Logger.warning("Message not found or access denied for reply: #{message_id}")
+          subj when is_binary(subj) ->
+            if String.starts_with?(subj, "Re: ") do
+              subj
+            else
+              "Re: #{subj}"
+            end
+        end
 
-        %{
-          "to" => "",
-          "cc" => "",
-          "bcc" => "",
-          "subject" => "",
-          "body" => "",
-          "body_format" => "markdown"
-        }
+      quoted_body = format_quoted_reply(message)
+      {reply_to, reply_cc} = build_reply_recipients(message, mailbox, reply_type)
 
-      {:ok, message} ->
-        subject =
-          case message.subject do
-            nil ->
-              "Re: "
-
-            subj when is_binary(subj) ->
-              if String.starts_with?(subj, "Re: ") do
-                subj
-              else
-                "Re: #{subj}"
-              end
-          end
-
-        quoted_body = format_quoted_reply(message)
-        {reply_to, reply_cc} = build_reply_recipients(message, mailbox, reply_type)
-
-        %{
-          "to" => reply_to,
-          "cc" => reply_cc,
-          "bcc" => "",
-          "subject" => subject,
-          "body" => quoted_body,
-          "body_format" => "markdown",
-          "new_message" => ""
-        }
+      %{
+        "to" => reply_to,
+        "cc" => reply_cc,
+        "bcc" => "",
+        "subject" => subject,
+        "body" => quoted_body,
+        "body_format" => "markdown",
+        "new_message" => ""
+      }
+    else
+      _ ->
+        Logger.warning("Message not found or access denied for reply: #{inspect(message_id)}")
+        empty_compose_data()
     end
   end
 
   defp build_forward_data(message_id, mailbox) do
-    message_id_int =
-      if is_binary(message_id) do
-        String.to_integer(message_id)
-      else
-        message_id
-      end
+    with {:ok, message_id} <- parse_positive_int(message_id),
+         {:ok, message} <- Email.get_user_message(message_id, mailbox.user_id) do
+      subject =
+        case message.subject do
+          nil ->
+            "Fwd: "
 
-    case Email.get_user_message(message_id_int, mailbox.user_id) do
-      {:error, _} ->
-        %{
-          "to" => "",
-          "cc" => "",
-          "bcc" => "",
-          "subject" => "",
-          "body" => "",
-          "body_format" => "markdown"
-        }
+          subj when is_binary(subj) ->
+            if String.starts_with?(subj, "Fwd: ") do
+              subj
+            else
+              "Fwd: #{subj}"
+            end
+        end
 
-      {:ok, message} ->
-        subject =
-          case message.subject do
-            nil ->
-              "Fwd: "
+      forwarded_body = format_forwarded_message(message)
 
-            subj when is_binary(subj) ->
-              if String.starts_with?(subj, "Fwd: ") do
-                subj
-              else
-                "Fwd: #{subj}"
-              end
-          end
-
-        forwarded_body = format_forwarded_message(message)
-
-        %{
-          "to" => "",
-          "cc" => "",
-          "bcc" => "",
-          "subject" => subject,
-          "body" => forwarded_body,
-          "body_format" => "markdown"
-        }
+      %{
+        "to" => "",
+        "cc" => "",
+        "bcc" => "",
+        "subject" => subject,
+        "body" => forwarded_body,
+        "body_format" => "markdown"
+      }
+    else
+      _ ->
+        empty_compose_data()
     end
   end
+
+  defp get_original_message(message_id, user_id) do
+    with {:ok, message_id} <- parse_positive_int(message_id),
+         {:ok, message} <- Email.get_user_message(message_id, user_id) do
+      message
+    else
+      _ -> nil
+    end
+  end
+
+  defp empty_draft_data do
+    Map.put(empty_compose_data(), "draft_id", nil)
+  end
+
+  defp empty_compose_data do
+    %{
+      "to" => "",
+      "cc" => "",
+      "bcc" => "",
+      "subject" => "",
+      "body" => "",
+      "body_format" => "markdown"
+    }
+  end
+
+  defp parse_positive_int(value) when is_integer(value) and value > 0, do: {:ok, value}
+
+  defp parse_positive_int(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {id, ""} when id > 0 -> {:ok, id}
+      _ -> :error
+    end
+  end
+
+  defp parse_positive_int(_value), do: :error
 
   defp format_quoted_reply(message) do
     if Map.get(message, :client_encrypted_payload) do

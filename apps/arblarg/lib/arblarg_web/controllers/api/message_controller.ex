@@ -23,38 +23,39 @@ defmodule ArblargWeb.API.MessageController do
   """
   def index(conn, %{"conversation_id" => conversation_id} = params) do
     user = conn.assigns[:current_user]
-    conv_id = String.to_integer(conversation_id)
 
-    # Verify user is a member
-    case Messaging.get_conversation_member(conv_id, user.id) do
-      nil ->
-        conn
-        |> put_status(:forbidden)
-        |> json(%{error: "Not a member of this conversation"})
+    with_valid_id(conn, conversation_id, fn conv_id ->
+      # Verify user is a member
+      case Messaging.get_conversation_member(conv_id, user.id) do
+        nil ->
+          conn
+          |> put_status(:forbidden)
+          |> json(%{error: "Not a member of this conversation"})
 
-      _member ->
-        opts =
-          [
-            limit: min(parse_int(params["limit"], 50), 100),
-            before_id: parse_int(params["before_id"], nil)
-          ]
-          |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+        _member ->
+          opts =
+            [
+              limit: min(parse_int(params["limit"], 50), 100),
+              before_id: parse_int(params["before_id"], nil)
+            ]
+            |> Enum.reject(fn {_k, v} -> is_nil(v) end)
 
-        case Messaging.get_messages(conv_id, user.id, opts) do
-          {:ok, messages} ->
-            conn
-            |> put_status(:ok)
-            |> json(%{
-              messages: Enum.map(messages, &format_message/1),
-              has_more: length(messages) >= Keyword.get(opts, :limit, 50)
-            })
+          case Messaging.get_messages(conv_id, user.id, opts) do
+            {:ok, messages} ->
+              conn
+              |> put_status(:ok)
+              |> json(%{
+                messages: Enum.map(messages, &format_message/1),
+                has_more: length(messages) >= Keyword.get(opts, :limit, 50)
+              })
 
-          {:error, _reason} ->
-            conn
-            |> put_status(:forbidden)
-            |> json(%{error: "Unable to load messages"})
-        end
-    end
+            {:error, _reason} ->
+              conn
+              |> put_status(:forbidden)
+              |> json(%{error: "Unable to load messages"})
+          end
+      end
+    end)
   end
 
   @doc """
@@ -69,111 +70,112 @@ defmodule ArblargWeb.API.MessageController do
   """
   def create(conn, %{"conversation_id" => conversation_id} = params) do
     user = conn.assigns[:current_user]
-    conv_id = String.to_integer(conversation_id)
 
-    # Verify user is a member
-    case Messaging.get_conversation_member(conv_id, user.id) do
-      nil ->
-        conn
-        |> put_status(:forbidden)
-        |> json(%{error: "Not a member of this conversation"})
+    with_valid_id(conn, conversation_id, fn conv_id ->
+      # Verify user is a member
+      case Messaging.get_conversation_member(conv_id, user.id) do
+        nil ->
+          conn
+          |> put_status(:forbidden)
+          |> json(%{error: "Not a member of this conversation"})
 
-      member when member.role == "readonly" ->
-        conn
-        |> put_status(:forbidden)
-        |> json(%{error: "You don't have permission to send messages"})
+        member when member.role == "readonly" ->
+          conn
+          |> put_status(:forbidden)
+          |> json(%{error: "You don't have permission to send messages"})
 
-      _member ->
-        content = params["content"] || ""
-        reply_to_id = parse_int(params["reply_to_id"], nil)
-        message_type = params["message_type"] || "text"
+        _member ->
+          content = params["content"] || ""
+          reply_to_id = parse_int(params["reply_to_id"], nil)
+          message_type = params["message_type"] || "text"
 
-        result =
-          case message_type do
-            "text" ->
-              opts = if reply_to_id, do: [reply_to_id: reply_to_id], else: []
-              Messaging.create_chat_text_message(conv_id, user.id, content, opts)
+          result =
+            case message_type do
+              "text" ->
+                opts = if reply_to_id, do: [reply_to_id: reply_to_id], else: []
+                Messaging.create_chat_text_message(conv_id, user.id, content, opts)
 
-            "image" ->
-              media_urls = params["media_urls"] || []
-              media_metadata = params["media_metadata"] || %{}
+              "image" ->
+                media_urls = params["media_urls"] || []
+                media_metadata = params["media_metadata"] || %{}
 
-              Messaging.create_chat_media_message(
-                conv_id,
-                user.id,
-                media_urls,
-                content,
-                media_metadata
-              )
+                Messaging.create_chat_media_message(
+                  conv_id,
+                  user.id,
+                  media_urls,
+                  content,
+                  media_metadata
+                )
 
-            "file" ->
-              media_urls = params["media_urls"] || []
-              media_metadata = params["media_metadata"] || %{}
+              "file" ->
+                media_urls = params["media_urls"] || []
+                media_metadata = params["media_metadata"] || %{}
 
-              Messaging.create_chat_media_message(
-                conv_id,
-                user.id,
-                media_urls,
-                content,
-                media_metadata
-              )
+                Messaging.create_chat_media_message(
+                  conv_id,
+                  user.id,
+                  media_urls,
+                  content,
+                  media_metadata
+                )
 
-            "voice" ->
-              audio_url = List.first(params["media_urls"] || [])
-              duration = params["duration"] || 0
-              mime_type = params["mime_type"] || "audio/webm"
+              "voice" ->
+                audio_url = List.first(params["media_urls"] || [])
+                duration = params["duration"] || 0
+                mime_type = params["mime_type"] || "audio/webm"
 
-              Messaging.create_chat_voice_message(
-                conv_id,
-                user.id,
-                audio_url,
-                duration,
-                mime_type
-              )
+                Messaging.create_chat_voice_message(
+                  conv_id,
+                  user.id,
+                  audio_url,
+                  duration,
+                  mime_type
+                )
 
-            _ ->
-              {:error, :invalid_message_type}
+              _ ->
+                {:error, :invalid_message_type}
+            end
+
+          case result do
+            {:ok, message} ->
+              conn
+              |> put_status(:created)
+              |> json(%{
+                message: format_message(message)
+              })
+
+            {:error, :empty_message} ->
+              conn
+              |> put_status(:unprocessable_entity)
+              |> json(%{error: "Message content cannot be empty"})
+
+            {:error, :rate_limited} ->
+              conn
+              |> put_status(:too_many_requests)
+              |> json(%{error: "You're sending messages too quickly. Please slow down."})
+
+            {:error, :timed_out} ->
+              conn
+              |> put_status(:forbidden)
+              |> json(%{error: "You are currently timed out from this conversation"})
+
+            {:error, :invalid_message_type} ->
+              conn
+              |> put_status(:bad_request)
+              |> json(%{error: "Invalid message type. Use: text, image, file, or voice"})
+
+            {:error, %Ecto.Changeset{} = changeset} ->
+              conn
+              |> put_status(:unprocessable_entity)
+              |> json(%{error: "Validation failed", errors: format_errors(changeset)})
+
+            {:error, reason} ->
+              conn
+              |> put_status(:unprocessable_entity)
+              |> json(%{error: "Failed to send message: #{inspect(reason)}"})
           end
-
-        case result do
-          {:ok, message} ->
-            conn
-            |> put_status(:created)
-            |> json(%{
-              message: format_message(message)
-            })
-
-          {:error, :empty_message} ->
-            conn
-            |> put_status(:unprocessable_entity)
-            |> json(%{error: "Message content cannot be empty"})
-
-          {:error, :rate_limited} ->
-            conn
-            |> put_status(:too_many_requests)
-            |> json(%{error: "You're sending messages too quickly. Please slow down."})
-
-          {:error, :timed_out} ->
-            conn
-            |> put_status(:forbidden)
-            |> json(%{error: "You are currently timed out from this conversation"})
-
-          {:error, :invalid_message_type} ->
-            conn
-            |> put_status(:bad_request)
-            |> json(%{error: "Invalid message type. Use: text, image, file, or voice"})
-
-          {:error, %Ecto.Changeset{} = changeset} ->
-            conn
-            |> put_status(:unprocessable_entity)
-            |> json(%{error: "Validation failed", errors: format_errors(changeset)})
-
-          {:error, reason} ->
-            conn
-            |> put_status(:unprocessable_entity)
-            |> json(%{error: "Failed to send message: #{inspect(reason)}"})
-        end
-    end
+      end
+    end)
   end
 
   @doc """
@@ -185,31 +187,32 @@ defmodule ArblargWeb.API.MessageController do
   """
   def update(conn, %{"id" => id, "content" => new_content}) do
     user = conn.assigns[:current_user]
-    message_id = String.to_integer(id)
 
-    case Messaging.edit_chat_message(message_id, user.id, new_content) do
-      {:ok, message} ->
-        conn
-        |> put_status(:ok)
-        |> json(%{
-          message: format_message(message)
-        })
+    with_valid_id(conn, id, fn message_id ->
+      case Messaging.edit_chat_message(message_id, user.id, new_content) do
+        {:ok, message} ->
+          conn
+          |> put_status(:ok)
+          |> json(%{
+            message: format_message(message)
+          })
 
-      {:error, :not_found} ->
-        conn
-        |> put_status(:not_found)
-        |> json(%{error: "Message not found"})
+        {:error, :not_found} ->
+          conn
+          |> put_status(:not_found)
+          |> json(%{error: "Message not found"})
 
-      {:error, :unauthorized} ->
-        conn
-        |> put_status(:forbidden)
-        |> json(%{error: "You cannot edit this message"})
+        {:error, :unauthorized} ->
+          conn
+          |> put_status(:forbidden)
+          |> json(%{error: "You cannot edit this message"})
 
-      {:error, reason} ->
-        conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{error: "Failed to edit message: #{inspect(reason)}"})
-    end
+        {:error, reason} ->
+          conn
+          |> put_status(:unprocessable_entity)
+          |> json(%{error: "Failed to edit message: #{inspect(reason)}"})
+      end
+    end)
   end
 
   def update(conn, %{"id" => _id}) do
@@ -224,32 +227,33 @@ defmodule ArblargWeb.API.MessageController do
   """
   def delete(conn, %{"id" => id}) do
     user = conn.assigns[:current_user]
-    message_id = String.to_integer(id)
 
-    # Check if user is admin (for admin delete)
-    is_admin = user.admin == true
+    with_valid_id(conn, id, fn message_id ->
+      # Check if user is admin (for admin delete)
+      is_admin = user.admin == true
 
-    case Messaging.delete_chat_message(message_id, user.id, is_admin) do
-      {:ok, _message} ->
-        conn
-        |> put_status(:ok)
-        |> json(%{message: "Message deleted"})
+      case Messaging.delete_chat_message(message_id, user.id, is_admin) do
+        {:ok, _message} ->
+          conn
+          |> put_status(:ok)
+          |> json(%{message: "Message deleted"})
 
-      {:error, :not_found} ->
-        conn
-        |> put_status(:not_found)
-        |> json(%{error: "Message not found"})
+        {:error, :not_found} ->
+          conn
+          |> put_status(:not_found)
+          |> json(%{error: "Message not found"})
 
-      {:error, :unauthorized} ->
-        conn
-        |> put_status(:forbidden)
-        |> json(%{error: "You can only delete your own messages"})
+        {:error, :unauthorized} ->
+          conn
+          |> put_status(:forbidden)
+          |> json(%{error: "You can only delete your own messages"})
 
-      {:error, reason} ->
-        conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{error: "Failed to delete message: #{inspect(reason)}"})
-    end
+        {:error, reason} ->
+          conn
+          |> put_status(:unprocessable_entity)
+          |> json(%{error: "Failed to delete message: #{inspect(reason)}"})
+      end
+    end)
   end
 
   @doc """
@@ -261,46 +265,47 @@ defmodule ArblargWeb.API.MessageController do
   """
   def add_reaction(conn, %{"message_id" => id, "emoji" => emoji}) do
     user = conn.assigns[:current_user]
-    message_id = String.to_integer(id)
 
-    case Messaging.add_chat_reaction(message_id, user.id, emoji) do
-      {:ok, reaction} ->
-        conn
-        |> put_status(:created)
-        |> json(%{
-          message: "Reaction added",
-          reaction: format_reaction(reaction)
-        })
+    with_valid_id(conn, id, fn message_id ->
+      case Messaging.add_chat_reaction(message_id, user.id, emoji) do
+        {:ok, reaction} ->
+          conn
+          |> put_status(:created)
+          |> json(%{
+            message: "Reaction added",
+            reaction: format_reaction(reaction)
+          })
 
-      {:error, :not_found} ->
-        conn
-        |> put_status(:not_found)
-        |> json(%{error: "Message not found"})
+        {:error, :not_found} ->
+          conn
+          |> put_status(:not_found)
+          |> json(%{error: "Message not found"})
 
-      {:error, :rate_limited} ->
-        conn
-        |> put_status(:too_many_requests)
-        |> json(%{error: "You're adding reactions too quickly"})
+        {:error, :rate_limited} ->
+          conn
+          |> put_status(:too_many_requests)
+          |> json(%{error: "You're adding reactions too quickly"})
 
-      {:error, :already_exists} ->
-        # Toggle behavior - remove the reaction
-        case Messaging.remove_chat_reaction(message_id, user.id, emoji) do
-          {:ok, _} ->
-            conn
-            |> put_status(:ok)
-            |> json(%{message: "Reaction removed"})
+        {:error, :already_exists} ->
+          # Toggle behavior - remove the reaction
+          case Messaging.remove_chat_reaction(message_id, user.id, emoji) do
+            {:ok, _} ->
+              conn
+              |> put_status(:ok)
+              |> json(%{message: "Reaction removed"})
 
-          {:error, _} ->
-            conn
-            |> put_status(:unprocessable_entity)
-            |> json(%{error: "Failed to toggle reaction"})
-        end
+            {:error, _} ->
+              conn
+              |> put_status(:unprocessable_entity)
+              |> json(%{error: "Failed to toggle reaction"})
+          end
 
-      {:error, reason} ->
-        conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{error: "Failed to add reaction: #{inspect(reason)}"})
-    end
+        {:error, reason} ->
+          conn
+          |> put_status(:unprocessable_entity)
+          |> json(%{error: "Failed to add reaction: #{inspect(reason)}"})
+      end
+    end)
   end
 
   def add_reaction(conn, %{"message_id" => _id}) do
@@ -315,30 +320,54 @@ defmodule ArblargWeb.API.MessageController do
   """
   def remove_reaction(conn, %{"message_id" => id, "emoji" => emoji}) do
     user = conn.assigns[:current_user]
-    message_id = String.to_integer(id)
 
-    # URL decode emoji (emojis may be encoded)
-    decoded_emoji = URI.decode(emoji)
+    with_valid_id(conn, id, fn message_id ->
+      # URL decode emoji (emojis may be encoded)
+      decoded_emoji = URI.decode(emoji)
 
-    case Messaging.remove_chat_reaction(message_id, user.id, decoded_emoji) do
-      {:ok, _} ->
-        conn
-        |> put_status(:ok)
-        |> json(%{message: "Reaction removed"})
+      case Messaging.remove_chat_reaction(message_id, user.id, decoded_emoji) do
+        {:ok, _} ->
+          conn
+          |> put_status(:ok)
+          |> json(%{message: "Reaction removed"})
 
-      {:error, :not_found} ->
-        conn
-        |> put_status(:not_found)
-        |> json(%{error: "Reaction not found"})
+        {:error, :not_found} ->
+          conn
+          |> put_status(:not_found)
+          |> json(%{error: "Reaction not found"})
 
-      {:error, reason} ->
-        conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{error: "Failed to remove reaction: #{inspect(reason)}"})
-    end
+        {:error, reason} ->
+          conn
+          |> put_status(:unprocessable_entity)
+          |> json(%{error: "Failed to remove reaction: #{inspect(reason)}"})
+      end
+    end)
   end
 
   # Private helpers
+  defp with_valid_id(conn, value, fun) when is_function(fun, 1) do
+    case parse_id(value) do
+      {:ok, id} -> fun.(id)
+      :error -> invalid_id_response(conn)
+    end
+  end
+
+  defp invalid_id_response(conn) do
+    conn
+    |> put_status(:bad_request)
+    |> json(%{error: "Invalid id"})
+  end
+
+  defp parse_id(value) when is_integer(value) and value > 0, do: {:ok, value}
+
+  defp parse_id(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {int, ""} when int > 0 -> {:ok, int}
+      _ -> :error
+    end
+  end
+
+  defp parse_id(_value), do: :error
 
   defp format_message(message) do
     %{
@@ -434,8 +463,8 @@ defmodule ArblargWeb.API.MessageController do
 
   defp parse_int(value, default) when is_binary(value) do
     case Integer.parse(value) do
-      {int, _} -> int
-      :error -> default
+      {int, ""} -> int
+      _ -> default
     end
   end
 end

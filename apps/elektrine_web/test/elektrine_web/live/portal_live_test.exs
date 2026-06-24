@@ -345,6 +345,15 @@ defmodule ElektrineWeb.PortalLiveTest do
         published_at: ~U[2026-05-14 00:00:00Z]
       })
 
+    {:ok, hostile_item} =
+      RSS.upsert_item(feed.id, %{
+        guid: "portal-reader-css-image",
+        title: "Article with hostile image URL",
+        image_url: ~S|https://example.net/story.jpg");color:red;/*|,
+        url: "https://example.net/posts/hostile-story",
+        published_at: ~U[2026-05-15 00:00:00Z]
+      })
+
     {:ok, view, _html} =
       conn
       |> log_in_user(user)
@@ -358,6 +367,15 @@ defmodule ElektrineWeb.PortalLiveTest do
     assert html =~ "Article with inline image"
     assert html =~ "https://example.net/images/story.jpg"
     assert html =~ "background-image"
+
+    html =
+      view
+      |> element(~s([data-role="rss-reader-list"] a[href*="rss_item=#{hostile_item.id}"]))
+      |> render_click()
+
+    assert html =~ "Article with hostile image URL"
+    assert html =~ ~S|https://example.net/story.jpg\&quot;);color:red;/*|
+    refute html =~ ~S|url("https://example.net/story.jpg&quot;);color:red|
   end
 
   test "portal omits redundant recent activity card", %{conn: conn} do

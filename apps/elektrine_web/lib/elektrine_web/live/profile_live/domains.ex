@@ -3,6 +3,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
 
   alias Elektrine.Accounts.User
   alias Elektrine.{DNS, DomainAccount, Domains, Profiles}
+  alias Elektrine.Utils.SafeConvert
   alias ElektrineWeb.Platform.Integrations
 
   @impl true
@@ -81,7 +82,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
   def handle_event("toggle_per_site_identity", %{"id" => id}, socket) do
     user_id = socket.assigns.user.id
 
-    case Profiles.get_per_site_identity(String.to_integer(id), user_id) do
+    case Profiles.get_per_site_identity(event_id(id), user_id) do
       nil ->
         {:noreply, put_flash(socket, :error, "Per-site identity not found")}
 
@@ -101,7 +102,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
   def handle_event("delete_per_site_identity", %{"id" => id}, socket) do
     user_id = socket.assigns.user.id
 
-    case Profiles.get_per_site_identity(String.to_integer(id), user_id) do
+    case Profiles.get_per_site_identity(event_id(id), user_id) do
       nil ->
         {:noreply, put_flash(socket, :error, "Per-site identity not found")}
 
@@ -145,7 +146,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
   def handle_event("verify_profile_domain", %{"id" => id}, socket) do
     user_id = socket.assigns.user.id
 
-    case Profiles.get_custom_domain(String.to_integer(id), user_id) do
+    case Profiles.get_custom_domain(event_id(id), user_id) do
       nil ->
         {:noreply, put_flash(socket, :error, "Profile domain not found")}
 
@@ -178,7 +179,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
   def handle_event("delete_profile_domain", %{"id" => id}, socket) do
     user_id = socket.assigns.user.id
 
-    case Profiles.get_custom_domain(String.to_integer(id), user_id) do
+    case Profiles.get_custom_domain(event_id(id), user_id) do
       nil ->
         {:noreply, put_flash(socket, :error, "Profile domain not found")}
 
@@ -225,7 +226,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
   def handle_event("verify_email_domain", %{"id" => id}, socket) do
     user_id = socket.assigns.user.id
 
-    case Integrations.email_custom_domain(String.to_integer(id), user_id) do
+    case Integrations.email_custom_domain(event_id(id), user_id) do
       nil ->
         {:noreply, put_flash(socket, :error, "Email domain not found")}
 
@@ -258,7 +259,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
   def handle_event("sync_email_domain_dkim", %{"id" => id}, socket) do
     user_id = socket.assigns.user.id
 
-    case Integrations.email_custom_domain(String.to_integer(id), user_id) do
+    case Integrations.email_custom_domain(event_id(id), user_id) do
       nil ->
         {:noreply, put_flash(socket, :error, "Email domain not found")}
 
@@ -284,7 +285,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
   def handle_event("delete_email_domain", %{"id" => id}, socket) do
     user_id = socket.assigns.user.id
 
-    case Integrations.email_custom_domain(String.to_integer(id), user_id) do
+    case Integrations.email_custom_domain(event_id(id), user_id) do
       nil ->
         {:noreply, put_flash(socket, :error, "Email domain not found")}
 
@@ -300,6 +301,14 @@ defmodule ElektrineWeb.ProfileLive.Domains do
             {:noreply,
              put_flash(socket, :error, "Failed to remove email domain: #{inspect(reason)}")}
         end
+    end
+  end
+
+  # Route malformed forged LiveView event ids through the existing not-found path.
+  defp event_id(value) do
+    case SafeConvert.parse_id(value) do
+      {:ok, id} -> id
+      {:error, :invalid_id} -> 0
     end
   end
 

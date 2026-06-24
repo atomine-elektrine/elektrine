@@ -105,14 +105,14 @@ defmodule Elektrine.VPN.Server do
   defp valid_port_range?(_start_port, _end_port), do: false
 
   defp port_value(metadata, key) do
-    case Map.get(metadata, key) || existing_atom_map_value(metadata, key) do
+    case Map.get(metadata, key) || Map.get(metadata, metadata_atom_key(key)) do
       value when is_integer(value) ->
         value
 
       value when is_binary(value) ->
         case Integer.parse(value) do
-          {parsed, _} -> parsed
-          :error -> nil
+          {parsed, ""} -> parsed
+          _ -> nil
         end
 
       _ ->
@@ -140,11 +140,7 @@ defmodule Elektrine.VPN.Server do
     end
   end
 
-  defp existing_atom_map_value(map, key) when is_map(map) and is_binary(key) do
-    Map.get(map, String.to_existing_atom(key))
-  rescue
-    ArgumentError -> nil
-  end
-
-  defp existing_atom_map_value(_map, _key), do: nil
+  defp metadata_atom_key("port_range_start"), do: :port_range_start
+  defp metadata_atom_key("port_range_end"), do: :port_range_end
+  defp metadata_atom_key(_), do: nil
 end

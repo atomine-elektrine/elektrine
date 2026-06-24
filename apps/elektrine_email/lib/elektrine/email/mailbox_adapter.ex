@@ -19,7 +19,7 @@ defmodule Elektrine.Email.MailboxAdapter do
     # Extract mailbox_id from attributes
     mailbox_id = Map.get(attrs, :mailbox_id) || Map.get(attrs, "mailbox_id")
     # Fix integer/string conversion - ensure mailbox_id is an integer
-    mailbox_id = if is_binary(mailbox_id), do: String.to_integer(mailbox_id), else: mailbox_id
+    mailbox_id = normalize_mailbox_id(mailbox_id)
 
     # Check if already validated by caller (e.g., Haraka controller)
     pre_validated = Map.get(attrs, :pre_validated) || Map.get(attrs, "pre_validated") || false
@@ -42,6 +42,17 @@ defmodule Elektrine.Email.MailboxAdapter do
       end
     end
   end
+
+  defp normalize_mailbox_id(mailbox_id) when is_integer(mailbox_id), do: mailbox_id
+
+  defp normalize_mailbox_id(mailbox_id) when is_binary(mailbox_id) do
+    case Integer.parse(mailbox_id) do
+      {parsed, ""} when parsed > 0 -> parsed
+      _ -> nil
+    end
+  end
+
+  defp normalize_mailbox_id(_mailbox_id), do: nil
 
   defp routing_log_metadata(attrs, mailbox_id) do
     attachments = Map.get(attrs, :attachments) || Map.get(attrs, "attachments") || %{}

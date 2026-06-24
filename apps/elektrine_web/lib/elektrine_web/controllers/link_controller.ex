@@ -18,12 +18,12 @@ defmodule ElektrineWeb.LinkController do
           link ->
             # Validate URL to prevent open redirect attacks
             case validate_external_url(link.url) do
-              :ok ->
+              {:ok, safe_url} ->
                 # Increment click count
                 Profiles.increment_link_clicks(link.id)
 
                 # Redirect to the actual URL
-                redirect(conn, external: link.url)
+                redirect(conn, external: safe_url)
 
               {:error, reason} ->
                 Logger.warning("Blocked redirect to invalid URL: #{link.url} (reason: #{reason})")
@@ -46,15 +46,19 @@ defmodule ElektrineWeb.LinkController do
 
   # Validates external URLs to prevent open redirect attacks
   defp validate_external_url(url) when is_binary(url) do
+    url = String.trim(url)
+
     case URI.parse(url) do
       %URI{scheme: scheme} when scheme in ["http", "https"] ->
         case SafeExternalURL.normalize(url) do
-          {:ok, _safe_url} -> :ok
+          {:ok, safe_url} -> {:ok, safe_url}
           {:error, reason} -> {:error, reason}
         end
 
       %URI{scheme: scheme} when scheme in ["mailto", "tel"] ->
-        validate_contact_url(scheme, url)
+        with :ok <- validate_contact_url(scheme, url) do
+          {:ok, url}
+        end
 
       _ ->
         {:error, :invalid_url_format}

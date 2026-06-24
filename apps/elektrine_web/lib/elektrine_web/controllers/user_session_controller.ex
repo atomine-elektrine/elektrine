@@ -249,8 +249,7 @@ defmodule ElektrineWeb.UserSessionController do
         # Find trusted device
         trusted_device =
           from(td in TrustedDevice,
-            where:
-              td.device_token in [^device_token, ^hashed_device_token] and td.user_id == ^user_id,
+            where: td.device_token == ^hashed_device_token and td.user_id == ^user_id,
             limit: 1
           )
           |> Elektrine.Repo.one()
@@ -264,16 +263,7 @@ defmodule ElektrineWeb.UserSessionController do
             if TrustedDevice.valid?(device) do
               # Update last_used_at asynchronously
               Elektrine.Async.start(fn ->
-                migrated_device =
-                  if device.device_token == device_token do
-                    device
-                    |> Ecto.Changeset.change(%{device_token: hashed_device_token})
-                    |> Elektrine.Repo.update!()
-                  else
-                    device
-                  end
-
-                migrated_device
+                device
                 |> Ecto.Changeset.change(%{
                   last_used_at: DateTime.utc_now() |> DateTime.truncate(:second)
                 })

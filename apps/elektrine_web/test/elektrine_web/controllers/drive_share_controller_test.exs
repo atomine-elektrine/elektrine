@@ -53,7 +53,9 @@ defmodule ElektrineWeb.DriveShareControllerTest do
 
     conn =
       build_conn()
-      |> init_test_session(%{"drive_share_access" => [protected_share.token]})
+      |> init_test_session(%{
+        "drive_share_access" => [Drive.share_token_hash(protected_share.token)]
+      })
       |> get(~p"/drive/share/#{protected_share.token}")
 
     assert get_resp_header(conn, "cache-control") == ["private, no-store"]
@@ -97,6 +99,56 @@ defmodule ElektrineWeb.DriveShareControllerTest do
 
     assert response(conn, 200) == "view me"
     assert get_resp_header(conn, "content-disposition") == []
+  end
+
+  test "sanitizes poisoned shared download metadata from legacy rows", %{
+    conn: conn,
+    stored_file: file,
+    share: share
+  } do
+    file
+    |> Ecto.Changeset.change(
+      original_filename: "hello\"\r\nx-evil: yes.txt",
+      content_type: "text/plain\r\nx-evil: yes"
+    )
+    |> Repo.update!()
+
+    conn = get(conn, ~p"/drive/share/#{share.token}")
+
+    assert response(conn, 200) == "share me"
+
+    assert [content_disposition] = get_resp_header(conn, "content-disposition")
+    assert content_disposition =~ "attachment;"
+    assert content_disposition =~ "filename=\"hello___x-evil_%20yes.txt\""
+    refute content_disposition =~ "\r"
+    refute content_disposition =~ "\n"
+
+    refute Enum.any?(conn.resp_headers, fn {name, _value} -> name == "x-evil" end)
+    assert get_resp_header(conn, "content-type") == ["application/octet-stream"]
+  end
+
+  test "falls back to download for poisoned shared inline content type", %{
+    conn: conn,
+    user: user
+  } do
+    {:ok, inline_file} =
+      Drive.upload_file(user, "shared", temp_upload("hello-view.txt", "view me"))
+
+    inline_file
+    |> Ecto.Changeset.change(content_type: "image/png\r\nx-evil: yes")
+    |> Repo.update!()
+
+    {:ok, view_share} = Drive.create_share(user.id, inline_file.id, %{access_level: "view"})
+
+    conn = get(conn, ~p"/drive/share/#{view_share.token}")
+
+    assert response(conn, 200) == "view me"
+
+    assert get_resp_header(conn, "content-disposition") == [
+             "attachment; filename=\"hello-view.txt\""
+           ]
+
+    refute Enum.any?(conn.resp_headers, fn {name, _value} -> name == "x-evil" end)
   end
 
   test "forces html shares to download even in view mode", %{conn: conn, user: user} do
@@ -161,7 +213,7 @@ defmodule ElektrineWeb.DriveShareControllerTest do
     %Plug.Upload{
       path: path,
       filename: filename,
-      content_type: MIME.from_path(filename) || "application/octet-stream"
+      content_type: MIME.from_path(filename)
     }
   end
 end

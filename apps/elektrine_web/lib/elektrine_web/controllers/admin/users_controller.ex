@@ -7,6 +7,7 @@ defmodule ElektrineWeb.Admin.UsersController do
   use ElektrineWeb, :controller
 
   alias Elektrine.{Accounts, Repo}
+  alias Elektrine.Utils.SafeConvert
   alias ElektrineWeb.Platform.Integrations
   import Ecto.Query
 
@@ -175,8 +176,59 @@ defmodule ElektrineWeb.Admin.UsersController do
   def update(conn, %{"id" => id, "user" => user_params}) do
     user = Accounts.get_user!(id)
 
-    # Convert checkbox values from "on"/"off" to boolean
-    normalized_params =
+    case normalize_user_params(user_params) do
+      {:ok, normalized_params} ->
+        # Track if trust level was manually changed
+        old_level = user.trust_level
+        new_level = normalized_params["trust_level"]
+        trust_level_changed = new_level && new_level != old_level
+
+        case Accounts.admin_update_user(user, normalized_params) do
+          {:ok, updated_user} ->
+            # Log trust level change if it occurred
+            if trust_level_changed do
+              Elektrine.Accounts.TrustLevel.record_level_change(
+                updated_user,
+                old_level,
+                reason: "manual",
+                changed_by_user_id: conn.assigns.current_user.id,
+                notes: "Manually set by admin"
+              )
+            end
+
+            Phoenix.PubSub.broadcast!(
+              Elektrine.PubSub,
+              "user:#{updated_user.id}",
+              {:user_updated, updated_user}
+            )
+
+            conn
+            |> put_flash(:info, "User updated successfully.")
+            |> redirect(to: ~p"/pripyat/users")
+
+          {:error, changeset} ->
+            render(conn, :edit,
+              user: user,
+              changeset: changeset,
+              aliases: Integrations.email_aliases(user.id),
+              email_available: Integrations.email_available?()
+            )
+        end
+
+      {:error, :invalid_id} ->
+        conn
+        |> put_flash(:error, "Invalid trust level.")
+        |> render(:edit,
+          user: user,
+          changeset: Accounts.change_user_admin(user, user_params),
+          aliases: Integrations.email_aliases(user.id),
+          email_available: Integrations.email_available?()
+        )
+    end
+  end
+
+  defp normalize_user_params(user_params) do
+    params =
       user_params
       |> Map.update("verified", false, fn
         "true" -> true
@@ -194,46 +246,16 @@ defmodule ElektrineWeb.Admin.UsersController do
         "true" -> true
         _ -> false
       end)
-      |> Map.update("trust_level", nil, fn
-        value when is_binary(value) -> String.to_integer(value)
-        value -> value
-      end)
 
-    # Track if trust level was manually changed
-    old_level = user.trust_level
-    new_level = normalized_params["trust_level"]
-    trust_level_changed = new_level && new_level != old_level
-
-    case Accounts.admin_update_user(user, normalized_params) do
-      {:ok, updated_user} ->
-        # Log trust level change if it occurred
-        if trust_level_changed do
-          Elektrine.Accounts.TrustLevel.record_level_change(
-            updated_user,
-            old_level,
-            reason: "manual",
-            changed_by_user_id: conn.assigns.current_user.id,
-            notes: "Manually set by admin"
-          )
+    case Map.fetch(params, "trust_level") do
+      {:ok, value} when is_binary(value) and value != "" ->
+        case SafeConvert.parse_id(value) do
+          {:ok, trust_level} -> {:ok, Map.put(params, "trust_level", trust_level)}
+          {:error, :invalid_id} = error -> error
         end
 
-        Phoenix.PubSub.broadcast!(
-          Elektrine.PubSub,
-          "user:#{updated_user.id}",
-          {:user_updated, updated_user}
-        )
-
-        conn
-        |> put_flash(:info, "User updated successfully.")
-        |> redirect(to: ~p"/pripyat/users")
-
-      {:error, changeset} ->
-        render(conn, :edit,
-          user: user,
-          changeset: changeset,
-          aliases: Integrations.email_aliases(user.id),
-          email_available: Integrations.email_available?()
-        )
+      _ ->
+        {:ok, params}
     end
   end
 

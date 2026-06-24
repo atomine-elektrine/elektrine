@@ -11,10 +11,7 @@ defmodule ArblargWeb.ChatLive.Operations.ContextMenuOperations do
         %{"conversation_id" => conversation_id, "x" => x, "y" => y},
         socket
       ) do
-    conversation_id =
-      if is_binary(conversation_id), do: String.to_integer(conversation_id), else: conversation_id
-
-    conversation = Enum.find(socket.assigns.conversation.list, &(&1.id == conversation_id))
+    conversation = find_by_id(socket.assigns.conversation.list, conversation_id)
 
     {:noreply,
      assign(socket, :context_menu, %{
@@ -26,10 +23,7 @@ defmodule ArblargWeb.ChatLive.Operations.ContextMenuOperations do
   end
 
   def handle_event("show_context_menu", %{"conversation_id" => conversation_id}, socket) do
-    conversation_id =
-      if is_binary(conversation_id), do: String.to_integer(conversation_id), else: conversation_id
-
-    conversation = Enum.find(socket.assigns.conversation.list, &(&1.id == conversation_id))
+    conversation = find_by_id(socket.assigns.conversation.list, conversation_id)
 
     {:noreply,
      assign(socket, :context_menu, %{
@@ -53,8 +47,7 @@ defmodule ArblargWeb.ChatLive.Operations.ContextMenuOperations do
         %{"message_id" => message_id, "x" => x, "y" => y} = params,
         socket
       ) do
-    message_id = if is_binary(message_id), do: String.to_integer(message_id), else: message_id
-    message = Enum.find(socket.assigns.messages, &(&1.id == message_id))
+    message = find_by_id(socket.assigns.messages, message_id)
 
     {:noreply,
      assign(socket, :context_menu, %{
@@ -66,8 +59,7 @@ defmodule ArblargWeb.ChatLive.Operations.ContextMenuOperations do
   end
 
   def handle_event("show_message_context_menu", %{"message_id" => message_id}, socket) do
-    message_id = if is_binary(message_id), do: String.to_integer(message_id), else: message_id
-    message = Enum.find(socket.assigns.messages, &(&1.id == message_id))
+    message = find_by_id(socket.assigns.messages, message_id)
 
     {:noreply,
      assign(socket, :context_menu, %{
@@ -84,6 +76,17 @@ defmodule ArblargWeb.ChatLive.Operations.ContextMenuOperations do
        | message: nil,
          selected_text: nil
      })}
+  end
+
+  defp find_by_id(items, id) when is_integer(id) do
+    Enum.find(items, &(&1.id == id))
+  end
+
+  defp find_by_id(items, id) do
+    case Integer.parse(to_string(id)) do
+      {parsed_id, ""} when parsed_id > 0 -> Enum.find(items, &(&1.id == parsed_id))
+      _ -> nil
+    end
   end
 
   defp selected_text(%{"selected_text" => text}) when is_binary(text) do

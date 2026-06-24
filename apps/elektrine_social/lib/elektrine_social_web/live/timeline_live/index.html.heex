@@ -1759,9 +1759,12 @@
                     <span class="text-xs opacity-60">@{@quote_target_post.sender.username}</span>
                   <% else %>
                     <%= if Ecto.assoc_loaded?(@quote_target_post.remote_actor) && @quote_target_post.remote_actor do %>
-                      <%= if @quote_target_post.remote_actor.avatar_url do %>
+                      <%= if avatar_url =
+                            ElektrineWeb.HtmlHelpers.safe_external_image_url(
+                              @quote_target_post.remote_actor.avatar_url
+                            ) do %>
                         <img
-                          src={@quote_target_post.remote_actor.avatar_url}
+                          src={avatar_url}
                           alt=""
                           class="w-6 h-6 rounded-full"
                         />

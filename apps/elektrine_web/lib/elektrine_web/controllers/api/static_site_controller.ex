@@ -201,8 +201,7 @@ defmodule ElektrineWeb.API.StaticSiteController do
           |> :crypto.mac(:sha256, secret, raw_body)
           |> Base.encode16(case: :lower)
 
-        if byte_size(signature) == byte_size(expected) and
-             Plug.Crypto.secure_compare(String.downcase(signature), expected) do
+        if secure_compare(String.downcase(signature), expected) do
           :ok
         else
           {:error, :invalid_signature}
@@ -214,6 +213,13 @@ defmodule ElektrineWeb.API.StaticSiteController do
   end
 
   defp verify_webhook_signature(_conn, _raw_body, _secret), do: {:error, :missing_raw_body}
+
+  defp secure_compare(left, right)
+       when is_binary(left) and is_binary(right) and byte_size(left) == byte_size(right) do
+    Plug.Crypto.secure_compare(left, right)
+  end
+
+  defp secure_compare(_left, _right), do: false
 
   defp replace_upload?(params) do
     case Map.get(params, "replace", "true") do

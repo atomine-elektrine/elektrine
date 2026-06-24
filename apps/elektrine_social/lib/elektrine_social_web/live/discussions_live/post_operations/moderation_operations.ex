@@ -12,10 +12,11 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.ModerationOperations
     router: ElektrineWeb.Router
 
   alias Elektrine.Messaging
+  alias Elektrine.Utils.SafeConvert
 
   def handle_event("delete_post_admin", %{"message_id" => message_id}, socket) do
     if socket.assigns.current_user && socket.assigns.current_user.is_admin do
-      message_id = String.to_integer(message_id)
+      message_id = event_id(message_id)
 
       case Messaging.delete_message(message_id, socket.assigns.current_user.id, true) do
         {:ok, _deleted_message} ->
@@ -35,7 +36,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.ModerationOperations
   end
 
   def handle_event("delete_discussion", %{"message_id" => message_id}, socket) do
-    message_id = String.to_integer(message_id)
+    message_id = event_id(message_id)
 
     if socket.assigns.current_user &&
          socket.assigns.post.sender_id == socket.assigns.current_user.id do
@@ -56,7 +57,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.ModerationOperations
 
   def handle_event("delete_post_mod", %{"message_id" => message_id}, socket) do
     if socket.assigns.is_moderator do
-      message_id = String.to_integer(message_id)
+      message_id = event_id(message_id)
 
       case Messaging.delete_message(message_id, socket.assigns.current_user.id) do
         {:ok, _} ->
@@ -75,7 +76,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.ModerationOperations
 
   def handle_event("pin_post", %{"message_id" => message_id}, socket) do
     if socket.assigns.is_moderator do
-      message_id = String.to_integer(message_id)
+      message_id = event_id(message_id)
 
       case Messaging.pin_message(message_id, socket.assigns.current_user.id) do
         {:ok, _pinned_post} ->
@@ -105,7 +106,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.ModerationOperations
 
   def handle_event("unpin_post", %{"message_id" => message_id}, socket) do
     if socket.assigns.is_moderator do
-      message_id = String.to_integer(message_id)
+      message_id = event_id(message_id)
 
       case Messaging.unpin_message(message_id, socket.assigns.current_user.id) do
         {:ok, _unpinned_post} ->
@@ -136,7 +137,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.ModerationOperations
   def handle_event("delete_reply", %{"message_id" => message_id}, socket) do
     if socket.assigns.is_moderator ||
          (socket.assigns.current_user && socket.assigns.current_user.is_admin) do
-      message_id = String.to_integer(message_id)
+      message_id = event_id(message_id)
 
       case Messaging.delete_message(message_id, socket.assigns.current_user.id) do
         {:ok, _} ->
@@ -162,7 +163,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.ModerationOperations
 
   def handle_event("lock_thread", %{"message_id" => message_id}, socket) do
     if socket.assigns.is_moderator || socket.assigns.current_user.is_admin do
-      message_id = String.to_integer(message_id)
+      message_id = event_id(message_id)
 
       case Messaging.ModerationTools.lock_thread(
              message_id,
@@ -199,7 +200,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.ModerationOperations
 
   def handle_event("unlock_thread", %{"message_id" => message_id}, socket) do
     if socket.assigns.is_moderator || socket.assigns.current_user.is_admin do
-      message_id = String.to_integer(message_id)
+      message_id = event_id(message_id)
 
       case Messaging.ModerationTools.unlock_thread(message_id, socket.assigns.current_user.id) do
         {:ok, _} ->
@@ -233,7 +234,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.ModerationOperations
   def handle_event("show_ban_modal", %{"user_id" => user_id}, socket) do
     if socket.assigns.is_moderator ||
          (socket.assigns.current_user && socket.assigns.current_user.is_admin) do
-      user_id = String.to_integer(user_id)
+      user_id = event_id(user_id)
       user = Elektrine.Repo.get(Elektrine.Accounts.User, user_id)
 
       {:noreply,
@@ -255,9 +256,9 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.ModerationOperations
   def handle_event("ban_user", params, socket) do
     if socket.assigns.is_moderator ||
          (socket.assigns.current_user && socket.assigns.current_user.is_admin) do
-      user_id = String.to_integer(params["user_id"])
+      user_id = event_id(params["user_id"])
       reason = String.trim(params["reason"] || "Banned by moderator")
-      duration_days = String.to_integer(params["duration_days"] || "0")
+      duration_days = event_int(params["duration_days"], 0)
 
       expires_at =
         if duration_days > 0 do
@@ -293,13 +294,8 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.ModerationOperations
 
   def handle_event("show_warning_modal", params, socket) do
     if socket.assigns.is_moderator || socket.assigns.current_user.is_admin do
-      user_id = String.to_integer(params["user_id"])
-
-      message_id =
-        case params["message_id"] do
-          nil -> nil
-          id -> String.to_integer(id)
-        end
+      user_id = event_id(params["user_id"])
+      message_id = optional_event_id(params["message_id"])
 
       user = Elektrine.Repo.get(Elektrine.Accounts.User, user_id)
 
@@ -323,16 +319,10 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.ModerationOperations
 
   def handle_event("warn_user", params, socket) do
     if socket.assigns.is_moderator || socket.assigns.current_user.is_admin do
-      user_id = String.to_integer(params["user_id"])
+      user_id = event_id(params["user_id"])
       reason = String.trim(params["reason"])
       severity = params["severity"] || "low"
-
-      message_id =
-        case params["message_id"] do
-          "" -> nil
-          nil -> nil
-          id -> String.to_integer(id)
-        end
+      message_id = optional_event_id(params["message_id"])
 
       case Messaging.ModerationTools.warn_user(
              socket.assigns.community.id,
@@ -360,7 +350,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.ModerationOperations
 
   def handle_event("show_timeout_modal", %{"user_id" => user_id}, socket) do
     if socket.assigns.is_moderator || socket.assigns.current_user.is_admin do
-      user_id = String.to_integer(user_id)
+      user_id = event_id(user_id)
       user = Elektrine.Repo.get(Elektrine.Accounts.User, user_id)
 
       {:noreply,
@@ -381,9 +371,9 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.ModerationOperations
 
   def handle_event("timeout_user", params, socket) do
     if socket.assigns.is_moderator || socket.assigns.current_user.is_admin do
-      user_id = String.to_integer(params["user_id"])
+      user_id = event_id(params["user_id"])
       reason = String.trim(params["reason"] || "Timed out by moderator")
-      duration_minutes = String.to_integer(params["duration_minutes"])
+      duration_minutes = event_int(params["duration_minutes"], 0)
 
       case Messaging.ModerationTools.timeout_user(
              socket.assigns.community.id,
@@ -409,7 +399,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.ModerationOperations
 
   def handle_event("show_note_modal", %{"user_id" => user_id}, socket) do
     if socket.assigns.is_moderator || socket.assigns.current_user.is_admin do
-      user_id = String.to_integer(user_id)
+      user_id = event_id(user_id)
       user = Elektrine.Repo.get(Elektrine.Accounts.User, user_id)
       notes = Messaging.ModerationTools.list_moderator_notes(socket.assigns.community.id, user_id)
 
@@ -432,7 +422,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.ModerationOperations
 
   def handle_event("add_moderator_note", params, socket) do
     if socket.assigns.is_moderator || socket.assigns.current_user.is_admin do
-      user_id = String.to_integer(params["user_id"])
+      user_id = event_id(params["user_id"])
       note_text = String.trim(params["note"])
       is_important = params["is_important"] == "on"
 
@@ -462,7 +452,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.ModerationOperations
 
   def handle_event("show_user_mod_status", %{"user_id" => user_id}, socket) do
     if socket.assigns.is_moderator || socket.assigns.current_user.is_admin do
-      user_id = String.to_integer(user_id)
+      user_id = event_id(user_id)
       user = Elektrine.Repo.get(Elektrine.Accounts.User, user_id)
 
       ban =
@@ -514,7 +504,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.ModerationOperations
 
   def handle_event("unban_from_status", %{"user_id" => user_id}, socket) do
     if socket.assigns.is_moderator || socket.assigns.current_user.is_admin do
-      user_id = String.to_integer(user_id)
+      user_id = event_id(user_id)
 
       case Messaging.unban_user_from_community(
              socket.assigns.community.id,
@@ -538,7 +528,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.ModerationOperations
 
   def handle_event("remove_timeout_from_status", %{"user_id" => user_id}, socket) do
     if socket.assigns.is_moderator || socket.assigns.current_user.is_admin do
-      user_id = String.to_integer(user_id)
+      user_id = event_id(user_id)
 
       case Messaging.ModerationTools.remove_timeout(
              socket.assigns.community.id,
@@ -560,7 +550,25 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.ModerationOperations
     end
   end
 
-  # Helper function
+  # Helper functions
+
+  defp event_id(value) do
+    case SafeConvert.parse_id(value) do
+      {:ok, id} -> id
+      {:error, :invalid_id} -> 0
+    end
+  end
+
+  defp optional_event_id(value) when value in [nil, ""], do: nil
+  defp optional_event_id(value), do: event_id(value)
+
+  defp event_int(value, default) do
+    case Integer.parse(to_string(value || default)) do
+      {integer, ""} -> integer
+      _ -> default
+    end
+  end
+
   defp get_post_with_replies_expanded(post_id, community_id, expanded_threads) do
     import Ecto.Query
 

@@ -6,6 +6,7 @@ defmodule ElektrineWeb.SettingsLive.PasskeyManage do
 
   alias Elektrine.Accounts.PasskeyCredential
   alias Elektrine.Accounts.Passkeys
+  alias Elektrine.Utils.SafeConvert
   alias ElektrineWeb.UserAuth
 
   on_mount {ElektrineWeb.Live.AuthHooks, :require_authenticated_user}
@@ -303,7 +304,7 @@ defmodule ElektrineWeb.SettingsLive.PasskeyManage do
 
   @impl true
   def handle_event("start_rename", %{"id" => id}, socket) do
-    {:noreply, assign(socket, :renaming_id, String.to_integer(id))}
+    {:noreply, assign(socket, :renaming_id, event_id(id))}
   end
 
   @impl true
@@ -314,7 +315,7 @@ defmodule ElektrineWeb.SettingsLive.PasskeyManage do
   @impl true
   def handle_event("save_rename", %{"passkey_id" => id, "name" => name}, socket) do
     user = socket.assigns.current_user
-    passkey_id = String.to_integer(id)
+    passkey_id = event_id(id)
 
     case Passkeys.rename_passkey(user, passkey_id, name) do
       {:ok, _passkey} ->
@@ -335,7 +336,7 @@ defmodule ElektrineWeb.SettingsLive.PasskeyManage do
   def handle_event("delete_passkey", %{"id" => id}, socket) do
     if recent_auth_valid?(socket) do
       user = socket.assigns.current_user
-      passkey_id = String.to_integer(id)
+      passkey_id = event_id(id)
 
       case Passkeys.delete_passkey(user, passkey_id) do
         {:ok, _} ->
@@ -366,6 +367,13 @@ defmodule ElektrineWeb.SettingsLive.PasskeyManage do
   end
 
   # Helper functions
+
+  defp event_id(value) do
+    case SafeConvert.parse_id(value) do
+      {:ok, id} -> id
+      {:error, :invalid_id} -> 0
+    end
+  end
 
   defp passkey_icon(passkey) do
     cond do

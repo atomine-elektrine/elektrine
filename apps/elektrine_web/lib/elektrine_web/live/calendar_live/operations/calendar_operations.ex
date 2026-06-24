@@ -8,6 +8,7 @@ defmodule ElektrineWeb.CalendarLive.Operations.CalendarOperations do
   alias Elektrine.Calendar, as: Cal
   alias Elektrine.Calendar.Calendar, as: CalendarSchema
   alias Elektrine.Calendar.Event
+  alias Elektrine.Repo
   alias ElektrineWeb.CalendarLive.Index
 
   # Navigation
@@ -27,17 +28,22 @@ defmodule ElektrineWeb.CalendarLive.Operations.CalendarOperations do
 
   # Calendar visibility toggle
   def handle_calendar_event("toggle_calendar", %{"id" => id}, socket) do
-    id = to_int(id)
-    visible = socket.assigns.visible_calendars
+    case parse_positive_int(id) do
+      {:ok, id} ->
+        visible = socket.assigns.visible_calendars
 
-    new_visible =
-      if MapSet.member?(visible, id) do
-        MapSet.delete(visible, id)
-      else
-        MapSet.put(visible, id)
-      end
+        new_visible =
+          if MapSet.member?(visible, id) do
+            MapSet.delete(visible, id)
+          else
+            MapSet.put(visible, id)
+          end
 
-    {:noreply, assign(socket, :visible_calendars, new_visible)}
+        {:noreply, assign(socket, :visible_calendars, new_visible)}
+
+      :error ->
+        {:noreply, socket}
+    end
   end
 
   # Select a date
@@ -92,20 +98,29 @@ defmodule ElektrineWeb.CalendarLive.Operations.CalendarOperations do
   end
 
   def handle_calendar_event("edit_event", %{"id" => id}, socket) do
-    event = Cal.get_event!(to_int(id))
-    changeset = Event.changeset(event, %{})
+    with {:ok, id} <- parse_positive_int(id),
+         %Event{} = event <- Repo.get(Event, id) do
+      changeset = Event.changeset(event, %{})
 
-    {:noreply,
-     socket
-     |> assign(:calendar_composer_kind, "event")
-     |> assign(:show_event_modal, true)
-     |> assign(:editing_event, event)
-     |> assign(:event_changeset, changeset)}
+      {:noreply,
+       socket
+       |> assign(:calendar_composer_kind, "event")
+       |> assign(:show_event_modal, true)
+       |> assign(:editing_event, event)
+       |> assign(:event_changeset, changeset)}
+    else
+      _ -> {:noreply, put_flash(socket, :error, gettext("Event not found"))}
+    end
   end
 
   def handle_calendar_event("view_event", %{"id" => id}, socket) do
-    event = Cal.get_event!(to_int(id)) |> Elektrine.Repo.preload(:calendar)
-    {:noreply, assign(socket, :selected_event, event)}
+    with {:ok, id} <- parse_positive_int(id),
+         %Event{} = event <- Repo.get(Event, id) do
+      event = Repo.preload(event, :calendar)
+      {:noreply, assign(socket, :selected_event, event)}
+    else
+      _ -> {:noreply, put_flash(socket, :error, gettext("Event not found"))}
+    end
   end
 
   def handle_calendar_event("close_event_detail", _params, socket) do
@@ -166,21 +181,18 @@ defmodule ElektrineWeb.CalendarLive.Operations.CalendarOperations do
   end
 
   def handle_calendar_event("delete_event", %{"id" => id}, socket) do
-    id = to_int(id)
-    event = Cal.get_event!(id)
+    with {:ok, id} <- parse_positive_int(id),
+         %Event{} = event <- Repo.get(Event, id),
+         {:ok, _} <- Cal.delete_event(event) do
+      events = Enum.reject(socket.assigns.events, &(&1.id == id))
 
-    case Cal.delete_event(event) do
-      {:ok, _} ->
-        events = Enum.reject(socket.assigns.events, &(&1.id == id))
-
-        {:noreply,
-         socket
-         |> assign(:events, events)
-         |> assign(:selected_event, nil)
-         |> put_flash(:info, gettext("Event deleted"))}
-
-      {:error, _} ->
-        {:noreply, put_flash(socket, :error, gettext("Could not delete event"))}
+      {:noreply,
+       socket
+       |> assign(:events, events)
+       |> assign(:selected_event, nil)
+       |> put_flash(:info, gettext("Event deleted"))}
+    else
+      _ -> {:noreply, put_flash(socket, :error, gettext("Could not delete event"))}
     end
   end
 
@@ -194,14 +206,18 @@ defmodule ElektrineWeb.CalendarLive.Operations.CalendarOperations do
   end
 
   def handle_calendar_event("edit_calendar", %{"id" => id}, socket) do
-    calendar = Cal.get_calendar!(to_int(id))
-    changeset = CalendarSchema.changeset(calendar, %{})
+    with {:ok, id} <- parse_positive_int(id),
+         %CalendarSchema{} = calendar <- Repo.get(CalendarSchema, id) do
+      changeset = CalendarSchema.changeset(calendar, %{})
 
-    {:noreply,
-     socket
-     |> assign(:show_calendar_modal, true)
-     |> assign(:editing_calendar, calendar)
-     |> assign(:calendar_changeset, changeset)}
+      {:noreply,
+       socket
+       |> assign(:show_calendar_modal, true)
+       |> assign(:editing_calendar, calendar)
+       |> assign(:calendar_changeset, changeset)}
+    else
+      _ -> {:noreply, put_flash(socket, :error, gettext("Calendar not found"))}
+    end
   end
 
   def handle_calendar_event("cancel_calendar_modal", _params, socket) do
@@ -255,29 +271,11 @@ defmodule ElektrineWeb.CalendarLive.Operations.CalendarOperations do
   end
 
   def handle_calendar_event("delete_calendar", %{"id" => id}, socket) do
-    id = to_int(id)
-    calendar = Cal.get_calendar!(id)
-
-    if calendar.is_default do
-      {:noreply, put_flash(socket, :error, gettext("Cannot delete default calendar"))}
+    with {:ok, id} <- parse_positive_int(id),
+         %CalendarSchema{} = calendar <- Repo.get(CalendarSchema, id) do
+      delete_calendar(socket, id, calendar)
     else
-      case Cal.delete_calendar(calendar) do
-        {:ok, _} ->
-          calendars = Enum.reject(socket.assigns.calendars, &(&1.id == id))
-          visible = MapSet.delete(socket.assigns.visible_calendars, id)
-          events = Enum.reject(socket.assigns.events, &(&1.calendar_id == id))
-
-          {:noreply,
-           socket
-           |> assign(:calendars, calendars)
-           |> assign(:visible_calendars, visible)
-           |> assign(:events, events)
-           |> assign(:show_calendar_modal, false)
-           |> put_flash(:info, gettext("Calendar deleted"))}
-
-        {:error, _} ->
-          {:noreply, put_flash(socket, :error, gettext("Could not delete calendar"))}
-      end
+      _ -> {:noreply, put_flash(socket, :error, gettext("Could not delete calendar"))}
     end
   end
 
@@ -322,6 +320,34 @@ defmodule ElektrineWeb.CalendarLive.Operations.CalendarOperations do
 
   defp gettext(msg), do: Gettext.gettext(ElektrineWeb.Gettext, msg)
 
-  defp to_int(id) when is_binary(id), do: String.to_integer(id)
-  defp to_int(id) when is_integer(id), do: id
+  defp parse_positive_int(value) do
+    case Integer.parse(to_string(value)) do
+      {id, ""} when id > 0 -> {:ok, id}
+      _ -> :error
+    end
+  end
+
+  defp delete_calendar(socket, _id, %{is_default: true}) do
+    {:noreply, put_flash(socket, :error, gettext("Cannot delete default calendar"))}
+  end
+
+  defp delete_calendar(socket, id, calendar) do
+    case Cal.delete_calendar(calendar) do
+      {:ok, _} ->
+        calendars = Enum.reject(socket.assigns.calendars, &(&1.id == id))
+        visible = MapSet.delete(socket.assigns.visible_calendars, id)
+        events = Enum.reject(socket.assigns.events, &(&1.calendar_id == id))
+
+        {:noreply,
+         socket
+         |> assign(:calendars, calendars)
+         |> assign(:visible_calendars, visible)
+         |> assign(:events, events)
+         |> assign(:show_calendar_modal, false)
+         |> put_flash(:info, gettext("Calendar deleted"))}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, gettext("Could not delete calendar"))}
+    end
+  end
 end

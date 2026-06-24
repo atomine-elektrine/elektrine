@@ -372,11 +372,14 @@ defmodule Elektrine.Drive do
           {:error, :not_found}
 
         %StoredFile{} = file ->
+          token = random_share_token()
+
           %FileShare{}
           |> FileShare.changeset(%{
             drive_file_id: file.id,
             user_id: user_id,
-            token: random_share_token(),
+            token: token,
+            token_hash: share_token_hash(token),
             expires_at: expires_at,
             access_level: access_level,
             password_hash: password_hash,
@@ -407,8 +410,10 @@ defmodule Elektrine.Drive do
   end
 
   def get_active_share(token) when is_binary(token) do
+    token_hash = share_token_hash(token)
+
     FileShare
-    |> where([s], s.token == ^token and is_nil(s.revoked_at))
+    |> where([s], s.token_hash == ^token_hash and is_nil(s.revoked_at))
     |> where([s], is_nil(s.expires_at) or s.expires_at > ^DateTime.utc_now())
     |> where([s], not s.burn_after_read or s.download_count == 0)
     |> preload(:stored_file)
@@ -416,6 +421,15 @@ defmodule Elektrine.Drive do
   end
 
   def get_active_share(_token), do: nil
+
+  def share_token_hash(token) when is_binary(token) do
+    token
+    |> String.trim()
+    |> then(&:crypto.hash(:sha256, &1))
+    |> Base.encode16(case: :lower)
+  end
+
+  def share_token_hash(_token), do: nil
 
   def share_owner_can_access?(%FileShare{stored_file: %StoredFile{user_id: user_id}}) do
     user_id
@@ -444,31 +458,56 @@ defmodule Elektrine.Drive do
 
   def share_inline_view?(_share), do: false
 
-  def inline_viewable_content_type?(content_type) when is_binary(content_type) do
-    normalized =
-      content_type
-      |> String.downcase()
-      |> String.split(";", parts: 2)
-      |> List.first()
-      |> to_string()
-      |> String.trim()
+  def inline_content_type(content_type) when is_binary(content_type) do
+    normalized = normalize_media_type(content_type)
 
     cond do
+      not safe_media_type?(normalized) ->
+        {:error, :unsafe_content_type}
+
       normalized in ["image/svg+xml", "image/svg+xml-compressed"] ->
-        false
+        {:error, :unsafe_content_type}
 
       String.starts_with?(normalized, ["image/", "video/", "audio/"]) ->
-        true
+        {:ok, normalized}
 
       normalized in ["application/pdf", "application/json", "text/plain"] ->
-        true
+        {:ok, normalized}
 
       true ->
-        false
+        {:error, :unsafe_content_type}
     end
   end
 
+  def inline_content_type(_), do: {:error, :unsafe_content_type}
+
+  def inline_viewable_content_type?(content_type) when is_binary(content_type) do
+    match?({:ok, _content_type}, inline_content_type(content_type))
+  end
+
   def inline_viewable_content_type?(_), do: false
+
+  def safe_download_content_type(content_type) do
+    normalized = normalize_media_type(content_type)
+
+    if safe_media_type?(normalized), do: normalized, else: "application/octet-stream"
+  end
+
+  def safe_download_filename(filename, fallback \\ "download") do
+    fallback = safe_filename_fallback(fallback)
+
+    filename
+    |> to_string()
+    |> Path.basename()
+    |> String.replace(~r/[\x00-\x1F\x7F"\\\/<>:|?*]/, "_")
+    |> String.trim()
+    |> case do
+      "" -> fallback
+      "." -> fallback
+      ".." -> fallback
+      value -> String.slice(value, 0, 255)
+    end
+  end
 
   def increment_share_download_count(%FileShare{} = share) do
     share
@@ -1030,19 +1069,18 @@ defmodule Elektrine.Drive do
   defp normalize_content_type(content_type, filename) do
     value =
       content_type
-      |> to_string()
-      |> String.trim()
-      |> String.downcase()
-      |> String.split(";", parts: 2)
-      |> List.first()
-      |> to_string()
+      |> normalize_media_type()
 
     normalized =
       if value == "",
         do: MIME.from_path(filename || ""),
         else: value
 
-    if active_content_type?(normalized), do: "application/octet-stream", else: normalized
+    cond do
+      not safe_media_type?(normalized) -> "application/octet-stream"
+      active_content_type?(normalized) -> "application/octet-stream"
+      true -> normalized
+    end
   end
 
   defp active_content_type?(content_type) do
@@ -1056,6 +1094,32 @@ defmodule Elektrine.Drive do
       "application/xhtml+xml",
       "image/svg+xml"
     ]
+  end
+
+  defp normalize_media_type(content_type) do
+    content_type
+    |> to_string()
+    |> String.trim()
+    |> String.downcase()
+    |> String.split(";", parts: 2)
+    |> List.first()
+    |> to_string()
+    |> String.trim()
+  end
+
+  defp safe_media_type?(content_type) do
+    Regex.match?(~r/^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/, content_type)
+  end
+
+  defp safe_filename_fallback(fallback) do
+    fallback
+    |> to_string()
+    |> String.replace(~r/[^A-Za-z0-9._-]/, "_")
+    |> String.trim("._-")
+    |> case do
+      "" -> "download"
+      value -> String.slice(value, 0, 100)
+    end
   end
 
   defp put_storage_binary(user_id, binary, filename, content_type) do

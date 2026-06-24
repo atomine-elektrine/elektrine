@@ -1134,11 +1134,15 @@ defmodule ElektrineSocialWeb.API.SocialController do
 
   defp format_errors(%Ecto.Changeset{} = changeset) do
     Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
-      Regex.replace(~r"%{(\w+)}", msg, fn _, key ->
-        opts |> Keyword.get(String.to_existing_atom(key), key) |> to_string()
-      end)
+      interpolate_error(msg, opts)
     end)
   end
 
   defp format_errors(error), do: inspect(error)
+
+  defp interpolate_error(message, opts) do
+    Enum.reduce(opts, message, fn {key, value}, acc ->
+      String.replace(acc, "%{#{key}}", to_string(value))
+    end)
+  end
 end

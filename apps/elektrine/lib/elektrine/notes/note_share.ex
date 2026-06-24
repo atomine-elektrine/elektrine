@@ -7,9 +7,11 @@ defmodule Elektrine.Notes.NoteShare do
   import Ecto.Changeset
 
   alias Elektrine.Notes.Note
+  alias Elektrine.Secrets.EncryptedString
 
   schema "note_shares" do
-    field :token, :string
+    field :token, EncryptedString
+    field :token_hash, :string
     field :encrypted_payload, :map
     field :expires_at, :utc_datetime
     field :burn_after_read, :boolean, default: false
@@ -28,19 +30,21 @@ defmodule Elektrine.Notes.NoteShare do
       :note_id,
       :user_id,
       :token,
+      :token_hash,
       :encrypted_payload,
       :expires_at,
       :burn_after_read,
       :revoked_at,
       :view_count
     ])
-    |> validate_required([:note_id, :user_id, :token])
+    |> validate_required([:note_id, :user_id, :token, :token_hash])
     |> validate_length(:token, min: 16, max: 255)
+    |> validate_length(:token_hash, is: 64)
     |> validate_number(:view_count, greater_than_or_equal_to: 0)
     |> validate_expiry()
     |> foreign_key_constraint(:note_id)
     |> foreign_key_constraint(:user_id)
-    |> unique_constraint(:token)
+    |> unique_constraint(:token_hash)
   end
 
   defp validate_expiry(changeset) do

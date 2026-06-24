@@ -2,6 +2,7 @@ defmodule ElektrineEmailWeb.JMAP.BlobController do
   @moduledoc "JMAP Blob controller for upload and download operations.\nHandles attachment and message blob storage.\n"
   use ElektrineEmailWeb, :controller
   alias Elektrine.Email
+  alias Elektrine.Security.FilePath
   @max_upload_size 52_428_800
   @allowed_content_types ~w(
     application/octet-stream application/pdf application/zip application/json
@@ -146,29 +147,29 @@ defmodule ElektrineEmailWeb.JMAP.BlobController do
     filename = "#{user_id}_#{blob_id}"
     path = Path.join(base_dir, filename)
 
-    if safe_path?(path, base_dir) do
-      case File.read(path) do
-        {:ok, content} ->
-          content_type =
-            case File.read(path <> ".meta") do
-              {:ok, meta} -> sanitize_content_type(String.trim(meta))
-              _ -> "application/octet-stream"
-            end
+    case FilePath.validate_existing_file(path, base_dir) do
+      {:ok, safe_path} ->
+        case File.read(safe_path) do
+          {:ok, content} ->
+            content_type = read_blob_meta_content_type(safe_path <> ".meta", base_dir)
+            {:ok, content, content_type}
 
-          {:ok, content, content_type}
+          {:error, _} ->
+            {:error, :not_found}
+        end
 
-        {:error, _} ->
-          {:error, :not_found}
-      end
-    else
-      {:error, :not_found}
+      {:error, _reason} ->
+        {:error, :not_found}
     end
   end
 
-  defp safe_path?(path, base_dir) do
-    abs_path = Path.expand(path)
-    abs_base = Path.expand(base_dir)
-    String.starts_with?(abs_path, abs_base <> "/") or abs_path == abs_base
+  defp read_blob_meta_content_type(meta_path, base_dir) do
+    with {:ok, safe_meta_path} <- FilePath.validate_existing_file(meta_path, base_dir),
+         {:ok, meta} <- File.read(safe_meta_path) do
+      sanitize_content_type(String.trim(meta))
+    else
+      _ -> "application/octet-stream"
+    end
   end
 
   defp get_blob_s3(blob_id, user_id) do
@@ -228,17 +229,14 @@ defmodule ElektrineEmailWeb.JMAP.BlobController do
     filename = "#{user_id}_#{blob_id}"
     filepath = Path.join(target_dir, filename)
 
-    if safe_path?(filepath, target_dir) do
-      File.mkdir_p!(target_dir)
-
-      with :ok <- File.write(filepath, content),
-           :ok <- File.write(filepath <> ".meta", content_type) do
-        {:ok, filepath}
-      else
-        {:error, reason} -> {:error, reason}
-      end
+    with {:ok, safe_path} <- FilePath.validate_child_path(filepath, target_dir),
+         :ok <- File.mkdir_p(target_dir),
+         :ok <- File.write(safe_path, content),
+         :ok <- File.write(safe_path <> ".meta", content_type) do
+      {:ok, safe_path}
     else
-      {:error, :invalid_path}
+      {:error, :unsafe_path} -> {:error, :invalid_path}
+      {:error, reason} -> {:error, reason}
     end
   end
 

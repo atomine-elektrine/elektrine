@@ -181,6 +181,25 @@ defmodule Elektrine.Accounts.RecoveryEmailVerificationTest do
                RecoveryEmailVerification.verify_token("expired_token_123")
     end
 
+    test "rejects legacy plaintext tokens stored in the database", %{user: user} do
+      plaintext_token = "legacy_recovery_email_token_123456789012345"
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+      user
+      |> Ecto.Changeset.change(%{
+        recovery_email: "recovery@example.com",
+        recovery_email_verified: false,
+        recovery_email_verification_token: plaintext_token,
+        recovery_email_verification_sent_at: now
+      })
+      |> Repo.update!()
+
+      assert {:error, :invalid_token} =
+               RecoveryEmailVerification.verify_token(plaintext_token)
+
+      assert is_nil(RecoveryEmailVerification.get_user_by_token(plaintext_token))
+    end
+
     test "successfully verifies valid token and lifts restriction", %{user: user} do
       # Set up user with valid token
       token = "valid_token_#{System.unique_integer([:positive])}"

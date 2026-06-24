@@ -49,8 +49,8 @@ if Mix.env() == :dev do
         IO.puts("✓ Set seed password for '#{username}'")
         updated_user
 
-      {:error, password_error} ->
-        IO.puts("✗ Failed to set seed password for '#{username}': #{inspect(password_error)}")
+      {:error, _password_error} ->
+        IO.puts("✗ Failed to set seed password for '#{username}'")
         admin_user
     end
   end
@@ -61,8 +61,8 @@ if Mix.env() == :dev do
         IO.puts("✓ Set seed password for 'testuser'")
         updated_user
 
-      {:error, password_error} ->
-        IO.puts("✗ Failed to set seed password for 'testuser': #{inspect(password_error)}")
+      {:error, _password_error} ->
+        IO.puts("✗ Failed to set seed password for 'testuser'")
         user
     end
   end
@@ -1081,8 +1081,8 @@ if Mix.env() == :dev do
         IO.puts("✓ Set seed password for '#{username}'")
         updated_user
 
-      {:error, password_error} ->
-        IO.puts("✗ Failed to set seed password for '#{username}': #{inspect(password_error)}")
+      {:error, _password_error} ->
+        IO.puts("✗ Failed to set seed password for '#{username}'")
         user
     end
   end

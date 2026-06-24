@@ -159,21 +159,25 @@ defmodule ElektrineSocialWeb.HashtagLive.Show do
 
   def handle_event("save_post", %{"message_id" => message_id}, socket) do
     if socket.assigns[:current_user] do
-      message_id = SafeConvert.to_integer!(message_id, message_id)
+      case parse_positive_int(message_id) do
+        {:ok, message_id} ->
+          if Map.get(socket.assigns.user_saves, message_id, false) do
+            {:noreply, socket}
+          else
+            case Social.save_post(socket.assigns.current_user.id, message_id) do
+              {:ok, _} ->
+                {:noreply,
+                 socket
+                 |> assign(:user_saves, Map.put(socket.assigns.user_saves, message_id, true))
+                 |> put_flash(:info, "Saved")}
 
-      if Map.get(socket.assigns.user_saves, message_id, false) do
-        {:noreply, socket}
-      else
-        case Social.save_post(socket.assigns.current_user.id, message_id) do
-          {:ok, _} ->
-            {:noreply,
-             socket
-             |> assign(:user_saves, Map.put(socket.assigns.user_saves, message_id, true))
-             |> put_flash(:info, "Saved")}
+              {:error, _} ->
+                {:noreply, put_flash(socket, :error, "Failed to save")}
+            end
+          end
 
-          {:error, _} ->
-            {:noreply, put_flash(socket, :error, "Failed to save")}
-        end
+        :error ->
+          {:noreply, put_flash(socket, :error, "Failed to save")}
       end
     else
       {:noreply, put_flash(socket, :error, "You must be signed in to save posts")}
@@ -182,21 +186,25 @@ defmodule ElektrineSocialWeb.HashtagLive.Show do
 
   def handle_event("unsave_post", %{"message_id" => message_id}, socket) do
     if socket.assigns[:current_user] do
-      message_id = SafeConvert.to_integer!(message_id, message_id)
+      case parse_positive_int(message_id) do
+        {:ok, message_id} ->
+          if Map.get(socket.assigns.user_saves, message_id, false) do
+            case Social.unsave_post(socket.assigns.current_user.id, message_id) do
+              {:ok, _} ->
+                {:noreply,
+                 socket
+                 |> assign(:user_saves, Map.put(socket.assigns.user_saves, message_id, false))
+                 |> put_flash(:info, "Removed from saved")}
 
-      if Map.get(socket.assigns.user_saves, message_id, false) do
-        case Social.unsave_post(socket.assigns.current_user.id, message_id) do
-          {:ok, _} ->
-            {:noreply,
-             socket
-             |> assign(:user_saves, Map.put(socket.assigns.user_saves, message_id, false))
-             |> put_flash(:info, "Removed from saved")}
+              {:error, _} ->
+                {:noreply, put_flash(socket, :error, "Failed to unsave")}
+            end
+          else
+            {:noreply, socket}
+          end
 
-          {:error, _} ->
-            {:noreply, put_flash(socket, :error, "Failed to unsave")}
-        end
-      else
-        {:noreply, socket}
+        :error ->
+          {:noreply, put_flash(socket, :error, "Failed to unsave")}
       end
     else
       {:noreply, socket}
@@ -205,53 +213,58 @@ defmodule ElektrineSocialWeb.HashtagLive.Show do
 
   def handle_event("react_to_post", %{"post_id" => post_id, "emoji" => emoji}, socket) do
     if socket.assigns[:current_user] do
-      message_id = SafeConvert.to_integer!(post_id, post_id)
-      user_id = socket.assigns.current_user.id
+      case parse_positive_int(post_id) do
+        {:ok, message_id} ->
+          user_id = socket.assigns.current_user.id
 
-      existing_reaction =
-        Elektrine.Repo.get_by(Elektrine.Social.MessageReaction,
-          message_id: message_id,
-          user_id: user_id,
-          emoji: emoji
-        )
+          existing_reaction =
+            Elektrine.Repo.get_by(Elektrine.Social.MessageReaction,
+              message_id: message_id,
+              user_id: user_id,
+              emoji: emoji
+            )
 
-      if existing_reaction do
-        case Reactions.remove_reaction(message_id, user_id, emoji) do
-          {:ok, _} ->
-            updated_reactions =
-              PostInteractions.update_post_reactions(
-                socket.assigns.post_reactions,
-                message_id,
-                %{emoji: emoji, user_id: user_id},
-                :remove
-              )
+          if existing_reaction do
+            case Reactions.remove_reaction(message_id, user_id, emoji) do
+              {:ok, _} ->
+                updated_reactions =
+                  PostInteractions.update_post_reactions(
+                    socket.assigns.post_reactions,
+                    message_id,
+                    %{emoji: emoji, user_id: user_id},
+                    :remove
+                  )
 
-            {:noreply, assign(socket, :post_reactions, updated_reactions)}
+                {:noreply, assign(socket, :post_reactions, updated_reactions)}
 
-          {:error, _} ->
-            {:noreply, socket}
-        end
-      else
-        case Reactions.add_reaction(message_id, user_id, emoji) do
-          {:ok, reaction} ->
-            reaction = Elektrine.Repo.preload(reaction, [:user, :remote_actor])
+              {:error, _} ->
+                {:noreply, socket}
+            end
+          else
+            case Reactions.add_reaction(message_id, user_id, emoji) do
+              {:ok, reaction} ->
+                reaction = Elektrine.Repo.preload(reaction, [:user, :remote_actor])
 
-            updated_reactions =
-              PostInteractions.update_post_reactions(
-                socket.assigns.post_reactions,
-                message_id,
-                reaction,
-                :add
-              )
+                updated_reactions =
+                  PostInteractions.update_post_reactions(
+                    socket.assigns.post_reactions,
+                    message_id,
+                    reaction,
+                    :add
+                  )
 
-            {:noreply, assign(socket, :post_reactions, updated_reactions)}
+                {:noreply, assign(socket, :post_reactions, updated_reactions)}
 
-          {:error, :rate_limited} ->
-            {:noreply, put_flash(socket, :error, "Slow down! You're reacting too fast")}
+              {:error, :rate_limited} ->
+                {:noreply, put_flash(socket, :error, "Slow down! You're reacting too fast")}
 
-          {:error, _} ->
-            {:noreply, socket}
-        end
+              {:error, _} ->
+                {:noreply, socket}
+            end
+          end
+
+        :error ->
+          {:noreply, put_flash(socket, :error, "Failed to react")}
       end
     else
       {:noreply, put_flash(socket, :error, "You must be signed in to react")}
@@ -264,18 +277,16 @@ defmodule ElektrineSocialWeb.HashtagLive.Show do
 
   def handle_event("quote_post", %{"message_id" => message_id}, socket) do
     if socket.assigns[:current_user] do
-      message_id = SafeConvert.to_integer!(message_id, message_id)
-
-      case find_hashtag_post(socket.assigns.posts, message_id) do
-        nil ->
+      with {:ok, message_id} <- parse_positive_int(message_id),
+           post when not is_nil(post) <- find_hashtag_post(socket.assigns.posts, message_id) do
+        {:noreply,
+         socket
+         |> assign(:show_quote_modal, true)
+         |> assign(:quote_target_post, post)
+         |> assign(:quote_content, "")}
+      else
+        _ ->
           {:noreply, put_flash(socket, :error, "Post not found")}
-
-        post ->
-          {:noreply,
-           socket
-           |> assign(:show_quote_modal, true)
-           |> assign(:quote_target_post, post)
-           |> assign(:quote_content, "")}
       end
     else
       {:noreply, put_flash(socket, :error, "You must be signed in to quote posts")}
@@ -338,17 +349,21 @@ defmodule ElektrineSocialWeb.HashtagLive.Show do
         %{"url" => url, "images" => images_json, "index" => index, "post_id" => post_id},
         socket
       ) do
-    images = Jason.decode!(images_json)
-    post_id_int = String.to_integer(post_id)
-    modal_post = Enum.find(socket.assigns.posts, fn post -> post.id == post_id_int end)
+    with {:ok, images} when is_list(images) <- Jason.decode(images_json),
+         {:ok, post_id} <- parse_positive_int(post_id),
+         {:ok, image_index} <- parse_non_negative_int(index) do
+      modal_post = Enum.find(socket.assigns.posts, fn post -> post.id == post_id end)
 
-    {:noreply,
-     socket
-     |> assign(:show_image_modal, true)
-     |> assign(:modal_image_url, url)
-     |> assign(:modal_images, images)
-     |> assign(:modal_image_index, String.to_integer(index))
-     |> assign(:modal_post, modal_post)}
+      {:noreply,
+       socket
+       |> assign(:show_image_modal, true)
+       |> assign(:modal_image_url, url)
+       |> assign(:modal_images, images)
+       |> assign(:modal_image_index, image_index)
+       |> assign(:modal_post, modal_post)}
+    else
+      _ -> {:noreply, put_flash(socket, :error, "Unable to open image")}
+    end
   end
 
   # close_image_modal / next_image / prev_image only touch the canonical modal-state
@@ -449,29 +464,27 @@ defmodule ElektrineSocialWeb.HashtagLive.Show do
       poll_id = params["poll_id"] || params["poll-id"]
       option_id = params["option_id"] || params["option-id"]
 
-      with {poll_id, _} <- Integer.parse(to_string(poll_id)),
-           {option_id, _} <- Integer.parse(to_string(option_id)) do
+      with {:ok, poll_id} <- parse_positive_int(poll_id),
+           {:ok, option_id} <- parse_positive_int(option_id) do
         case Social.vote_on_poll(poll_id, option_id, socket.assigns.current_user.id) do
           {:ok, _vote} ->
-            poll = Elektrine.Repo.get!(Elektrine.Social.Poll, poll_id)
-            message_id = poll.message_id
+            case load_poll_post(poll_id) do
+              {:ok, message_id, updated_post} ->
+                updated_posts =
+                  Enum.map(socket.assigns.posts, fn post ->
+                    if post.id == message_id do
+                      updated_post
+                    else
+                      post
+                    end
+                  end)
 
-            updated_post =
-              Elektrine.Repo.get!(Elektrine.Social.Message, message_id)
-              |> Elektrine.Repo.preload(hashtag_post_preloads(), force: true)
-              |> Elektrine.Social.Message.decrypt_content()
+                {:noreply,
+                 socket |> assign(:posts, updated_posts) |> put_flash(:info, "Vote recorded")}
 
-            updated_posts =
-              Enum.map(socket.assigns.posts, fn post ->
-                if post.id == message_id do
-                  updated_post
-                else
-                  post
-                end
-              end)
-
-            {:noreply,
-             socket |> assign(:posts, updated_posts) |> put_flash(:info, "Vote recorded")}
+              :error ->
+                {:noreply, put_flash(socket, :error, "Failed to vote")}
+            end
 
           {:error, :poll_closed} ->
             {:noreply, put_flash(socket, :error, "This poll has closed")}
@@ -513,69 +526,69 @@ defmodule ElektrineSocialWeb.HashtagLive.Show do
   end
 
   def handle_event("delete_post", %{"message_id" => post_id}, socket) do
-    post_id =
-      if is_binary(post_id) do
-        String.to_integer(post_id)
-      else
-        post_id
-      end
+    case parse_positive_int(post_id) do
+      {:ok, post_id} ->
+        post = Enum.find(socket.assigns.posts, &(&1.id == post_id))
 
-    post = Enum.find(socket.assigns.posts, &(&1.id == post_id))
+        cond do
+          is_nil(socket.assigns[:current_user]) ->
+            {:noreply, put_flash(socket, :error, "You must be signed in")}
 
-    cond do
-      is_nil(socket.assigns[:current_user]) ->
-        {:noreply, put_flash(socket, :error, "You must be signed in")}
+          is_nil(post) ->
+            {:noreply, put_flash(socket, :error, "Post not found")}
 
-      is_nil(post) ->
-        {:noreply, put_flash(socket, :error, "Post not found")}
+          post.sender_id != socket.assigns.current_user.id ->
+            {:noreply, put_flash(socket, :error, "You can only delete your own posts")}
 
-      post.sender_id != socket.assigns.current_user.id ->
-        {:noreply, put_flash(socket, :error, "You can only delete your own posts")}
+          true ->
+            case Elektrine.Social.Messages.delete_message(post_id, socket.assigns.current_user.id) do
+              {:ok, _} ->
+                updated_posts = Enum.reject(socket.assigns.posts, &(&1.id == post_id))
 
-      true ->
-        case Elektrine.Social.Messages.delete_message(post_id, socket.assigns.current_user.id) do
-          {:ok, _} ->
-            updated_posts = Enum.reject(socket.assigns.posts, &(&1.id == post_id))
+                {:noreply,
+                 socket |> assign(:posts, updated_posts) |> put_flash(:info, "Post deleted")}
 
-            {:noreply,
-             socket |> assign(:posts, updated_posts) |> put_flash(:info, "Post deleted")}
-
-          {:error, _} ->
-            {:noreply, put_flash(socket, :error, "Failed to delete post")}
+              {:error, _} ->
+                {:noreply, put_flash(socket, :error, "Failed to delete post")}
+            end
         end
+
+      :error ->
+        {:noreply, put_flash(socket, :error, "Post not found")}
     end
   end
 
   def handle_event("delete_post_admin", %{"message_id" => post_id}, socket) do
-    post_id =
-      if is_binary(post_id) do
-        String.to_integer(post_id)
-      else
-        post_id
-      end
+    case parse_positive_int(post_id) do
+      {:ok, post_id} ->
+        cond do
+          is_nil(socket.assigns[:current_user]) ->
+            {:noreply, put_flash(socket, :error, "You must be signed in")}
 
-    cond do
-      is_nil(socket.assigns[:current_user]) ->
-        {:noreply, put_flash(socket, :error, "You must be signed in")}
+          !socket.assigns.current_user.is_admin ->
+            {:noreply, put_flash(socket, :error, "Admin only")}
 
-      !socket.assigns.current_user.is_admin ->
-        {:noreply, put_flash(socket, :error, "Admin only")}
+          true ->
+            case Elektrine.Social.Messages.delete_message(
+                   post_id,
+                   socket.assigns.current_user.id,
+                   true
+                 ) do
+              {:ok, _} ->
+                updated_posts = Enum.reject(socket.assigns.posts, &(&1.id == post_id))
 
-      true ->
-        case Elektrine.Social.Messages.delete_message(
-               post_id,
-               socket.assigns.current_user.id,
-               true
-             ) do
-          {:ok, _} ->
-            updated_posts = Enum.reject(socket.assigns.posts, &(&1.id == post_id))
+                {:noreply,
+                 socket
+                 |> assign(:posts, updated_posts)
+                 |> put_flash(:info, "Post deleted by admin")}
 
-            {:noreply,
-             socket |> assign(:posts, updated_posts) |> put_flash(:info, "Post deleted by admin")}
-
-          {:error, _} ->
-            {:noreply, put_flash(socket, :error, "Failed to delete post")}
+              {:error, _} ->
+                {:noreply, put_flash(socket, :error, "Failed to delete post")}
+            end
         end
+
+      :error ->
+        {:noreply, put_flash(socket, :error, "Failed to delete post")}
     end
   end
 
@@ -589,37 +602,47 @@ defmodule ElektrineSocialWeb.HashtagLive.Show do
         {:noreply, socket |> put_flash(:error, "You must be logged in to like posts")}
 
       %{id: user_id} ->
-        message_id = SafeConvert.to_integer!(message_id, message_id)
-        currently_liked = Map.get(socket.assigns.user_likes, message_id, false)
-        next_liked = direction == :like
+        case parse_positive_int(message_id) do
+          {:ok, message_id} ->
+            currently_liked = Map.get(socket.assigns.user_likes, message_id, false)
+            next_liked = direction == :like
 
-        if currently_liked == next_liked do
-          {:noreply, socket}
-        else
-          result =
-            if next_liked do
-              Social.like_post(user_id, message_id)
+            if currently_liked == next_liked do
+              {:noreply, socket}
             else
-              Social.unlike_post(user_id, message_id)
+              result =
+                if next_liked do
+                  Social.like_post(user_id, message_id)
+                else
+                  Social.unlike_post(user_id, message_id)
+                end
+
+              case result do
+                {:ok, _} ->
+                  update_action = if next_liked, do: :increment_likes, else: :decrement_likes
+
+                  {:noreply,
+                   socket
+                   |> update_post_in_hashtag_feed(message_id, update_action)
+                   |> update_user_like_status(message_id, next_liked)}
+
+                {:error, _} ->
+                  {:noreply,
+                   put_flash(
+                     socket,
+                     :error,
+                     if(next_liked, do: "Failed to like post", else: "Failed to unlike post")
+                   )}
+              end
             end
 
-          case result do
-            {:ok, _} ->
-              update_action = if next_liked, do: :increment_likes, else: :decrement_likes
-
-              {:noreply,
-               socket
-               |> update_post_in_hashtag_feed(message_id, update_action)
-               |> update_user_like_status(message_id, next_liked)}
-
-            {:error, _} ->
-              {:noreply,
-               put_flash(
-                 socket,
-                 :error,
-                 if(next_liked, do: "Failed to like post", else: "Failed to unlike post")
-               )}
-          end
+          :error ->
+            {:noreply,
+             put_flash(
+               socket,
+               :error,
+               if(direction == :like, do: "Failed to like post", else: "Failed to unlike post")
+             )}
         end
     end
   end
@@ -627,45 +650,80 @@ defmodule ElektrineSocialWeb.HashtagLive.Show do
   defp handle_hashtag_boost(socket, message_id, direction) when direction in [:boost, :unboost] do
     if socket.assigns[:current_user] do
       user_id = socket.assigns.current_user.id
-      message_id = String.to_integer(message_id)
-      currently_boosted = Map.get(socket.assigns.user_boosts, message_id, false)
-      next_boosted = direction == :boost
 
-      if currently_boosted == next_boosted do
-        {:noreply, socket}
-      else
-        result =
-          if next_boosted do
-            Social.boost_post(user_id, message_id)
+      case parse_positive_int(message_id) do
+        {:ok, message_id} ->
+          currently_boosted = Map.get(socket.assigns.user_boosts, message_id, false)
+          next_boosted = direction == :boost
+
+          if currently_boosted == next_boosted do
+            {:noreply, socket}
           else
-            Social.unboost_post(user_id, message_id)
+            result =
+              if next_boosted do
+                Social.boost_post(user_id, message_id)
+              else
+                Social.unboost_post(user_id, message_id)
+              end
+
+            case result do
+              {:ok, _} ->
+                update_action = if next_boosted, do: :increment_boosts, else: :decrement_boosts
+
+                {:noreply,
+                 socket
+                 |> update_post_in_hashtag_feed(message_id, update_action)
+                 |> assign(
+                   :user_boosts,
+                   Map.put(socket.assigns.user_boosts, message_id, next_boosted)
+                 )}
+
+              {:error, _} ->
+                {:noreply,
+                 put_flash(
+                   socket,
+                   :error,
+                   if(next_boosted, do: "Failed to boost", else: "Failed to unboost")
+                 )}
+            end
           end
 
-        case result do
-          {:ok, _} ->
-            update_action = if next_boosted, do: :increment_boosts, else: :decrement_boosts
+        :error ->
+          error = if direction == :boost, do: "Failed to boost", else: "Failed to unboost"
 
-            {:noreply,
-             socket
-             |> update_post_in_hashtag_feed(message_id, update_action)
-             |> assign(
-               :user_boosts,
-               Map.put(socket.assigns.user_boosts, message_id, next_boosted)
-             )}
-
-          {:error, _} ->
-            {:noreply,
-             put_flash(
-               socket,
-               :error,
-               if(next_boosted, do: "Failed to boost", else: "Failed to unboost")
-             )}
-        end
+          {:noreply, put_flash(socket, :error, error)}
       end
     else
       {:noreply, put_flash(socket, :error, "You must be signed in to boost posts")}
     end
   end
+
+  defp load_poll_post(poll_id) do
+    with %Elektrine.Social.Poll{message_id: message_id} <-
+           Elektrine.Repo.get(Elektrine.Social.Poll, poll_id),
+         %Elektrine.Social.Message{} = message <-
+           Elektrine.Repo.get(Elektrine.Social.Message, message_id) do
+      updated_post =
+        message
+        |> Elektrine.Repo.preload(hashtag_post_preloads(), force: true)
+        |> Elektrine.Social.Message.decrypt_content()
+
+      {:ok, message_id, updated_post}
+    else
+      _ -> :error
+    end
+  end
+
+  defp parse_non_negative_int(value) when is_integer(value) and value >= 0, do: {:ok, value}
+
+  defp parse_non_negative_int(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {int, ""} when int >= 0 -> {:ok, int}
+      _ -> :error
+    end
+  end
+
+  defp parse_non_negative_int(_), do: :error
 
   defp get_hashtag_info(hashtag_name) do
     normalized_name = String.downcase(hashtag_name)

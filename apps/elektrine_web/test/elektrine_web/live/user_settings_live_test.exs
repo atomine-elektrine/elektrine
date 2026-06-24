@@ -1,9 +1,11 @@
 defmodule ElektrineWeb.UserSettingsLiveTest do
-  use ElektrineWeb.ConnCase, async: true
+  use ElektrineWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
 
   alias Elektrine.Accounts
+  alias Elektrine.Developer
+  alias Elektrine.Developer.Webhook
   alias ElektrineWeb.UserAuth
 
   @avatar_fixture_path Path.expand(
@@ -161,6 +163,32 @@ defmodule ElektrineWeb.UserSettingsLiveTest do
     end
   end
 
+  describe "developer webhooks" do
+    test "shows webhook secret fingerprints without exposing stored secrets", %{
+      conn: conn,
+      user: user
+    } do
+      {:ok, webhook} =
+        Developer.create_webhook(user.id, %{
+          name: "Settings Hook",
+          url: "https://example.com/webhook",
+          events: ["post.created"]
+        })
+
+      {:ok, view, _html} =
+        conn
+        |> log_in_user(user)
+        |> live(~p"/account?tab=developer")
+
+      html = render(view)
+
+      assert html =~ "Settings Hook"
+      assert html =~ Webhook.secret_fingerprint(webhook)
+      refute html =~ webhook.secret
+      refute html =~ String.slice(webhook.secret, 0, 8) <> "..."
+    end
+  end
+
   describe "RSS settings" do
     test "uses the shared app navigation", %{conn: conn, user: user} do
       {:ok, _view, html} =
@@ -185,6 +213,16 @@ defmodule ElektrineWeb.UserSettingsLiveTest do
         })
 
       assert html =~ "https://feeds.arstechnica.com/arstechnica/index"
+    end
+
+    test "forged feed events with malformed ids do not crash", %{conn: conn, user: user} do
+      {:ok, view, _html} =
+        conn
+        |> log_in_user(user)
+        |> live(~p"/settings/rss")
+
+      assert render_hook(view, "remove_feed", %{"feed_id" => "12abc"}) =~ "Failed to unsubscribe"
+      assert render_hook(view, "toggle_timeline", %{"subscription_id" => "12abc"}) =~ "RSS Feeds"
     end
   end
 end

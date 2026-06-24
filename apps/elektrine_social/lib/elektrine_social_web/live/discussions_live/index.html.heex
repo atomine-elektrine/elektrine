@@ -218,9 +218,9 @@
                   <%= for actor <- sidebar_federated_suggestions do %>
                     <div class="rounded-lg border border-base-300 bg-base-200/55 p-3">
                       <div class="flex items-start gap-2.5">
-                        <%= if actor.avatar_url do %>
+                        <%= if avatar_url = safe_external_image_url(actor.avatar_url) do %>
                           <img
-                            src={actor.avatar_url}
+                            src={avatar_url}
                             class="w-9 h-9 rounded-lg object-cover flex-shrink-0"
                             alt={actor.username}
                           />
@@ -567,9 +567,9 @@
                                   <article class="card border border-base-300 bg-base-200/70 hover:border-info/40 transition-colors">
                                     <div class="card-body p-4 gap-4">
                                       <div class="flex items-start gap-3">
-                                        <%= if actor.avatar_url do %>
+                                        <%= if avatar_url = safe_external_image_url(actor.avatar_url) do %>
                                           <img
-                                            src={actor.avatar_url}
+                                            src={avatar_url}
                                             class="w-12 h-12 rounded-lg object-cover flex-shrink-0"
                                             alt={actor.username}
                                           />
@@ -625,14 +625,16 @@
                                         </div>
                                       </div>
                                       <div class="flex items-center justify-between gap-3">
-                                        <.link
-                                          href={actor.uri}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          class="btn btn-ghost btn-sm"
-                                        >
-                                          Preview Remote
-                                        </.link>
+                                        <%= if actor_href = safe_external_href(actor.uri) do %>
+                                          <.link
+                                            href={actor_href}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            class="btn btn-ghost btn-sm"
+                                          >
+                                            Preview Remote
+                                          </.link>
+                                        <% end %>
                                         <%= cond do %>
                                           <% following? -> %>
                                             <span class="badge badge-info">Following</span>
@@ -707,9 +709,9 @@
                                   class="block rounded-2xl border border-base-300 bg-base-100 p-4 shadow-sm hover:border-secondary/40 transition-colors"
                                 >
                                   <div class="flex items-start gap-3">
-                                    <%= if person.avatar_url do %>
+                                    <%= if avatar_url = safe_external_image_url(person.avatar_url) do %>
                                       <img
-                                        src={person.avatar_url}
+                                        src={avatar_url}
                                         class="w-12 h-12 rounded-full object-cover flex-shrink-0"
                                         alt={person.username}
                                       />
@@ -840,9 +842,9 @@
                               <article class="card border border-base-300 bg-base-200/70 hover:border-info/40 transition-colors group">
                                 <div class="card-body p-3.5">
                                   <div class="flex items-start gap-2.5">
-                                    <%= if community.avatar_url do %>
+                                    <%= if avatar_url = safe_external_image_url(community.avatar_url) do %>
                                       <img
-                                        src={community.avatar_url}
+                                        src={avatar_url}
                                         class="w-10 h-10 rounded-lg object-cover flex-shrink-0"
                                         alt={community.username}
                                       />
@@ -1116,9 +1118,9 @@
                               <div class="card-body p-4 gap-4">
                                 <.link href={community_route(actor)} class="block">
                                   <div class="flex items-start gap-3">
-                                    <%= if actor.avatar_url do %>
+                                    <%= if avatar_url = safe_external_image_url(actor.avatar_url) do %>
                                       <img
-                                        src={actor.avatar_url}
+                                        src={avatar_url}
                                         class="w-12 h-12 rounded-lg object-cover flex-shrink-0"
                                         alt={actor.username}
                                       />
@@ -1168,14 +1170,16 @@
                                     <% end %>
                                   </div>
                                   <div class="flex items-center gap-2">
-                                    <.link
-                                      href={actor.uri}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      class="btn btn-ghost btn-sm"
-                                    >
-                                      Preview
-                                    </.link>
+                                    <%= if actor_href = safe_external_href(actor.uri) do %>
+                                      <.link
+                                        href={actor_href}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        class="btn btn-ghost btn-sm"
+                                      >
+                                        Preview
+                                      </.link>
+                                    <% end %>
                                     <%= if @current_user do %>
                                       <button
                                         type="button"

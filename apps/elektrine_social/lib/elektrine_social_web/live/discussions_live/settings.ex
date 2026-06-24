@@ -92,25 +92,24 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Settings do
   def handle_event("promote_moderator", %{"user_id" => user_id}, socket) when user_id != "" do
     if owner?(socket) do
       community_id = socket.assigns.community.id
-      user_id = String.to_integer(user_id)
 
-      case Messaging.promote_to_moderator(community_id, user_id, socket.assigns.current_user.id) do
-        {:ok, _member} ->
-          members = Messaging.get_conversation_members(community_id)
+      with {:ok, user_id} <- parse_user_id(user_id),
+           {:ok, _member} <-
+             Messaging.promote_to_moderator(community_id, user_id, socket.assigns.current_user.id) do
+        members = Messaging.get_conversation_members(community_id)
 
-          Phoenix.PubSub.broadcast(
-            Elektrine.PubSub,
-            "conversation:#{community_id}",
-            {:member_role_updated, user_id, "moderator"}
-          )
+        Phoenix.PubSub.broadcast(
+          Elektrine.PubSub,
+          "conversation:#{community_id}",
+          {:member_role_updated, user_id, "moderator"}
+        )
 
-          {:noreply,
-           socket
-           |> assign(:members, members)
-           |> notify_info("User promoted to moderator successfully")}
-
-        {:error, _} ->
-          {:noreply, notify_error(socket, "Failed to promote user to moderator")}
+        {:noreply,
+         socket
+         |> assign(:members, members)
+         |> notify_info("User promoted to moderator successfully")}
+      else
+        _ -> {:noreply, notify_error(socket, "Failed to promote user to moderator")}
       end
     else
       {:noreply, notify_error(socket, "Only the owner can change moderators")}
@@ -124,28 +123,38 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Settings do
   def handle_event("demote_moderator", %{"user_id" => user_id}, socket) do
     if owner?(socket) do
       community_id = socket.assigns.community.id
-      user_id = String.to_integer(user_id)
 
-      case Messaging.demote_from_moderator(community_id, user_id, socket.assigns.current_user.id) do
-        {:ok, _member} ->
-          members = Messaging.get_conversation_members(community_id)
+      with {:ok, user_id} <- parse_user_id(user_id),
+           {:ok, _member} <-
+             Messaging.demote_from_moderator(
+               community_id,
+               user_id,
+               socket.assigns.current_user.id
+             ) do
+        members = Messaging.get_conversation_members(community_id)
 
-          Phoenix.PubSub.broadcast(
-            Elektrine.PubSub,
-            "conversation:#{community_id}",
-            {:member_role_updated, user_id, "member"}
-          )
+        Phoenix.PubSub.broadcast(
+          Elektrine.PubSub,
+          "conversation:#{community_id}",
+          {:member_role_updated, user_id, "member"}
+        )
 
-          {:noreply,
-           socket
-           |> assign(:members, members)
-           |> notify_info("Moderator removed successfully")}
-
-        {:error, _} ->
-          {:noreply, notify_error(socket, "Failed to remove moderator")}
+        {:noreply,
+         socket
+         |> assign(:members, members)
+         |> notify_info("Moderator removed successfully")}
+      else
+        _ -> {:noreply, notify_error(socket, "Failed to remove moderator")}
       end
     else
       {:noreply, notify_error(socket, "Only the owner can change moderators")}
+    end
+  end
+
+  defp parse_user_id(value) do
+    case Integer.parse(to_string(value)) do
+      {user_id, ""} when user_id > 0 -> {:ok, user_id}
+      _ -> :error
     end
   end
 

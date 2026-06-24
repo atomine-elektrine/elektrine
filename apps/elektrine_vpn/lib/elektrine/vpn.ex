@@ -1060,32 +1060,59 @@ defmodule Elektrine.VPN do
   defp allocate_ip_for_user(server_id) do
     server = Repo.get!(Server, server_id)
 
-    # Parse the internal IP range (e.g., "10.8.0.0/24")
-    [base_ip, _cidr] = String.split(server.internal_ip_range, "/")
-    [a, b, c, _d] = String.split(base_ip, ".") |> Enum.map(&String.to_integer/1)
+    case parse_base_ipv4(server.internal_ip_range) do
+      {:ok, {a, b, c, _d}} ->
+        allocated_ips =
+          from(uc in UserConfig,
+            where: uc.vpn_server_id == ^server_id,
+            select: uc.allocated_ip
+          )
+          |> Repo.all()
+          |> Enum.flat_map(fn ip ->
+            case parse_base_ipv4(ip) do
+              {:ok, {_a, _b, _c, d}} -> [d]
+              :error -> []
+            end
+          end)
+          |> MapSet.new()
 
-    # Get all allocated IPs for this server
-    allocated_ips =
-      from(uc in UserConfig,
-        where: uc.vpn_server_id == ^server_id,
-        select: uc.allocated_ip
-      )
-      |> Repo.all()
-      |> Enum.map(fn ip ->
-        [_a, _b, _c, d] = String.split(ip, "/") |> List.first() |> String.split(".")
-        String.to_integer(d)
-      end)
-      |> MapSet.new()
+        available_ip =
+          Enum.find(2..254, fn d ->
+            !MapSet.member?(allocated_ips, d)
+          end)
 
-    # Find first available IP (start from .2, .1 is usually the gateway)
-    available_ip =
-      Enum.find(2..254, fn d ->
-        !MapSet.member?(allocated_ips, d)
-      end)
+        case available_ip do
+          nil -> {:error, :no_available_ips}
+          d -> {:ok, "#{a}.#{b}.#{c}.#{d}/32"}
+        end
 
-    case available_ip do
-      nil -> {:error, :no_available_ips}
-      d -> {:ok, "#{a}.#{b}.#{c}.#{d}/32"}
+      :error ->
+        {:error, :invalid_ip_range}
+    end
+  end
+
+  defp parse_base_ipv4(value) when is_binary(value) do
+    value
+    |> String.split("/", parts: 2)
+    |> List.first()
+    |> parse_ipv4()
+  end
+
+  defp parse_base_ipv4(_), do: :error
+
+  defp parse_ipv4(value) when is_binary(value) do
+    case Enum.map(String.split(value, "."), &parse_ipv4_octet/1) do
+      [{:ok, a}, {:ok, b}, {:ok, c}, {:ok, d}] -> {:ok, {a, b, c, d}}
+      _ -> :error
+    end
+  end
+
+  defp parse_ipv4(_), do: :error
+
+  defp parse_ipv4_octet(value) do
+    case Integer.parse(value) do
+      {octet, ""} when octet in 0..255 -> {:ok, octet}
+      _ -> :error
     end
   end
 

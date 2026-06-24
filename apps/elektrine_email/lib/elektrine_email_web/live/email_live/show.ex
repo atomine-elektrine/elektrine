@@ -7,6 +7,7 @@ defmodule ElektrineEmailWeb.EmailLive.Show do
 
   alias Elektrine.Email
   alias Elektrine.Email.Cached
+  alias Elektrine.Utils.SafeConvert
 
   @impl true
   def mount(%{"id" => message_identifier} = params, session, socket) do
@@ -107,7 +108,7 @@ defmodule ElektrineEmailWeb.EmailLive.Show do
     user = socket.assigns.current_user
 
     # SECURE DELETE: Use ownership validation
-    case Email.get_user_message(String.to_integer(id), user.id) do
+    case Email.get_user_message(event_id(id), user.id) do
       {:ok, message} ->
         # If already in trash, permanently delete. Otherwise, move to trash
         if message.deleted do
@@ -147,7 +148,7 @@ defmodule ElektrineEmailWeb.EmailLive.Show do
     user = socket.assigns.current_user
 
     # Recover message from trash
-    case Email.get_user_message(String.to_integer(id), user.id) do
+    case Email.get_user_message(event_id(id), user.id) do
       {:ok, message} ->
         {:ok, _} = Email.update_message(message, %{deleted: false})
 
@@ -251,25 +252,30 @@ defmodule ElektrineEmailWeb.EmailLive.Show do
 
   def handle_event("schedule_reply_later", %{"days" => days}, socket) do
     message = socket.assigns.message
-    days_int = String.to_integer(days)
 
-    reply_at =
-      DateTime.utc_now()
-      |> DateTime.add(days_int, :day)
-      |> DateTime.truncate(:second)
+    case parse_reply_later_days(days) do
+      {:ok, days_int} ->
+        reply_at =
+          DateTime.utc_now()
+          |> DateTime.add(days_int, :day)
+          |> DateTime.truncate(:second)
 
-    case Elektrine.Email.reply_later_message(message, reply_at) do
-      {:ok, updated_message} ->
-        {:noreply,
-         socket
-         |> assign(:message, updated_message)
-         |> assign(:show_reply_later_modal, false)
-         |> notify_info("Message scheduled for reply in #{days_int} day(s)")}
+        case Elektrine.Email.reply_later_message(message, reply_at) do
+          {:ok, updated_message} ->
+            {:noreply,
+             socket
+             |> assign(:message, updated_message)
+             |> assign(:show_reply_later_modal, false)
+             |> notify_info("Message scheduled for reply in #{days_int} day(s)")}
 
-      {:error, _changeset} ->
-        {:noreply,
-         socket
-         |> notify_error("Unable to schedule reply")}
+          {:error, _changeset} ->
+            {:noreply,
+             socket
+             |> notify_error("Unable to schedule reply")}
+        end
+
+      :error ->
+        {:noreply, notify_error(socket, "Invalid reply later interval")}
     end
   end
 
@@ -337,6 +343,20 @@ defmodule ElektrineEmailWeb.EmailLive.Show do
   # Catch-all for unhandled events (e.g., connection_changed from JS)
   def handle_event(_event, _params, socket) do
     {:noreply, socket}
+  end
+
+  defp event_id(value) do
+    case SafeConvert.parse_id(value) do
+      {:ok, id} -> id
+      {:error, :invalid_id} -> 0
+    end
+  end
+
+  defp parse_reply_later_days(value) do
+    case Integer.parse(to_string(value)) do
+      {days, ""} when days > 0 -> {:ok, days}
+      _ -> :error
+    end
   end
 
   @impl true

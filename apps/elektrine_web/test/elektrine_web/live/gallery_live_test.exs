@@ -291,6 +291,41 @@ defmodule ElektrineSocialWeb.GalleryLiveTest do
     assert load_more_html =~ "Paged Gallery 65"
   end
 
+  test "forged gallery action ids and image payloads do not crash", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    creator = AccountsFixtures.user_fixture()
+
+    gallery_post_fixture(creator,
+      title: "Malformed Gallery Event Target",
+      content: "Visible photo"
+    )
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/gallery")
+
+    render_async(view)
+
+    assert render_hook(view, "like_photo", %{"photo_id" => "12abc"}) =~
+             "Failed to like photo"
+
+    assert render_hook(view, "save_post", %{"message_id" => "12abc"}) =~
+             "Failed to save photo"
+
+    assert render_hook(view, "unsave_post", %{"message_id" => "12abc"}) =~
+             "Failed to unsave photo"
+
+    assert render_hook(view, "open_image_modal", %{
+             "images" => "not-json",
+             "index" => "12abc",
+             "photo_id" => "34abc"
+           }) =~ "Image not found"
+
+    assert render_hook(view, "toggle_modal_like", %{"post_id" => "12abc"}) =~
+             "Failed to update like"
+  end
+
   defp remote_gallery_post_fixture(attrs) do
     unique = System.unique_integer([:positive])
     username = attrs[:username] || "remote#{unique}"

@@ -108,34 +108,13 @@ defmodule ElektrineSocialWeb.VideosLive.Index do
   def handle_event("like_video", %{"video_id" => video_id}, socket) do
     if socket.assigns[:current_user] do
       user_id = socket.assigns.current_user.id
-      video_id = String.to_integer(video_id)
-      currently_liked = MapSet.member?(socket.assigns.user_likes, video_id)
 
-      if currently_liked do
-        case Social.unlike_post(user_id, video_id) do
-          {:ok, _} ->
-            {:noreply,
-             socket
-             |> update(:user_likes, &MapSet.delete(&1, video_id))
-             |> update(:video_posts, &update_video_like_count(&1, video_id, -1))
-             |> maybe_remove_from_collection_filter("liked", video_id)
-             |> apply_video_filter()}
+      case parse_positive_int(video_id) do
+        {:ok, video_id} ->
+          toggle_video_like(socket, user_id, video_id)
 
-          {:error, _} ->
-            {:noreply, notify_error(socket, "Failed to unlike video")}
-        end
-      else
-        case Social.like_post(user_id, video_id) do
-          {:ok, _} ->
-            {:noreply,
-             socket
-             |> update(:user_likes, &MapSet.put(&1, video_id))
-             |> update(:video_posts, &update_video_like_count(&1, video_id, 1))
-             |> apply_video_filter()}
-
-          {:error, _} ->
-            {:noreply, notify_error(socket, "Failed to like video")}
-        end
+        :error ->
+          {:noreply, notify_error(socket, "Failed to like video")}
       end
     else
       {:noreply, notify_error(socket, "You must be signed in to like videos")}
@@ -149,14 +128,19 @@ defmodule ElektrineSocialWeb.VideosLive.Index do
   def handle_event("save_post", %{"message_id" => message_id}, socket) do
     if socket.assigns[:current_user] do
       user_id = socket.assigns.current_user.id
-      video_id = if is_binary(message_id), do: String.to_integer(message_id), else: message_id
 
-      case Social.save_post(user_id, video_id) do
-        {:ok, _} ->
-          {:noreply, socket |> update(:user_saved_posts, &MapSet.put(&1, video_id))}
+      case parse_positive_int(message_id) do
+        {:ok, video_id} ->
+          case Social.save_post(user_id, video_id) do
+            {:ok, _} ->
+              {:noreply, socket |> update(:user_saved_posts, &MapSet.put(&1, video_id))}
 
-        {:error, _} ->
-          {:noreply, socket |> update(:user_saved_posts, &MapSet.put(&1, video_id))}
+            {:error, _} ->
+              {:noreply, socket |> update(:user_saved_posts, &MapSet.put(&1, video_id))}
+          end
+
+        :error ->
+          {:noreply, notify_error(socket, "Failed to save video")}
       end
     else
       {:noreply, notify_error(socket, "You must be signed in to save videos")}
@@ -170,22 +154,27 @@ defmodule ElektrineSocialWeb.VideosLive.Index do
   def handle_event("unsave_post", %{"message_id" => message_id}, socket) do
     if socket.assigns[:current_user] do
       user_id = socket.assigns.current_user.id
-      video_id = if is_binary(message_id), do: String.to_integer(message_id), else: message_id
 
-      case Social.unsave_post(user_id, video_id) do
-        {:ok, _} ->
-          {:noreply,
-           socket
-           |> update(:user_saved_posts, &MapSet.delete(&1, video_id))
-           |> maybe_remove_from_collection_filter("saved", video_id)
-           |> apply_video_filter()}
+      case parse_positive_int(message_id) do
+        {:ok, video_id} ->
+          case Social.unsave_post(user_id, video_id) do
+            {:ok, _} ->
+              {:noreply,
+               socket
+               |> update(:user_saved_posts, &MapSet.delete(&1, video_id))
+               |> maybe_remove_from_collection_filter("saved", video_id)
+               |> apply_video_filter()}
 
-        {:error, _} ->
-          {:noreply,
-           socket
-           |> update(:user_saved_posts, &MapSet.delete(&1, video_id))
-           |> maybe_remove_from_collection_filter("saved", video_id)
-           |> apply_video_filter()}
+            {:error, _} ->
+              {:noreply,
+               socket
+               |> update(:user_saved_posts, &MapSet.delete(&1, video_id))
+               |> maybe_remove_from_collection_filter("saved", video_id)
+               |> apply_video_filter()}
+          end
+
+        :error ->
+          {:noreply, notify_error(socket, "Failed to unsave video")}
       end
     else
       {:noreply, socket}
@@ -245,6 +234,44 @@ defmodule ElektrineSocialWeb.VideosLive.Index do
   end
 
   def handle_info(_info, socket), do: {:noreply, socket}
+
+  defp toggle_video_like(socket, user_id, video_id) do
+    currently_liked = MapSet.member?(socket.assigns.user_likes, video_id)
+
+    if currently_liked do
+      case Social.unlike_post(user_id, video_id) do
+        {:ok, _} ->
+          {:noreply,
+           socket
+           |> update(:user_likes, &MapSet.delete(&1, video_id))
+           |> update(:video_posts, &update_video_like_count(&1, video_id, -1))
+           |> maybe_remove_from_collection_filter("liked", video_id)
+           |> apply_video_filter()}
+
+        {:error, _} ->
+          {:noreply, notify_error(socket, "Failed to unlike video")}
+      end
+    else
+      case Social.like_post(user_id, video_id) do
+        {:ok, _} ->
+          {:noreply,
+           socket
+           |> update(:user_likes, &MapSet.put(&1, video_id))
+           |> update(:video_posts, &update_video_like_count(&1, video_id, 1))
+           |> apply_video_filter()}
+
+        {:error, _} ->
+          {:noreply, notify_error(socket, "Failed to like video")}
+      end
+    end
+  end
+
+  defp parse_positive_int(value) do
+    case Integer.parse(to_string(value)) do
+      {int, ""} when int > 0 -> {:ok, int}
+      _ -> :error
+    end
+  end
 
   defp start_videos_load(socket, filter) do
     load_ref = System.unique_integer([:positive, :monotonic])

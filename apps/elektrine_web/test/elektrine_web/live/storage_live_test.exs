@@ -21,6 +21,23 @@ defmodule ElektrineWeb.StorageLiveTest do
     refute_receive {:storage_updated, %{user_id: ^user_id}}
   end
 
+  test "forged attachment delete events with malformed ids do not crash", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/account/storage")
+
+    assert render_hook(view, "delete_chat_attachment", %{"message_id" => "12abc"}) =~
+             "Unauthorized or message not found"
+
+    assert render_hook(view, "delete_email_attachment", %{
+             "message_id" => "12abc",
+             "attachment_id" => "att-1"
+           }) =~ "Message not found or access denied"
+  end
+
   defp log_in_user(conn, user) do
     token =
       Phoenix.Token.sign(ElektrineWeb.Endpoint, "user auth", %{

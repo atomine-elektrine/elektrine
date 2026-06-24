@@ -20,4 +20,18 @@ defmodule Elektrine.Security.SafeExternalURLTest do
     assert {:error, :invalid_url} = SafeExternalURL.normalize("javascript:alert(1)")
     assert {:error, :invalid_url} = SafeExternalURL.normalize("//evil.test/path")
   end
+
+  test "normalizes href-only links without requiring DNS resolution" do
+    assert {:ok, "https://remote.example/path"} =
+             SafeExternalURL.normalize_href(" https://remote.example/path ")
+
+    assert {:error, :invalid_url} =
+             SafeExternalURL.normalize_href("https://example.com\r\nx: y")
+
+    assert {:error, :userinfo_not_allowed} =
+             SafeExternalURL.normalize_href("https://example.com@evil.test/path")
+
+    assert {:error, :invalid_url} = SafeExternalURL.normalize_href("javascript:alert(1)")
+    assert {:error, :invalid_url} = SafeExternalURL.normalize_href("//evil.test/path")
+  end
 end

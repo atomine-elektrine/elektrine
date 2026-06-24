@@ -117,8 +117,8 @@ services:
       TURN_ENABLED: ${TURN_ENABLED:-false}
       MIGRATION_POOL_SIZE: ${MIGRATION_POOL_SIZE:-2}
       ACME_HOME: ${ACME_HOME:-/data/acme.sh}
+      ACME_SH_BIN: ${ACME_SH_BIN:-/data/acme.sh/acme.sh}
       ACME_WILDCARD_RENEWAL_ENABLED: ${ACME_WILDCARD_RENEWAL_ENABLED:-false}
-      ACME_RENEW_COMMAND: ${ACME_RENEW_COMMAND:-/data/acme.sh/acme.sh --cron --home /data/acme.sh}
       ELEKTRINE_API_BASE: ${ELEKTRINE_API_BASE:-http://app:8080}
       CADDY_TLS_MOUNT_DIR: ${CADDY_TLS_MOUNT_DIR:-/opt/elektrine/certs}
       RELOAD_CMD: ${ACME_RELOAD_CMD:-true}

@@ -2,6 +2,7 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
   use ElektrineSocialWeb, :live_view
   alias Elektrine.PubSubTopics
   alias Elektrine.Social
+  alias Elektrine.Utils.SafeConvert
   import ElektrineSocialWeb.Components.Platform.ENav
 
   import ElektrineWeb.HtmlHelpers,
@@ -199,38 +200,43 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
   def handle_event("like_photo", %{"photo_id" => photo_id}, socket) do
     if socket.assigns[:current_user] do
       user_id = socket.assigns.current_user.id
-      photo_id = String.to_integer(photo_id)
+      photo_id = event_id(photo_id)
       currently_liked = MapSet.member?(socket.assigns.user_likes, photo_id)
 
-      if currently_liked do
-        case Social.unlike_post(user_id, photo_id) do
-          {:ok, _} ->
-            {:noreply,
-             socket
-             |> update(:user_likes, &MapSet.delete(&1, photo_id))
-             |> update(:gallery_posts, fn posts ->
-               update_gallery_like_count(posts, photo_id, -1)
-             end)
-             |> maybe_remove_from_collection_filter("liked", photo_id)
-             |> apply_gallery_filter()}
+      cond do
+        not gallery_post?(socket, photo_id) ->
+          {:noreply, put_flash(socket, :error, "Failed to like photo")}
 
-          {:error, _} ->
-            {:noreply, put_flash(socket, :error, "Failed to unlike photo")}
-        end
-      else
-        case Social.like_post(user_id, photo_id) do
-          {:ok, _} ->
-            {:noreply,
-             socket
-             |> update(:user_likes, &MapSet.put(&1, photo_id))
-             |> update(:gallery_posts, fn posts ->
-               update_gallery_like_count(posts, photo_id, 1)
-             end)
-             |> apply_gallery_filter()}
+        currently_liked ->
+          case Social.unlike_post(user_id, photo_id) do
+            {:ok, _} ->
+              {:noreply,
+               socket
+               |> update(:user_likes, &MapSet.delete(&1, photo_id))
+               |> update(:gallery_posts, fn posts ->
+                 update_gallery_like_count(posts, photo_id, -1)
+               end)
+               |> maybe_remove_from_collection_filter("liked", photo_id)
+               |> apply_gallery_filter()}
 
-          {:error, _} ->
-            {:noreply, put_flash(socket, :error, "Failed to like photo")}
-        end
+            {:error, _} ->
+              {:noreply, put_flash(socket, :error, "Failed to unlike photo")}
+          end
+
+        true ->
+          case Social.like_post(user_id, photo_id) do
+            {:ok, _} ->
+              {:noreply,
+               socket
+               |> update(:user_likes, &MapSet.put(&1, photo_id))
+               |> update(:gallery_posts, fn posts ->
+                 update_gallery_like_count(posts, photo_id, 1)
+               end)
+               |> apply_gallery_filter()}
+
+            {:error, _} ->
+              {:noreply, put_flash(socket, :error, "Failed to like photo")}
+          end
       end
     else
       {:noreply, put_flash(socket, :error, "You must be signed in to like photos")}
@@ -244,9 +250,9 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
   def handle_event("save_post", %{"message_id" => message_id}, socket) do
     if socket.assigns[:current_user] do
       user_id = socket.assigns.current_user.id
-      photo_id = if is_binary(message_id), do: String.to_integer(message_id), else: message_id
+      photo_id = event_id(message_id)
 
-      case Social.save_post(user_id, photo_id) do
+      case gallery_post?(socket, photo_id) && Social.save_post(user_id, photo_id) do
         {:ok, _} ->
           {:noreply,
            socket
@@ -258,6 +264,9 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
            socket
            |> update(:user_saved_posts, &MapSet.put(&1, photo_id))
            |> notify_info("Already saved")}
+
+        false ->
+          {:noreply, put_flash(socket, :error, "Failed to save photo")}
       end
     else
       {:noreply, put_flash(socket, :error, "You must be signed in to save photos")}
@@ -271,9 +280,9 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
   def handle_event("unsave_post", %{"message_id" => message_id}, socket) do
     if socket.assigns[:current_user] do
       user_id = socket.assigns.current_user.id
-      photo_id = if is_binary(message_id), do: String.to_integer(message_id), else: message_id
+      photo_id = event_id(message_id)
 
-      case Social.unsave_post(user_id, photo_id) do
+      case gallery_post?(socket, photo_id) && Social.unsave_post(user_id, photo_id) do
         {:ok, _} ->
           {:noreply,
            socket
@@ -288,6 +297,9 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
            |> update(:user_saved_posts, &MapSet.delete(&1, photo_id))
            |> maybe_remove_from_collection_filter("saved", photo_id)
            |> apply_gallery_filter()}
+
+        false ->
+          {:noreply, put_flash(socket, :error, "Failed to unsave photo")}
       end
     else
       {:noreply, socket}
@@ -295,13 +307,7 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
   end
 
   def handle_event("view_photo", %{"photo_id" => photo_id}, socket) do
-    photo_id =
-      if is_binary(photo_id) do
-        String.to_integer(photo_id)
-      else
-        photo_id
-      end
-
+    photo_id = event_id(photo_id)
     photo = Enum.find(socket.assigns.filtered_posts, fn post -> post.id == photo_id end)
 
     if photo && photo.media_urls && photo.media_urls != [] do
@@ -386,7 +392,7 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
   def handle_event("follow_photographer", %{"user_id" => user_id}, socket) do
     if socket.assigns[:current_user] do
       current_user_id = socket.assigns.current_user.id
-      photographer_id = String.to_integer(user_id)
+      photographer_id = event_id(user_id)
 
       case Elektrine.Profiles.follow_user(current_user_id, photographer_id) do
         {:ok, _} ->
@@ -411,42 +417,47 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
         %{"images" => images_json, "index" => index} = params,
         socket
       ) do
-    images = Jason.decode!(images_json)
-    index_int = String.to_integer(index)
-    url = params["url"] || Enum.at(images, index_int, List.first(images))
+    case decode_modal_images(images_json) do
+      {:ok, images} ->
+        index_int = event_non_negative_int(index)
+        url = params["url"] || Enum.at(images, index_int, List.first(images))
 
-    {modal_post, is_liked} =
-      if params["photo_id"] do
-        photo_id = String.to_integer(params["photo_id"])
-        post = Enum.find(socket.assigns.filtered_posts, fn post -> post.id == photo_id end)
+        {modal_post, is_liked} =
+          if params["photo_id"] do
+            photo_id = event_id(params["photo_id"])
+            post = Enum.find(socket.assigns.filtered_posts, fn post -> post.id == photo_id end)
 
-        liked =
-          if socket.assigns[:current_user] && post do
-            result = Social.user_liked_post?(socket.assigns.current_user.id, photo_id)
-            require Logger
+            liked =
+              if socket.assigns[:current_user] && post do
+                result = Social.user_liked_post?(socket.assigns.current_user.id, photo_id)
+                require Logger
 
-            Logger.info(
-              "Gallery modal: photo_id=#{photo_id}, user_id=#{socket.assigns.current_user.id}, liked=#{result}"
-            )
+                Logger.info(
+                  "Gallery modal: photo_id=#{photo_id}, user_id=#{socket.assigns.current_user.id}, liked=#{result}"
+                )
 
-            result
+                result
+              else
+                false
+              end
+
+            {post, liked}
           else
-            false
+            {nil, false}
           end
 
-        {post, liked}
-      else
-        {nil, false}
-      end
+        {:noreply,
+         socket
+         |> assign(:show_image_modal, true)
+         |> assign(:modal_image_url, url)
+         |> assign(:modal_images, images)
+         |> assign(:modal_image_index, index_int)
+         |> assign(:modal_post, modal_post)
+         |> assign(:modal_is_liked, is_liked)}
 
-    {:noreply,
-     socket
-     |> assign(:show_image_modal, true)
-     |> assign(:modal_image_url, url)
-     |> assign(:modal_images, images)
-     |> assign(:modal_image_index, index_int)
-     |> assign(:modal_post, modal_post)
-     |> assign(:modal_is_liked, is_liked)}
+      :error ->
+        {:noreply, put_flash(socket, :error, "Image not found")}
+    end
   end
 
   def handle_event("close_image_modal", _params, socket) do
@@ -528,73 +539,98 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
   def handle_event("toggle_modal_like", %{"post_id" => post_id}, socket) do
     if socket.assigns[:current_user] do
       user_id = socket.assigns.current_user.id
+      photo_id = event_id(post_id)
 
-      photo_id =
-        if is_binary(post_id) do
-          String.to_integer(post_id)
+      if gallery_post?(socket, photo_id) do
+        is_currently_liked = Social.user_liked_post?(user_id, photo_id)
+
+        if is_currently_liked do
+          case Social.unlike_post(user_id, photo_id) do
+            {:ok, _} ->
+              {:noreply,
+               socket
+               |> assign(:modal_is_liked, false)
+               |> update(:user_likes, &MapSet.delete(&1, photo_id))
+               |> update(:gallery_posts, fn posts ->
+                 update_gallery_like_count(posts, photo_id, -1)
+               end)
+               |> update(:modal_post, fn post ->
+                 if post && post.id == photo_id do
+                   %{post | like_count: max(0, (post.like_count || 0) - 1)}
+                 else
+                   post
+                 end
+               end)
+               |> maybe_remove_from_collection_filter("liked", photo_id)
+               |> apply_gallery_filter()
+               |> notify_info("Removed like")}
+
+            {:error, _} ->
+              {:noreply,
+               socket
+               |> assign(:modal_is_liked, false)
+               |> update(:user_likes, &MapSet.delete(&1, photo_id))}
+          end
         else
-          post_id
-        end
+          case Social.like_post(user_id, photo_id) do
+            {:ok, _} ->
+              {:noreply,
+               socket
+               |> assign(:modal_is_liked, true)
+               |> update(:user_likes, &MapSet.put(&1, photo_id))
+               |> update(:gallery_posts, fn posts ->
+                 update_gallery_like_count(posts, photo_id, 1)
+               end)
+               |> update(:modal_post, fn post ->
+                 if post && post.id == photo_id do
+                   %{post | like_count: (post.like_count || 0) + 1}
+                 else
+                   post
+                 end
+               end)
+               |> apply_gallery_filter()
+               |> notify_success("Liked!")}
 
-      is_currently_liked = Social.user_liked_post?(user_id, photo_id)
-
-      if is_currently_liked do
-        case Social.unlike_post(user_id, photo_id) do
-          {:ok, _} ->
-            {:noreply,
-             socket
-             |> assign(:modal_is_liked, false)
-             |> update(:user_likes, &MapSet.delete(&1, photo_id))
-             |> update(:gallery_posts, fn posts ->
-               update_gallery_like_count(posts, photo_id, -1)
-             end)
-             |> update(:modal_post, fn post ->
-               if post && post.id == photo_id do
-                 %{post | like_count: max(0, (post.like_count || 0) - 1)}
-               else
-                 post
-               end
-             end)
-             |> maybe_remove_from_collection_filter("liked", photo_id)
-             |> apply_gallery_filter()
-             |> notify_info("Removed like")}
-
-          {:error, _} ->
-            {:noreply,
-             socket
-             |> assign(:modal_is_liked, false)
-             |> update(:user_likes, &MapSet.delete(&1, photo_id))}
+            {:error, _} ->
+              {:noreply,
+               socket
+               |> assign(:modal_is_liked, true)
+               |> update(:user_likes, &MapSet.put(&1, photo_id))}
+          end
         end
       else
-        case Social.like_post(user_id, photo_id) do
-          {:ok, _} ->
-            {:noreply,
-             socket
-             |> assign(:modal_is_liked, true)
-             |> update(:user_likes, &MapSet.put(&1, photo_id))
-             |> update(:gallery_posts, fn posts ->
-               update_gallery_like_count(posts, photo_id, 1)
-             end)
-             |> update(:modal_post, fn post ->
-               if post && post.id == photo_id do
-                 %{post | like_count: (post.like_count || 0) + 1}
-               else
-                 post
-               end
-             end)
-             |> apply_gallery_filter()
-             |> notify_success("Liked!")}
-
-          {:error, _} ->
-            {:noreply,
-             socket
-             |> assign(:modal_is_liked, true)
-             |> update(:user_likes, &MapSet.put(&1, photo_id))}
-        end
+        {:noreply, put_flash(socket, :error, "Failed to update like")}
       end
     else
       {:noreply, put_flash(socket, :error, "You must be signed in to like photos")}
     end
+  end
+
+  defp event_id(value) do
+    case SafeConvert.parse_id(value) do
+      {:ok, id} -> id
+      {:error, :invalid_id} -> 0
+    end
+  end
+
+  defp event_non_negative_int(value) do
+    case Integer.parse(to_string(value)) do
+      {integer, ""} when integer >= 0 -> integer
+      _ -> 0
+    end
+  end
+
+  defp decode_modal_images(images_json) do
+    case Jason.decode(images_json) do
+      {:ok, images} when is_list(images) -> {:ok, images}
+      _ -> :error
+    end
+  end
+
+  defp gallery_post?(socket, photo_id) do
+    Enum.any?(socket.assigns.gallery_posts, &(&1.id == photo_id)) ||
+      Enum.any?(socket.assigns.filtered_posts, &(&1.id == photo_id)) ||
+      match?(%{id: ^photo_id}, socket.assigns[:modal_post])
   end
 
   defp save_gallery_photo(socket, user) do

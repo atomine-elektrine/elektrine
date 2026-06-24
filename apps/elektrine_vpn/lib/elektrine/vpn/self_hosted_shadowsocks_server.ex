@@ -54,6 +54,14 @@ defmodule Elektrine.VPN.SelfHostedShadowsocksServer do
 
   defp restart_server(state) do
     if state.port, do: Port.close(state.port)
-    %{state | port: ShadowsocksAdapter.start_server()}
+
+    case ShadowsocksAdapter.start_server() do
+      {:ok, port} ->
+        %{state | port: port}
+
+      {:error, reason} ->
+        Logger.error("Self-hosted Shadowsocks failed to start: #{inspect(reason)}")
+        %{state | port: nil}
+    end
   end
 end
