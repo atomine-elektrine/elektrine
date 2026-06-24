@@ -68,17 +68,23 @@ defmodule Elektrine.Email.AttachmentStorage do
   def generate_presigned_url(storage_metadata, expires_in \\ 3600) do
     case storage_metadata do
       %{"storage_type" => "s3", "bucket" => bucket, "key" => key} ->
-        config = ExAws.Config.new(:s3)
+        case validate_s3_metadata(bucket, key) do
+          :ok ->
+            config = ExAws.Config.new(:s3)
 
-        {:ok, url} =
-          ExAws.S3.presigned_url(config, :get, bucket, key,
-            expires_in: expires_in,
-            virtual_host: false,
-            query_params: [{"response-content-disposition", "attachment"}]
-          )
+            {:ok, url} =
+              ExAws.S3.presigned_url(config, :get, bucket, key,
+                expires_in: expires_in,
+                virtual_host: false,
+                query_params: [{"response-content-disposition", "attachment"}]
+              )
 
-        Events.upload(:email_attachment_presigned_url, :success, nil, %{source: "s3"})
-        {:ok, url}
+            Events.upload(:email_attachment_presigned_url, :success, nil, %{source: "s3"})
+            {:ok, url}
+
+          {:error, reason} ->
+            fail_presigned_url(reason)
+        end
 
       _ ->
         Events.upload(:email_attachment_presigned_url, :failure, nil, %{
@@ -95,21 +101,9 @@ defmodule Elektrine.Email.AttachmentStorage do
   def delete_attachment(storage_metadata) do
     case storage_metadata do
       %{"storage_type" => "s3", "bucket" => bucket, "key" => key} ->
-        case S3.delete_object(bucket, key) |> ExAws.request() do
-          {:ok, _} ->
-            Logger.info("Deleted attachment from S3: #{key}")
-            Events.upload(:email_attachment_delete, :success, nil, %{source: "s3"})
-            :ok
-
-          {:error, error} ->
-            Logger.error("Failed to delete attachment: #{inspect(error)}")
-
-            Events.upload(:email_attachment_delete, :failure, nil, %{
-              reason: inspect(error),
-              source: "s3"
-            })
-
-            {:error, error}
+        case validate_s3_metadata(bucket, key) do
+          :ok -> delete_from_s3(bucket, key)
+          {:error, reason} -> fail_delete_from_s3(reason)
         end
 
       %{"storage_type" => "local", "key" => key} ->
@@ -147,17 +141,67 @@ defmodule Elektrine.Email.AttachmentStorage do
 
   def stored_attachment?(_), do: false
 
-  defp download_from_s3(bucket, key) do
-    case S3.get_object(bucket, key) |> ExAws.request() do
-      {:ok, %{body: content}} ->
-        Events.upload(:email_attachment_download, :success, byte_size(content), %{source: "s3"})
-        {:ok, content}
+  defp fail_presigned_url(reason) do
+    Events.upload(:email_attachment_presigned_url, :failure, nil, %{
+      reason: reason
+    })
+
+    {:error, "Invalid storage metadata"}
+  end
+
+  defp delete_from_s3(bucket, key) do
+    case S3.delete_object(bucket, key) |> ExAws.request() do
+      {:ok, _} ->
+        Logger.info("Deleted attachment from S3: #{key}")
+        Events.upload(:email_attachment_delete, :success, nil, %{source: "s3"})
+        :ok
 
       {:error, error} ->
-        Logger.error("Failed to download attachment from S3: #{inspect(error)}")
+        Logger.error("Failed to delete attachment: #{inspect(error)}")
 
-        Events.upload(:email_attachment_download, :failure, nil, %{
+        Events.upload(:email_attachment_delete, :failure, nil, %{
           reason: inspect(error),
+          source: "s3"
+        })
+
+        {:error, error}
+    end
+  end
+
+  defp fail_delete_from_s3(reason) do
+    Events.upload(:email_attachment_delete, :failure, nil, %{
+      reason: reason,
+      source: "s3"
+    })
+
+    {:error, reason}
+  end
+
+  defp download_from_s3(bucket, key) do
+    case validate_s3_metadata(bucket, key) do
+      :ok ->
+        case S3.get_object(bucket, key) |> ExAws.request() do
+          {:ok, %{body: content}} ->
+            Events.upload(:email_attachment_download, :success, byte_size(content), %{
+              source: "s3"
+            })
+
+            {:ok, content}
+
+          {:error, error} ->
+            Logger.error("Failed to download attachment from S3: #{inspect(error)}")
+
+            Events.upload(:email_attachment_download, :failure, nil, %{
+              reason: inspect(error),
+              source: "s3"
+            })
+
+            {:error, "Failed to download attachment"}
+        end
+
+      {:error, reason} ->
+        Events.upload(:email_attachment_download, :failure, nil, %{
+          reason: reason,
           source: "s3"
         })
 
@@ -199,7 +243,7 @@ defmodule Elektrine.Email.AttachmentStorage do
 
   defp generate_key(mailbox_id, message_id, attachment_id, filename) do
     ext = Path.extname(filename || "")
-    safe_filename = "#{attachment_id}#{ext}"
+    safe_filename = "#{sanitize_key_part(attachment_id)}#{ext}"
 
     "email-attachments/mailbox_#{mailbox_id}/message_#{message_id}/#{safe_filename}"
   end
@@ -320,26 +364,76 @@ defmodule Elektrine.Email.AttachmentStorage do
     uploads_dir =
       Application.get_env(:elektrine, :uploads, [])[:uploads_dir] || "priv/static/uploads"
 
-    path = Path.expand(Path.join(uploads_dir, key))
-    root = Path.expand(uploads_dir)
+    with :ok <- validate_storage_key(key) do
+      path = Path.expand(Path.join(uploads_dir, key))
+      root = Path.expand(uploads_dir)
 
-    if String.starts_with?(path, root <> "/") do
-      {:ok, path}
-    else
-      {:error, :invalid_storage_key}
+      if String.starts_with?(path, root <> "/") do
+        {:ok, path}
+      else
+        {:error, :invalid_storage_key}
+      end
     end
   end
 
   defp local_storage_path(_), do: {:error, :invalid_storage_key}
 
+  defp validate_s3_metadata(bucket, key) do
+    if bucket == get_bucket() do
+      validate_storage_key(key)
+    else
+      {:error, :invalid_storage_bucket}
+    end
+  rescue
+    _ -> {:error, :invalid_storage_bucket}
+  end
+
+  defp validate_storage_key(key) when is_binary(key) do
+    cond do
+      key == "" ->
+        {:error, :invalid_storage_key}
+
+      String.starts_with?(key, ["/", "\\"]) ->
+        {:error, :invalid_storage_key}
+
+      String.contains?(key, ["..", "\\", "\0"]) ->
+        {:error, :invalid_storage_key}
+
+      not String.starts_with?(key, "email-attachments/") ->
+        {:error, :invalid_storage_key}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp validate_storage_key(_), do: {:error, :invalid_storage_key}
+
+  defp sanitize_key_part(value) do
+    value
+    |> to_string()
+    |> String.replace(~r/[^A-Za-z0-9_-]/, "_")
+    |> String.slice(0, 120)
+    |> case do
+      "" -> "attachment"
+      sanitized -> sanitized
+    end
+  end
+
   defp get_s3_attachment_url(s3_key) do
-    bucket = get_bucket()
+    case validate_storage_key(s3_key) do
+      :ok ->
+        bucket = get_bucket()
 
-    endpoint =
-      Application.get_env(:elektrine, :uploads)[:endpoint] ||
-        raise "S3_ENDPOINT not configured"
+        endpoint =
+          Application.get_env(:elektrine, :uploads)[:endpoint] ||
+            raise "S3_ENDPOINT not configured"
 
-    "https://#{bucket}.#{endpoint}/#{s3_key}"
+        "https://#{bucket}.#{endpoint}/#{s3_key}"
+
+      _ ->
+        nil
+    end
   end
 
   defp storage_adapter do
