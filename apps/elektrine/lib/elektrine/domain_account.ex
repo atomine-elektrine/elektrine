@@ -38,6 +38,7 @@ defmodule Elektrine.DomainAccount do
         "avatar_url" => public_avatar_url(user)
       },
       "auth" => auth_document(provider_base_url, domain),
+      "atomine" => atomine_document(provider_base_url, domain, account_base_url),
       "federation" => federation_document(user, domain, account_base_url),
       "email" => email_document(user, domain),
       "per_site_identities" => per_site_identity_document(domain, opts[:per_site_identities]),
@@ -136,6 +137,15 @@ defmodule Elektrine.DomainAccount do
 
   defp authorization_endpoint(provider_base_url, domain) do
     provider_base_url <> "/oauth/authorize?" <> URI.encode_query(%{"identity_domain" => domain})
+  end
+
+  defp atomine_document(provider_base_url, domain, account_base_url) do
+    %{
+      "issuer" => provider_base_url,
+      "proof_bundle" => account_base_url <> "/.well-known/atomine",
+      "subject" => subject(domain),
+      "jwks_uri" => provider_base_url <> "/oauth/jwks"
+    }
   end
 
   defp federation_document(user, domain, account_base_url) do

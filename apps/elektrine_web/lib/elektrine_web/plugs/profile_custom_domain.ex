@@ -30,6 +30,7 @@ defmodule ElektrineWeb.Plugs.ProfileCustomDomain do
     "/.well-known/domain-account",
     "/.well-known/did.json",
     "/.well-known/elektrine",
+    "/.well-known/atomine",
     "/.well-known/webfinger",
     "/.well-known/host-meta",
     "/.well-known/atproto-did"
