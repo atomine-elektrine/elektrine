@@ -1303,7 +1303,7 @@
                       <div class="flex gap-2 text-sm bg-base-200 rounded px-3 py-2 hover:bg-base-300 transition-colors duration-200">
                         <div class="font-medium opacity-70 flex-shrink-0">{field["name"]}:</div>
                         <div class="flex-1 break-all">
-                          {raw(style_profile_links(HtmlSanitizeEx.basic_html(field["value"])))}
+                          {raw(style_profile_links(safe_basic_html(field["value"])))}
                         </div>
                       </div>
                     <% end %>

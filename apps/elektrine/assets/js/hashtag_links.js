@@ -15,16 +15,28 @@ export function initHashtagLinks() {
 
       const originalText = element.textContent;
       const hashtagRegex = /#(\w+)/g;
+      const fragment = document.createDocumentFragment();
+      let lastIndex = 0;
+      let foundHashtag = false;
 
-      // Replace hashtags with clickable links
-      const htmlContent = originalText.replace(hashtagRegex, (match, hashtag) => {
+      originalText.replace(hashtagRegex, (match, hashtag, offset) => {
+        foundHashtag = true;
+        fragment.appendChild(document.createTextNode(originalText.slice(lastIndex, offset)));
+
         const normalizedHashtag = hashtag.toLowerCase();
-        return `<a href="/hashtag/${normalizedHashtag}" class="text-primary hover:underline font-medium">${match}</a>`;
+        const link = document.createElement("a");
+        link.href = `/hashtag/${encodeURIComponent(normalizedHashtag)}`;
+        link.className = "text-primary hover:underline font-medium";
+        link.textContent = match;
+        fragment.appendChild(link);
+        lastIndex = offset + match.length;
+
+        return match;
       });
 
-      // Only update if we found hashtags
-      if (htmlContent !== originalText) {
-        element.innerHTML = htmlContent;
+      if (foundHashtag) {
+        fragment.appendChild(document.createTextNode(originalText.slice(lastIndex)));
+        element.replaceChildren(fragment);
         element.dataset.hashtagProcessed = 'true';
       }
     });
