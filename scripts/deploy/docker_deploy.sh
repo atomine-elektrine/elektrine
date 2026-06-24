@@ -665,6 +665,58 @@ acme_runner_service() {
   fi
 }
 
+maybe_configure_haraka_wildcard_tls() {
+  if [[ "${HARAKA_WILDCARD_TLS_AUTO_CONFIGURE:-true}" =~ ^(0|false|FALSE|no|NO)$ ]]; then
+    return 0
+  fi
+
+  local haraka_dir="${HARAKA_DEPLOY_DIR:-}"
+  local cert_domain="${PRIMARY_DOMAIN:-${PHX_HOST:-}}"
+  local cert_dir="${CADDY_TLS_MOUNT_DIR:-/opt/elektrine/certs}"
+  local cert_path=""
+  local key_path=""
+
+  if [[ -z "$haraka_dir" ]]; then
+    if [[ -d /opt/elektrine-haraka ]]; then
+      haraka_dir=/opt/elektrine-haraka
+    elif [[ -d /opt/elektrine/haraka ]]; then
+      haraka_dir=/opt/elektrine/haraka
+    else
+      return 0
+    fi
+  fi
+
+  if [[ ! -d "$haraka_dir" ]]; then
+    echo "Warn: HARAKA_DEPLOY_DIR does not exist, skipping Haraka TLS auto-config: $haraka_dir" >&2
+    return 0
+  fi
+
+  if [[ -z "$cert_domain" ]]; then
+    echo "Warn: could not infer Haraka TLS cert domain; set HARAKA_TLS_CERT_DOMAIN or PRIMARY_DOMAIN" >&2
+    return 0
+  fi
+
+  cert_path="$cert_dir/$cert_domain.fullchain.pem"
+  key_path="$cert_dir/$cert_domain.key.pem"
+
+  if [[ ! -f "$cert_path" || ! -f "$key_path" ]]; then
+    echo "Warn: Haraka TLS cert/key not found; skipping auto-config:" >&2
+    echo "      cert=$cert_path" >&2
+    echo "      key=$key_path" >&2
+    return 0
+  fi
+
+  echo "Info: configuring Haraka to use Elektrine wildcard TLS certs from $cert_dir" >&2
+  DOCKER_CMD="${DOCKER_BIN[*]}" \
+    "$ROOT_DIR/scripts/deploy/configure_haraka_wildcard_tls.sh" \
+      --env-file "$ENV_FILE" \
+      --haraka-dir "$haraka_dir" \
+      --domain "$cert_domain" \
+      --cert-path "$cert_path" \
+      --key-path "$key_path" \
+      --apply
+}
+
 issue_initial_wildcard_cert() {
   if ! uses_elektrine_wildcard_acme; then
     return 0
@@ -782,6 +834,7 @@ fi
 
 if [[ "$DO_UP" -eq 1 ]]; then
   issue_initial_wildcard_cert
+  maybe_configure_haraka_wildcard_tls
 
   mapfile -t runtime_services < <(compose_runtime_services)
 

@@ -473,6 +473,7 @@ defmodule ElektrineWeb.Router do
     get("/domain-account", DomainAccountController, :show)
     get("/did.json", DomainAccountController, :did)
     get("/elektrine", DomainAccountController, :show)
+    get("/atomine", DomainAccountController, :atomine)
   end
 
   ElektrineWeb.Routes.Social.discovery_routes()
@@ -1261,8 +1262,8 @@ defmodule ElektrineWeb.Router do
       # Portal
       live("/portal", PortalLive.Index, :index)
       live("/maid", SearchLive, :index)
-      live("/reputation", ReputationLive.Show, :index)
-      live("/reputation/:handle", ReputationLive.Show, :show)
+      live("/proofs", AtomineProofsLive.Show, :index)
+      live("/proofs/:handle", AtomineProofsLive.Show, :show)
 
       # Subscription pages
       live("/subscribe/:product", SubscribeLive, :index)

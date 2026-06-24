@@ -107,6 +107,16 @@ defmodule Elektrine.OIDC do
     }
   end
 
+  @doc """
+  Signs arbitrary JSON claims with the active OIDC issuer key.
+
+  Non-login issuer artifacts, such as Atomine proof bundles, use this so
+  verifiers can trust one issuer JWKS instead of learning another key endpoint.
+  """
+  def sign_claims(claims, typ \\ "JWT") when is_map(claims) and is_binary(typ) do
+    jwt_rs256(claims, typ)
+  end
+
   defp maybe_add_profile_claims(claims, user, scopes, issuer) do
     if "profile" in scopes do
       profile_claims = %{
@@ -187,9 +197,9 @@ defmodule Elektrine.OIDC do
   defp maybe_put_claim(claims, _key, ""), do: claims
   defp maybe_put_claim(claims, key, value), do: Map.put(claims, key, value)
 
-  defp jwt_rs256(claims) do
+  defp jwt_rs256(claims, typ \\ "JWT") do
     signing_key = current_signing_key()
-    header = %{"alg" => signing_key.alg, "typ" => "JWT", "kid" => signing_key.kid}
+    header = %{"alg" => signing_key.alg, "typ" => typ, "kid" => signing_key.kid}
     encoded_header = base64url_json(header)
     encoded_claims = base64url_json(claims)
     signing_input = encoded_header <> "." <> encoded_claims

@@ -1,4 +1,4 @@
-defmodule ElektrineWeb.ReputationLive.ShowTest do
+defmodule ElektrineWeb.AtomineProofsLive.ShowTest do
   use ElektrineWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
@@ -6,10 +6,11 @@ defmodule ElektrineWeb.ReputationLive.ShowTest do
   alias Elektrine.{Accounts, Profiles}
   alias Elektrine.AccountsFixtures
 
-  test "renders the search entry page without a handle", %{conn: conn} do
-    {:ok, _view, html} = live(conn, ~p"/reputation")
+  test "renders the proofs search entry page without a handle", %{conn: conn} do
+    {:ok, _view, html} = live(conn, ~p"/proofs")
 
-    assert html =~ "Find a public account"
+    assert html =~ "Atomine Proofs"
+    assert html =~ "Find public proofs"
     assert html =~ "search public accounts"
   end
 
@@ -28,13 +29,13 @@ defmodule ElektrineWeb.ReputationLive.ShowTest do
         profile_visibility: "private"
       })
 
-    {:ok, _view, html} = live(conn, ~p"/reputation?q=graph")
+    {:ok, _view, html} = live(conn, ~p"/proofs?q=graph")
 
     assert html =~ "@#{public_user.handle}"
     refute html =~ "graphhidden#{unique}"
   end
 
-  test "renders the standalone public reputation graph page", %{conn: conn} do
+  test "renders the standalone public proofs page", %{conn: conn} do
     unique = System.unique_integer([:positive])
 
     inviter = AccountsFixtures.user_fixture(%{username: "liveinviter#{unique}"})
@@ -51,12 +52,15 @@ defmodule ElektrineWeb.ReputationLive.ShowTest do
     {:ok, _follow} = Profiles.follow_user(follower.id, subject.id)
     {:ok, subject} = Accounts.admin_update_user(subject, %{trust_level: 1})
 
-    {:ok, _view, html} = live(conn, ~p"/reputation/#{subject.handle}")
+    {:ok, _view, html} = live(conn, ~p"/proofs/#{subject.handle}")
 
-    assert html =~ "Public Reputation"
-    assert html =~ "Reputation for"
+    assert html =~ "Atomine Proofs"
+    assert html =~ "Proofs for"
+    assert html =~ ".#{Elektrine.Domains.default_profile_domain()}"
+    assert html =~ "domain:"
+    assert html =~ ".well-known/atomine"
     assert html =~ "@#{subject.handle}"
-    assert html =~ "reputation-graph-shell"
+    assert html =~ "proof-graph-shell"
     assert html =~ "data-graph="
   end
 
@@ -67,7 +71,7 @@ defmodule ElektrineWeb.ReputationLive.ShowTest do
         profile_visibility: "private"
       })
 
-    {:ok, _view, html} = live(conn, ~p"/reputation/#{user.handle}")
+    {:ok, _view, html} = live(conn, ~p"/proofs/#{user.handle}")
 
     assert html =~ "This account is not public"
   end
