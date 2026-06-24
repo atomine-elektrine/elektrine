@@ -149,12 +149,13 @@ defmodule ElektrineEmailWeb.EmailLive.Operations.TabContent do
 
         "folder" ->
           folder_id = params["folder_id"] || socket.assigns[:current_folder_id]
+          parsed_folder_id = parse_positive_int(folder_id)
 
           result =
-            if folder_id do
+            if parsed_folder_id do
               Cached.list_folder_messages(
                 mailbox.id,
-                String.to_integer(to_string(folder_id)),
+                parsed_folder_id,
                 user.id,
                 page,
                 per_page
@@ -175,7 +176,7 @@ defmodule ElektrineEmailWeb.EmailLive.Operations.TabContent do
 
           socket
           |> assign(:messages, result.messages)
-          |> assign(:current_folder_id, folder_id)
+          |> assign(:current_folder_id, parsed_folder_id)
           |> assign(:pagination, %{
             page: page,
             per_page: per_page,
@@ -213,6 +214,15 @@ defmodule ElektrineEmailWeb.EmailLive.Operations.TabContent do
     |> maybe_put_param("filter", socket.assigns[:current_filter])
     |> maybe_put_param("folder_id", socket.assigns[:current_folder_id])
     |> maybe_put_param("q", socket.assigns[:search_query])
+  end
+
+  defp parse_positive_int(nil), do: nil
+
+  defp parse_positive_int(value) do
+    case Integer.parse(to_string(value)) do
+      {id, ""} when id > 0 -> id
+      _ -> nil
+    end
   end
 
   def message_attachment_total(%{attachments: attachments}) when is_map(attachments),

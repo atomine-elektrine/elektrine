@@ -11,11 +11,32 @@ defmodule Elektrine.Email.InternalDeliveryWorker do
   alias Elektrine.Email
   alias Elektrine.Email.InternalDelivery
 
-  @valid_param_keys ~w(
-    to from cc bcc subject text_body html_body reply_to message_id in_reply_to references
-    attachments headers priority content_type charset mailbox_id status read category metadata
-    is_newsletter is_receipt is_notification
-  )
+  @valid_param_keys %{
+    "to" => :to,
+    "from" => :from,
+    "cc" => :cc,
+    "bcc" => :bcc,
+    "subject" => :subject,
+    "text_body" => :text_body,
+    "html_body" => :html_body,
+    "reply_to" => :reply_to,
+    "message_id" => :message_id,
+    "in_reply_to" => :in_reply_to,
+    "references" => :references,
+    "attachments" => :attachments,
+    "headers" => :headers,
+    "priority" => :priority,
+    "content_type" => :content_type,
+    "charset" => :charset,
+    "mailbox_id" => :mailbox_id,
+    "status" => :status,
+    "read" => :read,
+    "category" => :category,
+    "metadata" => :metadata,
+    "is_newsletter" => :is_newsletter,
+    "is_receipt" => :is_receipt,
+    "is_notification" => :is_notification
+  }
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"delivery_id" => delivery_id}}) do
@@ -71,13 +92,15 @@ defmodule Elektrine.Email.InternalDeliveryWorker do
   defp atomize_keys(map) when is_map(map) do
     Map.new(map, fn
       {key, value} when is_binary(key) ->
-        if key in @valid_param_keys do
-          {String.to_existing_atom(key), atomize_keys(value)}
-        else
-          {key, atomize_keys(value)}
+        case Map.fetch(@valid_param_keys, key) do
+          {:ok, atom_key} -> {atom_key, atomize_keys(value)}
+          :error -> {key, atomize_keys(value)}
         end
 
       {key, value} when is_atom(key) ->
+        {key, atomize_keys(value)}
+
+      {key, value} ->
         {key, atomize_keys(value)}
     end)
   end

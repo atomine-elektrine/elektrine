@@ -8,6 +8,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
   alias Elektrine.Social.Drafts
   alias Elektrine.Social.Recommendations
   alias Elektrine.Timeline.RateLimiter, as: TimelineRateLimiter
+  alias Elektrine.Utils.SafeConvert
   alias ElektrineSocialWeb.TimelineLive.Operations.Helpers
   alias ElektrineSocialWeb.TimelineLive.ReplyContextPreviews
   alias ElektrineWeb.AdminSecurity
@@ -297,7 +298,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
   end
 
   def handle_event("delete_post", %{"message_id" => message_id}, socket) do
-    message_id = String.to_integer(message_id)
+    message_id = event_id(message_id)
     post = Enum.find(socket.assigns.timeline_posts, &(&1.id == message_id))
 
     if post && post.sender_id == socket.assigns.current_user.id do
@@ -322,20 +323,24 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
   def handle_event("delete_post_admin", %{"message_id" => message_id}, socket) do
     case AdminSecurity.validate_live_admin_action(socket.assigns) do
       :ok ->
-        message_id = String.to_integer(message_id)
+        message_id = event_id(message_id)
 
-        case Messaging.delete_message(message_id, socket.assigns.current_user.id, true) do
-          {:ok, _deleted_message} ->
-            updated_posts = Enum.reject(socket.assigns.timeline_posts, &(&1.id == message_id))
+        if message_id == 0 do
+          {:noreply, put_flash(socket, :error, "Failed to delete post")}
+        else
+          case Messaging.delete_message(message_id, socket.assigns.current_user.id, true) do
+            {:ok, _deleted_message} ->
+              updated_posts = Enum.reject(socket.assigns.timeline_posts, &(&1.id == message_id))
 
-            {:noreply,
-             socket
-             |> assign(:timeline_posts, updated_posts)
-             |> Helpers.apply_timeline_filter()
-             |> put_flash(:info, "Post deleted successfully")}
+              {:noreply,
+               socket
+               |> assign(:timeline_posts, updated_posts)
+               |> Helpers.apply_timeline_filter()
+               |> put_flash(:info, "Post deleted successfully")}
 
-          {:error, _} ->
-            {:noreply, put_flash(socket, :error, "Failed to delete post")}
+            {:error, _} ->
+              {:noreply, put_flash(socket, :error, "Failed to delete post")}
+          end
         end
 
       {:error, reason} ->
@@ -348,7 +353,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
   end
 
   def handle_event("copy_post_link", %{"message_id" => message_id}, socket) do
-    message_id = String.to_integer(message_id)
+    message_id = event_id(message_id)
     post = Enum.find(socket.assigns.timeline_posts, &(&1.id == message_id))
 
     if post do
@@ -364,7 +369,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
   end
 
   def handle_event("report_post", %{"message_id" => message_id}, socket) do
-    message_id = String.to_integer(message_id)
+    message_id = event_id(message_id)
     post = Enum.find(socket.assigns.timeline_posts, &(&1.id == message_id))
 
     if post do
@@ -567,7 +572,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
 
   def handle_event("edit_draft", %{"draft_id" => draft_id}, socket) do
     user = socket.assigns.current_user
-    draft_id = String.to_integer(draft_id)
+    draft_id = event_id(draft_id)
 
     case Drafts.get_draft(draft_id, user.id) do
       nil ->
@@ -596,7 +601,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
 
   def handle_event("publish_draft", %{"draft_id" => draft_id}, socket) do
     user = socket.assigns.current_user
-    draft_id = String.to_integer(draft_id)
+    draft_id = event_id(draft_id)
 
     case Drafts.publish_draft(draft_id, user.id) do
       {:ok, published_post} ->
@@ -627,7 +632,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
 
   def handle_event("delete_draft", %{"draft_id" => draft_id}, socket) do
     user = socket.assigns.current_user
-    draft_id = String.to_integer(draft_id)
+    draft_id = event_id(draft_id)
 
     case Drafts.delete_draft(draft_id, user.id) do
       {:ok, _deleted_draft} ->
@@ -1156,6 +1161,13 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
 
   defp allow_timeline_read(socket, action) do
     TimelineRateLimiter.allow_read(timeline_rate_limit_identifier(socket, action))
+  end
+
+  defp event_id(value) do
+    case SafeConvert.parse_id(value) do
+      {:ok, id} -> id
+      {:error, :invalid_id} -> 0
+    end
   end
 
   defp timeline_rate_limit_identifier(socket, action) do

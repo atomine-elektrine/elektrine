@@ -1,7 +1,7 @@
 defmodule ElektrineWeb.DriveControllerTest do
   use ElektrineWeb.ConnCase, async: false
 
-  alias Elektrine.{Accounts, Drive}
+  alias Elektrine.{Accounts, Drive, Repo}
 
   setup do
     previous_uploads = Application.get_env(:elektrine, :uploads)
@@ -47,6 +47,49 @@ defmodule ElektrineWeb.DriveControllerTest do
     assert get_resp_header(conn, "content-type") == ["text/plain; charset=utf-8"]
   end
 
+  test "sanitizes poisoned download metadata from legacy rows", %{
+    conn: conn,
+    user: user,
+    stored_file: file
+  } do
+    file =
+      file
+      |> Ecto.Changeset.change(
+        original_filename: "secret\"\r\nx-evil: yes.txt",
+        content_type: "text/plain\r\nx-evil: yes"
+      )
+      |> Repo.update!()
+
+    conn = get(log_in_user(conn, user), ~p"/account/drive/#{file.id}/download")
+
+    assert response(conn, 200) == "top secret"
+
+    assert [content_disposition] = get_resp_header(conn, "content-disposition")
+    assert content_disposition =~ "attachment;"
+    assert content_disposition =~ "filename=\"secret___x-evil_%20yes.txt\""
+    refute content_disposition =~ "\r"
+    refute content_disposition =~ "\n"
+
+    refute Enum.any?(conn.resp_headers, fn {name, _value} -> name == "x-evil" end)
+    assert get_resp_header(conn, "content-type") == ["application/octet-stream"]
+  end
+
+  test "rejects poisoned inline preview content type from legacy rows", %{
+    conn: conn,
+    user: user,
+    stored_file: file
+  } do
+    file =
+      file
+      |> Ecto.Changeset.change(content_type: "image/png\r\nx-evil: yes")
+      |> Repo.update!()
+
+    conn = get(log_in_user(conn, user), ~p"/account/drive/#{file.id}/preview")
+
+    assert response(conn, 404) == "Not found"
+    refute Enum.any?(conn.resp_headers, fn {name, _value} -> name == "x-evil" end)
+  end
+
   test "prevents downloading another user's file", %{conn: conn, stored_file: file} do
     other_user = user_fixture()
     conn = get(log_in_user(conn, other_user), ~p"/account/drive/#{file.id}/download")
@@ -86,7 +129,7 @@ defmodule ElektrineWeb.DriveControllerTest do
     %Plug.Upload{
       path: path,
       filename: filename,
-      content_type: MIME.from_path(filename) || "application/octet-stream"
+      content_type: MIME.from_path(filename)
     }
   end
 end

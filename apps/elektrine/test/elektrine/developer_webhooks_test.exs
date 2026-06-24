@@ -3,7 +3,8 @@ defmodule Elektrine.DeveloperWebhooksTest do
 
   import Elektrine.AccountsFixtures
 
-  alias Elektrine.Developer
+  alias Elektrine.{Developer, Repo}
+  alias Elektrine.Secrets.EncryptedString
 
   describe "webhook management" do
     test "creates, lists, and deletes webhooks" do
@@ -20,6 +21,12 @@ defmodule Elektrine.DeveloperWebhooksTest do
       assert webhook.enabled
       assert is_binary(webhook.secret)
       assert webhook.secret != ""
+
+      [[stored_secret]] =
+        Repo.query!("SELECT secret FROM developer_webhooks WHERE id = $1", [webhook.id]).rows
+
+      assert EncryptedString.encrypted?(stored_secret)
+      refute stored_secret == webhook.secret
 
       webhooks = Developer.list_webhooks(user.id)
       assert Enum.any?(webhooks, &(&1.id == webhook.id))

@@ -9,7 +9,6 @@ defmodule ElektrineEmailWeb.UnsubscribeController do
   This is called automatically by email clients when users click "Unsubscribe".
   """
   def one_click(conn, %{"token" => token}) do
-    # Extract email from token or database
     with {:ok, info} <- get_unsubscribe_info(token),
          {:ok, _} <- record_unsubscribe(info, conn) do
       # RFC 8058 requires returning 200 OK
@@ -85,20 +84,6 @@ defmodule ElektrineEmailWeb.UnsubscribeController do
   # Private helper functions
 
   defp get_unsubscribe_info(token) do
-    # Try to parse token directly (for new tokens with embedded info)
-    case decode_token(token) do
-      {:ok, info} ->
-        {:ok, info}
-
-      {:error, _} ->
-        # Fall back to database lookup for legacy tokens
-        Unsubscribes.verify_token(token)
-    end
-  end
-
-  defp decode_token(token) do
-    # For simple implementation, we'll use database lookup
-    # In production, you might encode email/list_id in the token itself
     Unsubscribes.verify_token(token)
   end
 

@@ -482,10 +482,19 @@ defmodule Elektrine.DNS.Recursive do
   end
 
   defp parse_cidr(cidr) do
-    [address, prefix] = String.split(cidr, "/", parts: 2)
-    {:ok, ip} = :inet.parse_address(String.to_charlist(address))
-    {ip, String.to_integer(prefix)}
+    with [address, prefix] <- String.split(cidr, "/", parts: 2),
+         {:ok, ip} <- :inet.parse_address(String.to_charlist(address)),
+         {prefix, ""} <- Integer.parse(prefix),
+         true <- valid_cidr_prefix?(ip, prefix) do
+      {ip, prefix}
+    else
+      _ -> nil
+    end
   end
+
+  defp valid_cidr_prefix?(ip, prefix) when tuple_size(ip) == 4, do: prefix in 0..32
+  defp valid_cidr_prefix?(ip, prefix) when tuple_size(ip) == 8, do: prefix in 0..128
+  defp valid_cidr_prefix?(_, _), do: false
 
   defp cidr_match?(ip, {network, prefix}) when tuple_size(ip) == tuple_size(network) do
     bits = if tuple_size(ip) == 4, do: 32, else: 128
@@ -506,7 +515,7 @@ defmodule Elektrine.DNS.Recursive do
         parsed
 
       _ ->
-        parsed = Enum.map(cidrs, &parse_cidr/1)
+        parsed = cidrs |> Enum.map(&parse_cidr/1) |> Enum.reject(&is_nil/1)
         :persistent_term.put(key, {cidrs, parsed})
         parsed
     end

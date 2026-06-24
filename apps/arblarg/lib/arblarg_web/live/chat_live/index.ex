@@ -19,7 +19,6 @@ defmodule ArblargWeb.ChatLive.Index do
   import ArblargWeb.Components.Platform.ENav
   import ArblargWeb.Components.Social.EmbeddedPost
   import ElektrineWeb.Live.NotificationHelpers
-  import ElektrineWeb.HtmlHelpers, only: [ensure_https: 1, render_custom_emojis: 1]
 
   # Import operation modules
   alias ArblargWeb.ChatLive.Bootstrap
@@ -341,31 +340,14 @@ defmodule ArblargWeb.ChatLive.Index do
   end
 
   def handle_info({:start_dm, user_id_str}, socket) when is_binary(user_id_str) do
-    user_id = String.to_integer(user_id_str)
-    current_user_id = socket.assigns.current_user.id
+    case parse_positive_int(user_id_str) do
+      {:ok, user_id} ->
+        start_local_dm(socket, user_id)
 
-    case Messaging.create_dm_conversation(current_user_id, user_id) do
-      {:ok, conversation} ->
+      :error ->
         {:noreply,
          socket
-         |> assign(:ui, Map.put(socket.assigns.ui, :show_new_chat, false))
-         |> assign(:search, %{socket.assigns.search | query: "", results: []})
-         |> push_navigate(to: Elektrine.Paths.chat_path(conversation))}
-
-      {:error, :rate_limited} ->
-        {:noreply,
-         socket
-         |> notify_error(
-           "You are creating too many conversations. Please wait a moment and try again."
-         )
-         |> assign(:ui, Map.put(socket.assigns.ui, :show_profile_modal, false))}
-
-      {:error, reason} ->
-        error_message = Elektrine.Privacy.privacy_error_message(reason)
-
-        {:noreply,
-         socket
-         |> notify_error(error_message)
+         |> notify_error("Failed to start chat")
          |> assign(:ui, Map.put(socket.assigns.ui, :show_profile_modal, false))}
     end
   end
@@ -574,24 +556,27 @@ defmodule ArblargWeb.ChatLive.Index do
   end
 
   def handle_info({:toggle_user_selection, user_id_str}, socket) do
-    user_id = String.to_integer(user_id_str)
-    selected_users = socket.assigns.form.selected_users
+    case parse_positive_int(user_id_str) do
+      {:ok, user_id} ->
+        selected_users = socket.assigns.form.selected_users
 
-    updated_users =
-      case Enum.find_index(selected_users, &(&1.id == user_id)) do
-        nil ->
-          # Add user to selection
-          case Enum.find(socket.assigns.search.results, &(&1.id == user_id)) do
-            %User{} = user -> [user | selected_users]
-            nil -> selected_users
+        updated_users =
+          case Enum.find_index(selected_users, &(&1.id == user_id)) do
+            nil ->
+              case Enum.find(socket.assigns.search.results, &(&1.id == user_id)) do
+                %User{} = user -> [user | selected_users]
+                nil -> selected_users
+              end
+
+            index ->
+              List.delete_at(selected_users, index)
           end
 
-        index ->
-          # Remove user from selection
-          List.delete_at(selected_users, index)
-      end
+        {:noreply, assign(socket, :form, %{socket.assigns.form | selected_users: updated_users})}
 
-    {:noreply, assign(socket, :form, %{socket.assigns.form | selected_users: updated_users})}
+      :error ->
+        {:noreply, socket}
+    end
   end
 
   def handle_info({:send_message, message_content}, socket) do
@@ -630,11 +615,15 @@ defmodule ArblargWeb.ChatLive.Index do
   end
 
   def handle_info({:react_to_message, message_id_str, emoji}, socket) do
-    message_id = String.to_integer(message_id_str)
+    case parse_positive_int(message_id_str) do
+      {:ok, message_id} ->
+        case Messaging.add_chat_reaction(message_id, socket.assigns.current_user.id, emoji) do
+          {:ok, _reaction} -> {:noreply, socket}
+          {:error, _} -> {:noreply, socket}
+        end
 
-    case Messaging.add_chat_reaction(message_id, socket.assigns.current_user.id, emoji) do
-      {:ok, _reaction} -> {:noreply, socket}
-      {:error, _} -> {:noreply, socket}
+      :error ->
+        {:noreply, socket}
     end
   end
 
@@ -775,8 +764,11 @@ defmodule ArblargWeb.ChatLive.Index do
   end
 
   def handle_info({:reply_to_message, message_id_str}, socket) do
-    message_id = String.to_integer(message_id_str)
-    reply_to_message = Enum.find(socket.assigns.messages, &(&1.id == message_id))
+    reply_to_message =
+      case parse_positive_int(message_id_str) do
+        {:ok, message_id} -> Enum.find(socket.assigns.messages, &(&1.id == message_id))
+        :error -> nil
+      end
 
     {:noreply, assign(socket, :message, %{socket.assigns.message | reply_to: reply_to_message})}
   end
@@ -1629,9 +1621,9 @@ defmodule ArblargWeb.ChatLive.Index do
                     <div class="flex items-center justify-between gap-3 p-3 bg-base-200 rounded-lg">
                       <div class="flex items-center gap-3 min-w-0">
                         <div class="w-8 h-8 rounded-full overflow-hidden bg-base-300 flex items-center justify-center shrink-0">
-                          <%= if request.avatar_url do %>
+                          <%= if avatar_url = safe_chat_image_url(request.avatar_url) do %>
                             <img
-                              src={request.avatar_url}
+                              src={avatar_url}
                               alt={request.display_label}
                               class="w-full h-full object-cover"
                             />
@@ -2849,6 +2841,7 @@ defmodule ArblargWeb.ChatLive.Index do
   defdelegate format_reactions(reactions), to: Helpers
   defdelegate user_reacted?(reactions, emoji, user_id), to: Helpers
   defdelegate linkify_urls(text), to: Helpers
+  defdelegate render_reaction_emoji(emoji), to: Helpers
 
   defp route_label(conversation, current_user_id) do
     name = Helpers.conversation_name(conversation, current_user_id) |> to_string()
@@ -3287,6 +3280,42 @@ defmodule ArblargWeb.ChatLive.Index do
 
   defp maybe_add_remote_dm_search_result(results, _query), do: results
 
+  defp start_local_dm(socket, user_id) do
+    current_user_id = socket.assigns.current_user.id
+
+    case Messaging.create_dm_conversation(current_user_id, user_id) do
+      {:ok, conversation} ->
+        {:noreply,
+         socket
+         |> assign(:ui, Map.put(socket.assigns.ui, :show_new_chat, false))
+         |> assign(:search, %{socket.assigns.search | query: "", results: []})
+         |> push_navigate(to: Elektrine.Paths.chat_path(conversation))}
+
+      {:error, :rate_limited} ->
+        {:noreply,
+         socket
+         |> notify_error(
+           "You are creating too many conversations. Please wait a moment and try again."
+         )
+         |> assign(:ui, Map.put(socket.assigns.ui, :show_profile_modal, false))}
+
+      {:error, reason} ->
+        error_message = Elektrine.Privacy.privacy_error_message(reason)
+
+        {:noreply,
+         socket
+         |> notify_error(error_message)
+         |> assign(:ui, Map.put(socket.assigns.ui, :show_profile_modal, false))}
+    end
+  end
+
+  defp parse_positive_int(value) do
+    case Integer.parse(to_string(value)) do
+      {int, ""} when int > 0 -> {:ok, int}
+      _ -> :error
+    end
+  end
+
   defp normalize_remote_dm_handle_query(handle) when is_binary(handle) do
     normalized =
       handle
@@ -3320,6 +3349,30 @@ defmodule ArblargWeb.ChatLive.Index do
   defp social_link_preview?(%{__struct__: :"Elixir.Elektrine.Social.LinkPreview"}), do: true
 
   defp social_link_preview?(_), do: false
+
+  @doc false
+  def safe_chat_image_url(url) when is_binary(url) do
+    trimmed = String.trim(url)
+
+    cond do
+      trimmed == "" ->
+        nil
+
+      Regex.match?(~r/[\x00-\x1F\x7F]/, trimmed) ->
+        nil
+
+      String.starts_with?(trimmed, "uploads/") ->
+        "/" <> trimmed
+
+      String.starts_with?(trimmed, ["/uploads/", "/api/private-attachments/"]) ->
+        trimmed
+
+      true ->
+        ElektrineWeb.HtmlHelpers.safe_external_image_url(trimmed)
+    end
+  end
+
+  def safe_chat_image_url(_), do: nil
 
   defp private_email?(%{client_encrypted_payload: payload}) when is_map(payload), do: true
   defp private_email?(_message), do: false

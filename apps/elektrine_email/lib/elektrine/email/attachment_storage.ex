@@ -4,6 +4,7 @@ defmodule Elektrine.Email.AttachmentStorage do
   """
 
   require Logger
+  alias Elektrine.Security.FilePath
   alias Elektrine.Telemetry.Events
   alias ExAws.S3
 
@@ -364,15 +365,12 @@ defmodule Elektrine.Email.AttachmentStorage do
     uploads_dir =
       Application.get_env(:elektrine, :uploads, [])[:uploads_dir] || "priv/static/uploads"
 
-    with :ok <- validate_storage_key(key) do
-      path = Path.expand(Path.join(uploads_dir, key))
-      root = Path.expand(uploads_dir)
-
-      if String.starts_with?(path, root <> "/") do
-        {:ok, path}
-      else
-        {:error, :invalid_storage_key}
-      end
+    with :ok <- validate_storage_key(key),
+         {:ok, path} <- FilePath.validate_child_path(Path.join(uploads_dir, key), uploads_dir) do
+      {:ok, path}
+    else
+      {:error, :unsafe_path} -> {:error, :invalid_storage_key}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -396,7 +394,10 @@ defmodule Elektrine.Email.AttachmentStorage do
       String.starts_with?(key, ["/", "\\"]) ->
         {:error, :invalid_storage_key}
 
-      String.contains?(key, ["..", "\\", "\0"]) ->
+      String.contains?(key, ["..", "\\", "\0", "//"]) ->
+        {:error, :invalid_storage_key}
+
+      String.match?(key, ~r/[\x00-\x1F\x7F]/) ->
         {:error, :invalid_storage_key}
 
       not String.starts_with?(key, "email-attachments/") ->

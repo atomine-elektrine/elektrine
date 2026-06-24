@@ -23,6 +23,7 @@ defmodule Elektrine.ActivityPub.NodeInfoFetcherWorker do
   alias Elektrine.ActivityPub.{Instance, Instances}
   alias Elektrine.HTTP.SafeFetch
   alias Elektrine.Repo
+  alias Elektrine.Security.SafeExternalURL
 
   @doc """
   Enqueues a job to fetch nodeinfo for a domain, if needed.
@@ -62,6 +63,16 @@ defmodule Elektrine.ActivityPub.NodeInfoFetcherWorker do
   end
 
   def enqueue_from_url(_), do: {:error, :invalid_url}
+
+  @doc false
+  def normalize_favicon_url(href, domain) when is_binary(href) and is_binary(domain) do
+    href
+    |> String.trim()
+    |> favicon_url_for_domain(domain)
+    |> normalize_external_favicon_url()
+  end
+
+  def normalize_favicon_url(_href, _domain), do: nil
 
   defp do_enqueue(domain) do
     %{domain: domain}
@@ -252,6 +263,12 @@ defmodule Elektrine.ActivityPub.NodeInfoFetcherWorker do
   end
 
   defp resolve_favicon_url(href, domain) do
+    normalize_favicon_url(href, domain)
+  end
+
+  defp favicon_url_for_domain("", _domain), do: nil
+
+  defp favicon_url_for_domain(href, domain) do
     cond do
       String.starts_with?(href, "http://") or String.starts_with?(href, "https://") ->
         href
@@ -259,13 +276,25 @@ defmodule Elektrine.ActivityPub.NodeInfoFetcherWorker do
       String.starts_with?(href, "//") ->
         "https:" <> href
 
-      String.starts_with?(href, "/") ->
-        "https://#{domain}#{href}"
-
       true ->
-        "https://#{domain}/#{href}"
+        domain
+        |> base_favicon_uri()
+        |> URI.merge(href)
+        |> URI.to_string()
     end
-    |> String.slice(0, 255)
+  end
+
+  defp normalize_external_favicon_url(nil), do: nil
+
+  defp normalize_external_favicon_url(url) do
+    case SafeExternalURL.normalize(url) do
+      {:ok, safe_url} -> String.slice(safe_url, 0, 255)
+      {:error, _reason} -> nil
+    end
+  end
+
+  defp base_favicon_uri(domain) do
+    URI.parse("https://#{domain}/")
   end
 
   defp normalize_domain(domain) do

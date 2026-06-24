@@ -54,6 +54,21 @@ defmodule Elektrine.Messaging.FederatedMessageNormalizationTest do
       assert message.activitypub_url == canonical_url
     end
 
+    test "drops unsafe structured activitypub_url values before storage" do
+      actor = remote_actor_fixture()
+
+      assert {:ok, message} =
+               actor
+               |> federated_attrs(%{
+                 activitypub_url: [
+                   %{"type" => "Link", "href" => "https://example.com@evil.test/path"}
+                 ]
+               })
+               |> Messaging.create_federated_message()
+
+      assert message.activitypub_url == nil
+    end
+
     test "preserves federated vote counters" do
       actor = remote_actor_fixture()
 
@@ -113,6 +128,23 @@ defmodule Elektrine.Messaging.FederatedMessageNormalizationTest do
 
       assert changeset.valid?
       assert Ecto.Changeset.get_change(changeset, :activitypub_url) == canonical_url
+    end
+
+    test "drops unsafe activitypub_url values on updates" do
+      actor = remote_actor_fixture()
+
+      assert {:ok, message} =
+               actor
+               |> federated_attrs(%{activitypub_url: nil})
+               |> Messaging.create_federated_message()
+
+      changeset =
+        Message.federated_changeset(message, %{
+          activitypub_url: [%{"href" => "javascript:alert(1)"}]
+        })
+
+      assert changeset.valid?
+      assert Ecto.Changeset.get_change(changeset, :activitypub_url) == nil
     end
   end
 

@@ -5,6 +5,7 @@ defmodule ElektrineSocialWeb.Components.Social.RSSItem do
   """
   use Phoenix.Component
   import ElektrineWeb.CoreComponents
+  alias Elektrine.Security.SafeExternalURL
 
   @doc """
   Renders an RSS item card for the timeline.
@@ -34,10 +35,10 @@ defmodule ElektrineSocialWeb.Components.Social.RSSItem do
         <!-- Feed Favicon -->
         <div class="flex-shrink-0">
           <div class="w-10 h-10 rounded-full bg-base-300 flex items-center justify-center overflow-hidden">
-            <%= if @item.feed_favicon_url do %>
+            <%= if feed_favicon_url = safe_url(@item.feed_favicon_url) do %>
               <img
                 id={"rss-favicon-#{@item.id}"}
-                src={@item.feed_favicon_url}
+                src={feed_favicon_url}
                 alt=""
                 class="w-6 h-6 object-contain"
                 phx-hook="ImageFallback"
@@ -65,22 +66,28 @@ defmodule ElektrineSocialWeb.Components.Social.RSSItem do
           </div>
           
     <!-- Title -->
-          <a
-            href={@item.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            class="block hover:underline"
-          >
+          <%= if item_url = safe_url(@item.url) do %>
+            <a
+              href={item_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="block hover:underline"
+            >
+              <h3 class="font-semibold text-lg mb-2 line-clamp-2">
+                {@item.title}
+              </h3>
+            </a>
+          <% else %>
             <h3 class="font-semibold text-lg mb-2 line-clamp-2">
               {@item.title}
             </h3>
-          </a>
+          <% end %>
           
     <!-- Image if present -->
-          <%= if @item.image_url do %>
+          <%= if item_image_url = safe_url(@item.image_url) do %>
             <div class="mb-3 rounded-lg overflow-hidden max-h-64">
               <img
-                src={@item.image_url}
+                src={item_image_url}
                 alt=""
                 class="w-full h-auto object-cover max-h-64"
                 loading="lazy"
@@ -108,14 +115,18 @@ defmodule ElektrineSocialWeb.Components.Social.RSSItem do
           
     <!-- Actions -->
           <div class="flex items-center justify-between pt-2 border-t border-base-300">
-            <a
-              href={@item.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              class="btn btn-ghost btn-sm gap-1"
-            >
-              <.icon name="hero-arrow-top-right-on-square" class="w-4 h-4" /> Read More
-            </a>
+            <%= if item_url = safe_url(@item.url) do %>
+              <a
+                href={item_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="btn btn-ghost btn-sm gap-1"
+              >
+                <.icon name="hero-arrow-top-right-on-square" class="w-4 h-4" /> Read More
+              </a>
+            <% else %>
+              <span></span>
+            <% end %>
 
             <div class="flex items-center gap-2">
               <!-- Save Button -->
@@ -138,9 +149,9 @@ defmodule ElektrineSocialWeb.Components.Social.RSSItem do
               <% end %>
               
     <!-- External Link -->
-              <%= if @item.feed_site_url do %>
+              <%= if feed_site_url = safe_url(@item.feed_site_url) do %>
                 <a
-                  href={@item.feed_site_url}
+                  href={feed_site_url}
                   target="_blank"
                   rel="noopener noreferrer"
                   class="btn btn-ghost btn-sm gap-1 text-base-content/50"
@@ -204,6 +215,13 @@ defmodule ElektrineSocialWeb.Components.Social.RSSItem do
       String.slice(text, 0, max) <> "..."
     else
       text
+    end
+  end
+
+  defp safe_url(url) do
+    case SafeExternalURL.normalize_href(url) do
+      {:ok, safe_url} -> safe_url
+      {:error, _reason} -> nil
     end
   end
 end

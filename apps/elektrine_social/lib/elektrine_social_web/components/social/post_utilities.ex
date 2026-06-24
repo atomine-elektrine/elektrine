@@ -8,6 +8,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
 
   alias Elektrine.ActivityPub.LemmyApi
   alias Elektrine.Repo
+  alias Elektrine.Security.SafeExternalURL
   alias Elektrine.Social.LinkPreview
   alias Elektrine.Social.Message
   alias Elektrine.Uploads
@@ -55,17 +56,45 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
   """
   @spec filter_image_urls(list(String.t()) | nil) :: list(String.t())
   def filter_image_urls(urls) when is_list(urls) do
-    Enum.filter(urls, fn url ->
-      is_binary(url) &&
-        (String.match?(url, ~r/\.(jpe?g|png|gif|webp|svg|bmp|avif)(\?.*)?$/i) ||
-           String.match?(
-             url,
-             ~r/(\/media\/|\/images\/|\/uploads\/|\/pictrs\/|i\.imgur|pbs\.twimg|i\.redd\.it)/i
-           ))
-    end)
+    urls
+    |> Enum.map(&safe_image_url/1)
+    |> Enum.reject(&is_nil/1)
   end
 
   def filter_image_urls(_), do: []
+
+  @doc "Returns a safe external image URL, or nil for unsafe/non-image values."
+  @spec safe_image_url(String.t() | nil) :: String.t() | nil
+  def safe_image_url(url) when is_binary(url) do
+    with trimmed when trimmed != "" <- String.trim(url),
+         true <- image_url?(trimmed),
+         {:ok, safe_url} <- SafeExternalURL.normalize(trimmed) do
+      safe_url
+    else
+      _ -> nil
+    end
+  end
+
+  def safe_image_url(_), do: nil
+
+  @doc "Returns a safe external href URL, or nil for unsafe values."
+  @spec safe_external_href(String.t() | nil) :: String.t() | nil
+  def safe_external_href(url) when is_binary(url) do
+    case SafeExternalURL.normalize_href(url) do
+      {:ok, safe_url} -> safe_url
+      {:error, _reason} -> nil
+    end
+  end
+
+  def safe_external_href(_), do: nil
+
+  defp image_url?(url) when is_binary(url) do
+    String.match?(url, ~r/\.(jpe?g|png|gif|webp|svg|bmp|avif)(\?.*)?$/i) ||
+      String.match?(
+        url,
+        ~r/(\/media\/|\/images\/|\/uploads\/|\/pictrs\/|i\.imgur|pbs\.twimg|i\.redd\.it)/i
+      )
+  end
 
   @doc """
   Extracts the community name from a Lemmy community URI.
@@ -384,7 +413,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
   def get_reply_avatar_url(%Message{} = msg) do
     cond do
       msg.remote_actor && Elektrine.Strings.present?(msg.remote_actor.avatar_url) ->
-        msg.remote_actor.avatar_url
+        safe_image_url(msg.remote_actor.avatar_url)
 
       msg.sender && Elektrine.Strings.present?(msg.sender.avatar) ->
         Uploads.avatar_url(msg.sender.avatar)
@@ -400,18 +429,23 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
     local_user = Map.get(reply, :_local_user) || Map.get(reply, "_local_user")
     lemmy_data = Map.get(reply, :_lemmy) || Map.get(reply, "_lemmy")
 
-    [
+    remote_candidates = [
       Map.get(reply, :author_avatar),
       Map.get(reply, "author_avatar"),
       Map.get(reply, :avatar_url),
       Map.get(reply, "avatar_url"),
       remote_actor && (Map.get(remote_actor, :avatar_url) || Map.get(remote_actor, "avatar_url")),
-      sender && (Map.get(sender, :avatar) || Map.get(sender, "avatar")),
-      local_user && (Map.get(local_user, :avatar) || Map.get(local_user, "avatar")),
       lemmy_data &&
         (Map.get(lemmy_data, :creator_avatar) || Map.get(lemmy_data, "creator_avatar"))
     ]
-    |> Enum.find_value(&normalize_reply_avatar/1)
+
+    local_candidates = [
+      sender && (Map.get(sender, :avatar) || Map.get(sender, "avatar")),
+      local_user && (Map.get(local_user, :avatar) || Map.get(local_user, "avatar"))
+    ]
+
+    Enum.find_value(remote_candidates, &normalize_remote_reply_avatar/1) ||
+      Enum.find_value(local_candidates, &normalize_local_reply_avatar/1)
   end
 
   def get_reply_avatar_url(_), do: nil
@@ -684,22 +718,21 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
     String.match?(text, ~r/:([a-zA-Z_][a-zA-Z0-9_]*):/)
   end
 
-  defp normalize_reply_avatar(value) when is_binary(value) do
+  defp normalize_remote_reply_avatar(value) when is_binary(value) do
     trimmed = String.trim(value)
 
-    cond do
-      not Elektrine.Strings.present?(trimmed) ->
-        nil
-
-      String.starts_with?(trimmed, "http://") || String.starts_with?(trimmed, "https://") ->
-        trimmed
-
-      true ->
-        Uploads.avatar_url(trimmed)
-    end
+    if Elektrine.Strings.present?(trimmed), do: safe_image_url(trimmed)
   end
 
-  defp normalize_reply_avatar(_), do: nil
+  defp normalize_remote_reply_avatar(_), do: nil
+
+  defp normalize_local_reply_avatar(value) when is_binary(value) do
+    trimmed = String.trim(value)
+
+    if Elektrine.Strings.present?(trimmed), do: Uploads.avatar_url(trimmed)
+  end
+
+  defp normalize_local_reply_avatar(_), do: nil
 
   defp remote_actor_domain(%{remote_actor: remote_actor}), do: remote_actor_domain(remote_actor)
 

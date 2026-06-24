@@ -7,9 +7,11 @@ defmodule Elektrine.Drive.FileShare do
   import Ecto.Changeset
 
   alias Elektrine.Drive.StoredFile
+  alias Elektrine.Secrets.EncryptedString
 
   schema "drive_shares" do
-    field :token, :string
+    field :token, EncryptedString
+    field :token_hash, :string
     field :revoked_at, :utc_datetime
     field :expires_at, :utc_datetime
     field :access_level, :string, default: "download"
@@ -29,6 +31,7 @@ defmodule Elektrine.Drive.FileShare do
       :drive_file_id,
       :user_id,
       :token,
+      :token_hash,
       :revoked_at,
       :expires_at,
       :access_level,
@@ -36,14 +39,15 @@ defmodule Elektrine.Drive.FileShare do
       :download_count,
       :burn_after_read
     ])
-    |> validate_required([:drive_file_id, :user_id, :token])
+    |> validate_required([:drive_file_id, :user_id, :token, :token_hash])
     |> validate_length(:token, min: 16, max: 255)
+    |> validate_length(:token_hash, is: 64)
     |> validate_number(:download_count, greater_than_or_equal_to: 0)
     |> validate_inclusion(:access_level, ["download", "view"])
     |> validate_expiry()
     |> foreign_key_constraint(:drive_file_id)
     |> foreign_key_constraint(:user_id)
-    |> unique_constraint(:token)
+    |> unique_constraint(:token_hash)
   end
 
   defp validate_expiry(changeset) do

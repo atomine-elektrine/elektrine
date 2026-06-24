@@ -59,7 +59,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.SenderSettings do
   def handle_event("unblock_sender", %{"id" => id}, socket) do
     user_id = socket.assigns.current_user.id
 
-    case Email.get_blocked_sender(String.to_integer(id), user_id) do
+    case get_blocked_sender(id, user_id) do
       nil ->
         {:noreply, put_flash(socket, :error, "Blocked sender not found")}
 
@@ -101,7 +101,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.SenderSettings do
   def handle_event("remove_safe_sender", %{"id" => id}, socket) do
     user_id = socket.assigns.current_user.id
 
-    case Email.get_safe_sender(String.to_integer(id), user_id) do
+    case get_safe_sender(id, user_id) do
       nil ->
         {:noreply, put_flash(socket, :error, "Safe sender not found")}
 
@@ -116,6 +116,20 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.SenderSettings do
   end
 
   # Render functions
+
+  defp get_blocked_sender(id, user_id) do
+    case parse_positive_id(id) do
+      {:ok, id} -> Email.get_blocked_sender(id, user_id)
+      :error -> nil
+    end
+  end
+
+  defp get_safe_sender(id, user_id) do
+    case parse_positive_id(id) do
+      {:ok, id} -> Email.get_safe_sender(id, user_id)
+      :error -> nil
+    end
+  end
 
   def render_blocked_tab(assigns) do
     ~H"""

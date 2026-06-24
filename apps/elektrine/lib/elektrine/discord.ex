@@ -6,6 +6,7 @@ defmodule Elektrine.Discord do
   require Logger
 
   @lanyard_base_url "https://api.lanyard.rest/v1/users/"
+  @discord_snowflake_regex ~r/^\d{17,20}$/
 
   @doc """
   Gets Discord presence data for a user ID.
@@ -14,6 +15,16 @@ defmodule Elektrine.Discord do
   def get_user_presence(discord_id, opts \\ [])
 
   def get_user_presence(discord_id, opts) when is_binary(discord_id) do
+    if valid_discord_id?(discord_id) do
+      fetch_user_presence(discord_id, opts)
+    else
+      nil
+    end
+  end
+
+  def get_user_presence(_, _), do: nil
+
+  defp fetch_user_presence(discord_id, opts) do
     request = Finch.build(:get, "#{@lanyard_base_url}#{discord_id}")
     request_fun = Keyword.get(opts, :request_fun, &request/2)
     receive_timeout = Keyword.get(opts, :receive_timeout, 5000)
@@ -54,7 +65,7 @@ defmodule Elektrine.Discord do
     end
   end
 
-  def get_user_presence(_, _), do: nil
+  defp valid_discord_id?(discord_id), do: Regex.match?(@discord_snowflake_regex, discord_id)
 
   defp request(request, opts), do: Finch.request(request, Elektrine.Finch, opts)
 

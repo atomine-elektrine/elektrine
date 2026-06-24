@@ -3,6 +3,7 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
 
   alias Elektrine.Messaging
   alias Elektrine.Reports
+  alias Elektrine.Utils.SafeConvert
   import ElektrineWeb.Components.User.Avatar
 
   @impl true
@@ -816,8 +817,10 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
   end
 
   def handle_event("view_report", %{"id" => id}, socket) do
-    report = Reports.get_report_with_preloads!(String.to_integer(id))
-    {:noreply, assign(socket, :selected_report, report)}
+    case fetch_report_with_preloads(id) do
+      nil -> {:noreply, put_flash(socket, :error, "Report not found")}
+      report -> {:noreply, assign(socket, :selected_report, report)}
+    end
   end
 
   def handle_event("close_report_modal", _params, socket) do
@@ -825,32 +828,36 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
   end
 
   def handle_event("update_report", params, socket) do
-    report = Reports.get_report!(String.to_integer(params["report_id"]))
+    case fetch_report(params["report_id"]) do
+      nil ->
+        {:noreply, put_flash(socket, :error, "Report not found")}
 
-    attrs = %{
-      status: params["status"],
-      priority: params["priority"],
-      action_taken: params["action_taken"],
-      resolution_notes: params["resolution_notes"],
-      reviewed_by_id: socket.assigns.current_user.id
-    }
+      report ->
+        attrs = %{
+          status: params["status"],
+          priority: params["priority"],
+          action_taken: params["action_taken"],
+          resolution_notes: params["resolution_notes"],
+          reviewed_by_id: socket.assigns.current_user.id
+        }
 
-    case Reports.review_report(report, attrs) do
-      {:ok, _updated_report} ->
-        {:noreply,
-         socket
-         |> put_flash(:info, "Report updated successfully")
-         |> assign(:selected_report, nil)
-         |> load_reports()
-         |> load_stats()}
+        case Reports.review_report(report, attrs) do
+          {:ok, _updated_report} ->
+            {:noreply,
+             socket
+             |> put_flash(:info, "Report updated successfully")
+             |> assign(:selected_report, nil)
+             |> load_reports()
+             |> load_stats()}
 
-      {:error, _changeset} ->
-        {:noreply, put_flash(socket, :error, "Failed to update report")}
+          {:error, _changeset} ->
+            {:noreply, put_flash(socket, :error, "Failed to update report")}
+        end
     end
   end
 
   def handle_event("quick_action", %{"id" => id, "action" => action}, socket) do
-    report = Reports.get_report!(String.to_integer(id))
+    report = fetch_report(id)
 
     attrs =
       case action do
@@ -864,16 +871,20 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
           %{}
       end
 
-    case Reports.review_report(report, attrs) do
-      {:ok, _} ->
-        {:noreply,
-         socket
-         |> put_flash(:info, "Action completed")
-         |> load_reports()
-         |> load_stats()}
+    if report do
+      case Reports.review_report(report, attrs) do
+        {:ok, _} ->
+          {:noreply,
+           socket
+           |> put_flash(:info, "Action completed")
+           |> load_reports()
+           |> load_stats()}
 
-      {:error, _} ->
-        {:noreply, put_flash(socket, :error, "Failed to perform action")}
+        {:error, _} ->
+          {:noreply, put_flash(socket, :error, "Failed to perform action")}
+      end
+    else
+      {:noreply, put_flash(socket, :error, "Report not found")}
     end
   end
 
@@ -889,76 +900,80 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
     # Handle admin actions like suspend/ban user, delete content
     case action do
       "suspend_user" ->
-        user_id = String.to_integer(params["user_id"])
-        user = Elektrine.Accounts.get_user!(user_id)
+        case fetch_user(params["user_id"]) do
+          nil ->
+            {:noreply, put_flash(socket, :error, "User not found")}
 
-        # Suspend for 7 days by default
-        suspended_until = DateTime.utc_now() |> DateTime.add(7, :day)
+          user ->
+            # Suspend for 7 days by default
+            suspended_until = DateTime.utc_now() |> DateTime.add(7, :day)
 
-        case Elektrine.Accounts.suspend_user(user, %{
-               suspended_until: suspended_until,
-               suspension_reason: "Suspended via report ##{socket.assigns.selected_report.id}"
-             }) do
-          {:ok, _user} ->
-            # Update the report to mark it as resolved
-            Reports.review_report(socket.assigns.selected_report, %{
-              status: "resolved",
-              action_taken: "suspended",
-              reviewed_by_id: socket.assigns.current_user.id,
-              resolution_notes: "User suspended for 7 days"
-            })
+            case Elektrine.Accounts.suspend_user(user, %{
+                   suspended_until: suspended_until,
+                   suspension_reason: "Suspended via report ##{selected_report_ref(socket)}"
+                 }) do
+              {:ok, _user} ->
+                maybe_review_selected_report(socket, %{
+                  status: "resolved",
+                  action_taken: "suspended",
+                  reviewed_by_id: socket.assigns.current_user.id,
+                  resolution_notes: "User suspended for 7 days"
+                })
 
-            {:noreply,
-             socket
-             |> put_flash(
-               :info,
-               "User suspended until #{Calendar.strftime(suspended_until, "%B %d, %Y")}"
-             )
-             |> assign(:selected_report, nil)
-             |> load_reports()
-             |> load_stats()}
+                {:noreply,
+                 socket
+                 |> put_flash(
+                   :info,
+                   "User suspended until #{Calendar.strftime(suspended_until, "%B %d, %Y")}"
+                 )
+                 |> assign(:selected_report, nil)
+                 |> load_reports()
+                 |> load_stats()}
 
-          {:error, :cannot_suspend_admin} ->
-            {:noreply,
-             put_flash(socket, :error, "Admin users cannot be suspended for security reasons")}
+              {:error, :cannot_suspend_admin} ->
+                {:noreply,
+                 put_flash(socket, :error, "Admin users cannot be suspended for security reasons")}
 
-          {:error, _} ->
-            {:noreply, put_flash(socket, :error, "Failed to suspend user")}
+              {:error, _} ->
+                {:noreply, put_flash(socket, :error, "Failed to suspend user")}
+            end
         end
 
       "ban_user" ->
-        user_id = String.to_integer(params["user_id"])
-        user = Elektrine.Accounts.get_user!(user_id)
+        case fetch_user(params["user_id"]) do
+          nil ->
+            {:noreply, put_flash(socket, :error, "User not found")}
 
-        case Elektrine.Accounts.ban_user(user, %{
-               banned_reason: "Banned via report ##{socket.assigns.selected_report.id}"
-             }) do
-          {:ok, _user} ->
-            # Update the report to mark it as resolved
-            Reports.review_report(socket.assigns.selected_report, %{
-              status: "resolved",
-              action_taken: "banned",
-              reviewed_by_id: socket.assigns.current_user.id,
-              resolution_notes: "User permanently banned"
-            })
+          user ->
+            case Elektrine.Accounts.ban_user(user, %{
+                   banned_reason: "Banned via report ##{selected_report_ref(socket)}"
+                 }) do
+              {:ok, _user} ->
+                maybe_review_selected_report(socket, %{
+                  status: "resolved",
+                  action_taken: "banned",
+                  reviewed_by_id: socket.assigns.current_user.id,
+                  resolution_notes: "User permanently banned"
+                })
 
-            {:noreply,
-             socket
-             |> put_flash(:info, "User has been permanently banned")
-             |> assign(:selected_report, nil)
-             |> load_reports()
-             |> load_stats()}
+                {:noreply,
+                 socket
+                 |> put_flash(:info, "User has been permanently banned")
+                 |> assign(:selected_report, nil)
+                 |> load_reports()
+                 |> load_stats()}
 
-          {:error, :cannot_ban_admin} ->
-            {:noreply,
-             put_flash(socket, :error, "Admin users cannot be banned for security reasons")}
+              {:error, :cannot_ban_admin} ->
+                {:noreply,
+                 put_flash(socket, :error, "Admin users cannot be banned for security reasons")}
 
-          {:error, _} ->
-            {:noreply, put_flash(socket, :error, "Failed to ban user")}
+              {:error, _} ->
+                {:noreply, put_flash(socket, :error, "Failed to ban user")}
+            end
         end
 
       "delete_message" ->
-        message_id = String.to_integer(params["message_id"])
+        message_id = event_id(params["message_id"])
 
         case Messaging.admin_delete_message(message_id, socket.assigns.current_user) do
           {:ok, _message} ->
@@ -1001,7 +1016,7 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
   end
 
   def handle_event("view_reported_item", %{"type" => type, "id" => id}, socket) do
-    case reported_item_path(type, String.to_integer(id)) do
+    case reported_item_path(type, event_id(id)) do
       {:ok, path} ->
         {:noreply, redirect(socket, to: path)}
 
@@ -1011,6 +1026,62 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
   end
 
   # Private Functions
+
+  defp event_id(value) do
+    case SafeConvert.parse_id(value) do
+      {:ok, id} -> id
+      {:error, :invalid_id} -> 0
+    end
+  end
+
+  defp fetch_report(value) do
+    case SafeConvert.parse_id(value) do
+      {:ok, id} ->
+        try do
+          Reports.get_report!(id)
+        rescue
+          Ecto.NoResultsError -> nil
+        end
+
+      {:error, :invalid_id} ->
+        nil
+    end
+  end
+
+  defp fetch_report_with_preloads(value) do
+    case SafeConvert.parse_id(value) do
+      {:ok, id} ->
+        try do
+          Reports.get_report_with_preloads!(id)
+        rescue
+          Ecto.NoResultsError -> nil
+        end
+
+      {:error, :invalid_id} ->
+        nil
+    end
+  end
+
+  defp fetch_user(value) do
+    case SafeConvert.parse_id(value) do
+      {:ok, id} -> Elektrine.Repo.get(Elektrine.Accounts.User, id)
+      {:error, :invalid_id} -> nil
+    end
+  end
+
+  defp selected_report_ref(socket) do
+    case socket.assigns[:selected_report] do
+      %{id: id} -> id
+      _ -> "unknown"
+    end
+  end
+
+  defp maybe_review_selected_report(socket, attrs) do
+    case socket.assigns[:selected_report] do
+      nil -> :ok
+      report -> Reports.review_report(report, attrs)
+    end
+  end
 
   defp maybe_resolve_reports_after_message_delete(message_id, reviewer_id) do
     reports =

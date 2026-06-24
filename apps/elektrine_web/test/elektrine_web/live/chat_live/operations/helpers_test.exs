@@ -47,4 +47,31 @@ defmodule ArblargWeb.ChatLive.Operations.HelpersTest do
              ]
     end
   end
+
+  describe "render_reaction_emoji/1" do
+    test "escapes arbitrary reaction strings before rendering custom emojis" do
+      quote = <<34>>
+      raw_img = "<img src=x onerror=" <> quote <> "alert('xss')" <> quote <> ">"
+
+      html = Helpers.render_reaction_emoji(raw_img)
+
+      escaped_quote = "&" <> "quot;"
+
+      escaped_img =
+        "&lt;img src=x onerror=" <>
+          escaped_quote <>
+          "alert" <>
+          "(" <>
+          "&#" <>
+          "39;xss" <>
+          "&#" <>
+          "39;" <>
+          ")" <>
+          escaped_quote <>
+          "&gt;"
+
+      refute html =~ raw_img
+      assert html =~ escaped_img
+    end
+  end
 end

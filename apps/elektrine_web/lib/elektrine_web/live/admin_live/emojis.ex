@@ -1,6 +1,7 @@
 defmodule ElektrineWeb.AdminLive.Emojis do
   use ElektrineWeb, :live_view
   alias Elektrine.Emojis
+  alias Elektrine.Emojis.CustomEmoji
 
   @impl true
   def mount(_params, _session, socket) do
@@ -257,10 +258,21 @@ defmodule ElektrineWeb.AdminLive.Emojis do
 
   defp format_errors(changeset) do
     Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
-      Regex.replace(~r"%{(\w+)}", msg, fn _, key ->
-        opts |> Keyword.get(String.to_existing_atom(key), key) |> to_string()
-      end)
+      interpolate_error(msg, opts)
     end)
     |> Enum.map_join("; ", fn {k, v} -> "#{k}: #{Enum.join(v, ", ")}" end)
+  end
+
+  defp interpolate_error(message, opts) do
+    Enum.reduce(opts, message, fn {key, value}, acc ->
+      String.replace(acc, "%{#{key}}", to_string(value))
+    end)
+  end
+
+  defp safe_preview_image_url(url) do
+    case CustomEmoji.validate_image_url(url) do
+      {:ok, safe_url} -> safe_url
+      {:error, _reason} -> nil
+    end
   end
 end

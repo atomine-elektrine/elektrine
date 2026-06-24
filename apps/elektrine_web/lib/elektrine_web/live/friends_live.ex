@@ -3,6 +3,7 @@ defmodule ElektrineWeb.FriendsLive do
 
   alias Elektrine.Friends
   alias Elektrine.Messaging
+  alias Elektrine.Utils.SafeConvert
   import ElektrineWeb.Components.User.Avatar
   import ElektrineWeb.Components.Presence.Helpers
   import ElektrineWeb.Components.Platform.ENav
@@ -100,7 +101,7 @@ defmodule ElektrineWeb.FriendsLive do
 
   @impl true
   def handle_event("send_friend_request", %{"user_id" => user_id}, socket) do
-    user_id = String.to_integer(user_id)
+    user_id = event_id(user_id)
 
     message =
       if Elektrine.Strings.present?(socket.assigns.friend_request_message),
@@ -140,7 +141,7 @@ defmodule ElektrineWeb.FriendsLive do
 
   @impl true
   def handle_event("accept_request", %{"request_id" => request_id}, socket) do
-    request_id = String.to_integer(request_id)
+    request_id = event_id(request_id)
 
     case Friends.accept_friend_request(request_id, socket.assigns.current_user.id) do
       {:ok, request} ->
@@ -184,7 +185,7 @@ defmodule ElektrineWeb.FriendsLive do
 
   @impl true
   def handle_event("accept_follow_request", %{"follow-id" => follow_id}, socket) do
-    follow_id = String.to_integer(follow_id)
+    follow_id = event_id(follow_id)
 
     # Get the follow record
     follow = Elektrine.Repo.get(Elektrine.Profiles.Follow, follow_id)
@@ -225,7 +226,7 @@ defmodule ElektrineWeb.FriendsLive do
 
   @impl true
   def handle_event("reject_follow_request", %{"follow-id" => follow_id}, socket) do
-    follow_id = String.to_integer(follow_id)
+    follow_id = event_id(follow_id)
 
     # Get the follow record
     follow = Elektrine.Repo.get(Elektrine.Profiles.Follow, follow_id)
@@ -266,7 +267,7 @@ defmodule ElektrineWeb.FriendsLive do
 
   @impl true
   def handle_event("reject_request", %{"request_id" => request_id}, socket) do
-    request_id = String.to_integer(request_id)
+    request_id = event_id(request_id)
 
     case Friends.reject_friend_request(request_id, socket.assigns.current_user.id) do
       {:ok, _request} ->
@@ -287,7 +288,7 @@ defmodule ElektrineWeb.FriendsLive do
 
   @impl true
   def handle_event("cancel_request", %{"request_id" => request_id}, socket) do
-    request_id = String.to_integer(request_id)
+    request_id = event_id(request_id)
 
     case Friends.cancel_friend_request(request_id, socket.assigns.current_user.id) do
       {:ok, _} ->
@@ -310,7 +311,7 @@ defmodule ElektrineWeb.FriendsLive do
 
   @impl true
   def handle_event("start_dm", %{"user_id" => user_id}, socket) do
-    user_id = String.to_integer(user_id)
+    user_id = event_id(user_id)
 
     # Create DM conversation (returns existing if already exists)
     case Elektrine.Messaging.create_dm_conversation(socket.assigns.current_user.id, user_id) do
@@ -332,7 +333,7 @@ defmodule ElektrineWeb.FriendsLive do
 
   @impl true
   def handle_event("initiate_call", %{"user_id" => user_id, "call_type" => _call_type}, socket) do
-    user_id = String.to_integer(user_id)
+    user_id = event_id(user_id)
 
     # Create DM conversation and navigate to it
     # User will click call button from chat
@@ -355,7 +356,7 @@ defmodule ElektrineWeb.FriendsLive do
 
   @impl true
   def handle_event("show_unfriend_modal", %{"user_id" => user_id}, socket) do
-    user_id = String.to_integer(user_id)
+    user_id = event_id(user_id)
     user = Enum.find(socket.assigns.friends, &(&1.id == user_id))
 
     socket =
@@ -378,28 +379,37 @@ defmodule ElektrineWeb.FriendsLive do
 
   @impl true
   def handle_event("confirm_unfriend", _params, socket) do
-    user_id = socket.assigns.unfriend_user.id
+    case socket.assigns.unfriend_user do
+      nil ->
+        {:noreply,
+         socket
+         |> assign(:show_unfriend_modal, false)
+         |> notify_error("Friend not found")}
 
-    case Friends.unfriend(socket.assigns.current_user.id, user_id) do
-      {:ok, _} ->
-        # Refresh friends list
-        friends = Friends.list_friends(socket.assigns.current_user.id)
+      unfriend_user ->
+        user_id = unfriend_user.id
 
-        friend_follow_status =
-          build_friend_follow_status(socket.assigns.current_user.id, friends)
+        case Friends.unfriend(socket.assigns.current_user.id, user_id) do
+          {:ok, _} ->
+            # Refresh friends list
+            friends = Friends.list_friends(socket.assigns.current_user.id)
 
-        socket =
-          socket
-          |> assign(:friends, friends)
-          |> assign(:friend_follow_status, friend_follow_status)
-          |> assign(:show_unfriend_modal, false)
-          |> assign(:unfriend_user, nil)
-          |> notify_info("Friend removed")
+            friend_follow_status =
+              build_friend_follow_status(socket.assigns.current_user.id, friends)
 
-        {:noreply, socket}
+            socket =
+              socket
+              |> assign(:friends, friends)
+              |> assign(:friend_follow_status, friend_follow_status)
+              |> assign(:show_unfriend_modal, false)
+              |> assign(:unfriend_user, nil)
+              |> notify_info("Friend removed")
 
-      {:error, _} ->
-        {:noreply, notify_error(socket, "Failed to remove friend")}
+            {:noreply, socket}
+
+          {:error, _} ->
+            {:noreply, notify_error(socket, "Failed to remove friend")}
+        end
     end
   end
 
@@ -432,7 +442,7 @@ defmodule ElektrineWeb.FriendsLive do
 
   @impl true
   def handle_event("unblock_user", %{"user_id" => user_id}, socket) do
-    user_id = String.to_integer(user_id)
+    user_id = event_id(user_id)
 
     case Elektrine.Accounts.unblock_user(socket.assigns.current_user.id, user_id) do
       {:ok, _} ->
@@ -448,6 +458,13 @@ defmodule ElektrineWeb.FriendsLive do
 
       {:error, _} ->
         {:noreply, notify_error(socket, "Failed to unblock user")}
+    end
+  end
+
+  defp event_id(value) do
+    case SafeConvert.parse_id(value) do
+      {:ok, id} -> id
+      {:error, :invalid_id} -> 0
     end
   end
 

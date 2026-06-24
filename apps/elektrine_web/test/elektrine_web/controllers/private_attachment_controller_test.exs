@@ -99,6 +99,30 @@ defmodule ElektrineWeb.PrivateAttachmentControllerTest do
     assert response(conn, 404) == "Not found"
   end
 
+  test "rejects local attachment symlinks that point outside uploads", %{
+    conn: conn,
+    tmp_dir: tmp_dir
+  } do
+    user = AccountsFixtures.user_fixture()
+    conn = log_in_user(conn, user)
+
+    outside_path =
+      Path.join(System.tmp_dir!(), "elektrine-private-attachment-leak-#{System.unique_integer()}")
+
+    File.write!(outside_path, "outside secret")
+    on_exit(fn -> File.rm(outside_path) end)
+
+    link_path = Path.join([tmp_dir, "chat-attachments", "leak.txt"])
+    :ok = File.ln_s(outside_path, link_path)
+
+    url = Uploads.attachment_url("chat-attachments/leak.txt", %{type: "dm"})
+    add_message_attachment_for_member(user, "chat-attachments/leak.txt")
+
+    conn = get(conn, url)
+
+    assert response(conn, 404) == "Not found"
+  end
+
   defp add_message_attachment_for_member(user, key) do
     conversation = Repo.insert!(%ChatConversation{type: "dm"})
 

@@ -76,9 +76,10 @@
                       class="flex items-center justify-between gap-4 px-4 py-3 hover:bg-base-200/70 transition-colors"
                     >
                       <div class="flex items-center gap-4 min-w-0">
-                        <%= if result.avatar_url do %>
+                        <%= if avatar_url =
+                              ElektrineWeb.HtmlHelpers.safe_external_image_url(result.avatar_url) do %>
                           <img
-                            src={result.avatar_url}
+                            src={avatar_url}
                             alt={display_name}
                             class="h-12 w-12 rounded-lg object-cover"
                           />
@@ -133,7 +134,7 @@
     </div>
   <% true -> %>
     <% subject = @proof_graph.subject
-    avatar_url = subject.avatar_url
+    avatar_url = ElektrineWeb.HtmlHelpers.safe_external_image_url(subject.avatar_url)
     avatar_initial = String.first(subject.display_name || subject.handle || "?") || "?" %>
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-6">
       <div class="space-y-4">

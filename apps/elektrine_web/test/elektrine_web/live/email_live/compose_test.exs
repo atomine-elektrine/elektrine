@@ -84,6 +84,37 @@ defmodule ElektrineEmailWeb.EmailLive.ComposeTest do
     assert html =~ "Allowed: Images, PDFs, Office docs, Text, Archives, Audio/Video"
   end
 
+  test "malformed compose route ids do not crash", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+
+    for query <- [
+          "mode=reply&message_id=12abc",
+          "mode=reply_all&message_id=12abc",
+          "mode=forward&message_id=12abc",
+          "mode=draft&draft_id=12abc"
+        ] do
+      {:ok, _view, html} =
+        conn
+        |> log_in_user(user)
+        |> live("/email/compose?#{query}")
+
+      assert html =~ "Compose"
+    end
+  end
+
+  test "malformed template id does not crash", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/email/compose")
+
+    html = render_hook(view, "apply_template", %{"template_id" => "12abc"})
+
+    assert html =~ "Template not found"
+  end
+
   test "shows inline unlock controls when replying to a protected message", %{conn: conn} do
     user = AccountsFixtures.user_fixture()
     mailbox = private_mailbox_fixture(user)

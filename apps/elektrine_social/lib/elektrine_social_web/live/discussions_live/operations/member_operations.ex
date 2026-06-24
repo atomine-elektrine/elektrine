@@ -98,39 +98,17 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.MemberOperations do
   # Toggle follow/unfollow user
   def handle_event("toggle_follow", %{"user_id" => user_id}, socket) do
     if socket.assigns.current_user do
-      target_user_id = String.to_integer(user_id)
-      current_user_id = socket.assigns.current_user.id
+      case parse_positive_int(user_id) do
+        {:ok, target_user_id} ->
+          current_user_id = socket.assigns.current_user.id
 
-      # Check if currently following (we need to track this in assigns)
-      currently_following = Map.get(socket.assigns[:user_follows] || %{}, target_user_id, false)
+          currently_following =
+            Map.get(socket.assigns[:user_follows] || %{}, target_user_id, false)
 
-      if currently_following do
-        # Unfollow
-        case Profiles.unfollow_user(current_user_id, target_user_id) do
-          {:ok, :unfollowed} ->
-            {:noreply,
-             socket
-             |> update_user_follow_status(target_user_id, false)
-             |> put_flash(:info, "Unfollowed user.")}
+          toggle_user_follow(socket, current_user_id, target_user_id, currently_following)
 
-          {:ok, :not_following} ->
-            {:noreply,
-             socket
-             |> update_user_follow_status(target_user_id, false)
-             |> put_flash(:info, "Unfollowed user.")}
-        end
-      else
-        # Follow
-        case Profiles.follow_user(current_user_id, target_user_id) do
-          {:ok, _} ->
-            {:noreply,
-             socket
-             |> update_user_follow_status(target_user_id, true)
-             |> put_flash(:info, "Now following user.")}
-
-          {:error, _} ->
-            {:noreply, notify_error(socket, "Couldn't follow right now. Please try again.")}
-        end
+        :error ->
+          {:noreply, notify_error(socket, "Couldn't follow right now. Please try again.")}
       end
     else
       {:noreply, notify_error(socket, "You must be signed in to follow users")}
@@ -138,6 +116,42 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.MemberOperations do
   end
 
   # Private helpers
+
+  defp toggle_user_follow(socket, current_user_id, target_user_id, true = _currently_following) do
+    case Profiles.unfollow_user(current_user_id, target_user_id) do
+      {:ok, :unfollowed} ->
+        {:noreply,
+         socket
+         |> update_user_follow_status(target_user_id, false)
+         |> put_flash(:info, "Unfollowed user.")}
+
+      {:ok, :not_following} ->
+        {:noreply,
+         socket
+         |> update_user_follow_status(target_user_id, false)
+         |> put_flash(:info, "Unfollowed user.")}
+    end
+  end
+
+  defp toggle_user_follow(socket, current_user_id, target_user_id, false = _currently_following) do
+    case Profiles.follow_user(current_user_id, target_user_id) do
+      {:ok, _} ->
+        {:noreply,
+         socket
+         |> update_user_follow_status(target_user_id, true)
+         |> put_flash(:info, "Now following user.")}
+
+      {:error, _} ->
+        {:noreply, notify_error(socket, "Couldn't follow right now. Please try again.")}
+    end
+  end
+
+  defp parse_positive_int(value) do
+    case Integer.parse(to_string(value)) do
+      {id, ""} when id > 0 -> {:ok, id}
+      _ -> :error
+    end
+  end
 
   defp update_user_follow_status(socket, user_id, is_following) do
     update(socket, :user_follows, fn follows ->

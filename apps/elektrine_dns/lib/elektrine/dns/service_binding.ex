@@ -155,7 +155,10 @@ defmodule Elektrine.DNS.ServiceBinding do
         {:ok, Map.fetch!(@param_keys, key)}
 
       String.match?(key, ~r/^key\d+$/) ->
-        {:ok, key |> String.replace_prefix("key", "") |> String.to_integer()}
+        case key |> String.replace_prefix("key", "") |> Integer.parse() do
+          {code, ""} -> {:ok, code}
+          _ -> {:error, "unsupported parameter #{key}"}
+        end
 
       true ->
         {:error, "unsupported parameter #{key}"}

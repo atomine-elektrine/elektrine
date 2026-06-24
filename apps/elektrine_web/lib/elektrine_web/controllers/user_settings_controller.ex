@@ -4,6 +4,7 @@ defmodule ElektrineWeb.UserSettingsController do
 
   alias Elektrine.Accounts
   alias Elektrine.Auth.RateLimiter
+  alias Elektrine.Utils.SafeConvert
   alias ElektrineWeb.Platform.Integrations
 
   plug :assign_user
@@ -534,17 +535,13 @@ defmodule ElektrineWeb.UserSettingsController do
   def dismiss_announcement(conn, %{"id" => announcement_id}) do
     user = conn.assigns.current_user
 
-    case Elektrine.Admin.dismiss_announcement_for_user(
-           user.id,
-           String.to_integer(announcement_id)
-         ) do
-      {:ok, _dismissal} ->
-        conn
-        |> redirect(to: get_referer_or_default(conn))
-
-      {:error, _changeset} ->
-        conn
-        |> redirect(to: get_referer_or_default(conn))
+    with {:ok, announcement_id} <- SafeConvert.parse_id(announcement_id),
+         {:ok, _dismissal} <-
+           Elektrine.Admin.dismiss_announcement_for_user(user.id, announcement_id) do
+      redirect(conn, to: get_referer_or_default(conn))
+    else
+      _error ->
+        redirect(conn, to: get_referer_or_default(conn))
     end
   end
 

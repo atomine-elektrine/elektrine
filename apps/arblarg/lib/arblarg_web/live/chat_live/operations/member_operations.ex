@@ -35,31 +35,36 @@ defmodule ArblargWeb.ChatLive.Operations.MemberOperations do
 
   def handle_event("add_member_to_conversation", %{"user_id" => user_id}, socket) do
     conversation = socket.assigns.conversation.selected
-    user_id = String.to_integer(user_id)
 
-    case Messaging.add_member_to_conversation(
-           conversation.id,
-           user_id,
-           "member",
-           socket.assigns.current_user.id
-         ) do
-      {:ok, _} ->
-        {:noreply,
-         socket
-         |> assign(:ui, Map.put(socket.assigns.ui, :show_add_members_modal, false))
-         |> notify_info("Member added")}
+    with {:ok, user_id} <- parse_positive_int(user_id),
+         result <-
+           Messaging.add_member_to_conversation(
+             conversation.id,
+             user_id,
+             "member",
+             socket.assigns.current_user.id
+           ) do
+      case result do
+        {:ok, _} ->
+          {:noreply,
+           socket
+           |> assign(:ui, Map.put(socket.assigns.ui, :show_add_members_modal, false))
+           |> notify_info("Member added")}
 
-      {:error, :blocked} ->
-        {:noreply, notify_error(socket, "You have blocked this user or they have blocked you")}
+        {:error, :blocked} ->
+          {:noreply, notify_error(socket, "You have blocked this user or they have blocked you")}
 
-      {:error, :privacy_restricted} ->
-        {:noreply, notify_error(socket, "This user's privacy settings prevent this action")}
+        {:error, :privacy_restricted} ->
+          {:noreply, notify_error(socket, "This user's privacy settings prevent this action")}
 
-      {:error, :unauthorized} ->
-        {:noreply, notify_error(socket, "You don't have permission to add members")}
+        {:error, :unauthorized} ->
+          {:noreply, notify_error(socket, "You don't have permission to add members")}
 
-      {:error, _} ->
-        {:noreply, notify_error(socket, "Failed to add member")}
+        {:error, _} ->
+          {:noreply, notify_error(socket, "Failed to add member")}
+      end
+    else
+      :error -> {:noreply, notify_error(socket, "Failed to add member")}
     end
   end
 
@@ -73,106 +78,130 @@ defmodule ArblargWeb.ChatLive.Operations.MemberOperations do
 
   def handle_event("kick_member", %{"user_id" => user_id}, socket) do
     conversation = socket.assigns.conversation.selected
-    user_id = String.to_integer(user_id)
 
     # Route through the facade /3 so the actor (current user) is passed for the
     # authorization check and type-routing stays consistent.
-    case Messaging.remove_member_from_conversation(
-           conversation.id,
-           user_id,
-           socket.assigns.current_user.id
-         ) do
-      {:ok, _} ->
-        {:noreply, notify_info(socket, "Member removed")}
+    with {:ok, user_id} <- parse_positive_int(user_id),
+         result <-
+           Messaging.remove_member_from_conversation(
+             conversation.id,
+             user_id,
+             socket.assigns.current_user.id
+           ) do
+      case result do
+        {:ok, _} ->
+          {:noreply, notify_info(socket, "Member removed")}
 
-      {:error, :unauthorized} ->
-        {:noreply, notify_error(socket, "You don't have permission to remove members")}
+        {:error, :unauthorized} ->
+          {:noreply, notify_error(socket, "You don't have permission to remove members")}
 
-      {:error, _} ->
-        {:noreply, notify_error(socket, "Failed to remove member")}
+        {:error, _} ->
+          {:noreply, notify_error(socket, "Failed to remove member")}
+      end
+    else
+      :error -> {:noreply, notify_error(socket, "Failed to remove member")}
     end
   end
 
   def handle_event("promote_member", %{"user_id" => user_id}, socket) do
     conversation = socket.assigns.conversation.selected
-    user_id = String.to_integer(user_id)
 
-    case Messaging.update_member_role(
-           conversation.id,
-           user_id,
-           "admin",
-           socket.assigns.current_user.id
-         ) do
-      {:ok, _} ->
-        {:noreply, notify_info(socket, "Member promoted to admin")}
+    with {:ok, user_id} <- parse_positive_int(user_id),
+         result <-
+           Messaging.update_member_role(
+             conversation.id,
+             user_id,
+             "admin",
+             socket.assigns.current_user.id
+           ) do
+      case result do
+        {:ok, _} ->
+          {:noreply, notify_info(socket, "Member promoted to admin")}
 
-      {:error, :unauthorized} ->
-        {:noreply, notify_error(socket, "You don't have permission to promote members")}
+        {:error, :unauthorized} ->
+          {:noreply, notify_error(socket, "You don't have permission to promote members")}
 
-      {:error, :cannot_modify_creator} ->
-        {:noreply, notify_error(socket, "The conversation owner's role can't be changed")}
+        {:error, :cannot_modify_creator} ->
+          {:noreply, notify_error(socket, "The conversation owner's role can't be changed")}
 
-      {:error, _} ->
-        {:noreply, notify_error(socket, "Failed to promote member")}
+        {:error, _} ->
+          {:noreply, notify_error(socket, "Failed to promote member")}
+      end
+    else
+      :error -> {:noreply, notify_error(socket, "Failed to promote member")}
     end
   end
 
   def handle_event("demote_member", %{"user_id" => user_id}, socket) do
     conversation = socket.assigns.conversation.selected
-    user_id = String.to_integer(user_id)
 
-    case Messaging.update_member_role(
-           conversation.id,
-           user_id,
-           "member",
-           socket.assigns.current_user.id
-         ) do
-      {:ok, _} ->
-        {:noreply, notify_info(socket, "Member demoted")}
+    with {:ok, user_id} <- parse_positive_int(user_id),
+         result <-
+           Messaging.update_member_role(
+             conversation.id,
+             user_id,
+             "member",
+             socket.assigns.current_user.id
+           ) do
+      case result do
+        {:ok, _} ->
+          {:noreply, notify_info(socket, "Member demoted")}
 
-      {:error, :unauthorized} ->
-        {:noreply, notify_error(socket, "You don't have permission to demote members")}
+        {:error, :unauthorized} ->
+          {:noreply, notify_error(socket, "You don't have permission to demote members")}
 
-      {:error, :cannot_modify_creator} ->
-        {:noreply, notify_error(socket, "The conversation owner's role can't be changed")}
+        {:error, :cannot_modify_creator} ->
+          {:noreply, notify_error(socket, "The conversation owner's role can't be changed")}
 
-      {:error, _} ->
-        {:noreply, notify_error(socket, "Failed to demote member")}
+        {:error, _} ->
+          {:noreply, notify_error(socket, "Failed to demote member")}
+      end
+    else
+      :error -> {:noreply, notify_error(socket, "Failed to demote member")}
     end
   end
 
   def handle_event("timeout_user", params, socket) do
-    user_id = String.to_integer(params["user_id"])
-    duration = String.to_integer(params["duration"])
     conversation_id = socket.assigns.conversation.selected.id
 
-    case Messaging.timeout_user(
-           conversation_id,
-           user_id,
-           socket.assigns.current_user.id,
-           duration
-         ) do
-      {:ok, _} ->
-        {:noreply, notify_info(socket, "User timed out")}
+    with {:ok, user_id} <- parse_positive_int(params["user_id"]),
+         {:ok, duration} <- parse_positive_int(params["duration"]),
+         result <-
+           Messaging.timeout_user(
+             conversation_id,
+             user_id,
+             socket.assigns.current_user.id,
+             duration
+           ) do
+      case result do
+        {:ok, _} ->
+          {:noreply, notify_info(socket, "User timed out")}
 
-      {:error, :unauthorized} ->
-        {:noreply, notify_error(socket, "You don't have permission to timeout users")}
+        {:error, :unauthorized} ->
+          {:noreply, notify_error(socket, "You don't have permission to timeout users")}
 
-      {:error, _} ->
-        {:noreply, notify_error(socket, "Failed to timeout user")}
+        {:error, _} ->
+          {:noreply, notify_error(socket, "Failed to timeout user")}
+      end
+    else
+      :error -> {:noreply, notify_error(socket, "Failed to timeout user")}
     end
   end
 
   def handle_event("remove_timeout_user", %{"user_id" => user_id}, socket) do
-    user_id = String.to_integer(user_id)
     conversation_id = socket.assigns.conversation.selected.id
 
-    case Messaging.remove_timeout(conversation_id, user_id) do
-      {:ok, _} ->
-        {:noreply, notify_info(socket, "Timeout removed")}
+    with {:ok, user_id} <- parse_positive_int(user_id),
+         result <- Messaging.remove_timeout(conversation_id, user_id) do
+      case result do
+        {:ok, _} ->
+          {:noreply, notify_info(socket, "Timeout removed")}
 
-      {:error, _} ->
-        {:noreply, notify_error(socket, "Failed to remove timeout")}
+        {:error, _} ->
+          {:noreply, notify_error(socket, "Failed to remove timeout")}
+      end
+    else
+      :error -> {:noreply, notify_error(socket, "Failed to remove timeout")}
     end
   end
 
@@ -279,4 +308,15 @@ defmodule ArblargWeb.ChatLive.Operations.MemberOperations do
     Map.get(current_user, :is_admin, false) or
       (!!current_member && current_member.role in ["owner", "admin", "moderator"])
   end
+
+  defp parse_positive_int(value) when is_integer(value) and value > 0, do: {:ok, value}
+
+  defp parse_positive_int(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {parsed, ""} when parsed > 0 -> {:ok, parsed}
+      _ -> :error
+    end
+  end
+
+  defp parse_positive_int(_), do: :error
 end

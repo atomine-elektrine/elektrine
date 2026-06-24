@@ -175,7 +175,11 @@
           end
 
         sender_avatar = Map.get(header_actor, :avatar)
-        sender_avatar_url = Map.get(header_actor, :avatar_url) %>
+        sender_avatar_url = Map.get(header_actor, :avatar_url)
+
+        sender_avatar_src =
+          safe_external_image_url(sender_avatar_url) ||
+            if(sender_avatar, do: Elektrine.Uploads.avatar_url(sender_avatar)) %>
         <div class="social-page-rail">
           <%= if use_standard_timeline_detail?(@local_message, @is_community_post) do %>
             <div class="mb-6">
@@ -201,9 +205,9 @@
               <div class="flex items-center gap-3 mb-4">
                 <%= if sender_path do %>
                   <.link navigate={sender_path} class="flex-shrink-0 rounded-full">
-                    <%= if sender_avatar || sender_avatar_url do %>
+                    <%= if sender_avatar_src do %>
                       <img
-                        src={sender_avatar_url || Elektrine.Uploads.avatar_url(sender_avatar)}
+                        src={sender_avatar_src}
                         alt={sender_acct || sender_display_name}
                         class="w-12 h-12 rounded-full object-cover"
                       />
@@ -218,9 +222,9 @@
                   </.link>
                 <% else %>
                   <div class="flex-shrink-0 rounded-full">
-                    <%= if sender_avatar || sender_avatar_url do %>
+                    <%= if sender_avatar_src do %>
                       <img
-                        src={sender_avatar_url || Elektrine.Uploads.avatar_url(sender_avatar)}
+                        src={sender_avatar_src}
                         alt={sender_display_name}
                         class="w-12 h-12 rounded-full object-cover"
                       />
@@ -331,8 +335,9 @@
                   Map.get(assigns, :submitted_link_preview),
                   submitted_url
                 ) %>
-              <%= if link_preview do %>
-                <% youtube_id = extract_youtube_id(link_preview.url) %>
+              <% preview_url = if link_preview, do: safe_external_href(link_preview.url) %>
+              <%= if preview_url do %>
+                <% youtube_id = extract_youtube_id(preview_url) %>
                 <% hide_preview_title =
                   preview_title_duplicates_post?(
                     link_preview.title,
@@ -365,15 +370,15 @@
                 <% else %>
                   <div class="mb-4 border border-base-200 rounded-lg overflow-hidden hover:border-base-300 transition-colors">
                     <a
-                      href={link_preview.url}
+                      href={preview_url}
                       target="_blank"
                       rel="noopener noreferrer"
                       class="block"
                     >
-                      <%= if link_preview.image_url do %>
+                      <%= if preview_image_url = safe_external_image_url(link_preview.image_url) do %>
                         <div class="aspect-video bg-base-200">
                           <img
-                            src={link_preview.image_url}
+                            src={preview_image_url}
                             alt={link_preview.title || ""}
                             class="w-full h-full object-cover"
                             loading="lazy"
@@ -735,9 +740,10 @@
                           navigate={"/remote/#{@remote_actor.username}@#{@remote_actor.domain}"}
                           class="flex-shrink-0 rounded-full"
                         >
-                          <%= if @remote_actor.avatar_url do %>
+                          <%= if remote_actor_avatar_url =
+                                safe_external_image_url(@remote_actor.avatar_url) do %>
                             <img
-                              src={@remote_actor.avatar_url}
+                              src={remote_actor_avatar_url}
                               alt={@remote_actor.username}
                               class={
                                 if @is_community_post,
@@ -891,9 +897,10 @@
                           submitted_url
                         )
 
-                      submitted_url_host = submitted_url_host(submitted_url)
-                      is_external_link = is_binary(submitted_url)
-                      link_domain = submitted_url_host || submitted_url %>
+                      safe_submitted_url = safe_external_href(submitted_url)
+                      submitted_url_host = submitted_url_host(safe_submitted_url)
+                      is_external_link = is_binary(safe_submitted_url)
+                      link_domain = submitted_url_host || safe_submitted_url %>
                       <div class={
                         if @post["sensitive"],
                           do: "blur-sm hover:blur-none transition-all",
@@ -902,7 +909,7 @@
                         <%= if @post["name"] do %>
                           <%= if is_external_link do %>
                             <a
-                              href={submitted_url}
+                              href={safe_submitted_url}
                               target="_blank"
                               rel="noopener noreferrer"
                               class="group"
@@ -935,8 +942,10 @@
                         <% end %>
 
                         <% quote_url =
-                          @post["quoteUrl"] || @post["_misskey_quote"] ||
-                            get_in(@post, ["pleroma", "quote_uri"])
+                          safe_external_href(
+                            @post["quoteUrl"] || @post["_misskey_quote"] ||
+                              get_in(@post, ["pleroma", "quote_uri"])
+                          )
 
                         local_quote =
                           if @local_message && @local_message.quoted_message_id &&
@@ -966,7 +975,7 @@
                             />
                           <% end %>
                         <% else %>
-                          <%= if is_binary(quote_url) do %>
+                          <%= if quote_url do %>
                             <a
                               href={quote_url}
                               target="_blank"
@@ -1008,8 +1017,9 @@
                             Map.get(assigns, :submitted_link_preview),
                             submitted_url
                           ) %>
-                        <%= if link_preview do %>
-                          <% youtube_id = extract_youtube_id(link_preview.url) %>
+                        <% preview_url = if link_preview, do: safe_external_href(link_preview.url) %>
+                        <%= if preview_url do %>
+                          <% youtube_id = extract_youtube_id(preview_url) %>
                           <% hide_preview_title =
                             preview_title_duplicates_post?(link_preview.title, @post["name"]) %>
                           <%= if youtube_id do %>
@@ -1041,15 +1051,15 @@
                           <% else %>
                             <div class="my-4 border border-base-200 rounded-lg overflow-hidden hover:border-base-300 transition-colors">
                               <a
-                                href={link_preview.url}
+                                href={preview_url}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 class="block"
                               >
-                                <%= if link_preview.image_url do %>
+                                <%= if preview_image_url = safe_external_image_url(link_preview.image_url) do %>
                                   <div class="aspect-video bg-base-200">
                                     <img
-                                      src={link_preview.image_url}
+                                      src={preview_image_url}
                                       alt={link_preview.title || ""}
                                       class="w-full h-full object-cover"
                                       loading="lazy"
@@ -1069,7 +1079,7 @@
                                   <% end %>
                                   <div class="text-xs opacity-50 flex items-center gap-1">
                                     <.icon name="hero-link" class="w-3 h-3" />
-                                    {URI.parse(link_preview.url).host}
+                                    {URI.parse(preview_url).host}
                                   </div>
                                 </div>
                               </a>
@@ -1081,7 +1091,7 @@
 <!-- Post Metadata -->
                       <% # Use the post ID (ActivityPub URI) for "View on instance" link
                       # since @post["url"] may be an external link for Lemmy link posts
-                      instance_url = @post["id"] %>
+                      instance_url = safe_external_href(@post["id"]) %>
                       <div class="flex items-center gap-4 text-sm opacity-70 mb-4 pt-3 border-t border-base-300">
                         <%= if !@is_community_post do %>
                           <!-- Only show timestamp here for non-community posts (already shown in header for community posts) -->
@@ -1103,7 +1113,7 @@
                         <% end %>
                         <%= if is_external_link do %>
                           <a
-                            href={submitted_url}
+                            href={safe_submitted_url}
                             target="_blank"
                             rel="noopener noreferrer"
                             class="text-primary hover:underline flex items-center gap-1"
@@ -1544,9 +1554,10 @@
                           navigate={"/remote/!#{@community_actor.username}@#{@community_actor.domain}"}
                           class="flex-shrink-0"
                         >
-                          <%= if @community_actor.avatar_url do %>
+                          <%= if community_avatar_url =
+                                safe_external_image_url(@community_actor.avatar_url) do %>
                             <img
-                              src={@community_actor.avatar_url}
+                              src={community_avatar_url}
                               alt={@community_actor.username}
                               class="w-12 h-12 rounded-lg object-cover"
                             />

@@ -675,8 +675,8 @@ defmodule ElektrineNerveWeb.NerveLive do
   end
 
   defp translate_error({message, opts}) do
-    Regex.replace(~r"%{(\w+)}", message, fn _, key ->
-      opts |> Keyword.get(String.to_existing_atom(key), key) |> to_string()
+    Enum.reduce(opts, message, fn {key, value}, acc ->
+      String.replace(acc, "%{#{key}}", to_string(value))
     end)
   end
 

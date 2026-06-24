@@ -160,6 +160,44 @@ defmodule Elektrine.ProfilesTest do
     end
   end
 
+  describe "profile uploaded media URLs" do
+    test "rejects absolute URLs that only look like local uploads" do
+      user = AccountsFixtures.user_fixture()
+
+      assert {:error, changeset} =
+               Profiles.create_user_profile(user.id, %{
+                 display_name: "Media User",
+                 avatar_url: "https://evil.example/uploads/avatars/avatar.png",
+                 background_url: "https://evil.example/uploads/backgrounds/bg.png",
+                 banner_url: "https://evil.example/uploads/backgrounds/banner.png",
+                 favicon_url: "https://evil.example/uploads/favicons/favicon.ico"
+               })
+
+      assert %{avatar_url: [_ | _]} = errors_on(changeset)
+      assert %{background_url: [_ | _]} = errors_on(changeset)
+      assert %{banner_url: [_ | _]} = errors_on(changeset)
+      assert %{favicon_url: [_ | _]} = errors_on(changeset)
+    end
+
+    test "accepts relative upload keys and paths for profile media" do
+      user = AccountsFixtures.user_fixture()
+
+      assert {:ok, profile} =
+               Profiles.create_user_profile(user.id, %{
+                 display_name: "Media User",
+                 avatar_url: "avatars/avatar.png",
+                 background_url: "/uploads/backgrounds/bg.png",
+                 banner_url: "uploads/backgrounds/banner.png",
+                 favicon_url: "favicons/favicon.ico"
+               })
+
+      assert profile.avatar_url == "avatars/avatar.png"
+      assert profile.background_url == "/uploads/backgrounds/bg.png"
+      assert profile.banner_url == "uploads/backgrounds/banner.png"
+      assert profile.favicon_url == "favicons/favicon.ico"
+    end
+  end
+
   describe "follow_user/2" do
     test "creates a follow relationship" do
       user1 = AccountsFixtures.user_fixture()

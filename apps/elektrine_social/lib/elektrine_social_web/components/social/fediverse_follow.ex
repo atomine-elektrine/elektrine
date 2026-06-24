@@ -12,7 +12,10 @@ defmodule ElektrineSocialWeb.Components.Social.FediverseFollow do
   use Phoenix.Component
   import Phoenix.HTML, only: [raw: 1]
   import ElektrineWeb.CoreComponents
-  import ElektrineWeb.HtmlHelpers, only: [render_display_name_with_emojis: 2]
+
+  import ElektrineWeb.HtmlHelpers,
+    only: [render_display_name_with_emojis: 2, safe_external_href: 1, safe_external_image_url: 1]
+
   alias ElektrineSocialWeb.Components.Social.PostUtilities
 
   @doc """
@@ -163,36 +166,58 @@ defmodule ElektrineSocialWeb.Components.Social.FediverseFollow do
     <div class="card panel-card rounded-lg">
       <div class="card-body p-3">
         <div class="flex items-center gap-3">
-          <a href={@actor.uri} target="_blank" rel="noopener noreferrer" class="flex-shrink-0">
-            <%= if @actor.avatar_url do %>
-              <img
-                src={@actor.avatar_url}
-                class="w-10 h-10 rounded-full object-cover"
-                alt={@actor.username}
-              />
-            <% else %>
+          <%= if actor_href = safe_external_href(@actor.uri) do %>
+            <a href={actor_href} target="_blank" rel="noopener noreferrer" class="flex-shrink-0">
+              <%= if avatar_url = safe_external_image_url(@actor.avatar_url) do %>
+                <img
+                  src={avatar_url}
+                  class="w-10 h-10 rounded-full object-cover"
+                  alt={@actor.username}
+                />
+              <% else %>
+                <div class="w-10 h-10 rounded-full bg-base-300 flex items-center justify-center">
+                  <.icon
+                    name={if @actor.actor_type == "Group", do: "hero-users", else: "hero-user"}
+                    class="w-4 h-4"
+                  />
+                </div>
+              <% end %>
+            </a>
+          <% else %>
+            <div class="flex-shrink-0">
               <div class="w-10 h-10 rounded-full bg-base-300 flex items-center justify-center">
                 <.icon
                   name={if @actor.actor_type == "Group", do: "hero-users", else: "hero-user"}
                   class="w-4 h-4"
                 />
               </div>
-            <% end %>
-          </a>
+            </div>
+          <% end %>
           <div class="flex-1 min-w-0">
-            <a
-              href={@actor.uri}
-              target="_blank"
-              rel="noopener noreferrer"
-              class="font-medium text-sm hover:underline block truncate"
-            >
-              {raw(
-                render_display_name_with_emojis(
-                  @actor.display_name || @actor.username,
-                  @actor.domain
-                )
-              )}
-            </a>
+            <%= if actor_href = safe_external_href(@actor.uri) do %>
+              <a
+                href={actor_href}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="font-medium text-sm hover:underline block truncate"
+              >
+                {raw(
+                  render_display_name_with_emojis(
+                    @actor.display_name || @actor.username,
+                    @actor.domain
+                  )
+                )}
+              </a>
+            <% else %>
+              <div class="font-medium text-sm block truncate">
+                {raw(
+                  render_display_name_with_emojis(
+                    @actor.display_name || @actor.username,
+                    @actor.domain
+                  )
+                )}
+              </div>
+            <% end %>
             <div class="text-xs opacity-70 truncate">
               {if @actor.actor_type == "Group", do: "!", else: "@"}{@actor.username}@{@actor.domain}
             </div>

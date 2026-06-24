@@ -423,7 +423,7 @@ defmodule Elektrine.Email.MessageOperationsTest do
 
       {:ok, updated} = Email.unstack_message(message)
 
-      assert updated.category != "stack" || is_nil(updated.category)
+      assert updated.category == "inbox"
     end
 
     test "message in feed is excluded from inbox", %{mailbox: mailbox} do

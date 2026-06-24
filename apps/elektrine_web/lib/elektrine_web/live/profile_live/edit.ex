@@ -205,6 +205,17 @@ defmodule ElektrineWeb.ProfileLive.Edit do
     container_background_color pattern_color username_glow_color
     username_shadow_color tick_color
   )a
+  @valid_color_field_names Enum.map(@valid_color_fields, &Atom.to_string/1)
+  @valid_color_field_map Map.new(@valid_color_fields, &{Atom.to_string(&1), &1})
+  @valid_effect_fields ~w(profile_opacity container_opacity pattern_opacity profile_blur)a
+  @valid_effect_field_names Enum.map(@valid_effect_fields, &Atom.to_string/1)
+  @valid_effect_field_map Map.new(@valid_effect_fields, &{Atom.to_string(&1), &1})
+  @valid_username_color_fields ~w(username_glow_color username_shadow_color)a
+  @valid_username_color_field_names Enum.map(@valid_username_color_fields, &Atom.to_string/1)
+  @valid_username_color_field_map Map.new(
+                                    @valid_username_color_fields,
+                                    &{Atom.to_string(&1), &1}
+                                  )
 
   def handle_event("update_color", %{"profile" => profile_params, "_target" => target}, socket) do
     if socket.assigns.profile do
@@ -212,8 +223,8 @@ defmodule ElektrineWeb.ProfileLive.Edit do
       field_name = List.last(target)
       color = Map.get(profile_params, field_name)
 
-      if color && field_name in Enum.map(@valid_color_fields, &Atom.to_string/1) do
-        field_atom = String.to_existing_atom(field_name)
+      if color && field_name in @valid_color_field_names do
+        field_atom = Map.fetch!(@valid_color_field_map, field_name)
         attrs = %{field_atom => color}
 
         case Profiles.update_user_profile(socket.assigns.profile, attrs) do
@@ -237,50 +248,22 @@ defmodule ElektrineWeb.ProfileLive.Edit do
       field_name = List.last(target)
       value = Map.get(profile_params, field_name)
 
-      if value do
-        # Convert field name to atom and parse value appropriately
-        field_atom = String.to_existing_atom(field_name)
+      if value && field_name in @valid_effect_field_names do
+        field_atom = Map.fetch!(@valid_effect_field_map, field_name)
 
-        parsed_value =
-          case field_name do
-            "profile_opacity" ->
-              # Handle both integer and float strings
-              if String.contains?(value, ".") do
-                String.to_float(value)
-              else
-                String.to_integer(value) / 1.0
-              end
+        case parse_effect_value(field_name, value) do
+          {:ok, parsed_value} ->
+            attrs = %{field_atom => parsed_value}
 
-            "container_opacity" ->
-              # Handle both integer and float strings
-              if String.contains?(value, ".") do
-                String.to_float(value)
-              else
-                String.to_integer(value) / 1.0
-              end
+            case Profiles.update_user_profile(socket.assigns.profile, attrs) do
+              {:ok, updated_profile} ->
+                {:noreply, mark_profile_saved(socket, updated_profile)}
 
-            "pattern_opacity" ->
-              # Handle both integer and float strings
-              if String.contains?(value, ".") do
-                String.to_float(value)
-              else
-                String.to_integer(value) / 1.0
-              end
+              {:error, _changeset} ->
+                {:noreply, socket}
+            end
 
-            "profile_blur" ->
-              String.to_integer(value)
-
-            _ ->
-              value
-          end
-
-        attrs = %{field_atom => parsed_value}
-
-        case Profiles.update_user_profile(socket.assigns.profile, attrs) do
-          {:ok, updated_profile} ->
-            {:noreply, mark_profile_saved(socket, updated_profile)}
-
-          {:error, _changeset} ->
+          :error ->
             {:noreply, socket}
         end
       else
@@ -325,9 +308,8 @@ defmodule ElektrineWeb.ProfileLive.Edit do
       field_name = List.last(target)
       color = Map.get(profile_params, field_name)
 
-      if color do
-        # Convert field name to atom and create attrs map
-        field_atom = String.to_existing_atom(field_name)
+      if color && field_name in @valid_username_color_field_names do
+        field_atom = Map.fetch!(@valid_username_color_field_map, field_name)
         attrs = %{field_atom => color}
 
         case Profiles.update_user_profile(socket.assigns.profile, attrs) do
@@ -534,7 +516,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
 
   def handle_event("edit_link", %{"id" => link_id}, socket) do
     if socket.assigns.profile do
-      link = Enum.find(socket.assigns.profile.links, &(&1.id == String.to_integer(link_id)))
+      link = find_profile_link(socket.assigns.profile, link_id)
 
       if link do
         {:noreply,
@@ -607,7 +589,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
   def handle_event("delete_link", %{"id" => link_id}, socket) do
     # Find the link and delete it
     if socket.assigns.profile do
-      link = Enum.find(socket.assigns.profile.links, &(&1.id == String.to_integer(link_id)))
+      link = find_profile_link(socket.assigns.profile, link_id)
 
       if link do
         case Profiles.delete_profile_link(link) do
@@ -670,7 +652,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
 
   def handle_event("delete_widget", %{"id" => widget_id}, socket) do
     if socket.assigns.profile do
-      widget = Enum.find(socket.assigns.profile.widgets, &(&1.id == String.to_integer(widget_id)))
+      widget = find_profile_widget(socket.assigns.profile, widget_id)
 
       if widget do
         case Profiles.delete_widget(widget.id) do
@@ -695,8 +677,11 @@ defmodule ElektrineWeb.ProfileLive.Edit do
   end
 
   def handle_event("toggle_badge_visibility", %{"badge_id" => badge_id}, socket) do
-    badge_id = String.to_integer(badge_id)
-    badge = Enum.find(socket.assigns.user_badges, &(&1.id == badge_id))
+    badge =
+      case parse_positive_int(badge_id) do
+        {:ok, badge_id} -> Enum.find(socket.assigns.user_badges, &(&1.id == badge_id))
+        :error -> nil
+      end
 
     if badge do
       case Profiles.update_badge(badge, %{visible: !badge.visible}) do
@@ -718,9 +703,13 @@ defmodule ElektrineWeb.ProfileLive.Edit do
   end
 
   def handle_event("reorder_link", %{"id" => link_id, "direction" => direction}, socket) do
-    link_id = String.to_integer(link_id)
     links = socket.assigns.profile.links
-    link_index = Enum.find_index(links, &(&1.id == link_id))
+
+    link_index =
+      case parse_positive_int(link_id) do
+        {:ok, link_id} -> Enum.find_index(links, &(&1.id == link_id))
+        :error -> nil
+      end
 
     if link_index do
       new_index =
@@ -756,9 +745,13 @@ defmodule ElektrineWeb.ProfileLive.Edit do
   end
 
   def handle_event("reorder_widget", %{"id" => widget_id, "direction" => direction}, socket) do
-    widget_id = String.to_integer(widget_id)
     widgets = socket.assigns.profile.widgets
-    widget_index = Enum.find_index(widgets, &(&1.id == widget_id))
+
+    widget_index =
+      case parse_positive_int(widget_id) do
+        {:ok, widget_id} -> Enum.find_index(widgets, &(&1.id == widget_id))
+        :error -> nil
+      end
 
     if widget_index do
       new_index =
@@ -1306,8 +1299,44 @@ defmodule ElektrineWeb.ProfileLive.Edit do
 
   # Helper functions for username intensity parsing
   defp parse_username_intensity(nil), do: nil
-  defp parse_username_intensity(value) when is_binary(value), do: String.to_integer(value)
+
+  defp parse_username_intensity(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {intensity, ""} -> intensity
+      _ -> nil
+    end
+  end
+
   defp parse_username_intensity(value), do: value
+
+  defp parse_effect_value(field_name, value)
+       when field_name in ["profile_opacity", "container_opacity", "pattern_opacity"] do
+    parse_float_value(value)
+  end
+
+  defp parse_effect_value("profile_blur", value), do: parse_integer_value(value)
+  defp parse_effect_value(_field_name, _value), do: :error
+
+  defp parse_float_value(value) when is_binary(value) do
+    case Float.parse(value) do
+      {float, ""} -> {:ok, float}
+      _ -> :error
+    end
+  end
+
+  defp parse_float_value(value) when is_integer(value), do: {:ok, value / 1.0}
+  defp parse_float_value(value) when is_float(value), do: {:ok, value}
+  defp parse_float_value(_value), do: :error
+
+  defp parse_integer_value(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {int, ""} -> {:ok, int}
+      _ -> :error
+    end
+  end
+
+  defp parse_integer_value(value) when is_integer(value), do: {:ok, value}
+  defp parse_integer_value(_value), do: :error
 
   # Helper function to fetch link thumbnail
   defp fetch_link_thumbnail(url) do
@@ -1777,11 +1806,24 @@ defmodule ElektrineWeb.ProfileLive.Edit do
   defp normalize_branch(value) do
     value = trim_string(value)
 
-    if Regex.match?(~r/^[A-Za-z0-9._\/-]+$/, value) and value != "" do
+    if valid_github_branch_path?(value) do
       value
     else
       "main"
     end
+  end
+
+  defp valid_github_branch_path?(value) when is_binary(value) do
+    Regex.match?(~r/^[A-Za-z0-9._\/-]+$/, value) and value != "" and
+      valid_github_branch_segments?(value)
+  end
+
+  defp valid_github_branch_path?(_), do: false
+
+  defp valid_github_branch_segments?(value) do
+    value
+    |> String.split("/")
+    |> Enum.all?(&(&1 not in ["", ".", ".."]))
   end
 
   defp normalize_site_dir(value) do
@@ -1985,6 +2027,31 @@ defmodule ElektrineWeb.ProfileLive.Edit do
   defp reset_defaults(fields) do
     Map.new(fields, fn field -> {field, UserProfile.default(field)} end)
   end
+
+  defp find_profile_link(profile, link_id) do
+    case parse_positive_int(link_id) do
+      {:ok, link_id} -> Enum.find(profile.links || [], &(&1.id == link_id))
+      :error -> nil
+    end
+  end
+
+  defp find_profile_widget(profile, widget_id) do
+    case parse_positive_int(widget_id) do
+      {:ok, widget_id} -> Enum.find(profile.widgets || [], &(&1.id == widget_id))
+      :error -> nil
+    end
+  end
+
+  defp parse_positive_int(value) when is_integer(value) and value > 0, do: {:ok, value}
+
+  defp parse_positive_int(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {parsed, ""} when parsed > 0 -> {:ok, parsed}
+      _ -> :error
+    end
+  end
+
+  defp parse_positive_int(_), do: :error
 
   defp humanize_error(:too_large), do: "File is too large for this upload"
   defp humanize_error(:not_accepted), do: "This file type is not supported for this upload"

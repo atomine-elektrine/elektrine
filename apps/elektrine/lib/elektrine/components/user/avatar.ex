@@ -4,6 +4,7 @@ defmodule Elektrine.Components.User.Avatar do
   """
 
   use Phoenix.Component
+  alias Elektrine.Security.SafeExternalURL
 
   attr :size, :string, default: "md"
   attr :icon, :string, default: "hero-user"
@@ -103,6 +104,13 @@ defmodule Elektrine.Components.User.Avatar do
   attr :rest, :global
 
   def conversation_avatar(assigns) do
+    assigns =
+      assign(
+        assigns,
+        :safe_conversation_avatar_url,
+        safe_conversation_avatar_url(assigns.conversation.avatar_url)
+      )
+
     ~H"""
     <%= cond do %>
       <% @conversation.type == "dm" -> %>
@@ -120,9 +128,9 @@ defmodule Elektrine.Components.User.Avatar do
               {@rest}
             />
           <% else %>
-            <%= if is_binary(@conversation.avatar_url) and @conversation.avatar_url != "" do %>
+            <%= if @safe_conversation_avatar_url do %>
               <img
-                src={@conversation.avatar_url}
+                src={@safe_conversation_avatar_url}
                 alt="conversation avatar"
                 class={["rounded-full object-cover", avatar_size_classes(@size), @class]}
                 {@rest}
@@ -151,9 +159,9 @@ defmodule Elektrine.Components.User.Avatar do
             </span>
           <% end %>
         </div>
-      <% @conversation.avatar_url -> %>
+      <% @safe_conversation_avatar_url -> %>
         <img
-          src={@conversation.avatar_url}
+          src={@safe_conversation_avatar_url}
           alt={"#{@conversation.name} avatar"}
           class={["rounded-full ", avatar_size_classes(@size), @class]}
           {@rest}
@@ -251,6 +259,32 @@ defmodule Elektrine.Components.User.Avatar do
   defp hero_icon_size("2xl"), do: "w-10 h-10"
   defp hero_icon_size("responsive"), do: "w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6"
   defp hero_icon_size(_), do: "w-5 h-5"
+
+  defp safe_conversation_avatar_url(url) when is_binary(url) do
+    trimmed = String.trim(url)
+
+    cond do
+      trimmed == "" ->
+        nil
+
+      String.starts_with?(trimmed, "/uploads/") ->
+        trimmed
+
+      String.starts_with?(trimmed, "uploads/") ->
+        "/" <> trimmed
+
+      String.starts_with?(trimmed, "/") ->
+        nil
+
+      true ->
+        case SafeExternalURL.normalize(trimmed) do
+          {:ok, safe_url} -> safe_url
+          {:error, _reason} -> nil
+        end
+    end
+  end
+
+  defp safe_conversation_avatar_url(_), do: nil
 
   defp avatar_placeholder_style do
     "background: linear-gradient(135deg, var(--theme-avatar-accent-light-color), var(--theme-avatar-accent-color));"

@@ -161,7 +161,8 @@ defmodule ElektrineWeb.API.ProofController do
       kind: kind,
       claim_type: claim_type,
       subject: subject,
-      evidence_url: normalized_evidence_url(kind, subject, Map.get(source, "evidence_url")),
+      evidence_url:
+        normalized_evidence_url(claim_type, kind, subject, Map.get(source, "evidence_url")),
       proof_mode: Map.get(source, "proof_mode", default_mode(kind))
     }
   end
@@ -182,12 +183,17 @@ defmodule ElektrineWeb.API.ProofController do
   defp default_mode(kind) when kind in ["dns", "web", "social"], do: "live"
   defp default_mode(_), do: "snapshot"
 
-  defp normalized_evidence_url(kind, subject, _evidence_url) when kind in ["web", "social"],
-    do: subject
+  defp normalized_evidence_url("negative", _kind, _subject, ""), do: nil
+  defp normalized_evidence_url("negative", _kind, _subject, nil), do: nil
+  defp normalized_evidence_url("negative", _kind, _subject, evidence_url), do: evidence_url
 
-  defp normalized_evidence_url("dns", _subject, _evidence_url), do: nil
-  defp normalized_evidence_url(_kind, _subject, ""), do: nil
-  defp normalized_evidence_url(_kind, _subject, evidence_url), do: evidence_url
+  defp normalized_evidence_url(_claim_type, kind, subject, _evidence_url)
+       when kind in ["web", "social"],
+       do: subject
+
+  defp normalized_evidence_url(_claim_type, "dns", _subject, _evidence_url), do: nil
+  defp normalized_evidence_url(_claim_type, _kind, _subject, ""), do: nil
+  defp normalized_evidence_url(_claim_type, _kind, _subject, evidence_url), do: evidence_url
 
   defp format_proof(%Proof{} = proof) do
     %{

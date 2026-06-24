@@ -9,6 +9,8 @@ defmodule ElektrineWeb.DiscussionsIndexLiveTest do
   alias Elektrine.Repo
   alias Elektrine.SocialFixtures
   alias ElektrineSocialWeb.DiscussionsLive.Index
+  alias ElektrineSocialWeb.DiscussionsLive.Operations.UiOperations
+  alias ElektrineSocialWeb.DiscussionsLive.Operations.VotingOperations
 
   defp log_in_user(conn, user) do
     token =
@@ -30,6 +32,152 @@ defmodule ElektrineWeb.DiscussionsIndexLiveTest do
     _ = render_hook(view, "stop_propagation", %{})
 
     assert Process.alive?(view.pid)
+  end
+
+  test "malformed community and actor action ids do not crash" do
+    user = AccountsFixtures.user_fixture()
+    socket = index_socket(%{current_user: user})
+
+    assert {:noreply, socket} =
+             Index.handle_event("join_community", %{"community_id" => "12abc"}, socket)
+
+    assert socket.assigns.flash["error"] == "Failed to join community"
+
+    assert {:noreply, socket} =
+             Index.handle_event("leave_community", %{"community_id" => "12abc"}, socket)
+
+    assert socket.assigns.flash["error"] == "Failed to leave community"
+
+    assert {:noreply, socket} =
+             Index.handle_event("follow_remote_group", %{"actor_id" => "12abc"}, socket)
+
+    assert socket.assigns.flash["error"] == "Failed to follow community"
+
+    assert {:noreply, socket} =
+             Index.handle_event("unfollow_remote_community", %{"actor_id" => "12abc"}, socket)
+
+    assert socket.assigns.flash["error"] == "Failed to unfollow community"
+  end
+
+  test "malformed quick discussion community selectors do not crash" do
+    user = AccountsFixtures.user_fixture()
+    socket = index_socket(%{current_user: user})
+
+    assert {:noreply, socket} =
+             Index.handle_event(
+               "create_quick_discussion",
+               %{
+                 "community_id" => "local:12abc",
+                 "title" => "A title",
+                 "content" => "Body",
+                 "link_url" => ""
+               },
+               socket
+             )
+
+    assert socket.assigns.flash["error"] == "Please select a community"
+
+    assert {:noreply, socket} =
+             Index.handle_event(
+               "create_quick_discussion",
+               %{
+                 "title" => "A title",
+                 "content" => "Body",
+                 "link_url" => ""
+               },
+               socket
+             )
+
+    assert socket.assigns.flash["error"] == "Please select a community"
+  end
+
+  test "malformed community voting ids do not crash" do
+    user = AccountsFixtures.user_fixture()
+    socket = index_socket(%{current_user: user})
+
+    assert {:noreply, socket} =
+             VotingOperations.handle_event(
+               "vote",
+               %{"message_id" => "12abc", "type" => "up"},
+               socket
+             )
+
+    assert socket.assigns.flash["error"] == "Failed to vote"
+
+    assert {:noreply, socket} =
+             VotingOperations.handle_event("show_voters", %{"message_id" => "12abc"}, socket)
+
+    assert socket.assigns.flash["error"] == "Failed to load voters"
+
+    assert {:noreply, socket} =
+             VotingOperations.handle_event(
+               "vote_poll",
+               %{"poll_id" => "12abc", "option_id" => "1"},
+               socket
+             )
+
+    assert socket.assigns.flash["error"] == "Failed to vote"
+
+    assert {:noreply, socket} =
+             VotingOperations.handle_event(
+               "vote_remote_poll",
+               %{"poll_id" => "remote-poll", "message_id" => "12abc", "option_name" => "Yes"},
+               socket
+             )
+
+    assert socket.assigns.flash["error"] == "Unable to send remote poll vote"
+  end
+
+  test "malformed community UI ids and image payloads do not crash" do
+    user = AccountsFixtures.user_fixture()
+
+    socket =
+      index_socket(%{
+        current_user: user,
+        community: %{id: 123, name: "test-community", hash: nil},
+        discussion_posts: [],
+        pinned_posts: []
+      })
+
+    assert {:noreply, socket} =
+             UiOperations.handle_event(
+               "report_discussion",
+               %{"message_id" => "12abc"},
+               socket
+             )
+
+    refute socket.assigns[:show_report_modal]
+
+    assert {:noreply, socket} =
+             UiOperations.handle_event(
+               "view_original_context",
+               %{"message_id" => "12abc"},
+               socket
+             )
+
+    assert socket.assigns.flash["error"] == "Original content not found"
+
+    assert {:noreply, socket} =
+             UiOperations.handle_event(
+               "open_image_modal",
+               %{"images" => "not-json", "index" => "0"},
+               socket
+             )
+
+    assert socket.assigns.flash["error"] == "Unable to open image"
+
+    assert {:noreply, socket} =
+             UiOperations.handle_event(
+               "open_image_modal",
+               %{
+                 "images" => Jason.encode!(["/ok.png"]),
+                 "index" => "abc",
+                 "post_id" => "12abc"
+               },
+               socket
+             )
+
+    assert socket.assigns.flash["error"] == "Unable to open image"
   end
 
   test "signed-in users always see feed view button on communities view", %{conn: conn} do
@@ -457,5 +605,22 @@ defmodule ElektrineWeb.DiscussionsIndexLiveTest do
     ]
 
     assert Index.visible_remote_count_refresh_ids(posts, 10) == [1, 2]
+  end
+
+  defp index_socket(assigns) do
+    base_assigns = %{
+      __changed__: %{},
+      flash: %{},
+      communities: [],
+      followed_remote_communities: [],
+      discover_remote_communities: [],
+      selected_category: "all",
+      joined_community_ids: MapSet.new(),
+      pending_media_urls: [],
+      pending_media_attachments: [],
+      pending_media_alt_texts: %{}
+    }
+
+    %Phoenix.LiveView.Socket{assigns: Map.merge(base_assigns, assigns)}
   end
 end

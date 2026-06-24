@@ -2186,43 +2186,47 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
         %{"images" => images_json, "index" => index} = params,
         socket
       ) do
-    images = Jason.decode!(images_json)
-    index_int = String.to_integer(index)
-    url = params["url"] || Enum.at(images, index_int, List.first(images))
-    post_id = params["post_id"]
+    with {:ok, decoded_images} <- Jason.decode(images_json),
+         images when images != [] <- Enum.filter(decoded_images, &is_binary/1) do
+      index_int = parse_non_negative_int(index, 0) |> min(length(images) - 1)
+      url = params["url"] || Enum.at(images, index_int, List.first(images))
+      post_id = params["post_id"]
 
-    # Find the post and attach remote_actor for the modal display
-    modal_post =
-      if post_id do
-        # Try to find in local_posts first
-        local_post =
-          Enum.find(socket.assigns.local_posts, fn p ->
-            p.activitypub_id == post_id || to_string(p.id) == post_id
-          end)
+      # Find the post and attach remote_actor for the modal display
+      modal_post =
+        if post_id do
+          # Try to find in local_posts first
+          local_post =
+            Enum.find(socket.assigns.local_posts, fn p ->
+              p.activitypub_id == post_id || to_string(p.id) == post_id
+            end)
 
-        if local_post do
-          # Local post - attach remote_actor
-          %{local_post | remote_actor: socket.assigns.remote_actor}
+          if local_post do
+            # Local post - attach remote_actor
+            %{local_post | remote_actor: socket.assigns.remote_actor}
+          else
+            # Create a pseudo-post for remote actor context with activitypub_id for navigation
+            %{
+              remote_actor: socket.assigns.remote_actor,
+              content: nil,
+              inserted_at: DateTime.utc_now(),
+              activitypub_id: post_id
+            }
+          end
         else
-          # Create a pseudo-post for remote actor context with activitypub_id for navigation
-          %{
-            remote_actor: socket.assigns.remote_actor,
-            content: nil,
-            inserted_at: DateTime.utc_now(),
-            activitypub_id: post_id
-          }
+          nil
         end
-      else
-        nil
-      end
 
-    {:noreply,
-     socket
-     |> assign(:show_image_modal, true)
-     |> assign(:modal_image_url, url)
-     |> assign(:modal_images, images)
-     |> assign(:modal_image_index, index_int)
-     |> assign(:modal_post, modal_post)}
+      {:noreply,
+       socket
+       |> assign(:show_image_modal, true)
+       |> assign(:modal_image_url, url)
+       |> assign(:modal_images, images)
+       |> assign(:modal_image_index, index_int)
+       |> assign(:modal_post, modal_post)}
+    else
+      _ -> {:noreply, socket}
+    end
   end
 
   # close_image_modal / next_image / prev_image only touch the canonical modal-state
@@ -2268,18 +2272,7 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
 
   def handle_event("navigate_to_embedded_post", %{"url" => url}, socket)
       when is_binary(url) and url != "" and url != "#" do
-    trimmed_url = String.trim(url)
-
-    case URI.parse(trimmed_url) do
-      %URI{scheme: nil, host: nil} ->
-        {:noreply, push_navigate(socket, to: trimmed_url)}
-
-      %URI{scheme: scheme} when scheme in ["http", "https"] ->
-        {:noreply, ElektrineWeb.PostNavigation.navigate(socket, trimmed_url)}
-
-      _ ->
-        {:noreply, socket}
-    end
+    ElektrineWeb.SafeLiveNavigation.noreply(socket, url)
   end
 
   def handle_event("navigate_to_embedded_post", _params, socket) do
@@ -2346,9 +2339,11 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
     alt_texts =
       params
       |> Enum.filter(fn {key, _value} -> String.starts_with?(key, "alt_text_") end)
-      |> Enum.map(fn {key, value} ->
-        index = key |> String.replace("alt_text_", "") |> String.to_integer()
-        {to_string(index), value}
+      |> Enum.flat_map(fn {key, value} ->
+        case parse_non_negative_int(String.replace(key, "alt_text_", ""), nil) do
+          index when is_integer(index) -> [{to_string(index), value}]
+          nil -> []
+        end
       end)
       |> Map.new()
 
@@ -3090,6 +3085,19 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
   end
 
   defp parse_local_message_id(_), do: :error
+
+  defp parse_non_negative_int(value, _default) when is_integer(value) and value >= 0, do: value
+  defp parse_non_negative_int(value, _default) when is_integer(value) and value < 0, do: 0
+
+  defp parse_non_negative_int(value, default) when is_binary(value) do
+    case Integer.parse(String.trim(value)) do
+      {parsed, ""} when parsed >= 0 -> parsed
+      {parsed, ""} when parsed < 0 -> 0
+      _ -> default
+    end
+  end
+
+  defp parse_non_negative_int(_value, default), do: default
 
   defp decode_post_ref(value) when is_binary(value) do
     trimmed = String.trim(value)

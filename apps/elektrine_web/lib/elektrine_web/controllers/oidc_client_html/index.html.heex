@@ -30,6 +30,18 @@
         </div>
       </div>
 
+      <%= if client_secret = Phoenix.Flash.get(@flash, :client_secret) do %>
+        <div class="rounded-2xl border border-warning/30 bg-warning/10 p-4">
+          <p class="text-sm font-semibold text-warning-content">Copy this client secret now</p>
+          <p class="mt-1 text-sm text-base-content/70">
+            This is the only time the raw secret will be shown. Store it in the client app.
+          </p>
+          <code class="mt-3 block break-all rounded-lg bg-base-300/70 px-3 py-2 text-xs">
+            {client_secret}
+          </code>
+        </div>
+      <% end %>
+
       <%= if Enum.empty?(@apps) do %>
         <div class="rounded-2xl border border-dashed border-base-300/70 bg-base-200/30 p-10 text-center text-base-content/60">
           No OAuth clients yet.
@@ -61,11 +73,11 @@
 
                     <div>
                       <p class="text-xs uppercase tracking-[0.22em] text-base-content/50">
-                        Client Secret
+                        Client Secret Fingerprint
                       </p>
 
                       <code class="mt-1 block break-all rounded-lg bg-base-300/70 px-3 py-2 text-xs">
-                        {app.client_secret}
+                        {Elektrine.OAuth.App.client_secret_fingerprint(app)}
                       </code>
                     </div>
                   </div>

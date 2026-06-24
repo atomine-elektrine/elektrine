@@ -54,8 +54,8 @@
       <div class="card panel-card rounded-lg overflow-hidden mb-4">
         <!-- Cover Photo -->
         <div class="h-32 sm:h-40 relative">
-          <%= if @remote_actor.header_url do %>
-            <img src={@remote_actor.header_url} alt="" class="w-full h-full object-cover" />
+          <%= if header_url = safe_external_image_url(@remote_actor.header_url) do %>
+            <img src={header_url} alt="" class="w-full h-full object-cover" />
           <% else %>
             <div class="w-full h-full bg-gradient-to-r from-secondary/30 to-primary/30"></div>
           <% end %>
@@ -68,9 +68,9 @@
           <div class="flex items-end gap-4">
             <!-- Avatar -->
             <div class="ring-4 ring-base-100 rounded-lg bg-base-100">
-              <%= if @remote_actor.avatar_url do %>
+              <%= if avatar_url = safe_external_image_url(@remote_actor.avatar_url) do %>
                 <img
-                  src={@remote_actor.avatar_url}
+                  src={avatar_url}
                   alt={@remote_actor.username}
                   class="w-20 h-20 sm:w-24 sm:h-24 rounded-lg object-cover"
                 />
@@ -96,10 +96,10 @@
                 <% software = Elektrine.ActivityPub.Instance.software_name(@instance_info) %>
                 <%= if software do %>
                   <div class="flex items-center gap-1.5 mt-0.5 text-xs opacity-60">
-                    <%= if @instance_info.favicon do %>
+                    <%= if favicon_url = safe_external_image_url(@instance_info.favicon) do %>
                       <img
-                        id={"remote-user-instance-favicon-header-#{:erlang.phash2(@instance_info.favicon)}"}
-                        src={@instance_info.favicon}
+                        id={"remote-user-instance-favicon-header-#{:erlang.phash2(favicon_url)}"}
+                        src={favicon_url}
                         alt=""
                         class="w-3.5 h-3.5 rounded-sm"
                         loading="lazy"
@@ -148,14 +148,16 @@
                   </span>
                 </button>
               <% end %>
-              <a
-                href={@remote_actor.uri}
-                target="_blank"
-                rel="noopener noreferrer"
-                class="btn btn-sm btn-ghost"
-              >
-                <.icon name="hero-arrow-top-right-on-square" class="w-4 h-4" />
-              </a>
+              <%= if actor_href = safe_external_href(@remote_actor.uri) do %>
+                <a
+                  href={actor_href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="btn btn-sm btn-ghost"
+                >
+                  <.icon name="hero-arrow-top-right-on-square" class="w-4 h-4" />
+                </a>
+              <% end %>
             </div>
           </div>
         </div>
@@ -519,7 +521,7 @@
                 loaded_reply_count = length(loaded_replies)
 
                 # Get image URL if exists
-                image_url =
+                raw_image_url =
                   cond do
                     post["image"] && is_map(post["image"]) ->
                       cond do
@@ -547,12 +549,17 @@
                       nil
                   end
 
+                image_url = safe_external_image_url(raw_image_url)
+
                 # Detect external link for outbox posts (Lemmy link submissions)
                 external_link_outbox =
                   if is_binary(post["url"]) && is_binary(post["id"]) do
                     url_host = URI.parse(post["url"]).host
                     id_host = URI.parse(post["id"]).host
-                    if url_host && id_host && url_host != id_host, do: post["url"], else: nil
+
+                    if url_host && id_host && url_host != id_host,
+                      do: safe_external_href(post["url"]),
+                      else: nil
                   else
                     nil
                   end
@@ -561,8 +568,10 @@
                 is_reply_outbox = post["inReplyTo"] != nil
 
                 quote_url =
-                  post["quoteUrl"] || post["_misskey_quote"] ||
-                    get_in(post, ["pleroma", "quote_uri"])
+                  safe_external_href(
+                    post["quoteUrl"] || post["_misskey_quote"] ||
+                      get_in(post, ["pleroma", "quote_uri"])
+                  )
 
                 reaction_surface =
                   post_reaction_surface(post["id"], @local_posts, @post_reactions)
@@ -735,7 +744,7 @@
                         </div>
                       <% end %>
 
-                      <%= if is_binary(quote_url) do %>
+                      <%= if quote_url do %>
                         <a
                           id={"outbox-quote-link-#{URI.encode_www_form(post["id"] || "unknown")}"}
                           href={quote_url}
@@ -790,10 +799,10 @@
                         <.link navigate={native_post_path} class="hover:text-primary">
                           Open post
                         </.link>
-                        <%= if post["url"] do %>
+                        <%= if post_url = safe_external_href(post["url"]) do %>
                           <a
                             id={"outbox-external-meta-#{URI.encode_www_form(post["id"] || "unknown")}"}
-                            href={post["url"]}
+                            href={post_url}
                             target="_blank"
                             rel="noopener noreferrer"
                             class="hover:text-primary ml-auto"
@@ -1022,16 +1031,18 @@
               <div class="px-4 py-3 border-b border-base-300">
                 <h3 class="font-semibold">Moderators</h3>
               </div>
-              <div class="p-4 text-sm opacity-70">
-                <a
-                  href={@remote_actor.uri}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="text-primary hover:underline"
-                >
-                  View on {@remote_actor.domain}
-                </a>
-              </div>
+              <%= if actor_href = safe_external_href(@remote_actor.uri) do %>
+                <div class="p-4 text-sm opacity-70">
+                  <a
+                    href={actor_href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="text-primary hover:underline"
+                  >
+                    View on {@remote_actor.domain}
+                  </a>
+                </div>
+              <% end %>
             </div>
           <% end %>
           
@@ -1125,16 +1136,16 @@
           >
             <!-- Cover Photo -->
             <div class="h-48 sm:h-60 relative">
-              <%= if @remote_actor.header_url do %>
+              <%= if header_url = safe_external_image_url(@remote_actor.header_url) do %>
                 <button
                   type="button"
                   phx-click="open_image_modal"
-                  phx-value-url={@remote_actor.header_url}
-                  phx-value-images={Jason.encode!([@remote_actor.header_url])}
+                  phx-value-url={header_url}
+                  phx-value-images={Jason.encode!([header_url])}
                   phx-value-index="0"
                   class="image-zoom-trigger w-full h-full"
                 >
-                  <img src={@remote_actor.header_url} alt="" class="w-full h-full object-cover" />
+                  <img src={header_url} alt="" class="w-full h-full object-cover" />
                 </button>
               <% else %>
                 <div class="w-full h-full bg-gradient-to-r from-purple-600 to-pink-600"></div>
@@ -1146,17 +1157,17 @@
               <!-- Avatar and Actions Row -->
               <div class="flex items-end justify-between -mt-16 sm:-mt-20 mb-4">
                 <div class="ring-4 ring-base-100 rounded-full relative z-20">
-                  <%= if @remote_actor.avatar_url do %>
+                  <%= if avatar_url = safe_external_image_url(@remote_actor.avatar_url) do %>
                     <button
                       type="button"
                       phx-click="open_image_modal"
-                      phx-value-url={@remote_actor.avatar_url}
-                      phx-value-images={Jason.encode!([@remote_actor.avatar_url])}
+                      phx-value-url={avatar_url}
+                      phx-value-images={Jason.encode!([avatar_url])}
                       phx-value-index="0"
                       class="image-zoom-trigger image-zoom-trigger-rounded rounded-full overflow-hidden"
                     >
                       <img
-                        src={@remote_actor.avatar_url}
+                        src={avatar_url}
                         alt={@remote_actor.username}
                         class="w-24 h-24 sm:w-32 sm:h-32 rounded-full object-cover"
                       />
@@ -1214,12 +1225,14 @@
                       tabindex="0"
                       class="dropdown-content z-30 menu p-2 rounded-box w-52 z-30"
                     >
-                      <li>
-                        <a href={@remote_actor.uri} target="_blank" rel="noopener noreferrer">
-                          <.icon name="hero-arrow-top-right-on-square" class="w-4 h-4" />
-                          Open on {@remote_actor.domain}
-                        </a>
-                      </li>
+                      <%= if actor_href = safe_external_href(@remote_actor.uri) do %>
+                        <li>
+                          <a href={actor_href} target="_blank" rel="noopener noreferrer">
+                            <.icon name="hero-arrow-top-right-on-square" class="w-4 h-4" />
+                            Open on {@remote_actor.domain}
+                          </a>
+                        </li>
+                      <% end %>
                     </ul>
                   </div>
                 </div>
@@ -1243,10 +1256,10 @@
                   version = Elektrine.ActivityPub.Instance.software_version(@instance_info) %>
                   <%= if software do %>
                     <div class="flex items-center gap-1.5 mt-1 text-xs opacity-60">
-                      <%= if @instance_info.favicon do %>
+                      <%= if favicon_url = safe_external_image_url(@instance_info.favicon) do %>
                         <img
-                          id={"remote-user-instance-favicon-panel-#{:erlang.phash2(@instance_info.favicon)}"}
-                          src={@instance_info.favicon}
+                          id={"remote-user-instance-favicon-panel-#{:erlang.phash2(favicon_url)}"}
+                          src={favicon_url}
                           alt=""
                           class="w-3.5 h-3.5 rounded-sm"
                           loading="lazy"
@@ -1322,9 +1335,9 @@
               aria-hidden="true"
             >
               <div class="social-page-card panel-card remote-user-sticky-follow-panel hidden w-full items-center justify-between gap-4 rounded-lg px-5 py-4 opacity-0 shadow-lg backdrop-blur transition-opacity duration-200 pointer-events-none">
-                <%= if @remote_actor.avatar_url do %>
+                <%= if avatar_url = safe_external_image_url(@remote_actor.avatar_url) do %>
                   <img
-                    src={@remote_actor.avatar_url}
+                    src={avatar_url}
                     alt=""
                     class="h-8 w-8 flex-shrink-0 rounded-full object-cover"
                     loading="lazy"
@@ -1475,9 +1488,9 @@
                                         navigate={reply_author.profile_path}
                                         class="w-4 h-4 flex-shrink-0"
                                       >
-                                        <%= if is_binary(reply_author.avatar_url) && String.trim(reply_author.avatar_url) != "" do %>
+                                        <%= if avatar_url = safe_external_image_url(reply_author.avatar_url) do %>
                                           <img
-                                            src={reply_author.avatar_url}
+                                            src={avatar_url}
                                             alt=""
                                             class="w-4 h-4 rounded-full object-cover"
                                           />
@@ -1497,9 +1510,9 @@
                                         {reply_author.label}
                                       </.link>
                                     <% else %>
-                                      <%= if is_binary(reply_author.avatar_url) && String.trim(reply_author.avatar_url) != "" do %>
+                                      <%= if avatar_url = safe_external_image_url(reply_author.avatar_url) do %>
                                         <img
-                                          src={reply_author.avatar_url}
+                                          src={avatar_url}
                                           alt=""
                                           class="w-4 h-4 rounded-full object-cover flex-shrink-0"
                                         />
@@ -1572,8 +1585,10 @@
 
               <%= for post <- @timeline_posts do %>
                 <% quote_url =
-                  post["quoteUrl"] || post["_misskey_quote"] ||
-                    get_in(post, ["pleroma", "quote_uri"])
+                  safe_external_href(
+                    post["quoteUrl"] || post["_misskey_quote"] ||
+                      get_in(post, ["pleroma", "quote_uri"])
+                  )
 
                 encoded_post_id = URI.encode_www_form(post["id"] || "unknown")
                 native_post_path = Elektrine.Paths.remote_post_path(post["id"] || "unknown") %>
@@ -1624,7 +1639,7 @@
                     </div>
                   <% end %>
 
-                  <%= if is_binary(quote_url) do %>
+                  <%= if quote_url do %>
                     <a
                       id={"timeline-quote-link-#{URI.encode_www_form(post["id"] || "unknown")}"}
                       href={quote_url}
@@ -1743,9 +1758,9 @@
                                     navigate={reply_author.profile_path}
                                     class="w-4 h-4 flex-shrink-0"
                                   >
-                                    <%= if is_binary(reply_author.avatar_url) && String.trim(reply_author.avatar_url) != "" do %>
+                                    <%= if avatar_url = safe_external_image_url(reply_author.avatar_url) do %>
                                       <img
-                                        src={reply_author.avatar_url}
+                                        src={avatar_url}
                                         alt=""
                                         class="w-4 h-4 rounded-full object-cover"
                                       />
@@ -1762,9 +1777,9 @@
                                     {reply_author.label}
                                   </.link>
                                 <% else %>
-                                  <%= if is_binary(reply_author.avatar_url) && String.trim(reply_author.avatar_url) != "" do %>
+                                  <%= if avatar_url = safe_external_image_url(reply_author.avatar_url) do %>
                                     <img
-                                      src={reply_author.avatar_url}
+                                      src={avatar_url}
                                       alt=""
                                       class="w-4 h-4 rounded-full object-cover flex-shrink-0"
                                     />
@@ -1847,18 +1862,21 @@
               </div>
               <div class="p-2">
                 <div class="grid grid-cols-3 gap-1">
-                  <%= for {media, idx} <- Enum.with_index(all_media) do %>
+                  <% safe_media_urls =
+                    all_media
+                    |> Enum.map(&safe_external_image_url(&1.url))
+                    |> Enum.reject(&is_nil/1) %>
+                  <%= for {media_url, idx} <- Enum.with_index(safe_media_urls) do %>
                     <button
                       type="button"
                       phx-click="open_image_modal"
-                      phx-value-url={media.url}
-                      phx-value-images={Jason.encode!(Enum.map(all_media, & &1.url))}
+                      phx-value-url={media_url}
+                      phx-value-images={Jason.encode!(safe_media_urls)}
                       phx-value-index={idx}
-                      phx-value-post_id={media.post_id}
                       class="aspect-square rounded overflow-hidden hover:opacity-80 transition-opacity"
                     >
                       <img
-                        src={media.url}
+                        src={media_url}
                         alt=""
                         class="w-full h-full object-cover"
                         loading="lazy"

@@ -74,27 +74,12 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.UiOperations do
   end
 
   def handle_event("report_discussion", %{"message_id" => message_id}, socket) do
-    message_id = String.to_integer(message_id)
-    post = Enum.find(socket.assigns.discussion_posts, &(&1.id == message_id))
-
-    if post do
-      report_metadata = %{
-        "sender_id" => post.sender_id,
-        "community_id" => socket.assigns.community.id,
-        "community_name" => socket.assigns.community.name,
-        "content_preview" => ElektrineWeb.HtmlHelpers.plain_text_preview(post.content, 100),
-        "title" => ElektrineWeb.HtmlHelpers.plain_text_content(post.title),
-        "source" => "discussions"
-      }
-
-      {:noreply,
-       socket
-       |> assign(:show_report_modal, true)
-       |> assign(:report_type, "message")
-       |> assign(:report_id, message_id)
-       |> assign(:report_metadata, report_metadata)}
+    with {:ok, message_id} <- parse_positive_int(message_id),
+         post when not is_nil(post) <-
+           Enum.find(socket.assigns.discussion_posts, &(&1.id == message_id)) do
+      {:noreply, open_report_modal(socket, message_id, post)}
     else
-      {:noreply, socket}
+      _ -> {:noreply, socket}
     end
   end
 
@@ -109,7 +94,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.UiOperations do
 
   def handle_event("navigate_to_origin", %{"url" => url}, socket) do
     # Navigate to the original content location
-    {:noreply, push_navigate(socket, to: url)}
+    ElektrineWeb.SafeLiveNavigation.noreply(socket, url)
   end
 
   def handle_event("copy_link", %{"message_id" => message_id}, socket) do
@@ -126,39 +111,17 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.UiOperations do
   end
 
   def handle_event("view_original_context", %{"message_id" => original_message_id}, socket) do
-    original_message_id = String.to_integer(original_message_id)
-
-    # Try to determine where the original message is and navigate there
-    case Elektrine.Repo.get(Elektrine.Social.Message, original_message_id) do
-      nil ->
-        {:noreply, notify_error(socket, "Original content not found")}
-
-      message ->
-        message = Elektrine.Repo.preload(message, :conversation)
-
-        case message.conversation.type do
-          "timeline" ->
-            {:noreply, push_navigate(socket, to: Elektrine.Paths.post_path(message.id))}
-
-          "community" ->
-            # Use friendly URL with slug
-            slug = Elektrine.Utils.Slug.discussion_url_slug(message.id, message.title)
-
-            {:noreply,
-             push_navigate(socket, to: ~p"/communities/#{message.conversation.name}/post/#{slug}")}
-
-          _ ->
-            # For chat/DM, go to chat
-            {:noreply,
-             push_navigate(socket,
-               to: Elektrine.Paths.chat_path(message.conversation)
-             )}
-        end
+    with {:ok, original_message_id} <- parse_positive_int(original_message_id),
+         %{} = message <- Elektrine.Repo.get(Elektrine.Social.Message, original_message_id) do
+      {:noreply,
+       navigate_to_original_context(socket, Elektrine.Repo.preload(message, :conversation))}
+    else
+      _ -> {:noreply, notify_error(socket, "Original content not found")}
     end
   end
 
   def handle_event("navigate_to_embedded_post", %{"url" => url}, socket) do
-    {:noreply, push_navigate(socket, to: url)}
+    ElektrineWeb.SafeLiveNavigation.noreply(socket, url)
   end
 
   def handle_event("stop_event", _params, socket) do
@@ -191,26 +154,20 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.UiOperations do
         %{"images" => images_json, "index" => index} = params,
         socket
       ) do
-    images = Jason.decode!(images_json)
-    index_int = String.to_integer(index)
-    url = params["url"] || Enum.at(images, index_int, List.first(images))
+    with {:ok, images} when is_list(images) <- Jason.decode(images_json),
+         {:ok, index_int} <- parse_non_negative_int(index) do
+      url = params["url"] || Enum.at(images, index_int, List.first(images))
 
-    modal_post =
-      if params["post_id"] do
-        post_id = String.to_integer(params["post_id"])
-        posts = (socket.assigns[:discussion_posts] || []) ++ (socket.assigns[:pinned_posts] || [])
-        Enum.find(posts, fn post -> post.id == post_id end)
-      else
-        nil
-      end
-
-    {:noreply,
-     socket
-     |> assign(:show_image_modal, true)
-     |> assign(:modal_image_url, url)
-     |> assign(:modal_images, images)
-     |> assign(:modal_image_index, index_int)
-     |> assign(:modal_post, modal_post)}
+      {:noreply,
+       socket
+       |> assign(:show_image_modal, true)
+       |> assign(:modal_image_url, url)
+       |> assign(:modal_images, images)
+       |> assign(:modal_image_index, index_int)
+       |> assign(:modal_post, find_modal_post(params["post_id"], socket))}
+    else
+      _ -> {:noreply, notify_error(socket, "Unable to open image")}
+    end
   end
 
   # close_image_modal / next_image / prev_image are delegated to the shared
@@ -271,6 +228,64 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.UiOperations do
   end
 
   # Private helpers
+
+  defp open_report_modal(socket, message_id, post) do
+    report_metadata = %{
+      "sender_id" => post.sender_id,
+      "community_id" => socket.assigns.community.id,
+      "community_name" => socket.assigns.community.name,
+      "content_preview" => ElektrineWeb.HtmlHelpers.plain_text_preview(post.content, 100),
+      "title" => ElektrineWeb.HtmlHelpers.plain_text_content(post.title),
+      "source" => "discussions"
+    }
+
+    socket
+    |> assign(:show_report_modal, true)
+    |> assign(:report_type, "message")
+    |> assign(:report_id, message_id)
+    |> assign(:report_metadata, report_metadata)
+  end
+
+  defp navigate_to_original_context(socket, message) do
+    case message.conversation.type do
+      "timeline" ->
+        push_navigate(socket, to: Elektrine.Paths.post_path(message.id))
+
+      "community" ->
+        slug = Elektrine.Utils.Slug.discussion_url_slug(message.id, message.title)
+        push_navigate(socket, to: ~p"/communities/#{message.conversation.name}/post/#{slug}")
+
+      _ ->
+        push_navigate(socket, to: Elektrine.Paths.chat_path(message.conversation))
+    end
+  end
+
+  defp find_modal_post(nil, _socket), do: nil
+
+  defp find_modal_post(post_id, socket) do
+    case parse_positive_int(post_id) do
+      {:ok, post_id} ->
+        posts = (socket.assigns[:discussion_posts] || []) ++ (socket.assigns[:pinned_posts] || [])
+        Enum.find(posts, fn post -> post.id == post_id end)
+
+      :error ->
+        nil
+    end
+  end
+
+  defp parse_positive_int(value) do
+    case Integer.parse(to_string(value)) do
+      {int, ""} when int > 0 -> {:ok, int}
+      _ -> :error
+    end
+  end
+
+  defp parse_non_negative_int(value) do
+    case Integer.parse(to_string(value)) do
+      {int, ""} when int >= 0 -> {:ok, int}
+      _ -> :error
+    end
+  end
 
   defp notify_error(socket, message) do
     put_flash(socket, :error, message)

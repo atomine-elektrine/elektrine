@@ -5,6 +5,7 @@ defmodule ElektrineSocialWeb.VideosLiveTest do
 
   alias Elektrine.{AccountsFixtures, Messaging, Repo, Social}
   alias Elektrine.ActivityPub.Actor
+  alias ElektrineSocialWeb.VideosLive.Index
 
   defp log_in_user(conn, user) do
     token =
@@ -103,6 +104,26 @@ defmodule ElektrineSocialWeb.VideosLiveTest do
     assert html =~ ~s(src="https://cdn.example/media/video.mp4")
   end
 
+  test "video actions reject malformed ids" do
+    user = AccountsFixtures.user_fixture()
+    socket = videos_socket(user)
+
+    assert {:noreply, socket} =
+             Index.handle_event("like_video", %{"video_id" => "12abc"}, socket)
+
+    assert socket.assigns.flash["error"] == "Failed to like video"
+
+    assert {:noreply, socket} =
+             Index.handle_event("save_post", %{"message_id" => "12abc"}, socket)
+
+    assert socket.assigns.flash["error"] == "Failed to save video"
+
+    assert {:noreply, socket} =
+             Index.handle_event("unsave_post", %{"message_id" => "12abc"}, socket)
+
+    assert socket.assigns.flash["error"] == "Failed to unsave video"
+  end
+
   defp remote_video_post_fixture(attrs) do
     unique = System.unique_integer([:positive])
     username = attrs[:username] || "video#{unique}"
@@ -178,5 +199,23 @@ defmodule ElektrineSocialWeb.VideosLiveTest do
       public_key: "test-public-key-#{unique}"
     })
     |> Repo.insert!()
+  end
+
+  defp videos_socket(user) do
+    %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        flash: %{},
+        current_user: user,
+        user_likes: MapSet.new(),
+        user_saved_posts: MapSet.new(),
+        video_posts: [],
+        filtered_posts: [],
+        current_filter: "discover",
+        video_search: "",
+        video_sort: "fresh",
+        software_filter: "all"
+      }
+    }
   end
 end

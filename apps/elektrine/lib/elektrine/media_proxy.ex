@@ -143,8 +143,15 @@ defmodule Elektrine.MediaProxy do
 
   defp verify_signature(url, signature) do
     expected = sign_url(url)
-    Plug.Crypto.secure_compare(signature, expected)
+    secure_compare(signature, expected)
   end
+
+  defp secure_compare(left, right)
+       when is_binary(left) and is_binary(right) and byte_size(left) == byte_size(right) do
+    Plug.Crypto.secure_compare(left, right)
+  end
+
+  defp secure_compare(_left, _right), do: false
 
   defp get_signing_secret do
     # Use Phoenix secret key base

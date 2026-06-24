@@ -12,6 +12,11 @@ defmodule Elektrine.StaticSites.GitHubDeployWorker do
 
   require Logger
 
+  @max_archive_size 100 * 1024 * 1024
+  @archive_body_key :elektrine_github_archive_body
+  @archive_body_size_key :elektrine_github_archive_body_size
+  @archive_too_large_key :elektrine_github_archive_too_large
+
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"deployment_id" => deployment_id}}) do
     deployment =
@@ -41,19 +46,21 @@ defmodule Elektrine.StaticSites.GitHubDeployWorker do
     end
   end
 
-  defp fetch_archive(%StaticSiteDeployment{} = deployment) do
+  @doc false
+  def fetch_archive(deployment, opts \\ [])
+
+  def fetch_archive(%StaticSiteDeployment{} = deployment, opts) do
     url =
       "https://codeload.github.com/#{deployment.repo_owner}/#{deployment.repo_name}/zip/refs/heads/#{deployment.branch}"
 
-    case Req.get(url,
-           headers: [
-             {"accept", "application/zip"},
-             {"user-agent", "Elektrine"}
-           ],
-           receive_timeout: :timer.seconds(30)
-         ) do
+    request_fun = Keyword.get(opts, :request_fun, &Req.get/2)
+
+    case request_fun.(url, archive_request_options()) do
+      {:ok, %Req.Response{status: status} = response} when status in 200..299 ->
+        archive_body(response)
+
       {:ok, %{status: status, body: body}} when status in 200..299 and is_binary(body) ->
-        {:ok, body}
+        archive_body(body)
 
       {:ok, %{status: status}} ->
         {:error, {:github_archive_status, status}}
@@ -61,6 +68,66 @@ defmodule Elektrine.StaticSites.GitHubDeployWorker do
       {:error, reason} ->
         Logger.warning("GitHub static deploy fetch failed: #{inspect(reason)}")
         {:error, reason}
+    end
+  end
+
+  def fetch_archive(_deployment, _opts), do: {:error, :invalid_deployment}
+
+  defp archive_request_options do
+    [
+      headers: [
+        {"accept", "application/zip"},
+        {"accept-encoding", "identity"},
+        {"user-agent", "Elektrine"}
+      ],
+      compressed: false,
+      decode_body: false,
+      raw: true,
+      into: bounded_archive_collector(@max_archive_size),
+      receive_timeout: :timer.seconds(30)
+    ]
+  end
+
+  defp bounded_archive_collector(max_archive_size) do
+    fn {:data, data}, {request, response} ->
+      size = Req.Response.get_private(response, @archive_body_size_key, 0) + byte_size(data)
+
+      response =
+        response
+        |> Req.Response.update_private(@archive_body_key, [data], &[data | &1])
+        |> Req.Response.put_private(@archive_body_size_key, size)
+
+      if size > max_archive_size do
+        {:halt, {request, Req.Response.put_private(response, @archive_too_large_key, true)}}
+      else
+        {:cont, {request, response}}
+      end
+    end
+  end
+
+  defp archive_body(%Req.Response{} = response) do
+    if Req.Response.get_private(response, @archive_too_large_key, false) do
+      {:error, :archive_too_large}
+    else
+      body =
+        response
+        |> Req.Response.get_private(@archive_body_key, [])
+        |> Enum.reverse()
+        |> IO.iodata_to_binary()
+
+      if byte_size(body) > @max_archive_size do
+        {:error, :archive_too_large}
+      else
+        {:ok, body}
+      end
+    end
+  end
+
+  defp archive_body(body) when is_binary(body) do
+    if byte_size(body) > @max_archive_size do
+      {:error, :archive_too_large}
+    else
+      {:ok, body}
     end
   end
 

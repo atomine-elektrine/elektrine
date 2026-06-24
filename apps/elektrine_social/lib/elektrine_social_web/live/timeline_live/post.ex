@@ -11,6 +11,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
   alias Elektrine.Security.SafeExternalURL
   alias Elektrine.Social
   alias Elektrine.Social.Messages, as: MessagingMessages
+  alias Elektrine.Utils.SafeConvert
 
   # Recursive component to render nested replies
   attr :reply, :map, required: true
@@ -148,9 +149,9 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
                   >
                     <.icon name="hero-share" class="w-4 h-4" />
                   </button>
-                  <%= if @reply.activitypub_id do %>
+                  <%= if reply_href = safe_external_href(@reply.activitypub_id) do %>
                     <a
-                      href={@reply.activitypub_id}
+                      href={reply_href}
                       target="_blank"
                       rel="noopener noreferrer"
                       class="btn btn-ghost btn-sm"
@@ -163,9 +164,9 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
               </div>
             <% else %>
               <%!-- Federated reply --%>
-              <%= if @reply.remote_actor.avatar_url do %>
+              <%= if avatar_url = safe_external_image_url(@reply.remote_actor.avatar_url) do %>
                 <img
-                  src={@reply.remote_actor.avatar_url}
+                  src={avatar_url}
                   alt={@reply.remote_actor.username}
                   class="w-10 h-10 rounded-full flex-shrink-0"
                 />
@@ -270,9 +271,9 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
                   >
                     <.icon name="hero-share" class="w-4 h-4" />
                   </button>
-                  <%= if @reply.activitypub_id do %>
+                  <%= if reply_href = safe_external_href(@reply.activitypub_id) do %>
                     <a
-                      href={@reply.activitypub_id}
+                      href={reply_href}
                       target="_blank"
                       rel="noopener noreferrer"
                       class="btn btn-ghost btn-sm"
@@ -360,7 +361,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
   @impl true
   def mount(%{"id" => post_id}, _session, socket) do
     user = socket.assigns[:current_user]
-    post_id = String.to_integer(post_id)
+    post_id = event_id(post_id)
 
     case get_timeline_post(post_id) do
       {:ok, post} ->
@@ -437,11 +438,11 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
 
   @impl true
   def handle_event("navigate_to_origin", %{"url" => url}, socket) do
-    {:noreply, push_navigate(socket, to: url)}
+    ElektrineWeb.SafeLiveNavigation.noreply(socket, url)
   end
 
   def handle_event("navigate_to_embedded_post", %{"url" => url}, socket) when is_binary(url) do
-    {:noreply, push_navigate(socket, to: url)}
+    ElektrineWeb.SafeLiveNavigation.noreply(socket, url)
   end
 
   def handle_event("navigate_to_embedded_post", %{"id" => id}, socket) do
@@ -488,109 +489,116 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
       reply_to_id =
         case Map.get(params, "reply_to_id") do
           nil -> socket.assigns.post.id
-          id when is_binary(id) -> String.to_integer(id)
-          id -> id
+          id -> event_id(id)
         end
 
-      # Create timeline reply - match parent post visibility or use public
-      parent_visibility = socket.assigns.post.visibility || "public"
+      parent_message = reply_target_message(socket, reply_to_id)
 
-      case Social.create_timeline_post(
-             socket.assigns.current_user.id,
-             content,
-             visibility: parent_visibility
-           ) do
-        {:ok, reply_post} ->
-          # Link it as a reply
-          reply_post
-          |> Elektrine.Social.Message.changeset(%{reply_to_id: reply_to_id})
-          |> Elektrine.Repo.update()
+      if parent_message do
+        # Create timeline reply - match parent post visibility or use public
+        parent_visibility = socket.assigns.post.visibility || "public"
 
-          # Increment reply count on parent
-          Social.increment_reply_count(reply_to_id)
+        case Social.create_timeline_post(
+               socket.assigns.current_user.id,
+               content,
+               visibility: parent_visibility
+             ) do
+          {:ok, reply_post} ->
+            # Link it as a reply
+            reply_post
+            |> Elektrine.Social.Message.changeset(%{reply_to_id: reply_to_id})
+            |> Elektrine.Repo.update()
 
-          # Create notification for timeline comment/reply
-          # Get the original post/reply being replied to
-          parent_message = Elektrine.Repo.get!(Elektrine.Social.Message, reply_to_id)
+            # Increment reply count on parent
+            Social.increment_reply_count(reply_to_id)
 
-          if parent_message.sender_id &&
-               parent_message.sender_id != socket.assigns.current_user.id do
-            # Check if user wants to be notified about comments
-            parent_author = Elektrine.Accounts.get_user!(parent_message.sender_id)
+            # Create notification for timeline comment/reply
+            # Get the original post/reply being replied to
 
-            if Map.get(parent_author, :notify_on_comment, true) do
-              Elektrine.Notifications.create_notification(%{
-                user_id: parent_message.sender_id,
-                actor_id: socket.assigns.current_user.id,
-                type: "comment",
-                title:
-                  "@#{socket.assigns.current_user.handle || socket.assigns.current_user.username} commented on your post",
-                body: String.slice(content, 0, 100),
-                url: Paths.anchored_post_path(socket.assigns.post.id, reply_post.id),
-                source_type: "message",
-                source_id: reply_post.id,
-                priority: "normal"
-              })
-            end
-          end
+            if parent_message.sender_id &&
+                 parent_message.sender_id != socket.assigns.current_user.id do
+              # Check if user wants to be notified about comments
+              parent_author = Elektrine.Accounts.get_user!(parent_message.sender_id)
 
-          # Process mentions in the comment (wrapped in try-rescue to prevent comment failure)
-          try do
-            mentions = Elektrine.ActivityPub.Mentions.extract_local_mentions(content)
-
-            sender = socket.assigns.current_user
-
-            Enum.each(mentions, fn mention ->
-              case Elektrine.Accounts.get_user_by_username_or_handle(mention.username) do
-                nil ->
-                  :ok
-
-                mentioned_user ->
-                  if mentioned_user.id != socket.assigns.current_user.id &&
-                       mentioned_user.id != parent_message.sender_id do
-                    # Check if user wants to be notified about mentions
-                    if Map.get(mentioned_user, :notify_on_mention, true) do
-                      Elektrine.Notifications.create_notification(%{
-                        user_id: mentioned_user.id,
-                        actor_id: socket.assigns.current_user.id,
-                        type: "mention",
-                        title: "@#{sender.handle || sender.username} mentioned you",
-                        body: "You were mentioned in a comment",
-                        url: Paths.anchored_post_path(socket.assigns.post.id, reply_post.id),
-                        source_type: "message",
-                        source_id: reply_post.id,
-                        priority: "normal"
-                      })
-                    end
-                  end
+              if Map.get(parent_author, :notify_on_comment, true) do
+                Elektrine.Notifications.create_notification(%{
+                  user_id: parent_message.sender_id,
+                  actor_id: socket.assigns.current_user.id,
+                  type: "comment",
+                  title:
+                    "@#{socket.assigns.current_user.handle || socket.assigns.current_user.username} commented on your post",
+                  body: String.slice(content, 0, 100),
+                  url: Paths.anchored_post_path(socket.assigns.post.id, reply_post.id),
+                  source_type: "message",
+                  source_id: reply_post.id,
+                  priority: "normal"
+                })
               end
-            end)
-          rescue
-            e ->
-              require Logger
-              Logger.error("Error processing mentions in timeline comment: #{inspect(e)}")
-          end
+            end
 
-          # Reload post and replies to get updated count
-          {:ok, updated_post, updated_replies, total_count} =
-            get_timeline_post_with_replies(socket.assigns.post.id, socket.assigns.current_user.id)
+            # Process mentions in the comment (wrapped in try-rescue to prevent comment failure)
+            try do
+              mentions = Elektrine.ActivityPub.Mentions.extract_local_mentions(content)
 
-          {:noreply,
-           socket
-           |> assign(:post, updated_post)
-           |> assign(:replies, updated_replies)
-           |> assign(:total_reply_count, total_count)
-           |> assign(
-             :liked_replies,
-             get_liked_replies(socket.assigns.current_user.id, updated_replies)
-           )
-           |> assign(:reply_content, "")
-           |> assign(:show_reply_form, false)
-           |> assign(:reply_to_reply_id, nil)
-           |> put_flash(:info, "Reply posted!")}
+              sender = socket.assigns.current_user
 
-        {:error, _} ->
-          {:noreply, put_flash(socket, :error, "Failed to post reply")}
+              Enum.each(mentions, fn mention ->
+                case Elektrine.Accounts.get_user_by_username_or_handle(mention.username) do
+                  nil ->
+                    :ok
+
+                  mentioned_user ->
+                    if mentioned_user.id != socket.assigns.current_user.id &&
+                         mentioned_user.id != parent_message.sender_id do
+                      # Check if user wants to be notified about mentions
+                      if Map.get(mentioned_user, :notify_on_mention, true) do
+                        Elektrine.Notifications.create_notification(%{
+                          user_id: mentioned_user.id,
+                          actor_id: socket.assigns.current_user.id,
+                          type: "mention",
+                          title: "@#{sender.handle || sender.username} mentioned you",
+                          body: "You were mentioned in a comment",
+                          url: Paths.anchored_post_path(socket.assigns.post.id, reply_post.id),
+                          source_type: "message",
+                          source_id: reply_post.id,
+                          priority: "normal"
+                        })
+                      end
+                    end
+                end
+              end)
+            rescue
+              e ->
+                require Logger
+                Logger.error("Error processing mentions in timeline comment: #{inspect(e)}")
+            end
+
+            # Reload post and replies to get updated count
+            {:ok, updated_post, updated_replies, total_count} =
+              get_timeline_post_with_replies(
+                socket.assigns.post.id,
+                socket.assigns.current_user.id
+              )
+
+            {:noreply,
+             socket
+             |> assign(:post, updated_post)
+             |> assign(:replies, updated_replies)
+             |> assign(:total_reply_count, total_count)
+             |> assign(
+               :liked_replies,
+               get_liked_replies(socket.assigns.current_user.id, updated_replies)
+             )
+             |> assign(:reply_content, "")
+             |> assign(:show_reply_form, false)
+             |> assign(:reply_to_reply_id, nil)
+             |> put_flash(:info, "Reply posted!")}
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Failed to post reply")}
+        end
+      else
+        {:noreply, put_flash(socket, :error, "Failed to post reply")}
       end
     else
       {:noreply, put_flash(socket, :error, "Reply cannot be empty")}
@@ -657,42 +665,47 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
 
   def handle_event("like_reply", %{"reply_id" => reply_id}, socket) do
     if socket.assigns[:current_user] do
-      reply_id = String.to_integer(reply_id)
+      reply_id = event_id(reply_id)
       user_id = socket.assigns.current_user.id
       already_liked = Map.get(socket.assigns.liked_replies, reply_id, false)
 
-      if already_liked do
-        case Social.unlike_post(user_id, reply_id) do
-          {:ok, _} ->
-            updated_replies =
-              update_reply_in_tree(socket.assigns.replies, reply_id, fn r ->
-                %{r | like_count: max(0, (r.like_count || 0) - 1)}
-              end)
+      cond do
+        not reply_in_tree?(socket.assigns.replies, reply_id) ->
+          {:noreply, put_flash(socket, :error, "Failed to update like")}
 
-            {:noreply,
-             socket
-             |> assign(:replies, updated_replies)
-             |> assign(:liked_replies, Map.put(socket.assigns.liked_replies, reply_id, false))}
+        already_liked ->
+          case Social.unlike_post(user_id, reply_id) do
+            {:ok, _} ->
+              updated_replies =
+                update_reply_in_tree(socket.assigns.replies, reply_id, fn r ->
+                  %{r | like_count: max(0, (r.like_count || 0) - 1)}
+                end)
 
-          _ ->
-            {:noreply, put_flash(socket, :error, "Failed to update like")}
-        end
-      else
-        case Social.like_post(user_id, reply_id) do
-          {:ok, _} ->
-            updated_replies =
-              update_reply_in_tree(socket.assigns.replies, reply_id, fn r ->
-                %{r | like_count: (r.like_count || 0) + 1}
-              end)
+              {:noreply,
+               socket
+               |> assign(:replies, updated_replies)
+               |> assign(:liked_replies, Map.put(socket.assigns.liked_replies, reply_id, false))}
 
-            {:noreply,
-             socket
-             |> assign(:replies, updated_replies)
-             |> assign(:liked_replies, Map.put(socket.assigns.liked_replies, reply_id, true))}
+            _ ->
+              {:noreply, put_flash(socket, :error, "Failed to update like")}
+          end
 
-          _ ->
-            {:noreply, put_flash(socket, :error, "Failed to update like")}
-        end
+        true ->
+          case Social.like_post(user_id, reply_id) do
+            {:ok, _} ->
+              updated_replies =
+                update_reply_in_tree(socket.assigns.replies, reply_id, fn r ->
+                  %{r | like_count: (r.like_count || 0) + 1}
+                end)
+
+              {:noreply,
+               socket
+               |> assign(:replies, updated_replies)
+               |> assign(:liked_replies, Map.put(socket.assigns.liked_replies, reply_id, true))}
+
+            _ ->
+              {:noreply, put_flash(socket, :error, "Failed to update like")}
+          end
       end
     else
       {:noreply, push_navigate(socket, to: Elektrine.Paths.login_path())}
@@ -700,13 +713,17 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
   end
 
   def handle_event("show_reply_to_reply_form", %{"reply_id" => reply_id} = _params, socket) do
-    reply_id = String.to_integer(reply_id)
+    reply_id = event_id(reply_id)
 
-    {:noreply,
-     socket
-     |> assign(:reply_to_reply_id, reply_id)
-     |> assign(:reply_content, "")
-     |> assign(:show_reply_form, false)}
+    if reply_in_tree?(socket.assigns.replies, reply_id) do
+      {:noreply,
+       socket
+       |> assign(:reply_to_reply_id, reply_id)
+       |> assign(:reply_content, "")
+       |> assign(:show_reply_form, false)}
+    else
+      {:noreply, put_flash(socket, :error, "Reply target is no longer available")}
+    end
   end
 
   def handle_event("cancel_reply_to_reply", _params, socket) do
@@ -742,12 +759,12 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
         %{"url" => url, "images" => images_json, "index" => index, "post_id" => post_id},
         socket
       ) do
-    # Decode the JSON array of image URLs
-    images = Jason.decode!(images_json)
+    images = decode_modal_images(images_json)
+    post_id = event_id(post_id)
 
     # Use the current post if the post_id matches
     modal_post =
-      if socket.assigns.post.id == String.to_integer(post_id) do
+      if socket.assigns.post.id == post_id do
         socket.assigns.post
       else
         nil
@@ -758,7 +775,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
      |> assign(:show_image_modal, true)
      |> assign(:modal_image_url, url)
      |> assign(:modal_images, images)
-     |> assign(:modal_image_index, String.to_integer(index))
+     |> assign(:modal_image_index, event_non_negative_int(index))
      |> assign(:modal_post, modal_post)}
   end
 
@@ -776,49 +793,53 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
   def handle_event("react_to_post", %{"post_id" => post_id, "emoji" => emoji}, socket) do
     if socket.assigns.current_user do
       user_id = socket.assigns.current_user.id
-      message_id = String.to_integer(post_id)
+      message_id = event_id(post_id)
 
       alias Elektrine.Messaging.Reactions
 
-      # Check if user already has this reaction
-      existing_reaction =
-        Elektrine.Repo.get_by(
-          Elektrine.Social.MessageReaction,
-          message_id: message_id,
-          user_id: user_id,
-          emoji: emoji
-        )
-
-      if existing_reaction do
-        # Remove the existing reaction
-        case Reactions.remove_reaction(message_id, user_id, emoji) do
-          {:ok, _} ->
-            updated_reactions =
-              update_post_reactions(
-                socket,
-                message_id,
-                %{emoji: emoji, user_id: user_id},
-                :remove
-              )
-
-            {:noreply, assign(socket, :post_reactions, updated_reactions)}
-
-          {:error, _} ->
-            {:noreply, socket}
-        end
+      if message_id != socket.assigns.post.id do
+        {:noreply, put_flash(socket, :error, "Failed to react")}
       else
-        # Add new reaction
-        case Reactions.add_reaction(message_id, user_id, emoji) do
-          {:ok, reaction} ->
-            reaction = Elektrine.Repo.preload(reaction, [:user, :remote_actor])
-            updated_reactions = update_post_reactions(socket, message_id, reaction, :add)
-            {:noreply, assign(socket, :post_reactions, updated_reactions)}
+        # Check if user already has this reaction
+        existing_reaction =
+          Elektrine.Repo.get_by(
+            Elektrine.Social.MessageReaction,
+            message_id: message_id,
+            user_id: user_id,
+            emoji: emoji
+          )
 
-          {:error, :rate_limited} ->
-            {:noreply, put_flash(socket, :error, "Slow down! You're reacting too fast")}
+        if existing_reaction do
+          # Remove the existing reaction
+          case Reactions.remove_reaction(message_id, user_id, emoji) do
+            {:ok, _} ->
+              updated_reactions =
+                update_post_reactions(
+                  socket,
+                  message_id,
+                  %{emoji: emoji, user_id: user_id},
+                  :remove
+                )
 
-          {:error, _} ->
-            {:noreply, socket}
+              {:noreply, assign(socket, :post_reactions, updated_reactions)}
+
+            {:error, _} ->
+              {:noreply, socket}
+          end
+        else
+          # Add new reaction
+          case Reactions.add_reaction(message_id, user_id, emoji) do
+            {:ok, reaction} ->
+              reaction = Elektrine.Repo.preload(reaction, [:user, :remote_actor])
+              updated_reactions = update_post_reactions(socket, message_id, reaction, :add)
+              {:noreply, assign(socket, :post_reactions, updated_reactions)}
+
+            {:error, :rate_limited} ->
+              {:noreply, put_flash(socket, :error, "Slow down! You're reacting too fast")}
+
+            {:error, _} ->
+              {:noreply, socket}
+          end
         end
       end
     else
@@ -831,26 +852,30 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
         %{"message_id" => _message_id, "target_user_id" => target_user_id},
         socket
       ) do
-    target_user_id = String.to_integer(target_user_id)
+    target_user_id = event_id(target_user_id)
 
-    case Elektrine.Messaging.create_dm_conversation(
-           socket.assigns.current_user.id,
-           target_user_id
-         ) do
-      {:ok, dm_conversation} ->
-        {:noreply, socket |> push_navigate(to: Elektrine.Paths.chat_path(dm_conversation))}
+    if target_user_id == 0 do
+      {:noreply, put_flash(socket, :error, "Could not start private discussion")}
+    else
+      case Elektrine.Messaging.create_dm_conversation(
+             socket.assigns.current_user.id,
+             target_user_id
+           ) do
+        {:ok, dm_conversation} ->
+          {:noreply, socket |> push_navigate(to: Elektrine.Paths.chat_path(dm_conversation))}
 
-      {:error, :rate_limited} ->
-        {:noreply,
-         put_flash(
-           socket,
-           :error,
-           "You are creating too many conversations. Please wait a moment and try again."
-         )}
+        {:error, :rate_limited} ->
+          {:noreply,
+           put_flash(
+             socket,
+             :error,
+             "You are creating too many conversations. Please wait a moment and try again."
+           )}
 
-      {:error, reason} ->
-        error_message = Elektrine.Privacy.privacy_error_message(reason)
-        {:noreply, put_flash(socket, :error, error_message)}
+        {:error, reason} ->
+          error_message = Elektrine.Privacy.privacy_error_message(reason)
+          {:noreply, put_flash(socket, :error, error_message)}
+      end
     end
   end
 
@@ -922,6 +947,54 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
   end
 
   # Helper functions
+
+  defp event_id(value) do
+    case SafeConvert.parse_id(value) do
+      {:ok, id} -> id
+      {:error, :invalid_id} -> 0
+    end
+  end
+
+  defp event_non_negative_int(value) do
+    case SafeConvert.to_integer(value) do
+      int when is_integer(int) and int >= 0 -> int
+      _ -> 0
+    end
+  end
+
+  defp decode_modal_images(images_json) when is_binary(images_json) do
+    case Jason.decode(images_json) do
+      {:ok, images} when is_list(images) -> images
+      _ -> []
+    end
+  end
+
+  defp decode_modal_images(_images_json), do: []
+
+  defp reply_target_message(socket, reply_to_id) do
+    if reply_to_id == socket.assigns.post.id do
+      socket.assigns.post
+    else
+      find_reply_in_tree(socket.assigns.replies, reply_to_id)
+    end
+  end
+
+  defp reply_in_tree?(replies, reply_id), do: not is_nil(find_reply_in_tree(replies, reply_id))
+
+  defp find_reply_in_tree(replies, reply_id) do
+    Enum.find_value(replies, fn reply ->
+      cond do
+        reply.id == reply_id ->
+          reply
+
+        Map.has_key?(reply, :nested_replies) ->
+          find_reply_in_tree(reply.nested_replies, reply_id)
+
+        true ->
+          nil
+      end
+    end)
+  end
 
   defp update_post_reactions(socket, message_id, reaction, action) do
     current_reactions = Map.get(socket.assigns, :post_reactions, %{})

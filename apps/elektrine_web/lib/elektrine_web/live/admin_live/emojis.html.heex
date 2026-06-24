@@ -102,11 +102,11 @@
               class="input input-bordered"
               required
             />
-            <%= if @form.params["image_url"] && @form.params["image_url"] != "" do %>
+            <%= if safe_preview_url = safe_preview_image_url(@form.params["image_url"]) do %>
               <div class="mt-2">
                 <span class="text-sm text-base-content/60">Preview:</span>
                 <img
-                  src={@form.params["image_url"]}
+                  src={safe_preview_url}
                   alt="Preview"
                   class="w-8 h-8 inline-block ml-2"
                 />
@@ -171,12 +171,16 @@
         <div class="flex flex-col items-center gap-2">
           <!-- Emoji Image -->
           <div class="w-12 h-12 flex items-center justify-center">
-            <img
-              src={emoji.image_url}
-              alt={emoji.shortcode}
-              class="max-w-full max-h-full object-contain"
-              loading="lazy"
-            />
+            <%= if safe_emoji_url = safe_preview_image_url(emoji.image_url) do %>
+              <img
+                src={safe_emoji_url}
+                alt={emoji.shortcode}
+                class="max-w-full max-h-full object-contain"
+                loading="lazy"
+              />
+            <% else %>
+              <span class="text-base-content/40" title="Invalid emoji image URL">?</span>
+            <% end %>
           </div>
           <!-- Shortcode -->
           <code

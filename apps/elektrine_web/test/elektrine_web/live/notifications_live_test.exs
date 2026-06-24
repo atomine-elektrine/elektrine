@@ -120,6 +120,22 @@ defmodule ElektrineWeb.NotificationsLiveTest do
     assert_patch(view, ~p"/notifications?filter=unread&source=system")
   end
 
+  test "forged notification events with malformed ids do not crash", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    notification_fixture(viewer, %{title: "System notice", body: "Queue body"})
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/notifications")
+
+    assert render_hook(view, "mark_as_read", %{"id" => "12abc"}) =~ "Notifications"
+    assert render_hook(view, "dismiss", %{"id" => "12abc"}) =~ "Notifications"
+
+    assert render_hook(view, "view_notification", %{"id" => "12abc", "url" => ""}) =~
+             "Notifications"
+  end
+
   test "legacy unseen filter param falls back to all", %{conn: conn} do
     viewer = AccountsFixtures.user_fixture()
 

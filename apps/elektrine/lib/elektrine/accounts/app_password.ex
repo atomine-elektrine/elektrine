@@ -96,8 +96,7 @@ defmodule Elektrine.Accounts.AppPassword do
     clean_token = normalize_current_token(token)
     legacy_token = normalize_legacy_token(token)
 
-    (hmac_hashes([clean_token, legacy_token]) ++
-       [legacy_hash_token(legacy_token), legacy_hash_token(clean_token)])
+    hmac_hashes([clean_token, legacy_token])
     |> Enum.uniq()
   end
 
@@ -114,11 +113,6 @@ defmodule Elektrine.Accounts.AppPassword do
   end
 
   defp normalize_legacy_token(_token), do: ""
-
-  defp legacy_hash_token(token) do
-    :crypto.hash(:sha256, token)
-    |> Base.encode16(case: :lower)
-  end
 
   defp hmac_hashes(tokens) do
     case app_password_pepper() do
@@ -153,7 +147,7 @@ defmodule Elektrine.Accounts.AppPassword do
         Enum.any?(candidate_hashes(token), &secure_compare(&1, token_hash))
 
       true ->
-        Enum.any?(candidate_hashes(token), &secure_compare(&1, token_hash))
+        false
     end
   end
 
@@ -163,7 +157,6 @@ defmodule Elektrine.Accounts.AppPassword do
       String.starts_with?(token_hash, @current_hash_prefix) -> :v3_argon2id
       argon2_hash?(token_hash) -> :argon2id
       hmac_hash?(token_hash) -> :v2_hmac
-      legacy_sha256_hash?(token_hash) -> :legacy_sha256
       true -> :unknown
     end
   end
@@ -179,9 +172,6 @@ defmodule Elektrine.Accounts.AppPassword do
     do: String.starts_with?(token_hash, @hmac_hash_prefix)
 
   defp hmac_hash?(_), do: false
-
-  defp legacy_sha256_hash?(token_hash) when is_binary(token_hash),
-    do: String.match?(token_hash, ~r/\A[0-9a-f]{64}\z/)
 
   defp verify_argon2_token(token, token_hash) do
     case argon2_hash_body(token_hash) do

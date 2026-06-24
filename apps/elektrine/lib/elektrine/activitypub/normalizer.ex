@@ -625,13 +625,9 @@ defmodule Elektrine.ActivityPub.Normalizer do
   defp expand_external_link_candidates(_), do: []
 
   defp normalize_external_link_candidate(value) when is_binary(value) do
-    case URI.parse(String.trim(value)) do
-      %URI{scheme: scheme, host: host} = parsed
-      when scheme in ["http", "https"] and is_binary(host) and host != "" ->
-        URI.to_string(parsed)
-
-      _ ->
-        nil
+    case Elektrine.Security.SafeExternalURL.normalize_href(value) do
+      {:ok, safe_url} -> safe_url
+      {:error, _reason} -> nil
     end
   end
 
@@ -863,18 +859,17 @@ defmodule Elektrine.ActivityPub.Normalizer do
   defp extract_vote_count(option) do
     case option["replies"] do
       %{"totalItems" => count} when is_integer(count) ->
-        count
+        max(count, 0)
 
       %{"totalItems" => count} when is_binary(count) ->
-        String.to_integer(count)
+        parse_nonnegative_count(count)
 
       %{} = replies ->
-        replies["totalItems"] || 0
+        parse_nonnegative_count(replies["totalItems"])
 
       url when is_binary(url) ->
         case RemoteFetch.fetch_object(url) do
-          {:ok, %{"totalItems" => count}} when is_integer(count) -> count
-          {:ok, %{"totalItems" => count}} when is_binary(count) -> String.to_integer(count)
+          {:ok, %{"totalItems" => count}} -> parse_nonnegative_count(count)
           _ -> 0
         end
 
@@ -1087,8 +1082,8 @@ defmodule Elektrine.ActivityPub.Normalizer do
 
   defp parse_nonnegative_count(value) when is_binary(value) do
     case Integer.parse(String.trim(value)) do
-      {count, _} -> max(count, 0)
-      :error -> 0
+      {count, ""} -> max(count, 0)
+      _ -> 0
     end
   end
 

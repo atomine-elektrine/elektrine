@@ -100,6 +100,30 @@ defmodule Elektrine.ActivityPub.NormalizerTest do
 
       assert payload.hashtags == ["activitypub"]
     end
+
+    test "drops unsafe submitted links from ActivityPub metadata" do
+      actor_uri = "https://lemmy.example/u/alice"
+
+      object = %{
+        "type" => "Page",
+        "id" => "https://lemmy.example/post/unsafe",
+        "attributedTo" => actor_uri,
+        "name" => "Unsafe link",
+        "content" => "unsafe",
+        "published" => DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601(),
+        "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+        "attachment" => [
+          %{
+            "type" => "Link",
+            "href" => "javascript:alert(1)"
+          }
+        ]
+      }
+
+      payload = Normalizer.message_payload(object, actor_uri)
+
+      refute Map.has_key?(payload.attrs.media_metadata, "external_link")
+    end
   end
 
   describe "question_payload/3" do

@@ -1,5 +1,5 @@
 defmodule ElektrineWeb.ProfileNavigationTest do
-  use Elektrine.DataCase, async: true
+  use Elektrine.DataCase, async: false
 
   alias Elektrine.Accounts.User
   alias ElektrineWeb.ProfileNavigation

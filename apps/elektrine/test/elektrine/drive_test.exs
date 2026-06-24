@@ -2,6 +2,7 @@ defmodule Elektrine.DriveTest do
   use Elektrine.DataCase, async: false
 
   alias Elektrine.{Accounts, Drive, Repo}
+  alias Elektrine.Secrets.EncryptedString
 
   setup do
     previous_uploads = Application.get_env(:elektrine, :uploads)
@@ -44,8 +45,18 @@ defmodule Elektrine.DriveTest do
 
     assert {:ok, share} = Drive.create_share(user.id, file.id, %{expires_in: "7d"})
     share_id = share.id
+    assert is_binary(share.token)
+    assert share.token_hash == Drive.share_token_hash(share.token)
     assert %Drive.FileShare{id: ^share_id} = Drive.get_active_share(share.token)
     assert share.expires_at
+
+    [stored_token, stored_token_hash] =
+      Repo.query!("SELECT token, token_hash FROM drive_shares WHERE id = $1", [share.id]).rows
+      |> List.first()
+
+    assert EncryptedString.encrypted?(stored_token)
+    refute stored_token == share.token
+    assert stored_token_hash == Drive.share_token_hash(share.token)
 
     assert {:ok, updated_share} = Drive.increment_share_download_count(share)
     assert updated_share.download_count == 1

@@ -56,7 +56,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.DomainSettings do
   def handle_event("toggle_alias", %{"id" => id}, socket) do
     user_id = socket.assigns.current_user.id
 
-    case Aliases.get_alias(String.to_integer(id), user_id) do
+    case get_alias(id, user_id) do
       nil ->
         {:noreply, put_flash(socket, :error, "Alias not found")}
 
@@ -80,7 +80,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.DomainSettings do
   def handle_event("delete_alias", %{"id" => id}, socket) do
     user_id = socket.assigns.current_user.id
 
-    case Aliases.get_alias(String.to_integer(id), user_id) do
+    case get_alias(id, user_id) do
       nil ->
         {:noreply, put_flash(socket, :error, "Alias not found")}
 
@@ -124,7 +124,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.DomainSettings do
   def handle_event("verify_custom_domain", %{"id" => id}, socket) do
     user_id = socket.assigns.current_user.id
 
-    case Email.get_custom_domain(String.to_integer(id), user_id) do
+    case get_custom_domain(id, user_id) do
       nil ->
         {:noreply, put_flash(socket, :error, "Custom domain not found")}
 
@@ -141,7 +141,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.DomainSettings do
   def handle_event("sync_custom_domain_dkim", %{"id" => id}, socket) do
     user_id = socket.assigns.current_user.id
 
-    case Email.get_custom_domain(String.to_integer(id), user_id) do
+    case get_custom_domain(id, user_id) do
       nil ->
         {:noreply, put_flash(socket, :error, "Custom domain not found")}
 
@@ -158,7 +158,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.DomainSettings do
   def handle_event("delete_custom_domain", %{"id" => id}, socket) do
     user_id = socket.assigns.current_user.id
 
-    case Email.get_custom_domain(String.to_integer(id), user_id) do
+    case get_custom_domain(id, user_id) do
       nil ->
         {:noreply, put_flash(socket, :error, "Custom domain not found")}
 
@@ -289,6 +289,20 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.DomainSettings do
   end
 
   # Private helpers
+
+  defp get_alias(id, user_id) do
+    case parse_positive_id(id) do
+      {:ok, id} -> Aliases.get_alias(id, user_id)
+      :error -> nil
+    end
+  end
+
+  defp get_custom_domain(id, user_id) do
+    case parse_positive_id(id) do
+      {:ok, id} -> Email.get_custom_domain(id, user_id)
+      :error -> nil
+    end
+  end
 
   defp normalize_alias_create_params(%{"alias" => params}) when is_map(params), do: params
 

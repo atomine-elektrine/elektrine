@@ -9,6 +9,9 @@ defmodule ElektrineWeb.CommunityPostTest do
   alias Elektrine.Repo
   alias Elektrine.Social.Message
   alias Elektrine.SocialFixtures
+  alias ElektrineSocialWeb.DiscussionsLive.PostOperations.ReplyOperations
+  alias ElektrineSocialWeb.DiscussionsLive.PostOperations.UIOperations, as: PostUIOperations
+  alias ElektrineSocialWeb.DiscussionsLive.PostOperations.VotingOperations
 
   setup do
     # Create a test user
@@ -322,5 +325,150 @@ defmodule ElektrineWeb.CommunityPostTest do
       assert html =~ ~s(src="#{image_url}")
       refute html =~ "![](#{image_url})"
     end
+  end
+
+  describe "post detail voting actions" do
+    test "malformed post detail voting ids do not crash", %{user: user} do
+      socket = post_detail_socket(%{current_user: user})
+
+      assert {:noreply, socket} =
+               VotingOperations.handle_event(
+                 "vote",
+                 %{"message_id" => "12abc", "type" => "up"},
+                 socket
+               )
+
+      assert socket.assigns.flash["error"] == "Failed to vote"
+
+      assert {:noreply, socket} =
+               VotingOperations.handle_event(
+                 "vote_poll",
+                 %{"poll_id" => "12abc", "option_id" => "1"},
+                 socket
+               )
+
+      assert socket.assigns.flash["error"] == "Failed to vote"
+
+      assert {:noreply, socket} =
+               VotingOperations.handle_event(
+                 "vote_remote_poll",
+                 %{"poll_id" => "remote-poll", "message_id" => "12abc", "option_name" => "Yes"},
+                 socket
+               )
+
+      assert socket.assigns.flash["error"] == "Unable to send remote poll vote"
+
+      assert {:noreply, socket} =
+               VotingOperations.handle_event("like_post", %{"post_id" => "12abc"}, socket)
+
+      assert socket.assigns.flash["error"] == "Failed to like post"
+
+      assert {:noreply, socket} =
+               VotingOperations.handle_event(
+                 "react_to_post",
+                 %{"post_id" => "12abc", "emoji" => "+1"},
+                 socket
+               )
+
+      assert socket.assigns.flash["error"] == "Failed to react"
+    end
+  end
+
+  describe "post detail reply actions" do
+    test "malformed post detail reply ids do not crash", %{user: user} do
+      socket =
+        post_detail_socket(%{
+          current_user: user,
+          post: %{id: 123, locked_at: nil},
+          community: %{id: 456, is_public: true},
+          replies: [],
+          nested_reply_content: "",
+          nested_reply_to: nil
+        })
+
+      assert {:noreply, socket} =
+               ReplyOperations.handle_event(
+                 "show_nested_reply_form",
+                 %{"message_id" => "12abc"},
+                 socket
+               )
+
+      assert socket.assigns.flash["error"] == "Reply not found"
+
+      assert {:noreply, socket} =
+               ReplyOperations.handle_event(
+                 "create_nested_reply",
+                 %{"content" => "hello", "reply_to_id" => "12abc"},
+                 socket
+               )
+
+      assert socket.assigns.flash["error"] == "Failed to post reply"
+
+      assert {:noreply, socket} =
+               ReplyOperations.handle_event(
+                 "load_more_replies",
+                 %{"parent_id" => "12abc"},
+                 socket
+               )
+
+      assert socket.assigns.flash["error"] == "Replies not found"
+    end
+  end
+
+  describe "post detail UI actions" do
+    test "malformed post detail UI ids and image payloads do not crash", %{user: user} do
+      socket =
+        post_detail_socket(%{
+          current_user: user,
+          post: %{id: 123, sender_id: user.id, content: "Body", title: "Title"},
+          community: %{id: 456, name: "test-community"}
+        })
+
+      assert {:noreply, socket} =
+               PostUIOperations.handle_event(
+                 "report_discussion",
+                 %{"message_id" => "12abc"},
+                 socket
+               )
+
+      assert socket.assigns.flash["error"] == "Post not found"
+
+      assert {:noreply, socket} =
+               PostUIOperations.handle_event(
+                 "open_image_modal",
+                 %{"images" => "not-json", "index" => "0"},
+                 socket
+               )
+
+      assert socket.assigns.flash["error"] == "Unable to open image"
+
+      assert {:noreply, socket} =
+               PostUIOperations.handle_event(
+                 "open_image_modal",
+                 %{
+                   "images" => Jason.encode!(["/ok.png"]),
+                   "index" => "abc",
+                   "post_id" => "12abc"
+                 },
+                 socket
+               )
+
+      assert socket.assigns.flash["error"] == "Unable to open image"
+    end
+  end
+
+  defp post_detail_socket(assigns) do
+    base_assigns = %{
+      __changed__: %{},
+      flash: %{},
+      post: %{id: 123},
+      community: %{id: 456},
+      expanded_threads: MapSet.new(),
+      user_votes: %{},
+      liked_by_user: false,
+      post_reactions: %{}
+    }
+
+    %Phoenix.LiveView.Socket{assigns: Map.merge(base_assigns, assigns)}
   end
 end

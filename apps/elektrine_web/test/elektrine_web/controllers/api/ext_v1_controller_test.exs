@@ -175,6 +175,7 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
       assert %{"data" => %{"proof" => proof}} = json_response(created_conn, 201)
       assert proof["claim_type"] == "negative"
       assert proof["status"] == "asserted"
+      assert proof["evidence_url"] == nil
 
       check_conn = post(write_conn, "/api/ext/v1/proofs/#{proof["id"]}/check")
       assert %{"error" => %{"code" => "not_checkable"}} = json_response(check_conn, 422)
@@ -588,6 +589,29 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
       assert export["format"] == "json"
     end
 
+    test "export download refuses stored file paths outside the export directory", %{conn: conn} do
+      user = user_fixture()
+      outside_path = Path.join(System.tmp_dir!(), "elektrine-export-leak-#{unique_integer()}.txt")
+      File.write!(outside_path, "secret outside export dir")
+
+      on_exit(fn -> File.rm(outside_path) end)
+
+      {:ok, export} =
+        Developer.create_export(user.id, %{
+          export_type: "account",
+          format: "json"
+        })
+
+      {:ok, export} = Developer.complete_export(export, outside_path, 25, 1)
+
+      conn =
+        conn
+        |> with_pat(user.id, ["export"])
+        |> get("/api/ext/v1/exports/#{export.id}/download")
+
+      assert %{"error" => %{"code" => "file_not_found"}} = json_response(conn, 404)
+    end
+
     test "Nerve endpoints accept dedicated nerve scopes", %{conn: conn} do
       user = user_fixture()
       conn = with_pat(conn, user.id, ["read:nerve"])
@@ -764,14 +788,30 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
       assert %{"data" => created_data} = json_response(created_conn, 201)
       assert %{"id" => webhook_id, "name" => "API Hook"} = created_data["webhook"]
       assert is_binary(created_data["secret"])
+      assert created_data["webhook"]["secret_fingerprint"] =~ ~r/^sha256:[0-9a-f]{12}\.\.\.$/
+      refute Map.has_key?(created_data["webhook"], "secret_prefix")
+
+      refute created_data["webhook"]["secret_fingerprint"] ==
+               String.slice(created_data["secret"], 0, 8)
 
       index_conn = get(conn, "/api/ext/v1/webhooks")
       assert %{"data" => %{"webhooks" => webhooks}} = json_response(index_conn, 200)
       assert Enum.any?(webhooks, &(&1["id"] == webhook_id))
+      indexed_webhook = Enum.find(webhooks, &(&1["id"] == webhook_id))
+
+      assert indexed_webhook["secret_fingerprint"] ==
+               created_data["webhook"]["secret_fingerprint"]
+
+      refute Map.has_key?(indexed_webhook, "secret_prefix")
 
       show_conn = get(conn, "/api/ext/v1/webhooks/#{webhook_id}")
       assert %{"data" => show_data} = json_response(show_conn, 200)
       assert show_data["webhook"]["id"] == webhook_id
+
+      assert show_data["webhook"]["secret_fingerprint"] ==
+               created_data["webhook"]["secret_fingerprint"]
+
+      refute Map.has_key?(show_data["webhook"], "secret_prefix")
 
       replay_conn = post(conn, "/api/ext/v1/webhooks/#{webhook_id}/deliveries/999999/replay")
       assert %{"error" => replay_error} = json_response(replay_conn, 404)
@@ -843,6 +883,8 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
 
     "sha256=#{signature}"
   end
+
+  defp unique_integer, do: System.unique_integer([:positive])
 
   defp valid_client_payload do
     %{

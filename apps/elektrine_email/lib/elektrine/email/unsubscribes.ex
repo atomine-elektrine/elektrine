@@ -41,7 +41,7 @@ defmodule Elektrine.Email.Unsubscribes do
       email: email,
       list_id: list_id,
       user_id: Keyword.get(opts, :user_id),
-      token: token,
+      token: hash_token(token),
       unsubscribed_at: DateTime.utc_now(),
       ip_address: Keyword.get(opts, :ip_address),
       user_agent: Keyword.get(opts, :user_agent)
@@ -125,16 +125,6 @@ defmodule Elektrine.Email.Unsubscribes do
         {:ok, %{email: normalize_email(email), list_id: list_id, token: token}}
 
       _ ->
-        verify_legacy_token(token)
-    end
-  end
-
-  defp verify_legacy_token(token) do
-    case Repo.get_by(Unsubscribe, token: token) do
-      %Unsubscribe{} = unsubscribe ->
-        {:ok, %{email: unsubscribe.email, list_id: unsubscribe.list_id, token: token}}
-
-      nil ->
         {:error, :invalid_token}
     end
   end
@@ -146,6 +136,13 @@ defmodule Elektrine.Email.Unsubscribes do
 
   defp get_existing_unsubscribe(email, list_id) do
     Repo.get_by(Unsubscribe, email: email, list_id: list_id)
+  end
+
+  defp hash_token(token) when is_binary(token) do
+    token
+    |> String.trim()
+    |> then(&:crypto.hash(:sha256, &1))
+    |> Base.encode16(case: :lower)
   end
 
   @doc """

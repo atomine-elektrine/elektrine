@@ -66,6 +66,38 @@ defmodule Elektrine.Social.LinkPreviewTest do
       assert get_change(changeset, :image_url) == image_url
       assert get_change(changeset, :favicon_url) == favicon_url
     end
+
+    test "rejects unsafe primary preview urls" do
+      for url <- [
+            "javascript:alert(1)",
+            "//evil.example/post",
+            "https://user:pass@example.com/post",
+            "https://example.com/\r\nx-injected: yes"
+          ] do
+        changeset =
+          LinkPreview.changeset(%LinkPreview{}, %{
+            url: url,
+            status: "success"
+          })
+
+        refute changeset.valid?
+        assert Keyword.has_key?(changeset.errors, :url)
+      end
+    end
+
+    test "rejects unsafe image and favicon urls" do
+      changeset =
+        LinkPreview.changeset(%LinkPreview{}, %{
+          url: "https://example.com/post",
+          image_url: "javascript:alert(1)",
+          favicon_url: "https://user:pass@example.com/favicon.ico",
+          status: "success"
+        })
+
+      refute changeset.valid?
+      assert Keyword.has_key?(changeset.errors, :image_url)
+      assert Keyword.has_key?(changeset.errors, :favicon_url)
+    end
   end
 
   describe "extract_urls/1" do

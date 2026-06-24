@@ -9,6 +9,7 @@ defmodule ElektrineWeb.API.ExportController do
 
   alias Elektrine.Developer
   alias Elektrine.Developer.DataExport
+  alias Elektrine.Security.FilePath
   alias ElektrineWeb.API.Response
 
   action_fallback ElektrineWeb.FallbackController
@@ -185,23 +186,31 @@ defmodule ElektrineWeb.API.ExportController do
           "Export has expired or is not ready for download"
         )
 
-      is_nil(export.file_path) or not File.exists?(export.file_path) ->
+      is_nil(export.file_path) ->
         Response.error(conn, :not_found, "file_not_found", "Export file not found")
 
       true ->
-        # Record the download
-        Developer.record_download(export)
+        case FilePath.validate_existing_file(export.file_path, export_dir()) do
+          {:ok, file_path} ->
+            # Record the download
+            Developer.record_download(export)
 
-        # Determine content type and filename
-        {content_type, extension} = content_type_for_format(export.format)
-        filename = "elektrine_#{export.export_type}_export_#{export.id}.#{extension}"
+            # Determine content type and filename
+            {content_type, extension} = content_type_for_format(export.format)
+            filename = "elektrine_#{export.export_type}_export_#{export.id}.#{extension}"
 
-        conn
-        |> put_resp_content_type(content_type)
-        |> put_resp_header("content-disposition", "attachment; filename=\"#{filename}\"")
-        |> send_file(200, export.file_path)
+            conn
+            |> put_resp_content_type(content_type)
+            |> put_resp_header("content-disposition", "attachment; filename=\"#{filename}\"")
+            |> send_file(200, file_path)
+
+          {:error, _reason} ->
+            Response.error(conn, :not_found, "file_not_found", "Export file not found")
+        end
     end
   end
+
+  defp export_dir, do: Application.get_env(:elektrine, :export_dir, "/tmp/elektrine/exports")
 
   # Content types for each format
   defp content_type_for_format("json"), do: {"application/json", "json"}
@@ -242,9 +251,13 @@ defmodule ElektrineWeb.API.ExportController do
   # Format changeset errors for JSON response
   defp format_changeset_errors(changeset) do
     Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
-      Regex.replace(~r"%{(\w+)}", msg, fn _, key ->
-        opts |> Keyword.get(String.to_existing_atom(key), key) |> to_string()
-      end)
+      interpolate_error(msg, opts)
+    end)
+  end
+
+  defp interpolate_error(message, opts) do
+    Enum.reduce(opts, message, fn {key, value}, acc ->
+      String.replace(acc, "%{#{key}}", to_string(value))
     end)
   end
 

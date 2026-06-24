@@ -19,8 +19,11 @@ defmodule Elektrine.Developer do
   alias Elektrine.Accounts.Authentication
   alias Elektrine.HTTP.SafeFetch
   alias Elektrine.Repo
+  alias Elektrine.Security.FilePath
 
   @localhost_hosts ["localhost", "127.0.0.1", "::1"]
+
+  defp export_dir, do: Application.get_env(:elektrine, :export_dir, "/tmp/elektrine/exports")
 
   # =============================================================================
   # API Tokens
@@ -751,8 +754,11 @@ defmodule Elektrine.Developer do
   """
   def delete_export(%DataExport{} = export) do
     # Delete file if it exists
-    if export.file_path && File.exists?(export.file_path) do
-      File.rm(export.file_path)
+    if export.file_path do
+      case FilePath.validate_existing_file(export.file_path, export_dir()) do
+        {:ok, file_path} -> File.rm(file_path)
+        {:error, _reason} -> :ok
+      end
     end
 
     Repo.delete(export)
@@ -771,8 +777,11 @@ defmodule Elektrine.Developer do
 
     Enum.each(expired, fn export ->
       # Delete file
-      if export.file_path && File.exists?(export.file_path) do
-        File.rm(export.file_path)
+      if export.file_path do
+        case FilePath.validate_existing_file(export.file_path, export_dir()) do
+          {:ok, file_path} -> File.rm(file_path)
+          {:error, _reason} -> :ok
+        end
       end
 
       # Update status to expired

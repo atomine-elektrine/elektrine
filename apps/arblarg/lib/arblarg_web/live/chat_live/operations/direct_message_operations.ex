@@ -13,7 +13,9 @@ defmodule ArblargWeb.ChatLive.Operations.DirectMessageOperations do
     router: ElektrineWeb.Router
 
   alias Elektrine.Accounts
+  alias Elektrine.Accounts.User
   alias Elektrine.Messaging, as: Messaging
+  alias Elektrine.Repo
 
   def handle_event("start_dm", %{"remote_handle" => remote_handle}, socket)
       when is_binary(remote_handle) and remote_handle != "" do
@@ -48,20 +50,18 @@ defmodule ArblargWeb.ChatLive.Operations.DirectMessageOperations do
   end
 
   def handle_event("start_dm", %{"user_id" => user_id}, socket) do
-    user_id = String.to_integer(user_id)
-
-    case Messaging.create_dm_conversation(socket.assigns.current_user.id, user_id) do
-      {:ok, conversation} ->
-        {:noreply,
-         socket
-         |> assign(
-           :ui,
-           Map.merge(socket.assigns.ui, %{show_new_chat: false, show_profile_modal: false})
-         )
-         |> push_patch(to: Elektrine.Paths.chat_path(conversation))}
-
-      {:error, _} ->
-        {:noreply, notify_error(socket, "Failed to start chat")}
+    with {:ok, user_id} <- parse_positive_int(user_id),
+         {:ok, conversation} <-
+           Messaging.create_dm_conversation(socket.assigns.current_user.id, user_id) do
+      {:noreply,
+       socket
+       |> assign(
+         :ui,
+         Map.merge(socket.assigns.ui, %{show_new_chat: false, show_profile_modal: false})
+       )
+       |> push_patch(to: Elektrine.Paths.chat_path(conversation))}
+    else
+      _ -> {:noreply, notify_error(socket, "Failed to start chat")}
     end
   end
 
@@ -81,42 +81,46 @@ defmodule ArblargWeb.ChatLive.Operations.DirectMessageOperations do
   end
 
   def handle_event("block_user", %{"user_id" => user_id}, socket) do
-    user_id = String.to_integer(user_id)
-
-    case Accounts.block_user(socket.assigns.current_user.id, user_id) do
-      {:ok, _} ->
-        {:noreply, notify_info(socket, "User blocked")}
-
-      {:error, _} ->
-        {:noreply, notify_error(socket, "Failed to block user")}
+    with {:ok, user_id} <- parse_positive_int(user_id),
+         {:ok, _} <- Accounts.block_user(socket.assigns.current_user.id, user_id) do
+      {:noreply, notify_info(socket, "User blocked")}
+    else
+      _ -> {:noreply, notify_error(socket, "Failed to block user")}
     end
   end
 
   def handle_event("unblock_user", %{"user_id" => user_id}, socket) do
-    user_id = String.to_integer(user_id)
-
-    case Accounts.unblock_user(socket.assigns.current_user.id, user_id) do
-      {:ok, _} ->
-        {:noreply, notify_info(socket, "User unblocked")}
-
-      {:error, _} ->
-        {:noreply, notify_error(socket, "Failed to unblock user")}
+    with {:ok, user_id} <- parse_positive_int(user_id),
+         {:ok, _} <- Accounts.unblock_user(socket.assigns.current_user.id, user_id) do
+      {:noreply, notify_info(socket, "User unblocked")}
+    else
+      _ -> {:noreply, notify_error(socket, "Failed to unblock user")}
     end
   end
 
   def handle_event("show_user_profile", %{"user_id" => user_id}, socket) do
-    user = Accounts.get_user!(String.to_integer(user_id))
-    # Preload profile for the modal
-    user_with_profile = Elektrine.Repo.preload(user, :profile)
+    with {:ok, user_id} <- parse_positive_int(user_id),
+         %User{} = user <- Repo.get(User, user_id) do
+      user_with_profile = Repo.preload(user, :profile)
 
-    {:noreply,
-     socket
-     |> assign(:ui, Map.put(socket.assigns.ui, :show_profile_modal, true))
-     |> assign(:profile_user, user_with_profile)}
+      {:noreply,
+       socket
+       |> assign(:ui, Map.put(socket.assigns.ui, :show_profile_modal, true))
+       |> assign(:profile_user, user_with_profile)}
+    else
+      _ -> {:noreply, notify_error(socket, "User not found")}
+    end
   end
 
   def handle_event("hide_profile_modal", _params, socket) do
     {:noreply, assign(socket, :ui, Map.put(socket.assigns.ui, :show_profile_modal, false))}
+  end
+
+  defp parse_positive_int(value) do
+    case Integer.parse(to_string(value)) do
+      {int, ""} when int > 0 -> {:ok, int}
+      _ -> :error
+    end
   end
 
   defp maybe_add_remote_handle_result(results, query)

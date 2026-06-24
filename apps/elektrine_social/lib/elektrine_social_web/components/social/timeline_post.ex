@@ -446,9 +446,9 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
             navigate={"/remote/#{booster["username"]}@#{booster["domain"]}"}
             class="flex-shrink-0"
           >
-            <%= if booster["avatar_url"] do %>
+            <%= if booster_avatar_url = PostUtilities.safe_image_url(booster["avatar_url"]) do %>
               <img
-                src={ensure_https(booster["avatar_url"])}
+                src={booster_avatar_url}
                 alt=""
                 class="w-5 h-5 rounded-full object-cover"
               />
@@ -561,9 +561,9 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         navigate={"/remote/#{@post.remote_actor.username}@#{@post.remote_actor.domain}"}
         class="w-10 h-10 rounded-full block flex-shrink-0"
       >
-        <%= if @post.remote_actor.avatar_url do %>
+        <%= if avatar_url = PostUtilities.safe_image_url(@post.remote_actor.avatar_url) do %>
           <img
-            src={@post.remote_actor.avatar_url}
+            src={avatar_url}
             alt={@post.remote_actor.username}
             class="w-10 h-10 rounded-full object-cover shadow-lg"
           />
@@ -743,9 +743,13 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         data-portal-dropdown-menu
       >
         <!-- View/Open Actions -->
-        <%= if @post.federated && @post.activitypub_url do %>
+        <%= if @post.federated && PostUtilities.safe_external_href(@post.activitypub_url) do %>
           <li>
-            <a href={@post.activitypub_url} target="_blank" rel="noopener noreferrer">
+            <a
+              href={PostUtilities.safe_external_href(@post.activitypub_url)}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
               <.icon name="hero-arrow-top-right-on-square" class="w-4 h-4" /> Open on Remote Instance
             </a>
           </li>
@@ -828,12 +832,18 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         <.user_avatar user={@ancestor.local_sender} size="xs" />
       </div>
     <% else %>
-      <%= if @ancestor.remote_actor && @ancestor.remote_actor.avatar_url do %>
-        <img
-          src={ensure_https(@ancestor.remote_actor.avatar_url)}
-          alt=""
-          class="w-6 h-6 rounded-full object-cover flex-shrink-0"
-        />
+      <%= if @ancestor.remote_actor do %>
+        <%= if avatar_url = PostUtilities.safe_image_url(@ancestor.remote_actor.avatar_url) do %>
+          <img
+            src={avatar_url}
+            alt=""
+            class="w-6 h-6 rounded-full object-cover flex-shrink-0"
+          />
+        <% else %>
+          <div class="w-6 h-6 rounded-full bg-base-300 flex items-center justify-center flex-shrink-0">
+            <.icon name="hero-user" class="w-3.5 h-3.5 opacity-60" />
+          </div>
+        <% end %>
       <% else %>
         <div class="w-6 h-6 rounded-full bg-base-300 flex items-center justify-center flex-shrink-0">
           <.icon name="hero-user" class="w-3.5 h-3.5 opacity-60" />
@@ -1749,9 +1759,9 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
                   navigate={"/remote/#{@post.quoted_message.remote_actor.username}@#{@post.quoted_message.remote_actor.domain}"}
                   class="w-6 h-6"
                 >
-                  <%= if @post.quoted_message.remote_actor.avatar_url do %>
+                  <%= if avatar_url = PostUtilities.safe_image_url(@post.quoted_message.remote_actor.avatar_url) do %>
                     <img
-                      src={@post.quoted_message.remote_actor.avatar_url}
+                      src={avatar_url}
                       alt=""
                       class="w-6 h-6 rounded-full object-cover"
                     />
@@ -1796,18 +1806,20 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
               <% end %>
             </div>
           <% end %>
-          <%= if Ecto.assoc_loaded?(@post.quoted_message.link_preview) && link_preview_success?(@post.quoted_message.link_preview) do %>
+          <%= if Ecto.assoc_loaded?(@post.quoted_message.link_preview) &&
+                   link_preview_success?(@post.quoted_message.link_preview) &&
+                   PostUtilities.safe_external_href(@post.quoted_message.link_preview.url) do %>
             <div class="mt-2 border border-base-300 rounded overflow-hidden">
               <a
-                href={@post.quoted_message.link_preview.url}
+                href={PostUtilities.safe_external_href(@post.quoted_message.link_preview.url)}
                 target="_blank"
                 rel="noopener noreferrer"
                 class="flex items-center gap-2 p-2 hover:bg-base-200/50 transition-colors"
               >
-                <%= if @post.quoted_message.link_preview.image_url do %>
+                <%= if image_url = PostUtilities.safe_image_url(@post.quoted_message.link_preview.image_url) do %>
                   <img
                     id={"#{@id_prefix}-quoted-preview-image-#{@post.id || :erlang.phash2(@post.quoted_message.link_preview.image_url)}"}
-                    src={ensure_https(@post.quoted_message.link_preview.image_url)}
+                    src={image_url}
                     alt=""
                     class="w-12 h-12 rounded object-cover flex-shrink-0"
                     phx-hook="ImageFallback"
@@ -1820,7 +1832,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
                     </div>
                   <% end %>
                   <div class="text-xs opacity-60 truncate">
-                    {URI.parse(@post.quoted_message.link_preview.url).host}
+                    {safe_preview_host(@post.quoted_message.link_preview)}
                   </div>
                 </div>
               </a>
@@ -2062,19 +2074,20 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
   defp link_preview(assigns) do
     ~H"""
-    <%= if link_preview_success?(@post.link_preview) do %>
+    <%= if link_preview_success?(@post.link_preview) &&
+             PostUtilities.safe_external_href(@post.link_preview.url) do %>
       <div class="mt-3 border border-base-300 rounded-lg overflow-hidden hover:border-base-300 transition-colors max-w-full">
         <a
-          href={@post.link_preview.url}
+          href={PostUtilities.safe_external_href(@post.link_preview.url)}
           target="_blank"
           rel="noopener noreferrer"
           class="block min-w-0"
         >
-          <%= if @post.link_preview.image_url do %>
+          <%= if image_url = PostUtilities.safe_image_url(@post.link_preview.image_url) do %>
             <div class="aspect-video bg-base-50">
               <img
                 id={"#{@id_prefix}-link-preview-image-#{@post.id || :erlang.phash2(@post.link_preview.image_url)}"}
-                src={ensure_https(@post.link_preview.image_url)}
+                src={image_url}
                 alt={@post.link_preview.title || ""}
                 class="w-full h-full object-cover"
                 phx-hook="ImageFallback"
@@ -2084,17 +2097,17 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
           <% end %>
           <div class="p-3 min-w-0">
             <div class="flex items-center gap-2 mb-2">
-              <%= if @post.link_preview.favicon_url do %>
+              <%= if favicon_url = PostUtilities.safe_image_url(@post.link_preview.favicon_url) do %>
                 <img
                   id={"#{@id_prefix}-link-preview-favicon-#{@post.id || :erlang.phash2(@post.link_preview.favicon_url)}"}
-                  src={ensure_https(@post.link_preview.favicon_url)}
+                  src={favicon_url}
                   alt=""
                   class="w-4 h-4 flex-shrink-0"
                   phx-hook="ImageFallback"
                 />
               <% end %>
               <span class="text-xs text-base-content/60 truncate">
-                {@post.link_preview.site_name || URI.parse(@post.link_preview.url).host}
+                {@post.link_preview.site_name || safe_preview_host(@post.link_preview)}
               </span>
             </div>
             <%= if @post.link_preview.title do %>
@@ -2343,9 +2356,9 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         
     <!-- View Post Button (only shown on post detail page) -->
         <%= if @show_view_button do %>
-          <%= if @post.federated && @post.activitypub_url do %>
+          <%= if @post.federated && PostUtilities.safe_external_href(@post.activitypub_url) do %>
             <a
-              href={@post.activitypub_url}
+              href={PostUtilities.safe_external_href(@post.activitypub_url)}
               target="_blank"
               rel="noopener noreferrer"
               class="btn btn-ghost btn-xs px-1.5 h-7 min-h-0 sm:px-2 sm:btn-sm"
@@ -3028,10 +3041,13 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
               </a>
             </div>
           <% else %>
-            <%= if @resolved_link_preview && !@has_image do %>
+            <% preview_href =
+              if @resolved_link_preview && !@has_image,
+                do: PostUtilities.safe_external_href(@resolved_link_preview.url) %>
+            <%= if preview_href do %>
               <div class="text-xs text-primary truncate mb-1">
                 <a
-                  href={@resolved_link_preview.url}
+                  href={preview_href}
                   target="_blank"
                   rel="noopener noreferrer"
                   class="hover:underline flex items-center gap-1"
@@ -3081,9 +3097,9 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
             <.link navigate={@card_post_path} class="hover:text-primary">
               Open
             </.link>
-            <%= if @post.activitypub_url do %>
+            <%= if PostUtilities.safe_external_href(@post.activitypub_url) do %>
               <a
-                href={@post.activitypub_url}
+                href={PostUtilities.safe_external_href(@post.activitypub_url)}
                 target="_blank"
                 rel="noopener noreferrer"
                 class="hover:text-primary ml-auto"
@@ -3118,7 +3134,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
                     data-tip={tooltip}
                     data-portal-tooltip
                   >
-                    <span>{raw(render_custom_emojis(emoji))}</span>
+                    <span>{raw(render_reaction_emoji(emoji))}</span>
                     <span class="font-medium">{count}</span>
                   </button>
                 <% else %>
@@ -3127,7 +3143,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
                     data-tip={tooltip}
                     data-portal-tooltip
                   >
-                    <span>{raw(render_custom_emojis(emoji))}</span>
+                    <span>{raw(render_reaction_emoji(emoji))}</span>
                     <span class="font-medium">{count}</span>
                   </span>
                 <% end %>
@@ -3237,9 +3253,9 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
                 View all {@reply_count} comments
               </.link>
             <% end %>
-            <%= if @post.federated && @post.activitypub_url do %>
+            <%= if @post.federated && PostUtilities.safe_external_href(@post.activitypub_url) do %>
               <a
-                href={@post.activitypub_url}
+                href={PostUtilities.safe_external_href(@post.activitypub_url)}
                 target="_blank"
                 rel="noopener noreferrer"
                 class="text-xs text-base-content/70 hover:text-primary inline-flex items-center gap-1"
@@ -3661,8 +3677,27 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
   defp decode_preview_entities(text, _), do: text
 
+  defp render_reaction_emoji(emoji) when is_binary(emoji) do
+    emoji
+    |> Phoenix.HTML.html_escape()
+    |> Phoenix.HTML.safe_to_string()
+    |> render_custom_emojis()
+  end
+
+  defp render_reaction_emoji(_), do: ""
+
   defp link_preview_success?(preview) do
     social_link_preview?(preview) and Map.get(preview, :status) == "success"
+  end
+
+  defp safe_preview_host(preview) do
+    with url when is_binary(url) <- Map.get(preview, :url),
+         safe_url when is_binary(safe_url) <- PostUtilities.safe_external_href(url),
+         %URI{host: host} when is_binary(host) <- URI.parse(safe_url) do
+      host
+    else
+      _ -> nil
+    end
   end
 
   defp social_link_preview?(%{__struct__: :"Elixir.Elektrine.Social.LinkPreview"}), do: true

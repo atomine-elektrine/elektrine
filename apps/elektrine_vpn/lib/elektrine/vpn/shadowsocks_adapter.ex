@@ -41,17 +41,48 @@ defmodule Elektrine.VPN.ShadowsocksAdapter do
   end
 
   def start_server(opts \\ []) do
-    Port.open({:spawn_executable, Keyword.get(opts, :executable, executable())}, [
-      :binary,
-      :exit_status,
-      :stderr_to_stdout,
-      args: ["-c", Keyword.get(opts, :config_path, config_path())]
-    ])
+    with {:ok, executable} <- resolve_executable(Keyword.get(opts, :executable, executable())) do
+      {:ok,
+       Port.open({:spawn_executable, executable}, [
+         :binary,
+         :exit_status,
+         :stderr_to_stdout,
+         args: ["-c", Keyword.get(opts, :config_path, config_path())]
+       ])}
+    end
+  rescue
+    e in ErlangError -> {:error, {:command_failed, Exception.message(e)}}
   end
 
   def executable, do: System.get_env("SHADOWSOCKS_SERVER_BIN") || "ss-server"
   def config_path, do: System.get_env("VPN_SELFHOST_SS_CONFIG_PATH") || @default_config_path
   def listen_host, do: System.get_env("VPN_SELFHOST_SS_LISTEN_HOST") || "0.0.0.0"
+
+  def resolve_executable(executable) when is_binary(executable) do
+    executable = String.trim(executable)
+
+    cond do
+      executable == "" or String.contains?(executable, <<0>>) ->
+        {:error, :invalid_executable}
+
+      Path.type(executable) == :absolute and File.regular?(executable) ->
+        {:ok, executable}
+
+      Path.type(executable) == :absolute ->
+        {:error, {:command_failed, "#{executable} executable not found"}}
+
+      String.contains?(executable, "/") ->
+        {:error, :invalid_executable}
+
+      resolved = System.find_executable(executable) ->
+        {:ok, resolved}
+
+      true ->
+        {:error, {:command_failed, "#{executable} executable not found"}}
+    end
+  end
+
+  def resolve_executable(_executable), do: {:error, :invalid_executable}
 
   def timeout_seconds do
     case Integer.parse(System.get_env("VPN_SELFHOST_SS_TIMEOUT") || "300") do

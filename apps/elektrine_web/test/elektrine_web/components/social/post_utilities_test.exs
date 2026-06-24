@@ -1,6 +1,8 @@
 defmodule ElektrineWeb.Components.Social.PostUtilitiesTest do
   use ExUnit.Case, async: true
 
+  alias Elektrine.ActivityPub.Actor
+  alias Elektrine.Social.Message
   alias ElektrineWeb.Components.Social.PostUtilities
 
   test "local image post navigates to local timeline detail" do
@@ -111,6 +113,16 @@ defmodule ElektrineWeb.Components.Social.PostUtilitiesTest do
     refute preview =~ "href="
   end
 
+  test "filter_image_urls/1 keeps only safe external image URLs" do
+    assert PostUtilities.filter_image_urls([
+             " https://example.com/media/photo.jpg?size=large ",
+             "javascript:alert(1)",
+             "data:image/png;base64,AAAA",
+             "http://127.0.0.1/private.png",
+             "https://example.com/not-image.txt"
+           ]) == ["https://example.com/media/photo.jpg?size=large"]
+  end
+
   test "get_instance_domain/1 prefers remote actor domain" do
     post = %{remote_actor: %{domain: "lemmy.world"}}
 
@@ -143,6 +155,29 @@ defmodule ElektrineWeb.Components.Social.PostUtilitiesTest do
     }
 
     assert PostUtilities.get_reply_avatar_url(reply) == "https://lemmy.world/pictrs/image/bob.png"
+  end
+
+  test "get_reply_avatar_url/1 rejects unsafe remote avatar URLs" do
+    for avatar_url <- [
+          "javascript:alert(1)",
+          "data:image/svg+xml,<svg/onload=alert(1)>",
+          "http://127.0.0.1/private.png",
+          "https://example.com/profile"
+        ] do
+      assert PostUtilities.get_reply_avatar_url(%{author_avatar: avatar_url}) == nil
+    end
+  end
+
+  test "get_reply_avatar_url/1 rejects unsafe remote actor avatars on message structs" do
+    reply = %Message{
+      remote_actor: %Actor{
+        username: "alice",
+        domain: "remote.example",
+        avatar_url: "http://127.0.0.1/private.png"
+      }
+    }
+
+    assert PostUtilities.get_reply_avatar_url(reply) == nil
   end
 
   test "get_reply_author/1 supports string-keyed remote_actor maps" do

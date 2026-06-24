@@ -2,6 +2,7 @@ defmodule ElektrineWeb.NotificationsLive do
   use ElektrineWeb, :live_view
   alias Elektrine.Notifications
   alias Elektrine.Platform.ENav, as: PlatformENav
+  alias Elektrine.Utils.SafeConvert
   import ElektrineWeb.Components.Platform.ENav
   import ElektrineWeb.Components.User.Avatar
 
@@ -78,7 +79,7 @@ defmodule ElektrineWeb.NotificationsLive do
 
   @impl true
   def handle_event("mark_as_read", %{"id" => notification_id}, socket) do
-    notification_id = String.to_integer(notification_id)
+    notification_id = event_id(notification_id)
     Notifications.mark_as_read(notification_id, socket.assigns.current_user.id)
 
     {:noreply, reload_notification_data(socket)}
@@ -107,7 +108,7 @@ defmodule ElektrineWeb.NotificationsLive do
   end
 
   def handle_event("dismiss", %{"id" => notification_id}, socket) do
-    notification_id = String.to_integer(notification_id)
+    notification_id = event_id(notification_id)
     Notifications.dismiss_notification(notification_id, socket.assigns.current_user.id)
 
     {:noreply, reload_notification_data(socket)}
@@ -180,15 +181,22 @@ defmodule ElektrineWeb.NotificationsLive do
 
   def handle_event("view_notification", %{"id" => notification_id, "url" => url}, socket) do
     # Mark as read when clicking on a notification
-    notification_id = String.to_integer(notification_id)
+    notification_id = event_id(notification_id)
     Notifications.mark_as_read(notification_id, socket.assigns.current_user.id)
 
     socket = reload_notification_data(socket)
 
     if Elektrine.Strings.present?(url) do
-      {:noreply, push_navigate(socket, to: url)}
+      ElektrineWeb.SafeLiveNavigation.noreply(socket, url)
     else
       {:noreply, socket}
+    end
+  end
+
+  defp event_id(value) do
+    case SafeConvert.parse_id(value) do
+      {:ok, id} -> id
+      {:error, :invalid_id} -> 0
     end
   end
 

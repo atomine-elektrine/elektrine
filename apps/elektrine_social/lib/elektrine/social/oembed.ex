@@ -224,22 +224,16 @@ defmodule Elektrine.Social.OEmbed do
   defp sanitize_html(nil), do: nil
 
   defp sanitize_html(html) when is_binary(html) do
-    # Check if it's an iframe and from a trusted source
-    if String.contains?(html, "<iframe") do
-      if safe_iframe?(html) do
-        html
-      else
+    case safe_iframe_src(html) do
+      {:ok, src} ->
+        ~s(<iframe src="#{escape_attr(src)}" loading="lazy" referrerpolicy="no-referrer" sandbox="allow-scripts allow-same-origin allow-presentation" allowfullscreen></iframe>)
+
+      :error ->
         nil
-      end
-    else
-      # For other HTML (like Twitter cards), strip scripts
-      html
-      |> String.replace(~r/<script[^>]*>.*?<\/script>/is, "")
-      |> String.replace(~r/\s*on\w+\s*=\s*["'][^"']*["']/i, "")
     end
   end
 
-  defp safe_iframe?(html) do
+  defp safe_iframe_src(html) do
     trusted_domains = [
       "youtube.com",
       "youtube-nocookie.com",
@@ -253,18 +247,34 @@ defmodule Elektrine.Social.OEmbed do
       "codepen.io"
     ]
 
-    # Extract src from iframe
-    case Regex.run(~r/src=["']([^"']+)["']/i, html) do
-      [_, src] ->
-        uri = URI.parse(src)
-        host = uri.host || ""
-
-        Enum.any?(trusted_domains, fn domain ->
-          host == domain || String.ends_with?(host, "." <> domain)
-        end)
-
-      nil ->
-        false
+    with true <- String.contains?(html, "<iframe"),
+         [_, src] <- Regex.run(~r/src=["']([^"']+)["']/i, html),
+         %URI{scheme: "https", host: host, userinfo: nil} = uri <- URI.parse(src),
+         true <- trusted_iframe_host?(host, trusted_domains) do
+      {:ok, URI.to_string(uri)}
+    else
+      _ -> :error
     end
+  end
+
+  defp trusted_iframe_host?(host, trusted_domains) when is_binary(host) do
+    host =
+      host
+      |> String.trim_trailing(".")
+      |> String.downcase()
+
+    Enum.any?(trusted_domains, fn domain ->
+      host == domain || String.ends_with?(host, "." <> domain)
+    end)
+  end
+
+  defp trusted_iframe_host?(_host, _trusted_domains), do: false
+
+  defp escape_attr(value) do
+    value
+    |> String.replace("&", "&amp;")
+    |> String.replace("\"", "&quot;")
+    |> String.replace("<", "&lt;")
+    |> String.replace(">", "&gt;")
   end
 end

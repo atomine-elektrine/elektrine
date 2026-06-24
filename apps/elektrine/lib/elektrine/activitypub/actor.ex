@@ -4,6 +4,7 @@ defmodule Elektrine.ActivityPub.Actor do
   import Ecto.Changeset
 
   alias Elektrine.Secrets.EncryptedString
+  alias Elektrine.Security.SafeExternalURL
 
   schema "activitypub_actors" do
     field :uri, :string
@@ -58,6 +59,14 @@ defmodule Elektrine.ActivityPub.Actor do
     |> truncate_utc_datetimes([:last_fetched_at, :published_at])
     |> update_change(:metadata, &encrypt_metadata_private_key/1)
     |> validate_required([:uri, :username, :domain, :inbox_url])
+    |> validate_safe_href(:uri)
+    |> validate_safe_href(:inbox_url)
+    |> validate_optional_safe_href(:avatar_url)
+    |> validate_optional_safe_href(:header_url)
+    |> validate_optional_safe_href(:outbox_url)
+    |> validate_optional_safe_href(:followers_url)
+    |> validate_optional_safe_href(:following_url)
+    |> validate_optional_safe_href(:moderators_url)
     |> validate_inclusion(:actor_type, [
       "Person",
       "Group",
@@ -126,4 +135,26 @@ defmodule Elektrine.ActivityPub.Actor do
     do: Map.new(metadata, fn {key, value} -> {to_string(key), value} end)
 
   defp normalize_metadata(_metadata), do: %{}
+
+  defp validate_safe_href(changeset, field) do
+    validate_change(changeset, field, fn _, url ->
+      safe_href_errors(field, url)
+    end)
+  end
+
+  defp validate_optional_safe_href(changeset, field) do
+    validate_change(changeset, field, fn
+      _, nil -> []
+      _, "" -> []
+      _, url -> safe_href_errors(field, url)
+    end)
+  end
+
+  defp safe_href_errors(field, url) do
+    case SafeExternalURL.normalize_href(url) do
+      {:ok, _url} -> []
+      {:error, :userinfo_not_allowed} -> [{field, "must not include username or password"}]
+      {:error, _reason} -> [{field, "must be a valid HTTP or HTTPS URL"}]
+    end
+  end
 end

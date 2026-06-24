@@ -169,13 +169,9 @@ defmodule Elektrine.ActivityPub.SubmittedLinkRepairWorker do
   defp expand_external_link_candidates(_), do: []
 
   defp normalize_external_link_candidate(value) when is_binary(value) do
-    case URI.parse(String.trim(value)) do
-      %URI{scheme: scheme, host: host} = parsed
-      when scheme in ["http", "https"] and is_binary(host) and host != "" ->
-        URI.to_string(parsed)
-
-      _ ->
-        nil
+    case Elektrine.Security.SafeExternalURL.normalize_href(value) do
+      {:ok, safe_url} -> safe_url
+      {:error, _reason} -> nil
     end
   end
 

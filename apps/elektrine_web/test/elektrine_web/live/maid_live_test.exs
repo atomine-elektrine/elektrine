@@ -22,6 +22,31 @@ defmodule ElektrineWeb.MaidLiveTest do
     end
   end
 
+  defmodule UnsafeSearchProvider do
+    @behaviour Maid.Provider
+
+    @impl true
+    def search(_query, _opts) do
+      {:ok,
+       [
+         %{
+           title: "Dropped result",
+           url: "javascript:alert(1)",
+           snippet: "This should not render",
+           score: 10,
+           metadata: %{image_url: "https://cdn.example/dropped.jpg"}
+         },
+         %{
+           title: "Safe result with unsafe image",
+           url: "https://maid.example/safe",
+           snippet: "This should render without the thumbnail",
+           score: 9,
+           metadata: %{image_url: "https://example.com\r\nLocation:https://evil.test"}
+         }
+       ]}
+    end
+  end
+
   setup do
     previous_providers = Application.get_env(:maid, :providers, [])
 
@@ -58,6 +83,22 @@ defmodule ElektrineWeb.MaidLiveTest do
     assert html =~ "https://maid.example/search"
     assert html =~ "Private meta-search &amp; discovery for Elektrine"
     refute html =~ "&lt;b&gt;Private&lt;/b&gt;"
+  end
+
+  test "drops unsafe Maid result URLs and strips unsafe thumbnails", %{conn: conn} do
+    Application.put_env(:maid, :providers, [UnsafeSearchProvider])
+    user = AccountsFixtures.user_fixture()
+
+    {:ok, _view, html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/maid?q=unsafe")
+
+    refute html =~ "Dropped result"
+    refute html =~ "javascript:"
+    assert html =~ "Safe result with unsafe image"
+    assert html =~ ~s|href="https://maid.example/safe"|
+    refute html =~ "evil.test"
   end
 
   test "search input does not send keyup search events", %{conn: conn} do

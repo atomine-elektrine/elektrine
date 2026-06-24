@@ -338,6 +338,22 @@ defmodule ElektrineWeb.Plugs.StaticSitePlugTest do
       end)
     end
 
+    test "Atomine Gate verification rejects ambiguous local redirect paths", %{user: user} do
+      with_atomine_gate_enabled(fn ->
+        conn =
+          Plug.Test.conn(:post, AtomineGate.verify_path(), %{
+            "atomine_pow_token" => "test-token",
+            "user_id" => to_string(user.id),
+            "return_to" => "/\\evil.example/path"
+          })
+          |> Map.put(:host, "gate.test")
+          |> ElektrineWeb.Plugs.StaticSitePlug.call([])
+
+        assert conn.status == 303
+        assert get_resp_header(conn, "location") == ["/"]
+      end)
+    end
+
     test "serves static generator section paths on custom domains", %{user: user} do
       page = "<html><body>Post</body></html>"
       {:ok, _} = StaticSites.upload_file(user, "c/post/index.html", page, "text/html")

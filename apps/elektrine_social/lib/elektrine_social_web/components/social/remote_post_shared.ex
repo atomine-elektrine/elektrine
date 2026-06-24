@@ -8,6 +8,8 @@ defmodule ElektrineSocialWeb.Components.Social.RemotePostShared do
   import ElektrineWeb.CoreComponents
   import ElektrineWeb.HtmlHelpers
 
+  alias Elektrine.Security.SafeExternalURL
+
   attr :quoted_message, :map, required: true
   attr :variant, :atom, default: :detail, values: [:detail, :compact]
   attr :content_mode, :atom, default: :local, values: [:local, :remote_bio, :remote_post]
@@ -190,28 +192,32 @@ defmodule ElektrineSocialWeb.Components.Social.RemotePostShared do
   end
 
   defp media_entry(attachment) when is_map(attachment) do
-    url = attachment_url(attachment)
-
-    if is_binary(url) && String.trim(url) != "" do
+    with url when is_binary(url) <- attachment_url(attachment),
+         {:ok, safe_url} <- safe_media_url(url) do
       media_type = attachment_media_type(attachment)
       attachment_type = attachment_type(attachment)
 
       %{
-        audio: audio_attachment?(url, media_type, attachment_type),
-        image: image_attachment?(url, media_type, attachment_type),
+        audio: audio_attachment?(safe_url, media_type, attachment_type),
+        image: image_attachment?(safe_url, media_type, attachment_type),
         name:
           attachment["name"] || attachment[:name] || attachment["description"] ||
             attachment[:description],
-        preview_url:
-          attachment["preview_url"] || attachment[:preview_url] || attachment["thumbnailUrl"] ||
-            attachment[:thumbnailUrl],
-        url: url,
-        video: video_attachment?(url, media_type, attachment_type)
+        preview_url: safe_optional_media_url(preview_url(attachment)),
+        url: safe_url,
+        video: video_attachment?(safe_url, media_type, attachment_type)
       }
+    else
+      _ -> nil
     end
   end
 
   defp media_entry(_), do: nil
+
+  defp preview_url(attachment) do
+    attachment["preview_url"] || attachment[:preview_url] || attachment["thumbnailUrl"] ||
+      attachment[:thumbnailUrl]
+  end
 
   defp attachment_url(attachment) when is_map(attachment) do
     case attachment["url"] || attachment[:url] do
@@ -235,6 +241,33 @@ defmodule ElektrineSocialWeb.Components.Social.RemotePostShared do
 
   defp attachment_url(url) when is_binary(url), do: url
   defp attachment_url(_), do: nil
+
+  defp safe_optional_media_url(url) do
+    case safe_media_url(url) do
+      {:ok, safe_url} -> safe_url
+      {:error, _reason} -> nil
+    end
+  end
+
+  defp safe_media_url(url) when is_binary(url) do
+    trimmed = String.trim(url)
+
+    cond do
+      trimmed == "" ->
+        {:error, :empty_url}
+
+      Regex.match?(~r/[\x00-\x1F\x7F]/, trimmed) ->
+        {:error, :invalid_url}
+
+      String.starts_with?(trimmed, "/") and not String.starts_with?(trimmed, "//") ->
+        {:ok, trimmed}
+
+      true ->
+        SafeExternalURL.normalize_href(trimmed)
+    end
+  end
+
+  defp safe_media_url(_), do: {:error, :invalid_url}
 
   defp attachment_media_type(attachment) when is_map(attachment) do
     attachment["mediaType"] || attachment[:mediaType] || attachment["media_type"] ||

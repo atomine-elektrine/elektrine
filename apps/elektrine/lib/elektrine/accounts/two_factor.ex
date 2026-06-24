@@ -81,7 +81,7 @@ defmodule Elektrine.Accounts.TwoFactor do
     {plain_codes, hashed_codes}
   end
 
-  @doc "Verifies a backup code against the user's stored backup codes.\nSupports both legacy plaintext codes and new hashed codes for backward compatibility.\nReturns {:ok, remaining_codes} if valid, {:error, :invalid} if not.\n"
+  @doc "Verifies a backup code against the user's stored hashed backup codes.\nReturns {:ok, remaining_codes} if valid, {:error, :invalid} if not.\n"
   def verify_backup_code(backup_codes, code) when is_list(backup_codes) and is_binary(code) do
     formatted_code = String.upcase(String.trim(code))
 
@@ -107,16 +107,7 @@ defmodule Elektrine.Accounts.TwoFactor do
 
   defp verify_backup_code_match(code, stored_code)
        when is_binary(code) and is_binary(stored_code) do
-    cond do
-      String.match?(stored_code, ~r/^[A-Z0-9]{8}$/) ->
-        Plug.Crypto.secure_compare(code, stored_code)
-
-      String.starts_with?(stored_code, "$argon2") ->
-        Argon2.verify_pass(code, stored_code)
-
-      true ->
-        false
-    end
+    String.starts_with?(stored_code, "$argon2") and Argon2.verify_pass(code, stored_code)
   end
 
   defp verify_backup_code_match(_, _) do

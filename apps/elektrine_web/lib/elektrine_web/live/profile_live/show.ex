@@ -8,6 +8,7 @@ defmodule ElektrineWeb.ProfileLive.Show do
   import ElektrineWeb.Components.User.VerificationBadge
   import ElektrineWeb.HtmlHelpers
   alias Elektrine.{AccountIdentifiers, Accounts, Domains, Messaging, Profiles}
+  alias Elektrine.Utils.SafeConvert
   alias ElektrineWeb.ClientIP
   alias ElektrineWeb.Platform.Integrations
   @impl true
@@ -299,7 +300,7 @@ defmodule ElektrineWeb.ProfileLive.Show do
     current_user = socket.assigns.current_user
 
     if current_user do
-      case Profiles.unfollow_remote_actor(current_user.id, String.to_integer(remote_actor_id)) do
+      case Profiles.unfollow_remote_actor(current_user.id, event_id(remote_actor_id)) do
         {:ok, :unfollowed} ->
           following = Profiles.get_following(current_user.id, limit: 50)
           following_count = Profiles.get_following_count(current_user.id)
@@ -322,7 +323,7 @@ defmodule ElektrineWeb.ProfileLive.Show do
     current_user = socket.assigns.current_user
 
     if current_user do
-      Profiles.unfollow_user(current_user.id, String.to_integer(followed_id))
+      Profiles.unfollow_user(current_user.id, event_id(followed_id))
       following = Profiles.get_following(current_user.id, limit: 50)
       following_count = Profiles.get_following_count(current_user.id)
 
@@ -339,7 +340,7 @@ defmodule ElektrineWeb.ProfileLive.Show do
   @impl true
   def handle_event("send_friend_request", %{"user_id" => user_id}, socket) do
     current_user = socket.assigns[:current_user]
-    target_user_id = String.to_integer(user_id)
+    target_user_id = event_id(user_id)
 
     if current_user do
       case Elektrine.Friends.send_friend_request(current_user.id, target_user_id) do
@@ -367,7 +368,7 @@ defmodule ElektrineWeb.ProfileLive.Show do
   @impl true
   def handle_event("accept_friend_request", %{"user_id" => user_id}, socket) do
     current_user = socket.assigns[:current_user]
-    requester_id = String.to_integer(user_id)
+    requester_id = event_id(user_id)
 
     case socket.assigns.friend_status.pending_request do
       %{id: request_id} ->
@@ -403,7 +404,7 @@ defmodule ElektrineWeb.ProfileLive.Show do
   @impl true
   def handle_event("cancel_friend_request", %{"user_id" => user_id}, socket) do
     current_user = socket.assigns[:current_user]
-    target_user_id = String.to_integer(user_id)
+    target_user_id = event_id(user_id)
     sent_requests = Elektrine.Friends.list_sent_requests(current_user.id)
     request = Enum.find(sent_requests, fn r -> r.recipient_id == target_user_id end)
 
@@ -428,7 +429,7 @@ defmodule ElektrineWeb.ProfileLive.Show do
   @impl true
   def handle_event("unfriend_user", %{"user_id" => user_id}, socket) do
     current_user = socket.assigns[:current_user]
-    target_user_id = String.to_integer(user_id)
+    target_user_id = event_id(user_id)
 
     case Elektrine.Friends.unfriend(current_user.id, target_user_id) do
       {:ok, _} ->
@@ -447,7 +448,7 @@ defmodule ElektrineWeb.ProfileLive.Show do
        socket
        |> assign(:show_report_modal, true)
        |> assign(:report_modal_type, type)
-       |> assign(:report_modal_id, String.to_integer(id))}
+       |> assign(:report_modal_id, event_id(id))}
     else
       {:noreply, push_navigate(socket, to: Elektrine.Paths.login_path())}
     end
@@ -495,26 +496,31 @@ defmodule ElektrineWeb.ProfileLive.Show do
         %{"images" => images_json, "index" => index} = params,
         socket
       ) do
-    images = Jason.decode!(images_json)
-    index_int = String.to_integer(index)
-    url = params["url"] || Enum.at(images, index_int, List.first(images))
+    case decode_modal_images(images_json) do
+      {:ok, images} ->
+        index_int = event_non_negative_int(index)
+        url = params["url"] || Enum.at(images, index_int, List.first(images))
 
-    modal_post =
-      if params["post_id"] do
-        post_id = String.to_integer(params["post_id"])
-        posts = socket.assigns.user_timeline_posts ++ socket.assigns.pinned_posts
-        Enum.find(posts, fn post -> post.id == post_id end)
-      else
-        nil
-      end
+        modal_post =
+          if params["post_id"] do
+            post_id = event_id(params["post_id"])
+            posts = socket.assigns.user_timeline_posts ++ socket.assigns.pinned_posts
+            Enum.find(posts, fn post -> post.id == post_id end)
+          else
+            nil
+          end
 
-    {:noreply,
-     socket
-     |> assign(:show_image_modal, true)
-     |> assign(:modal_image_url, url)
-     |> assign(:modal_images, images)
-     |> assign(:modal_image_index, index_int)
-     |> assign(:modal_post, modal_post)}
+        {:noreply,
+         socket
+         |> assign(:show_image_modal, true)
+         |> assign(:modal_image_url, url)
+         |> assign(:modal_images, images)
+         |> assign(:modal_image_index, index_int)
+         |> assign(:modal_post, modal_post)}
+
+      :error ->
+        {:noreply, put_flash(socket, :error, "Image not found")}
+    end
   end
 
   def handle_event("close_image_modal", _params, socket) do
@@ -710,6 +716,27 @@ defmodule ElektrineWeb.ProfileLive.Show do
   end
 
   defp lighten_color(hex, factor), do: Elektrine.Theme.lighten(hex, factor)
+
+  defp event_id(value) do
+    case SafeConvert.parse_id(value) do
+      {:ok, id} -> id
+      {:error, :invalid_id} -> 0
+    end
+  end
+
+  defp event_non_negative_int(value) do
+    case Integer.parse(to_string(value)) do
+      {integer, ""} when integer >= 0 -> integer
+      _ -> 0
+    end
+  end
+
+  defp decode_modal_images(images_json) do
+    case Jason.decode(images_json) do
+      {:ok, images} when is_list(images) -> {:ok, images}
+      _ -> :error
+    end
+  end
 
   defp profile_attachment_url(url, source) do
     case Elektrine.Uploads.attachment_url(url, source) do

@@ -16,6 +16,7 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
   alias Elektrine.Social.Votes
   alias ElektrineSocialWeb.RemotePostLive.Interactions
   alias ElektrineSocialWeb.RemotePostLive.Show
+  alias ElektrineSocialWeb.RemotePostLive.SurfaceHelpers
 
   defp log_in_user(conn, user) do
     token =
@@ -29,6 +30,26 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
     conn
     |> Phoenix.ConnTest.init_test_session(%{})
     |> Plug.Conn.put_session(:user_token, token)
+  end
+
+  test "reply author fallback rejects unsafe remote avatar URLs" do
+    fallback =
+      SurfaceHelpers.build_reply_author_fallback(
+        %{
+          "id" => "https://remote.example/notes/1",
+          "author_avatar" => "https://user:pass@example.com/avatar.png",
+          "attributedTo" => %{
+            "id" => "https://remote.example/users/alice",
+            "preferredUsername" => "alice",
+            "icon" => %{"url" => "http://127.0.0.1/internal.png"}
+          }
+        },
+        "https://remote.example/users/alice"
+      )
+
+    assert fallback.acct_label == "@alice@remote.example"
+    assert fallback.profile_path == "/remote/alice@remote.example"
+    refute fallback.avatar_url
   end
 
   test "renders custom emoji in remote comment author display name" do

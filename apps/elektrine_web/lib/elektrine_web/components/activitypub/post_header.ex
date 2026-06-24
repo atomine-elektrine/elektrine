@@ -28,9 +28,9 @@ defmodule ElektrineWeb.Components.ActivityPub.PostHeader do
       <div class="flex items-center gap-3 mb-3">
         <.link navigate={@remote_profile_path} class="flex-shrink-0">
           <div class="w-10 h-10 rounded-full overflow-hidden bg-base-200">
-            <%= if @post.remote_actor.avatar_url do %>
+            <%= if avatar_url = safe_external_image_url(@post.remote_actor.avatar_url) do %>
               <img
-                src={@post.remote_actor.avatar_url}
+                src={avatar_url}
                 alt={@post.remote_actor.username}
                 class="w-full h-full object-cover"
               />
@@ -76,7 +76,7 @@ defmodule ElektrineWeb.Components.ActivityPub.PostHeader do
           >
             <%= if @post.sender.avatar do %>
               <img
-                src={@post.sender.avatar}
+                src={Elektrine.Uploads.avatar_url(@post.sender.avatar)}
                 alt={@post.sender.username}
                 class="w-10 h-10 rounded-full"
               />

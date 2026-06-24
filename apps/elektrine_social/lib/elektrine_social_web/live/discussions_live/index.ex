@@ -12,6 +12,8 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   import ElektrineSocialWeb.Components.Platform.ENav
   import ElektrineSocialWeb.Components.Social.TimelinePost, only: [timeline_post: 1]
   import ElektrineWeb.Live.Helpers.PostStateHelpers, only: [get_post_reactions: 1]
+  import ElektrineWeb.HtmlHelpers, only: [safe_external_href: 1, safe_external_image_url: 1]
+
   @community_feed_page_size 20
   @overview_page_size 6
   @community_count_refresh_limit 20
@@ -489,26 +491,24 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   def handle_event("join_community", %{"community_id" => community_id}, socket) do
     if socket.assigns.current_user do
       user_id = socket.assigns.current_user.id
-      community_id = String.to_integer(community_id)
 
-      case Messaging.join_conversation(community_id, user_id) do
-        {:ok, _} ->
-          communities = get_user_communities(user_id)
-          joined_community_ids = MapSet.put(socket.assigns.joined_community_ids, community_id)
+      with {:ok, community_id} <- parse_positive_int(community_id),
+           {:ok, _} <- Messaging.join_conversation(community_id, user_id) do
+        communities = get_user_communities(user_id)
+        joined_community_ids = MapSet.put(socket.assigns.joined_community_ids, community_id)
 
-          {:noreply,
-           socket
-           |> assign(:communities, communities)
-           |> assign(:joined_community_ids, joined_community_ids)
-           |> assign(
-             :filtered_communities,
-             filter_communities_by_category(communities, socket.assigns.selected_category)
-           )
-           |> assign_personalized_discovery_assigns(user_id)
-           |> notify_info("Joined community successfully!")}
-
-        {:error, _reason} ->
-          {:noreply, notify_error(socket, "Failed to join community")}
+        {:noreply,
+         socket
+         |> assign(:communities, communities)
+         |> assign(:joined_community_ids, joined_community_ids)
+         |> assign(
+           :filtered_communities,
+           filter_communities_by_category(communities, socket.assigns.selected_category)
+         )
+         |> assign_personalized_discovery_assigns(user_id)
+         |> notify_info("Joined community successfully!")}
+      else
+        _ -> {:noreply, notify_error(socket, "Failed to join community")}
       end
     else
       {:noreply, notify_error(socket, "You must be signed in to join a community")}
@@ -597,41 +597,13 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   def handle_event("follow_remote_group", %{"actor_id" => actor_id}, socket) do
     if socket.assigns[:current_user] do
       user_id = socket.assigns.current_user.id
-      actor_id = String.to_integer(actor_id)
 
-      case Messaging.CommunitySearch.follow_remote_group(user_id, actor_id) do
-        {:ok, remote_actor} ->
-          communities = get_user_communities(user_id)
+      case parse_positive_int(actor_id) do
+        {:ok, actor_id} ->
+          follow_remote_group(socket, user_id, actor_id)
 
-          {:noreply,
-           socket
-           |> assign(:communities, communities)
-           |> assign(
-             :filtered_communities,
-             filter_communities_by_category(communities, socket.assigns.selected_category)
-           )
-           |> refresh_remote_community_assigns(user_id)
-           |> assign_personalized_discovery_assigns(user_id)
-           |> notify_info(
-             "Followed federated community !#{remote_actor.username}@#{remote_actor.domain}"
-           )}
-
-        :ok ->
-          communities = get_user_communities(user_id)
-
-          {:noreply,
-           socket
-           |> assign(:communities, communities)
-           |> assign(
-             :filtered_communities,
-             filter_communities_by_category(communities, socket.assigns.selected_category)
-           )
-           |> refresh_remote_community_assigns(user_id)
-           |> assign_personalized_discovery_assigns(user_id)
-           |> notify_info("Followed federated community")}
-
-        {:error, reason} ->
-          {:noreply, notify_error(socket, "Failed to follow community: #{inspect(reason)}")}
+        :error ->
+          {:noreply, notify_error(socket, "Failed to follow community")}
       end
     else
       {:noreply, notify_error(socket, "You must be signed in to follow communities")}
@@ -641,40 +613,38 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   def handle_event("leave_community", %{"community_id" => community_id}, socket) do
     if socket.assigns.current_user do
       user_id = socket.assigns.current_user.id
-      community_id = String.to_integer(community_id)
 
-      case Messaging.remove_member_from_conversation(community_id, user_id) do
-        {:ok, _} ->
-          communities = get_user_communities(user_id)
-          joined_community_ids = MapSet.delete(socket.assigns.joined_community_ids, community_id)
+      with {:ok, community_id} <- parse_positive_int(community_id),
+           {:ok, _} <- Messaging.remove_member_from_conversation(community_id, user_id) do
+        communities = get_user_communities(user_id)
+        joined_community_ids = MapSet.delete(socket.assigns.joined_community_ids, community_id)
 
-          discover_communities =
-            if socket.assigns[:discover_communities] do
-              socket.assigns.discover_communities
-            else
-              []
-            end
+        discover_communities =
+          if socket.assigns[:discover_communities] do
+            socket.assigns.discover_communities
+          else
+            []
+          end
 
-          {:noreply,
-           socket
-           |> assign(:communities, communities)
-           |> assign(:joined_community_ids, joined_community_ids)
-           |> assign(
-             :filtered_communities,
-             filter_communities_by_category(communities, socket.assigns.selected_category)
+        {:noreply,
+         socket
+         |> assign(:communities, communities)
+         |> assign(:joined_community_ids, joined_community_ids)
+         |> assign(
+           :filtered_communities,
+           filter_communities_by_category(communities, socket.assigns.selected_category)
+         )
+         |> assign(
+           :filtered_discover,
+           filter_communities_by_category(
+             discover_communities,
+             socket.assigns.selected_category
            )
-           |> assign(
-             :filtered_discover,
-             filter_communities_by_category(
-               discover_communities,
-               socket.assigns.selected_category
-             )
-           )
-           |> assign_personalized_discovery_assigns(user_id)
-           |> notify_info("Left community successfully")}
-
-        {:error, _} ->
-          {:noreply, notify_error(socket, "Failed to leave community")}
+         )
+         |> assign_personalized_discovery_assigns(user_id)
+         |> notify_info("Left community successfully")}
+      else
+        _ -> {:noreply, notify_error(socket, "Failed to leave community")}
       end
     else
       {:noreply, notify_error(socket, "You must be signed in to leave communities")}
@@ -684,18 +654,16 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   def handle_event("unfollow_remote_community", %{"actor_id" => actor_id}, socket) do
     if socket.assigns.current_user do
       user_id = socket.assigns.current_user.id
-      actor_id = String.to_integer(actor_id)
 
-      case Profiles.unfollow_remote_actor(user_id, actor_id) do
-        {:ok, _} ->
-          {:noreply,
-           socket
-           |> refresh_remote_community_assigns(user_id)
-           |> assign_personalized_discovery_assigns(user_id)
-           |> notify_info("Unfollowed community")}
-
-        {:error, _} ->
-          {:noreply, notify_error(socket, "Failed to unfollow community")}
+      with {:ok, actor_id} <- parse_positive_int(actor_id),
+           {:ok, _} <- Profiles.unfollow_remote_actor(user_id, actor_id) do
+        {:noreply,
+         socket
+         |> refresh_remote_community_assigns(user_id)
+         |> assign_personalized_discovery_assigns(user_id)
+         |> notify_info("Unfollowed community")}
+      else
+        _ -> {:noreply, notify_error(socket, "Failed to unfollow community")}
       end
     else
       {:noreply, notify_error(socket, "You must be signed in")}
@@ -741,9 +709,14 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
     alt_texts =
       params
       |> Enum.filter(fn {key, _value} -> String.starts_with?(key, "alt_text_") end)
-      |> Enum.map(fn {key, value} ->
-        index = key |> String.replace("alt_text_", "") |> String.to_integer()
-        {to_string(index), value}
+      |> Enum.flat_map(fn {key, value} ->
+        key
+        |> String.replace("alt_text_", "")
+        |> parse_non_negative_int_result()
+        |> case do
+          {:ok, index} -> [{to_string(index), value}]
+          :error -> []
+        end
       end)
       |> Map.new()
 
@@ -985,36 +958,17 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
            notify_error(socket, "Link must be a valid URL starting with http:// or https://")}
 
         true ->
-          case String.split(community_selector, ":", parts: 2) do
-            ["local", id_str] ->
-              create_local_community_post(
-                String.to_integer(id_str),
-                title,
-                content,
-                link_url,
-                media_urls,
-                media_attachments,
-                alt_texts,
-                has_media,
-                socket
-              )
-
-            ["remote", id_str] ->
-              create_remote_community_post(
-                String.to_integer(id_str),
-                title,
-                content,
-                link_url,
-                media_urls,
-                media_attachments,
-                alt_texts,
-                has_media,
-                socket
-              )
-
-            _ ->
-              {:noreply, notify_error(socket, "Please select a community")}
-          end
+          create_quick_discussion_for_selector(
+            community_selector,
+            title,
+            content,
+            link_url,
+            media_urls,
+            media_attachments,
+            alt_texts,
+            has_media,
+            socket
+          )
       end
     else
       {:noreply, notify_error(socket, "You must be signed in to create a discussion")}
@@ -1769,6 +1723,113 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
     |> Enum.reduce(socket, fn {key, value}, socket -> assign(socket, key, value) end)
     |> assign(:loading_communities, false)
     |> maybe_schedule_community_count_refresh()
+  end
+
+  defp follow_remote_group(socket, user_id, actor_id) do
+    case Messaging.CommunitySearch.follow_remote_group(user_id, actor_id) do
+      {:ok, remote_actor} ->
+        communities = get_user_communities(user_id)
+
+        {:noreply,
+         socket
+         |> assign(:communities, communities)
+         |> assign(
+           :filtered_communities,
+           filter_communities_by_category(communities, socket.assigns.selected_category)
+         )
+         |> refresh_remote_community_assigns(user_id)
+         |> assign_personalized_discovery_assigns(user_id)
+         |> notify_info(
+           "Followed federated community !#{remote_actor.username}@#{remote_actor.domain}"
+         )}
+
+      :ok ->
+        communities = get_user_communities(user_id)
+
+        {:noreply,
+         socket
+         |> assign(:communities, communities)
+         |> assign(
+           :filtered_communities,
+           filter_communities_by_category(communities, socket.assigns.selected_category)
+         )
+         |> refresh_remote_community_assigns(user_id)
+         |> assign_personalized_discovery_assigns(user_id)
+         |> notify_info("Followed federated community")}
+
+      {:error, reason} ->
+        {:noreply, notify_error(socket, "Failed to follow community: #{inspect(reason)}")}
+    end
+  end
+
+  defp create_quick_discussion_for_selector(
+         community_selector,
+         title,
+         content,
+         link_url,
+         media_urls,
+         media_attachments,
+         alt_texts,
+         has_media,
+         socket
+       )
+       when is_binary(community_selector) do
+    case String.split(community_selector, ":", parts: 2) do
+      ["local", id_str] ->
+        case parse_positive_int(id_str) do
+          {:ok, community_id} ->
+            create_local_community_post(
+              community_id,
+              title,
+              content,
+              link_url,
+              media_urls,
+              media_attachments,
+              alt_texts,
+              has_media,
+              socket
+            )
+
+          :error ->
+            {:noreply, notify_error(socket, "Please select a community")}
+        end
+
+      ["remote", id_str] ->
+        case parse_positive_int(id_str) do
+          {:ok, actor_id} ->
+            create_remote_community_post(
+              actor_id,
+              title,
+              content,
+              link_url,
+              media_urls,
+              media_attachments,
+              alt_texts,
+              has_media,
+              socket
+            )
+
+          :error ->
+            {:noreply, notify_error(socket, "Please select a community")}
+        end
+
+      _ ->
+        {:noreply, notify_error(socket, "Please select a community")}
+    end
+  end
+
+  defp create_quick_discussion_for_selector(
+         _community_selector,
+         _title,
+         _content,
+         _link_url,
+         _media_urls,
+         _media_attachments,
+         _alt_texts,
+         _has_media,
+         socket
+       ) do
+    {:noreply, notify_error(socket, "Please select a community")}
   end
 
   defp maybe_schedule_community_count_refresh(socket) do
@@ -3800,6 +3861,18 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   end
 
   defp parse_non_negative_int(_, default), do: default
+
+  defp parse_non_negative_int_result(value) when is_integer(value) and value >= 0,
+    do: {:ok, value}
+
+  defp parse_non_negative_int_result(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {parsed, ""} when parsed >= 0 -> {:ok, parsed}
+      _ -> :error
+    end
+  end
+
+  defp parse_non_negative_int_result(_), do: :error
 
   defp parse_and_fetch_remote_user(remote_handle) do
     handle =

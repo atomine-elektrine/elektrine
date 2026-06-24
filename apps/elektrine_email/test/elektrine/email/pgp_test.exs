@@ -404,7 +404,7 @@ defmodule Elektrine.Email.PGPTest do
       |> Ecto.Changeset.change(%{pgp_public_key: "test key"})
       |> Repo.update!()
 
-      email = "#{String.upcase(user.username)}@ELEKTRINE.COM"
+      email = "#{String.upcase(user.username)}@#{String.upcase(Domains.primary_email_domain())}"
       assert {:ok, "test key"} = PGP.get_key_by_email(email)
     end
   end

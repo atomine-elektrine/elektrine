@@ -1692,13 +1692,18 @@ defmodule Elektrine.Email.Messages do
   end
 
   defp attrs_has_key?(attrs, key) when is_binary(key) do
-    Map.has_key?(attrs, key) or
-      try do
-        Map.has_key?(attrs, String.to_existing_atom(key))
-      rescue
-        ArgumentError -> false
-      end
+    Map.has_key?(attrs, key) or Map.has_key?(attrs, message_state_atom_key(key))
   end
+
+  defp message_state_atom_key("read"), do: :read
+  defp message_state_atom_key("spam"), do: :spam
+  defp message_state_atom_key("archived"), do: :archived
+  defp message_state_atom_key("deleted"), do: :deleted
+  defp message_state_atom_key("category"), do: :category
+  defp message_state_atom_key("status"), do: :status
+  defp message_state_atom_key("folder_id"), do: :folder_id
+  defp message_state_atom_key("thread_id"), do: :thread_id
+  defp message_state_atom_key(_), do: nil
 
   defp bump_message_creation_states(mailbox_id, message_id)
        when is_integer(mailbox_id) and is_integer(message_id) do

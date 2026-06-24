@@ -694,12 +694,8 @@ defmodule Elektrine.Accounts.Authentication do
   def get_user_by_password_reset_token(token) when is_binary(token) do
     hashed_token = User.hash_sensitive_token(token)
 
-    # The hashed-token comparison below is the primary lookup path. The legacy
-    # raw-token branch added by maybe_allow_legacy_token_lookup/3 is a fallback
-    # for tokens issued before token hashing was introduced.
     User
     |> where([u], u.password_reset_token == ^hashed_token)
-    |> maybe_allow_legacy_token_lookup(:password_reset_token, token)
     |> Repo.one()
   end
 
@@ -790,26 +786,6 @@ defmodule Elektrine.Accounts.Authentication do
     :crypto.strong_rand_bytes(32) |> Base.url_encode64(padding: false)
   end
 
-  @legacy_password_reset_token_pattern ~r/^[A-Za-z0-9_-]{43}$/
-
-  # SECURITY/TODO: This legacy plaintext-token branch performs a raw (unhashed)
-  # token comparison to support password reset tokens issued before token hashing
-  # was introduced. The hashed-token lookup in get_user_by_password_reset_token/1
-  # is the primary, secure path. Password reset tokens have a 1h TTL, so all
-  # legacy plaintext tokens expire shortly after deploy; remove this branch (and
-  # legacy_password_reset_token?/1) once no un-migrated legacy tokens remain.
-  defp maybe_allow_legacy_token_lookup(query, field_name, token) do
-    if legacy_password_reset_token?(token) do
-      from(u in query, or_where: field(u, ^field_name) == ^token)
-    else
-      query
-    end
-  end
-
-  defp legacy_password_reset_token?(token) when is_binary(token) do
-    Regex.match?(@legacy_password_reset_token_pattern, token)
-  end
-
   defp send_password_reset_email(%User{recovery_email: recovery_email} = user, token)
        when not is_nil(recovery_email) do
     case Elektrine.UserNotifier.password_reset_instructions(user, token)
@@ -818,12 +794,12 @@ defmodule Elektrine.Accounts.Authentication do
         {:ok, result}
 
       {:error, reason} ->
-        Logger.error("Failed to send password reset email: #{inspect(reason)}")
+        Logger.error("Failed to send password reset email: #{mail_error_summary(reason)}")
         {:error, :email_failed}
     end
   rescue
     e ->
-      Logger.error("Failed to send password reset email: #{inspect(e)}")
+      Logger.error("Failed to send password reset email: #{mail_error_summary(e)}")
       {:error, :email_failed}
   end
 
@@ -843,9 +819,19 @@ defmodule Elektrine.Accounts.Authentication do
       {:ok, _restored_user} ->
         :ok
 
-      {:error, restore_reason} ->
-        Logger.error("Failed to restore password reset token state: #{inspect(restore_reason)}")
+      {:error, _restore_reason} ->
+        Logger.error("Failed to restore password reset token state")
         :error
     end
   end
+
+  defp mail_error_summary(%{__struct__: module}) do
+    inspect(module)
+  end
+
+  defp mail_error_summary(reason) when is_atom(reason) do
+    Atom.to_string(reason)
+  end
+
+  defp mail_error_summary(_reason), do: "delivery_failed"
 end

@@ -3,6 +3,7 @@ defmodule ElektrineWeb.Admin.ModerationController do
 
   alias Elektrine.{Accounts, Repo}
   alias Elektrine.Social.Messages
+  alias Elektrine.Utils.SafeConvert
   alias ElektrineWeb.Platform.Integrations
   import Ecto.Query
 
@@ -149,27 +150,35 @@ defmodule ElektrineWeb.Admin.ModerationController do
         _ -> "Content"
       end
 
-    case Messages.admin_delete_message(String.to_integer(content_id), conn.assigns.current_user) do
-      {:ok, _message} ->
-        conn
-        |> put_flash(:info, "#{content_name} deleted successfully.")
-        |> redirect(to: ~p"/pripyat/content-moderation?type=#{content_type}")
-
+    with {:ok, content_id} <- SafeConvert.parse_id(content_id),
+         {:ok, _message} <-
+           Messages.admin_delete_message(content_id, conn.assigns.current_user) do
+      conn
+      |> put_flash(:info, "#{content_name} deleted successfully.")
+      |> redirect(to: ~p"/pripyat/content-moderation?type=#{content_type}")
+    else
       {:error, :already_deleted} ->
-        conn
-        |> put_flash(:error, "#{content_name} was already deleted.")
-        |> redirect(to: ~p"/pripyat/content-moderation?type=#{content_type}")
+        redirect_delete_error(conn, "#{content_name} was already deleted.", content_type)
 
       {:error, :not_found} ->
-        conn
-        |> put_flash(:error, "#{content_name} not found.")
-        |> redirect(to: ~p"/pripyat/content-moderation?type=#{content_type}")
+        redirect_delete_error(conn, "#{content_name} not found.", content_type)
+
+      {:error, :invalid_id} ->
+        redirect_delete_error(conn, "#{content_name} not found.", content_type)
 
       {:error, _reason} ->
-        conn
-        |> put_flash(:error, "Could not delete #{String.downcase(content_name)}.")
-        |> redirect(to: ~p"/pripyat/content-moderation?type=#{content_type}")
+        redirect_delete_error(
+          conn,
+          "Could not delete #{String.downcase(content_name)}.",
+          content_type
+        )
     end
+  end
+
+  defp redirect_delete_error(conn, message, content_type) do
+    conn
+    |> put_flash(:error, message)
+    |> redirect(to: ~p"/pripyat/content-moderation?type=#{content_type}")
   end
 
   def unsubscribe_stats(conn, params) do

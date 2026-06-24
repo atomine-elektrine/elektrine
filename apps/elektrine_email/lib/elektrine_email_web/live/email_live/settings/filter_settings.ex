@@ -61,13 +61,18 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.FilterSettings do
 
   def handle_event("show_filter_modal", %{"id" => id}, socket) do
     user_id = socket.assigns.current_user.id
-    filter = Email.get_filter(String.to_integer(id), user_id)
 
-    {:noreply,
-     socket
-     |> assign(:show_modal, "filter")
-     |> assign(:edit_item, filter)
-     |> assign(:filter_form, build_filter_form(filter))}
+    case get_filter(id, user_id) do
+      nil ->
+        {:noreply, put_flash(socket, :error, "Filter not found")}
+
+      filter ->
+        {:noreply,
+         socket
+         |> assign(:show_modal, "filter")
+         |> assign(:edit_item, filter)
+         |> assign(:filter_form, build_filter_form(filter))}
+    end
   end
 
   def handle_event("save_filter", params, socket) do
@@ -145,7 +150,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.FilterSettings do
   def handle_event("toggle_filter", %{"id" => id}, socket) do
     user_id = socket.assigns.current_user.id
 
-    case Email.get_filter(String.to_integer(id), user_id) do
+    case get_filter(id, user_id) do
       nil ->
         {:noreply, put_flash(socket, :error, "Filter not found")}
 
@@ -159,7 +164,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.FilterSettings do
   def handle_event("delete_filter", %{"id" => id}, socket) do
     user_id = socket.assigns.current_user.id
 
-    case Email.get_filter(String.to_integer(id), user_id) do
+    case get_filter(id, user_id) do
       nil ->
         {:noreply, put_flash(socket, :error, "Filter not found")}
 
@@ -172,8 +177,6 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.FilterSettings do
          |> assign(:filters, Email.list_filters(user_id))}
     end
   end
-
-  # Auto-Reply Events
 
   def handle_event("save_auto_reply", %{"auto_reply" => params}, socket) do
     user_id = socket.assigns.current_user.id
@@ -204,6 +207,13 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.FilterSettings do
   end
 
   # Private helpers
+
+  defp get_filter(id, user_id) do
+    case parse_positive_id(id) do
+      {:ok, id} -> Email.get_filter(id, user_id)
+      :error -> nil
+    end
+  end
 
   defp build_filter_form(filter) do
     rules = get_in(filter.conditions, ["rules"]) || []

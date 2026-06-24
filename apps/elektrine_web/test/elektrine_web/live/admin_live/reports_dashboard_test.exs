@@ -86,6 +86,42 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboardTest do
     assert render(view) =~ "Message deleted"
   end
 
+  test "forged report dashboard ids do not crash", %{conn: conn} do
+    admin = admin_user_fixture()
+
+    {:ok, view, _html} =
+      conn
+      |> with_elektrine_host()
+      |> log_in_as(admin)
+      |> live(~p"/pripyat/reports")
+
+    assert render_hook(view, "view_report", %{"id" => "12abc"}) =~ "Report not found"
+
+    assert render_hook(view, "quick_action", %{"id" => "12abc", "action" => "dismiss"}) =~
+             "Report not found"
+
+    assert render_hook(view, "update_report", %{
+             "report_id" => "12abc",
+             "status" => "resolved",
+             "priority" => "low",
+             "action_taken" => "no_action",
+             "resolution_notes" => "forged"
+           }) =~ "Report not found"
+
+    assert render_hook(view, "admin_action", %{
+             "action" => "suspend_user",
+             "user_id" => "12abc"
+           }) =~ "User not found"
+
+    assert render_hook(view, "admin_action", %{
+             "action" => "delete_message",
+             "message_id" => "12abc"
+           }) =~ "Message not found"
+
+    assert render_hook(view, "view_reported_item", %{"type" => "message", "id" => "12abc"}) =~
+             "No admin view is available for this report target"
+  end
+
   defp admin_user_fixture do
     user = AccountsFixtures.user_fixture()
     {:ok, admin_user} = Accounts.admin_update_user(user, %{is_admin: true})

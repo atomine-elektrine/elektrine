@@ -32,6 +32,18 @@ defmodule ArblargWeb.ChatLive.Operations.Helpers do
   def format_reactions(_), do: []
 
   @doc """
+  Renders reaction text safely before replacing known custom emoji shortcodes.
+  """
+  def render_reaction_emoji(emoji) when is_binary(emoji) do
+    emoji
+    |> Phoenix.HTML.html_escape()
+    |> Phoenix.HTML.safe_to_string()
+    |> ElektrineWeb.HtmlHelpers.render_custom_emojis()
+  end
+
+  def render_reaction_emoji(_), do: ""
+
+  @doc """
   Removes duplicate messages while preserving the first occurrence order.
   """
   def dedupe_messages(messages) when is_list(messages) do

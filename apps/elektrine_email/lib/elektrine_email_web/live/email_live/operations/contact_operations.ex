@@ -96,7 +96,7 @@ defmodule ElektrineEmailWeb.EmailLive.Operations.ContactOperations do
   end
 
   def handle_event("filter_by_group", %{"group_id" => group_id}, socket) do
-    filter_id = if group_id == "", do: nil, else: String.to_integer(group_id)
+    filter_id = parse_optional_id(group_id)
     all = Elektrine.Email.Contacts.list_contacts(socket.assigns.current_user.id)
     contacts = if filter_id, do: Enum.filter(all, &(&1.group_id == filter_id)), else: all
 
@@ -133,6 +133,16 @@ defmodule ElektrineEmailWeb.EmailLive.Operations.ContactOperations do
 
       {:error, _} ->
         {:noreply, notify_error(socket, "Failed to save group")}
+    end
+  end
+
+  defp parse_optional_id(""), do: nil
+  defp parse_optional_id(nil), do: nil
+
+  defp parse_optional_id(value) do
+    case Integer.parse(to_string(value)) do
+      {id, ""} when id > 0 -> id
+      _ -> nil
     end
   end
 end

@@ -4,6 +4,9 @@ defmodule ElektrineEmailWeb.AttachmentController do
   alias Elektrine.Email
   alias Elektrine.Email.AttachmentStorage
 
+  @default_content_type "application/octet-stream"
+  @mime_type_pattern ~r/^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/
+
   def download(conn, %{"message_id" => message_id_str, "attachment_id" => attachment_id}) do
     user = conn.assigns.current_user
 
@@ -133,7 +136,7 @@ defmodule ElektrineEmailWeb.AttachmentController do
         safe_filename = sanitize_filename(attachment["filename"] || "download")
 
         conn
-        |> put_resp_content_type(content_type)
+        |> put_resp_content_type(safe_content_type(content_type))
         |> put_resp_header("x-content-type-options", "nosniff")
         |> put_resp_header(
           "content-disposition",
@@ -152,12 +155,29 @@ defmodule ElektrineEmailWeb.AttachmentController do
     end
   end
 
+  defp safe_content_type(content_type) when is_binary(content_type) do
+    type =
+      content_type
+      |> String.trim()
+      |> String.downcase()
+      |> String.split(";", parts: 2)
+      |> hd()
+
+    if Regex.match?(@mime_type_pattern, type) do
+      type
+    else
+      @default_content_type
+    end
+  end
+
+  defp safe_content_type(_), do: @default_content_type
+
   # Get actual attachment content from storage
   defp get_attachment_content(attachment) do
     # Try to download from S3-compatible storage first
     case AttachmentStorage.download_attachment(attachment) do
       {:ok, content} ->
-        content_type = Map.get(attachment, "content_type", "application/octet-stream")
+        content_type = Map.get(attachment, "content_type", @default_content_type)
         {:ok, content, content_type}
 
       {:error, _reason} ->
@@ -193,7 +213,7 @@ defmodule ElektrineEmailWeb.AttachmentController do
                   end
               end
 
-            content_type = Map.get(attachment, "content_type", "application/octet-stream")
+            content_type = Map.get(attachment, "content_type", @default_content_type)
             {:ok, content, content_type}
 
           _ ->

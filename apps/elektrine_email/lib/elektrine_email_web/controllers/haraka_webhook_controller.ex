@@ -1225,16 +1225,22 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
   end
 
   defp map_value(map, key) when is_map(map) and is_binary(key) do
-    Map.get(map, key) || existing_atom_map_value(map, key)
+    Map.get(map, key) || Map.get(map, haraka_atom_key(key))
   end
 
   defp map_value(_, _), do: nil
 
-  defp existing_atom_map_value(map, key) do
-    Map.get(map, String.to_existing_atom(key))
-  rescue
-    ArgumentError -> nil
-  end
+  defp haraka_atom_key("notes"), do: :notes
+  defp haraka_atom_key("connection"), do: :connection
+  defp haraka_atom_key("auth_user"), do: :auth_user
+  defp haraka_atom_key("authenticated"), do: :authenticated
+  defp haraka_atom_key("auth"), do: :auth
+  defp haraka_atom_key("authUser"), do: :authUser
+  defp haraka_atom_key("user"), do: :user
+  defp haraka_atom_key("username"), do: :username
+  defp haraka_atom_key("relay"), do: :relay
+  defp haraka_atom_key("relaying"), do: :relaying
+  defp haraka_atom_key(_), do: nil
 
   defp valid_internal_origin_signature?(params, from) do
     InternalOrigin.valid?(params["headers"] || %{}, from)

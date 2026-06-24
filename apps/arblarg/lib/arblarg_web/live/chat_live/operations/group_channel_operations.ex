@@ -213,17 +213,22 @@ defmodule ArblargWeb.ChatLive.Operations.GroupChannelOperations do
   end
 
   def handle_event("toggle_user_selection", %{"user_id" => user_id}, socket) do
-    user_id = String.to_integer(user_id)
-    selected = socket.assigns.form.selected_users
+    case parse_positive_int(user_id) do
+      {:ok, user_id} ->
+        selected = socket.assigns.form.selected_users
 
-    updated =
-      if user_id in selected do
-        List.delete(selected, user_id)
-      else
-        [user_id | selected]
-      end
+        updated =
+          if user_id in selected do
+            List.delete(selected, user_id)
+          else
+            [user_id | selected]
+          end
 
-    {:noreply, assign(socket, :form, %{socket.assigns.form | selected_users: updated})}
+        {:noreply, assign(socket, :form, %{socket.assigns.form | selected_users: updated})}
+
+      :error ->
+        {:noreply, socket}
+    end
   end
 
   def handle_event("show_browse_modal", _params, socket) do
@@ -302,19 +307,23 @@ defmodule ArblargWeb.ChatLive.Operations.GroupChannelOperations do
   end
 
   def handle_event("join_group", %{"group_id" => group_id}, socket) do
-    conversation_id = String.to_integer(group_id)
+    case parse_positive_int(group_id) do
+      {:ok, conversation_id} ->
+        case Messaging.join_conversation(conversation_id, socket.assigns.current_user.id) do
+          {:ok, :pending} ->
+            {:noreply, notify_info(socket, "Join request sent")}
 
-    case Messaging.join_conversation(conversation_id, socket.assigns.current_user.id) do
-      {:ok, :pending} ->
-        {:noreply, notify_info(socket, "Join request sent")}
+          {:ok, _} ->
+            {:noreply,
+             socket
+             |> push_patch(to: Elektrine.Paths.chat_path(conversation_id))
+             |> notify_info("Joined chat")}
 
-      {:ok, _} ->
-        {:noreply,
-         socket
-         |> push_patch(to: Elektrine.Paths.chat_path(conversation_id))
-         |> notify_info("Joined chat")}
+          {:error, _} ->
+            {:noreply, notify_error(socket, "Failed to join chat")}
+        end
 
-      {:error, _} ->
+      :error ->
         {:noreply, notify_error(socket, "Failed to join chat")}
     end
   end
@@ -431,16 +440,17 @@ defmodule ArblargWeb.ChatLive.Operations.GroupChannelOperations do
     end
   end
 
-  defp parse_server_id(server_id) when is_integer(server_id), do: {:ok, server_id}
+  defp parse_server_id(server_id) when is_integer(server_id) and server_id > 0,
+    do: {:ok, server_id}
 
-  defp parse_server_id(server_id) when is_binary(server_id) do
-    case Integer.parse(server_id) do
-      {parsed_server_id, ""} -> {:ok, parsed_server_id}
+  defp parse_server_id(server_id), do: parse_positive_int(server_id)
+
+  defp parse_positive_int(value) do
+    case Integer.parse(to_string(value)) do
+      {int, ""} when int > 0 -> {:ok, int}
       _ -> :error
     end
   end
-
-  defp parse_server_id(_), do: :error
 
   defp first_server_channel_identifier(conversations, server_id)
        when is_list(conversations) and is_integer(server_id) do

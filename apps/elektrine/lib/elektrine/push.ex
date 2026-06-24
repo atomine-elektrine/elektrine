@@ -10,6 +10,22 @@ defmodule Elektrine.Push do
   alias Elektrine.Push.DeviceToken
   alias Elektrine.Repo
 
+  @device_token_attr_keys %{
+    "token" => :token,
+    "token_hash" => :token_hash,
+    "platform" => :platform,
+    "app_version" => :app_version,
+    "device_name" => :device_name,
+    "device_model" => :device_model,
+    "os_version" => :os_version,
+    "bundle_id" => :bundle_id,
+    "user_id" => :user_id,
+    "enabled" => :enabled,
+    "last_used_at" => :last_used_at,
+    "failed_count" => :failed_count,
+    "last_error" => :last_error
+  }
+
   # Device token management
 
   @doc """
@@ -18,14 +34,16 @@ defmodule Elektrine.Push do
   """
   def register_device(user_id, attrs) do
     token = Map.get(attrs, :token) || Map.get(attrs, "token")
+    token_hash = device_token_hash(token)
 
     # Upsert - update if token exists, create if new
-    case Repo.get_by(DeviceToken, token: token) do
+    case Repo.get_by(DeviceToken, token_hash: token_hash) do
       nil ->
         attrs =
           attrs
           |> normalize_attrs()
           |> Map.put(:user_id, user_id)
+          |> Map.put(:token_hash, token_hash)
           |> Map.put(:last_used_at, DateTime.utc_now() |> DateTime.truncate(:second))
 
         %DeviceToken{}
@@ -37,6 +55,7 @@ defmodule Elektrine.Push do
           attrs
           |> normalize_attrs()
           |> Map.put(:user_id, user_id)
+          |> Map.put(:token_hash, token_hash)
           |> Map.put(:last_used_at, DateTime.utc_now() |> DateTime.truncate(:second))
           |> Map.put(:enabled, true)
           |> Map.put(:failed_count, 0)
@@ -52,7 +71,7 @@ defmodule Elektrine.Push do
   Unregisters a device by token.
   """
   def unregister_device(token) do
-    case Repo.get_by(DeviceToken, token: token) do
+    case get_device_by_token(token) do
       nil -> {:error, :not_found}
       device -> Repo.delete(device)
     end
@@ -72,14 +91,14 @@ defmodule Elektrine.Push do
   Gets a device by its token.
   """
   def get_device_by_token(token) do
-    Repo.get_by(DeviceToken, token: token)
+    Repo.get_by(DeviceToken, token_hash: device_token_hash(token))
   end
 
   @doc """
   Disables a device and records the error reason.
   """
   def disable_device(token, error_reason \\ nil) do
-    case Repo.get_by(DeviceToken, token: token) do
+    case get_device_by_token(token) do
       nil ->
         {:error, :not_found}
 
@@ -99,7 +118,7 @@ defmodule Elektrine.Push do
   Disables device after 5 consecutive failures.
   """
   def record_push_failure(token, error_reason) do
-    case Repo.get_by(DeviceToken, token: token) do
+    case get_device_by_token(token) do
       nil ->
         {:error, :not_found}
 
@@ -130,7 +149,7 @@ defmodule Elektrine.Push do
   Resets failure count on successful push.
   """
   def record_push_success(token) do
-    case Repo.get_by(DeviceToken, token: token) do
+    case get_device_by_token(token) do
       nil ->
         {:error, :not_found}
 
@@ -144,6 +163,15 @@ defmodule Elektrine.Push do
         |> Repo.update()
     end
   end
+
+  def device_token_hash(token) when is_binary(token) do
+    token
+    |> String.trim()
+    |> then(&:crypto.hash(:sha256, &1))
+    |> Base.encode16(case: :lower)
+  end
+
+  def device_token_hash(_token), do: nil
 
   # Push notification sending
 
@@ -348,12 +376,19 @@ defmodule Elektrine.Push do
 
   defp normalize_attrs(attrs) when is_map(attrs) do
     attrs
-    |> Enum.map(fn
-      {k, v} when is_binary(k) -> {String.to_existing_atom(k), v}
-      {k, v} when is_atom(k) -> {k, v}
+    |> Enum.flat_map(fn
+      {k, v} when is_binary(k) ->
+        case Map.fetch(@device_token_attr_keys, k) do
+          {:ok, atom_key} -> [{atom_key, v}]
+          :error -> []
+        end
+
+      {k, v} when is_atom(k) ->
+        [{k, v}]
+
+      _ ->
+        []
     end)
     |> Map.new()
-  rescue
-    ArgumentError -> attrs
   end
 end

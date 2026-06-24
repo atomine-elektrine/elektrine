@@ -243,18 +243,21 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                       </div>
                     </div>
                   <% else %>
-                    <%= if match?(%Elektrine.Social.LinkPreview{}, reply_link_preview) do %>
+                    <% safe_reply_preview_url =
+                      if match?(%Elektrine.Social.LinkPreview{}, reply_link_preview),
+                        do: safe_external_href(reply_submitted_url) %>
+                    <%= if safe_reply_preview_url do %>
                       <a
-                        href={reply_submitted_url}
+                        href={safe_reply_preview_url}
                         target="_blank"
                         rel="noopener noreferrer"
                         class="block rounded-lg border border-base-300 bg-base-100/90 p-3 hover:border-base-content/20 transition-colors"
                       >
-                        <%= if reply_link_preview.image_url do %>
+                        <%= if preview_image_url = safe_external_image_url(reply_link_preview.image_url) do %>
                           <div class="mb-3 aspect-video rounded-md overflow-hidden bg-base-200">
                             <img
-                              src={reply_link_preview.image_url}
-                              alt={reply_link_preview.title || reply_link_preview.url}
+                              src={preview_image_url}
+                              alt={reply_link_preview.title || safe_reply_preview_url}
                               class="w-full h-full object-cover"
                               loading="lazy"
                             />
@@ -270,7 +273,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                             </div>
                           <% end %>
                           <div class="text-[11px] text-base-content/50 truncate">
-                            {reply_link_preview.url}
+                            {safe_reply_preview_url}
                           </div>
                         </div>
                       </a>
@@ -450,18 +453,21 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                     </div>
                   </div>
                 <% else %>
-                  <%= if match?(%Elektrine.Social.LinkPreview{}, reply_link_preview) do %>
+                  <% safe_reply_preview_url =
+                    if match?(%Elektrine.Social.LinkPreview{}, reply_link_preview),
+                      do: safe_external_href(reply_submitted_url) %>
+                  <%= if safe_reply_preview_url do %>
                     <a
-                      href={reply_submitted_url}
+                      href={safe_reply_preview_url}
                       target="_blank"
                       rel="noopener noreferrer"
                       class="block rounded-lg border border-base-300 bg-base-100/90 p-3 hover:border-base-content/20 transition-colors"
                     >
-                      <%= if reply_link_preview.image_url do %>
+                      <%= if preview_image_url = safe_external_image_url(reply_link_preview.image_url) do %>
                         <div class="mb-3 aspect-video rounded-md overflow-hidden bg-base-200">
                           <img
-                            src={reply_link_preview.image_url}
-                            alt={reply_link_preview.title || reply_link_preview.url}
+                            src={preview_image_url}
+                            alt={reply_link_preview.title || safe_reply_preview_url}
                             class="w-full h-full object-cover"
                             loading="lazy"
                           />
@@ -477,7 +483,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                           </div>
                         <% end %>
                         <div class="text-[11px] text-base-content/50 truncate">
-                          {reply_link_preview.url}
+                          {safe_reply_preview_url}
                         </div>
                       </div>
                     </a>
@@ -1055,7 +1061,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
   defp reply_avatar_url(reply_actor, reply_fallback) do
     if reply_actor && Elektrine.Strings.present?(reply_actor.avatar_url) do
-      reply_actor.avatar_url
+      safe_external_image_url(reply_actor.avatar_url)
     else
       reply_fallback.avatar_url
     end
@@ -1159,9 +1165,11 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
             >
               <article>
                 <div class="flex items-start gap-2 min-w-0">
-                  <%= if parent_actor && Elektrine.Strings.present?(parent_actor.avatar_url) do %>
+                  <% parent_avatar_url =
+                    if parent_actor, do: safe_external_image_url(parent_actor.avatar_url) %>
+                  <%= if parent_avatar_url do %>
                     <img
-                      src={parent_actor.avatar_url}
+                      src={parent_avatar_url}
                       alt=""
                       class="w-7 h-7 rounded-full object-cover flex-shrink-0 mt-0.5"
                     />
@@ -1399,9 +1407,9 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
             <div class="flex items-center gap-2 mb-1 min-w-0">
               <%= if author_preview.profile_path do %>
                 <.link navigate={author_preview.profile_path} class="w-5 h-5 flex-shrink-0">
-                  <%= if Elektrine.Strings.present?(author_preview.avatar_url) do %>
+                  <%= if author_avatar_url = safe_external_image_url(author_preview.avatar_url) do %>
                     <img
-                      src={author_preview.avatar_url}
+                      src={author_avatar_url}
                       alt=""
                       class="w-5 h-5 rounded-full object-cover"
                     />
@@ -1418,9 +1426,9 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                   {author_preview.label}
                 </.link>
               <% else %>
-                <%= if Elektrine.Strings.present?(author_preview.avatar_url) do %>
+                <%= if author_avatar_url = safe_external_image_url(author_preview.avatar_url) do %>
                   <img
-                    src={author_preview.avatar_url}
+                    src={author_avatar_url}
                     alt=""
                     class="w-5 h-5 rounded-full object-cover flex-shrink-0"
                   />
@@ -1894,11 +1902,13 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
   defp mount_post_ref(decoded_post_id, socket) do
     # Check if this is a numeric local post ID
-    is_local_post =
-      case Integer.parse(decoded_post_id) do
-        {_num, ""} -> true
-        _ -> false
+    local_post_id =
+      case parse_local_message_id(decoded_post_id) do
+        {:ok, parsed} -> parsed
+        :error -> nil
       end
+
+    is_local_post = is_integer(local_post_id)
 
     # Keep layout stable for community-style posts from the first render.
     initial_discussion_source =
@@ -1978,7 +1988,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       if connected?(socket) do
         socket
       else
-        fetch_post_for_meta_tags(socket, decoded_post_id, is_local_post)
+        fetch_post_for_meta_tags(socket, local_post_id || decoded_post_id, is_local_post)
       end
 
     # Defer full HTTP fetching to handle_info for interactive use
@@ -1989,7 +1999,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         cond do
           is_local_post ->
             {:noreply, socket} =
-              handle_info({:load_local_post, String.to_integer(decoded_post_id)}, socket)
+              handle_info({:load_local_post, local_post_id}, socket)
 
             socket
 
@@ -2628,10 +2638,54 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   defp map_get_value(_, _), do: nil
 
   defp existing_atom_map_value(map, key) do
-    Map.get(map, String.to_existing_atom(key))
-  rescue
-    ArgumentError -> nil
+    Map.get(map, remote_post_atom_key(key))
   end
+
+  defp remote_post_atom_key("id"), do: :id
+  defp remote_post_atom_key("_local_message_id"), do: :_local_message_id
+  defp remote_post_atom_key("_local_activitypub_id"), do: :_local_activitypub_id
+  defp remote_post_atom_key("_lemmy"), do: :_lemmy
+  defp remote_post_atom_key("attributedTo"), do: :attributedTo
+  defp remote_post_atom_key("actor"), do: :actor
+  defp remote_post_atom_key("_local_user"), do: :_local_user
+  defp remote_post_atom_key("_local"), do: :_local
+  defp remote_post_atom_key("content"), do: :content
+  defp remote_post_atom_key("summary"), do: :summary
+  defp remote_post_atom_key("published"), do: :published
+  defp remote_post_atom_key("_submitted_url"), do: :_submitted_url
+  defp remote_post_atom_key("_youtube_id"), do: :_youtube_id
+  defp remote_post_atom_key("_link_preview"), do: :_link_preview
+  defp remote_post_atom_key("upvotes"), do: :upvotes
+  defp remote_post_atom_key("score"), do: :score
+  defp remote_post_atom_key("_local_like_count"), do: :_local_like_count
+  defp remote_post_atom_key("likes"), do: :likes
+  defp remote_post_atom_key("shares"), do: :shares
+  defp remote_post_atom_key("_local_share_count"), do: :_local_share_count
+  defp remote_post_atom_key("child_count"), do: :child_count
+  defp remote_post_atom_key("attachment"), do: :attachment
+  defp remote_post_atom_key("media_metadata"), do: :media_metadata
+  defp remote_post_atom_key("activitypub_id"), do: :activitypub_id
+  defp remote_post_atom_key("activitypub_url"), do: :activitypub_url
+  defp remote_post_atom_key("primary_url"), do: :primary_url
+  defp remote_post_atom_key("source"), do: :source
+  defp remote_post_atom_key("url"), do: :url
+  defp remote_post_atom_key("type"), do: :type
+  defp remote_post_atom_key("mediaType"), do: :mediaType
+  defp remote_post_atom_key("href"), do: :href
+  defp remote_post_atom_key("reply_count"), do: :reply_count
+  defp remote_post_atom_key("repliesCount"), do: :repliesCount
+  defp remote_post_atom_key("replies"), do: :replies
+  defp remote_post_atom_key("comments"), do: :comments
+  defp remote_post_atom_key("inReplyTo"), do: :inReplyTo
+  defp remote_post_atom_key("in_reply_to"), do: :in_reply_to
+  defp remote_post_atom_key("inReplyToContent"), do: :inReplyToContent
+  defp remote_post_atom_key("inReplyToTitle"), do: :inReplyToTitle
+  defp remote_post_atom_key("inReplyToAuthor"), do: :inReplyToAuthor
+  defp remote_post_atom_key("name"), do: :name
+  defp remote_post_atom_key("likesCount"), do: :likesCount
+  defp remote_post_atom_key("sharesCount"), do: :sharesCount
+  defp remote_post_atom_key("announcesCount"), do: :announcesCount
+  defp remote_post_atom_key(_), do: nil
 
   defp normalize_http_url(url) when is_binary(url) do
     trimmed =
@@ -3421,12 +3475,12 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   # Quick synchronous fetch for SEO meta tags (only on initial render)
-  defp fetch_post_for_meta_tags(socket, post_id, true = _is_local) do
+  defp fetch_post_for_meta_tags(socket, post_id, true = _is_local) when is_integer(post_id) do
     # Local post - quick database lookup
     import Ecto.Query
 
     case Elektrine.Social.Message
-         |> where([m], m.id == ^String.to_integer(post_id))
+         |> where([m], m.id == ^post_id)
          |> Elektrine.Repo.one()
          |> Elektrine.Repo.preload([:sender, :remote_actor]) do
       nil ->
@@ -3469,6 +3523,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         end
     end
   end
+
+  defp fetch_post_for_meta_tags(socket, _post_id, true = _is_local), do: socket
 
   defp fetch_post_for_meta_tags(socket, post_id, false = _is_local) do
     if remote_activitypub_ref?(post_id) do
@@ -6177,18 +6233,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
   def handle_event("navigate_to_embedded_post", %{"url" => url}, socket)
       when is_binary(url) and url != "" and url != "#" do
-    trimmed_url = String.trim(url)
-
-    case URI.parse(trimmed_url) do
-      %URI{scheme: nil, host: nil} ->
-        {:noreply, push_navigate(socket, to: trimmed_url)}
-
-      %URI{scheme: scheme} when scheme in ["http", "https"] ->
-        {:noreply, ElektrineWeb.PostNavigation.navigate(socket, trimmed_url)}
-
-      _ ->
-        {:noreply, socket}
-    end
+    ElektrineWeb.SafeLiveNavigation.noreply(socket, url)
   end
 
   def handle_event("navigate_to_embedded_post", _params, socket) do

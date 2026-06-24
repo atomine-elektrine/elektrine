@@ -4,9 +4,11 @@ defmodule Elektrine.Push.DeviceToken do
   """
   use Ecto.Schema
   import Ecto.Changeset
+  alias Elektrine.Secrets.EncryptedString
 
   schema "device_tokens" do
-    field :token, :string
+    field :token, EncryptedString
+    field :token_hash, :string
     field :platform, :string
     field :app_version, :string
     field :device_name, :string
@@ -28,6 +30,7 @@ defmodule Elektrine.Push.DeviceToken do
     device_token
     |> cast(attrs, [
       :token,
+      :token_hash,
       :platform,
       :app_version,
       :device_name,
@@ -40,9 +43,10 @@ defmodule Elektrine.Push.DeviceToken do
       :failed_count,
       :last_error
     ])
-    |> validate_required([:token, :platform, :user_id])
+    |> validate_required([:token, :token_hash, :platform, :user_id])
+    |> validate_length(:token_hash, is: 64)
     |> validate_inclusion(:platform, ["ios", "android"])
-    |> unique_constraint(:token)
+    |> unique_constraint(:token_hash)
     |> foreign_key_constraint(:user_id)
   end
 end

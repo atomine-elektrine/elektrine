@@ -341,6 +341,19 @@ defmodule Elektrine.StaticSitesTest do
 
       assert %{} = StaticSites.get_file(user.id, "index.html")
     end
+
+    test "keeps existing files when archive content is invalid", %{user: user} do
+      assert {:ok, _file} =
+               StaticSites.upload_file(user, "index.html", "<html>old</html>", "text/html")
+
+      zip_files = [{~c"index.html", <<0xFF, 0xFE, 0xFD>>}]
+      {:ok, {_name, zip_binary}} = :zip.create(~c"invalid-content.zip", zip_files, [:memory])
+
+      assert {:error, :invalid_content} = StaticSites.replace_with_zip(user, zip_binary)
+
+      assert file = StaticSites.get_file(user.id, "index.html")
+      assert {:ok, "<html>old</html>"} = StaticSites.get_file_content(file)
+    end
   end
 
   describe "replace_with_repo_archive/3" do

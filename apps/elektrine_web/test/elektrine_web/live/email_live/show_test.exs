@@ -114,6 +114,62 @@ defmodule ElektrineEmailWeb.EmailLive.ShowTest do
     refute sandbox =~ "allow-scripts"
   end
 
+  test "forged message action ids do not crash the show view", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+    mailbox = ensure_mailbox(user)
+
+    {:ok, message} =
+      Email.create_message(%{
+        mailbox_id: mailbox.id,
+        from: "sender@example.com",
+        to: mailbox.email,
+        subject: "Malformed action ids",
+        text_body: "Keep this view alive",
+        html_body: "<p>Keep this view alive</p>",
+        message_id: "<malformed-action-#{System.unique_integer([:positive])}@example.com>"
+      })
+
+    {:ok, delete_view, _html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/email/view/#{message.hash}")
+
+    render_hook(delete_view, "delete", %{"id" => "12abc"})
+    assert_redirect(delete_view, ~p"/email?tab=inbox")
+
+    {:ok, recover_view, _html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/email/view/#{message.hash}")
+
+    render_hook(recover_view, "recover", %{"id" => "12abc"})
+    assert_redirect(recover_view, ~p"/email?tab=inbox")
+  end
+
+  test "forged reply later days do not crash the show view", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+    mailbox = ensure_mailbox(user)
+
+    {:ok, message} =
+      Email.create_message(%{
+        mailbox_id: mailbox.id,
+        from: "sender@example.com",
+        to: mailbox.email,
+        subject: "Malformed reply later days",
+        text_body: "Schedule me later",
+        html_body: "<p>Schedule me later</p>",
+        message_id: "<malformed-reply-later-#{System.unique_integer([:positive])}@example.com>"
+      })
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/email/view/#{message.hash}")
+
+    assert render_hook(view, "schedule_reply_later", %{"days" => "abc"}) =~
+             "Invalid reply later interval"
+  end
+
   defp ensure_mailbox(user) do
     Email.get_user_mailbox(user.id) ||
       case Email.ensure_user_has_mailbox(user) do

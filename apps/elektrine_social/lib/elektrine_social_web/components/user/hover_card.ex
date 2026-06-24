@@ -10,6 +10,7 @@ defmodule ElektrineSocialWeb.Components.User.HoverCard do
     statics: ElektrineWeb.static_paths()
 
   alias Elektrine.AccountIdentifiers
+  alias Elektrine.Security.SafeExternalURL
   import Phoenix.HTML, only: [html_escape: 1, raw: 1, safe_to_string: 1]
   import ElektrineSocialWeb.Components.Social.FollowButton, only: [local_follow_button: 1]
   import Elektrine.Components.User.Avatar
@@ -196,8 +197,8 @@ defmodule ElektrineSocialWeb.Components.User.HoverCard do
       <!-- Header with avatar and name -->
       <div class="flex items-start gap-3">
         <.link navigate={@profile_url} class="flex-shrink-0">
-          <%= if @remote_actor.avatar_url do %>
-            <img src={@remote_actor.avatar_url} alt="" class="w-12 h-12 rounded-full object-cover" />
+          <%= if avatar_url = safe_remote_image_url(@remote_actor.avatar_url) do %>
+            <img src={avatar_url} alt="" class="w-12 h-12 rounded-full object-cover" />
           <% else %>
             <.placeholder_avatar size="lg" />
           <% end %>
@@ -395,4 +396,21 @@ defmodule ElektrineSocialWeb.Components.User.HoverCard do
   end
 
   defp render_text_with_emojis(text, _instance_domain), do: text
+
+  defp safe_remote_image_url(url) when is_binary(url) do
+    with trimmed when trimmed != "" <- String.trim(url),
+         true <- image_url?(trimmed),
+         {:ok, safe_url} <- SafeExternalURL.normalize(trimmed) do
+      safe_url
+    else
+      _ -> nil
+    end
+  end
+
+  defp safe_remote_image_url(_), do: nil
+
+  defp image_url?(url) when is_binary(url) do
+    String.match?(url, ~r/\.(jpe?g|png|gif|webp|svg|bmp|avif)(\?.*)?$/i) ||
+      String.match?(url, ~r/(\/media\/|\/images\/|\/uploads\/|\/pictrs\/)/i)
+  end
 end

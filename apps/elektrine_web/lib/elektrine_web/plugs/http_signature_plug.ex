@@ -446,7 +446,7 @@ defmodule ElektrineWeb.Plugs.HTTPSignaturePlug do
              {:ok, raw_body} <- raw_body(conn) do
           actual_digest = Base.encode64(:crypto.hash(:sha256, raw_body))
 
-          if Plug.Crypto.secure_compare(expected_digest, actual_digest) do
+          if secure_compare(expected_digest, actual_digest) do
             :ok
           else
             {:error, :digest_mismatch}
@@ -487,6 +487,13 @@ defmodule ElektrineWeb.Plugs.HTTPSignaturePlug do
       _ -> {:error, :missing_raw_body}
     end
   end
+
+  defp secure_compare(left, right)
+       when is_binary(left) and is_binary(right) and byte_size(left) == byte_size(right) do
+    Plug.Crypto.secure_compare(left, right)
+  end
+
+  defp secure_compare(_left, _right), do: false
 
   defp signature_max_age_seconds do
     Application.get_env(:elektrine, :activitypub, [])

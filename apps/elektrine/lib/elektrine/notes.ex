@@ -34,8 +34,10 @@ defmodule Elektrine.Notes do
   def get_note(_user_id, _id), do: nil
 
   def get_public_share(token) when is_binary(token) do
+    token_hash = share_token_hash(token)
+
     NoteShare
-    |> where([share], share.token == ^String.trim(token))
+    |> where([share], share.token_hash == ^token_hash)
     |> where([share], is_nil(share.revoked_at))
     |> where([share], is_nil(share.expires_at) or share.expires_at > ^DateTime.utc_now())
     |> where([share], not share.burn_after_read or share.view_count == 0)
@@ -44,6 +46,15 @@ defmodule Elektrine.Notes do
   end
 
   def get_public_share(_token), do: nil
+
+  def share_token_hash(token) when is_binary(token) do
+    token
+    |> String.trim()
+    |> then(&:crypto.hash(:sha256, &1))
+    |> Base.encode16(case: :lower)
+  end
+
+  def share_token_hash(_token), do: nil
 
   def get_active_share_for_note(user_id, note_id) when is_integer(note_id) do
     NoteShare
@@ -150,13 +161,16 @@ defmodule Elektrine.Notes do
   defp normalize_query(query), do: query |> to_string() |> String.trim()
 
   defp insert_note_share(user_id, %Note{} = note, attrs \\ %{}) do
+    token = generate_share_token()
+
     %NoteShare{}
     |> NoteShare.changeset(
       Map.merge(
         %{
           note_id: note.id,
           user_id: user_id,
-          token: generate_share_token()
+          token: token,
+          token_hash: share_token_hash(token)
         },
         attrs
       )

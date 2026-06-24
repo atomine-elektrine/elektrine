@@ -108,6 +108,32 @@ defmodule ElektrineWeb.Components.Social.TimelinePostTest do
     refute html =~ ">...<"
   end
 
+  test "timeline layout suppresses unsafe legacy remote URLs" do
+    post =
+      remote_post(%{
+        activitypub_url: "javascript:alert(1)",
+        remote_actor: %Actor{
+          username: "alice",
+          domain: "remote.example",
+          avatar_url: "data:image/svg+xml,<svg/onload=alert(1)>"
+        },
+        link_preview: %LinkPreview{
+          url: "javascript:alert(2)",
+          status: "success",
+          image_url: "http://127.0.0.1/private.png",
+          favicon_url: "data:image/png;base64,AAAA",
+          title: "Unsafe preview"
+        }
+      })
+
+    html = render_timeline_post(post, "unsafe-remote")
+
+    refute html =~ "javascript:alert"
+    refute html =~ "data:image"
+    refute html =~ "127.0.0.1"
+    refute html =~ "Unsafe preview"
+  end
+
   test "timeline actions prefer cached federated likes over stale local likes" do
     post = %Message{
       id: 789,
@@ -273,6 +299,8 @@ defmodule ElektrineWeb.Components.Social.TimelinePostTest do
       like_count: 0,
       reply_count: 0,
       share_count: 0,
+      quote_count: 0,
+      dislike_count: 0,
       score: 0,
       remote_actor: %Actor{id: 987, username: "alice", domain: "remote.example"}
     }
@@ -330,6 +358,8 @@ defmodule ElektrineWeb.Components.Social.TimelinePostTest do
       like_count: 0,
       reply_count: 0,
       share_count: 0,
+      quote_count: 0,
+      dislike_count: 0,
       score: 0,
       remote_actor: %Actor{id: 988, username: "alice", domain: "remote.example"}
     }
@@ -405,6 +435,62 @@ defmodule ElektrineWeb.Components.Social.TimelinePostTest do
     second = render_timeline_post(post, "second")
 
     assert duplicate_ids(first <> second) == []
+  end
+
+  test "timeline reactions escape raw HTML before emoji rendering" do
+    post = %Message{
+      id: 3401,
+      federated: true,
+      activitypub_id: "https://remote.example/notes/3401",
+      activitypub_url: "https://remote.example/notes/3401",
+      post_type: "message",
+      content: "Reaction target",
+      inserted_at: ~N[2026-04-16 00:00:00],
+      media_urls: [],
+      media_metadata: %{},
+      like_count: 0,
+      reply_count: 0,
+      share_count: 0,
+      score: 0,
+      remote_actor: %Actor{id: 701, username: "alice", domain: "remote.example"}
+    }
+
+    raw_img = ~S|<img src=x onerror=alert(1)>|
+
+    html =
+      render_component(&TimelinePost.timeline_post/1,
+        post: post,
+        id_prefix: "reaction-escape",
+        layout: :timeline,
+        source: "timeline",
+        current_user: %{id: 1, is_admin: false},
+        user_likes: %{},
+        user_boosts: %{},
+        user_saves: %{},
+        user_follows: %{},
+        pending_follows: %{},
+        remote_follow_overrides: %{},
+        user_statuses: %{},
+        lemmy_counts: %{},
+        post_replies: %{},
+        post_interactions: %{},
+        post_reactions_map: %{},
+        reactions: [
+          %{
+            emoji: raw_img,
+            user: %{id: 2, username: "bob", handle: nil},
+            user_id: 2,
+            remote_actor: nil
+          }
+        ],
+        show_follow_button: false,
+        show_post_dropdown: false,
+        clickable: false,
+        on_image_click: nil
+      )
+
+    refute html =~ ~s(<img src=x)
+    assert html =~ "&lt;img"
   end
 
   test "unresolved remote timeline cards link to the original external URL" do
@@ -536,11 +622,14 @@ defmodule ElektrineWeb.Components.Social.TimelinePostTest do
       post_type: "post",
       content: "Remote post content",
       inserted_at: ~N[2026-04-16 00:00:00],
+      edited_at: nil,
       media_urls: [],
       media_metadata: %{},
       like_count: 0,
       reply_count: 0,
       share_count: 0,
+      quote_count: 0,
+      dislike_count: 0,
       score: 0,
       upvotes: 0,
       downvotes: 0,
@@ -553,6 +642,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePostTest do
       title: nil,
       auto_title: nil,
       content_warning: nil,
+      shared_message_id: nil,
       quoted_message_id: nil,
       quoted_message: nil,
       reply_to_id: nil

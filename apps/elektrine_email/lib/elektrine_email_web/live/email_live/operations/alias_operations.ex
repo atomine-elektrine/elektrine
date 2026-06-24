@@ -121,9 +121,9 @@ defmodule ElektrineEmailWeb.EmailLive.Operations.AliasOperations do
   end
 
   def handle_event("edit_alias", %{"id" => id}, socket) do
-    alias_to_edit = Enum.find(socket.assigns.aliases, &(&1.id == String.to_integer(id)))
-
-    if alias_to_edit do
+    with {:ok, alias_id} <- parse_positive_int(id),
+         alias_to_edit when not is_nil(alias_to_edit) <-
+           Enum.find(socket.assigns.aliases, &(&1.id == alias_id)) do
       changeset = Email.change_alias(alias_to_edit)
 
       {:noreply,
@@ -131,7 +131,7 @@ defmodule ElektrineEmailWeb.EmailLive.Operations.AliasOperations do
        |> assign(:editing_alias, alias_to_edit)
        |> assign(:edit_alias_form, to_form(changeset))}
     else
-      {:noreply, notify_error(socket, "Alias not found")}
+      _ -> {:noreply, notify_error(socket, "Alias not found")}
     end
   end
 
@@ -214,4 +214,11 @@ defmodule ElektrineEmailWeb.EmailLive.Operations.AliasOperations do
        do: alias_params
 
   defp normalize_alias_params(params) when is_map(params), do: params
+
+  defp parse_positive_int(value) do
+    case Integer.parse(to_string(value)) do
+      {id, ""} when id > 0 -> {:ok, id}
+      _ -> :error
+    end
+  end
 end

@@ -1550,11 +1550,44 @@ defmodule Elektrine.Messaging.Federation.Discovery do
   defp discovery_field(_map, _key), do: nil
 
   defp safe_existing_atom_key(key) when is_binary(key) do
-    String.to_existing_atom(key)
-  rescue
-    _ ->
-      nil
+    discovery_atom_key(key)
   end
+
+  defp discovery_atom_key("protocol"), do: :protocol
+  defp discovery_atom_key("protocol_id"), do: :protocol_id
+  defp discovery_atom_key("identity"), do: :identity
+  defp discovery_atom_key("endpoints"), do: :endpoints
+  defp discovery_atom_key("algorithm"), do: :algorithm
+  defp discovery_atom_key("key_id"), do: :key_id
+  defp discovery_atom_key("value"), do: :value
+  defp discovery_atom_key("keys"), do: :keys
+  defp discovery_atom_key("id"), do: :id
+  defp discovery_atom_key("public_key"), do: :public_key
+  defp discovery_atom_key("domain"), do: :domain
+  defp discovery_atom_key("default_protocol_version"), do: :default_protocol_version
+  defp discovery_atom_key("current_key_id"), do: :current_key_id
+  defp discovery_atom_key("well_known"), do: :well_known
+  defp discovery_atom_key("well_known_versioned"), do: :well_known_versioned
+  defp discovery_atom_key("events"), do: :events
+  defp discovery_atom_key("events_batch"), do: :events_batch
+  defp discovery_atom_key("ephemeral"), do: :ephemeral
+  defp discovery_atom_key("sync"), do: :sync
+  defp discovery_atom_key("stream_events"), do: :stream_events
+  defp discovery_atom_key("session_websocket"), do: :session_websocket
+  defp discovery_atom_key("public_servers"), do: :public_servers
+  defp discovery_atom_key("snapshot_template"), do: :snapshot_template
+  defp discovery_atom_key("profiles"), do: :profiles
+  defp discovery_atom_key("schema_template"), do: :schema_template
+  defp discovery_atom_key("schemas"), do: :schemas
+  defp discovery_atom_key("features"), do: :features
+  defp discovery_atom_key("limits"), do: :limits
+  defp discovery_atom_key("compatibility_claims"), do: :compatibility_claims
+  defp discovery_atom_key("extensions"), do: :extensions
+  defp discovery_atom_key("supported_event_types"), do: :supported_event_types
+  defp discovery_atom_key("supported"), do: :supported
+  defp discovery_atom_key("transport_profiles"), do: :transport_profiles
+  defp discovery_atom_key("urn"), do: :urn
+  defp discovery_atom_key(_), do: nil
 
   defp normalize_optional_string(value) when is_binary(value),
     do: Elektrine.Strings.present(value)

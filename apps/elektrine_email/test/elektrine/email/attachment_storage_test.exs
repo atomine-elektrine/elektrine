@@ -72,6 +72,25 @@ defmodule Elektrine.Email.AttachmentStorageTest do
            end) =~ "invalid_storage_key"
   end
 
+  test "rejects ambiguous or control-character local storage keys" do
+    for key <- [
+          "email-attachments//mailbox_12/message_34/attachment_1.txt",
+          "email-attachments/mailbox_12/message_34/attachment_\n1.txt"
+        ] do
+      metadata = %{"storage_type" => "local", "key" => key}
+
+      assert capture_log(fn ->
+               assert {:error, "Failed to download attachment"} =
+                        AttachmentStorage.download_attachment(metadata)
+             end) =~ "invalid_storage_key"
+
+      assert capture_log(fn ->
+               assert {:error, :invalid_storage_key} =
+                        AttachmentStorage.delete_attachment(metadata)
+             end) =~ "invalid_storage_key"
+    end
+  end
+
   test "rejects s3 metadata for unexpected buckets before storage access" do
     Application.put_env(:elektrine, :uploads,
       adapter: :s3,

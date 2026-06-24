@@ -409,11 +409,27 @@ defmodule Elektrine.Email.Sanitizer do
 
   defp remove_dangerous_css(content) do
     content
-    |> String.replace(~r/url\(\s*(['"]?)\s*javascript\s*:[^;>]*\1\s*\)/i, "none")
-    |> String.replace(~r/url\(\s*(['"]?)\s*vbscript\s*:[^;>]*\1\s*\)/i, "none")
-    |> String.replace(~r/url\(\s*(['"]?)\s*data\s*:\s*text\/html[^;>]*\1\s*\)/i, "none")
+    |> remove_dangerous_css_urls()
     |> String.replace(~r/expression\s*\([^)]*\)/i, "")
     |> String.replace(~r/(?:behavior|-moz-binding)\s*:\s*url\s*\([^)]*\)\s*;?/i, "")
+  end
+
+  defp remove_dangerous_css_urls(content) do
+    content
+    |> replace_quoted_css_urls()
+    |> replace_unquoted_css_urls()
+  end
+
+  defp replace_quoted_css_urls(content) do
+    Regex.replace(~r/url\(\s*(["'])(.*?)\1\s*\)/is, content, fn full, _quote, value ->
+      if dangerous_url?(value), do: "none", else: full
+    end)
+  end
+
+  defp replace_unquoted_css_urls(content) do
+    Regex.replace(~r/url\(\s*(.*?)\s*\)+(?=\s*[;>}])/is, content, fn full, value ->
+      if dangerous_url?(value), do: "none", else: full
+    end)
   end
 
   defp sanitize_email_markup(content) when is_binary(content) do

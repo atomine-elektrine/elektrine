@@ -85,52 +85,62 @@ defmodule ArblargWeb.ChatLive.Operations.ConversationOperations do
   end
 
   def handle_event("pin_conversation", %{"conversation_id" => conversation_id}, socket) do
-    conversation_id = String.to_integer(conversation_id)
     user_id = socket.assigns.current_user.id
 
-    case Messaging.pin_conversation(conversation_id, user_id) do
-      {:ok, _} -> {:noreply, socket}
-      {:error, _} -> {:noreply, notify_error(socket, "Failed to pin chat")}
+    with {:ok, conversation_id} <- parse_positive_int(conversation_id),
+         {:ok, _} <- Messaging.pin_conversation(conversation_id, user_id) do
+      {:noreply, socket}
+    else
+      _ -> {:noreply, notify_error(socket, "Failed to pin chat")}
     end
   end
 
   def handle_event("unpin_conversation", %{"conversation_id" => conversation_id}, socket) do
-    conversation_id = String.to_integer(conversation_id)
     user_id = socket.assigns.current_user.id
 
-    case Messaging.unpin_conversation(conversation_id, user_id) do
-      {:ok, _} -> {:noreply, socket}
-      {:error, _} -> {:noreply, notify_error(socket, "Failed to unpin chat")}
+    with {:ok, conversation_id} <- parse_positive_int(conversation_id),
+         {:ok, _} <- Messaging.unpin_conversation(conversation_id, user_id) do
+      {:noreply, socket}
+    else
+      _ -> {:noreply, notify_error(socket, "Failed to unpin chat")}
     end
   end
 
   def handle_event("mark_as_read", %{"conversation_id" => conversation_id_str}, socket) do
-    conversation_id = String.to_integer(conversation_id_str)
-    user_id = socket.assigns.current_user.id
+    case parse_positive_int(conversation_id_str) do
+      {:ok, conversation_id} ->
+        user_id = socket.assigns.current_user.id
 
-    case Messaging.mark_as_read(conversation_id, user_id) do
-      {:ok, _} ->
-        updated_unread_counts =
-          Map.put(socket.assigns.conversation.unread_counts, conversation_id, 0)
+        case Messaging.mark_as_read(conversation_id, user_id) do
+          {:ok, _} ->
+            updated_unread_counts =
+              Map.put(socket.assigns.conversation.unread_counts, conversation_id, 0)
 
-        {:noreply,
-         socket
-         |> assign(:conversation, %{
-           socket.assigns.conversation
-           | unread_counts: updated_unread_counts,
-             unread_count: Messaging.get_unread_count(user_id)
-         })
-         |> assign(:context_menu, %{socket.assigns.context_menu | conversation: nil})
-         |> assign(:first_unread_message_id, nil)
-         |> notify_info("Marked as read")}
+            {:noreply,
+             socket
+             |> assign(:conversation, %{
+               socket.assigns.conversation
+               | unread_counts: updated_unread_counts,
+                 unread_count: Messaging.get_unread_count(user_id)
+             })
+             |> assign(:context_menu, %{socket.assigns.context_menu | conversation: nil})
+             |> assign(:first_unread_message_id, nil)
+             |> notify_info("Marked as read")}
 
-      {:error, :unauthorized} ->
-        {:noreply,
-         socket
-         |> assign(:context_menu, %{socket.assigns.context_menu | conversation: nil})
-         |> notify_error("You are not a member of this chat")}
+          {:error, :unauthorized} ->
+            {:noreply,
+             socket
+             |> assign(:context_menu, %{socket.assigns.context_menu | conversation: nil})
+             |> notify_error("You are not a member of this chat")}
 
-      {:error, _} ->
+          {:error, _} ->
+            {:noreply,
+             socket
+             |> assign(:context_menu, %{socket.assigns.context_menu | conversation: nil})
+             |> notify_error("Failed to mark as read")}
+        end
+
+      :error ->
         {:noreply,
          socket
          |> assign(:context_menu, %{socket.assigns.context_menu | conversation: nil})
@@ -139,40 +149,48 @@ defmodule ArblargWeb.ChatLive.Operations.ConversationOperations do
   end
 
   def handle_event("clear_history", %{"conversation_id" => conversation_id_str}, socket) do
-    conversation_id = String.to_integer(conversation_id_str)
-    user_id = socket.assigns.current_user.id
+    case parse_positive_int(conversation_id_str) do
+      {:ok, conversation_id} ->
+        user_id = socket.assigns.current_user.id
 
-    case Messaging.clear_history_for_user(conversation_id, user_id) do
-      {:ok, :cleared} ->
-        selected_conversation = socket.assigns.conversation.selected
+        case Messaging.clear_history_for_user(conversation_id, user_id) do
+          {:ok, :cleared} ->
+            selected_conversation = socket.assigns.conversation.selected
 
-        socket =
-          if selected_conversation && selected_conversation.id == conversation_id do
-            socket
-            |> assign(:messages, [])
-            |> assign(:oldest_message_id, nil)
-            |> assign(:newest_message_id, nil)
-            |> assign(:has_more_older_messages, false)
-            |> assign(:has_more_newer_messages, false)
-            |> assign(:first_unread_message_id, nil)
-          else
-            socket
-          end
+            socket =
+              if selected_conversation && selected_conversation.id == conversation_id do
+                socket
+                |> assign(:messages, [])
+                |> assign(:oldest_message_id, nil)
+                |> assign(:newest_message_id, nil)
+                |> assign(:has_more_older_messages, false)
+                |> assign(:has_more_newer_messages, false)
+                |> assign(:first_unread_message_id, nil)
+              else
+                socket
+              end
 
-        Process.send_after(self(), :refresh_conversations, 50)
+            Process.send_after(self(), :refresh_conversations, 50)
 
-        {:noreply,
-         socket
-         |> assign(:context_menu, %{socket.assigns.context_menu | conversation: nil})
-         |> notify_info("History cleared")}
+            {:noreply,
+             socket
+             |> assign(:context_menu, %{socket.assigns.context_menu | conversation: nil})
+             |> notify_info("History cleared")}
 
-      {:error, :unauthorized} ->
-        {:noreply,
-         socket
-         |> assign(:context_menu, %{socket.assigns.context_menu | conversation: nil})
-         |> notify_error("You are not a member of this chat")}
+          {:error, :unauthorized} ->
+            {:noreply,
+             socket
+             |> assign(:context_menu, %{socket.assigns.context_menu | conversation: nil})
+             |> notify_error("You are not a member of this chat")}
 
-      {:error, _} ->
+          {:error, _} ->
+            {:noreply,
+             socket
+             |> assign(:context_menu, %{socket.assigns.context_menu | conversation: nil})
+             |> notify_error("Failed to clear history")}
+        end
+
+      :error ->
         {:noreply,
          socket
          |> assign(:context_menu, %{socket.assigns.context_menu | conversation: nil})
@@ -240,24 +258,25 @@ defmodule ArblargWeb.ChatLive.Operations.ConversationOperations do
   end
 
   def handle_event("delete_conversation", %{"conversation_id" => conversation_id}, socket) do
-    conversation_id = String.to_integer(conversation_id)
-    conversation = Messaging.get_conversation!(conversation_id, socket.assigns.current_user.id)
-
-    case Messaging.delete_conversation(conversation) do
-      {:ok, _} ->
-        {:noreply,
-         socket
-         |> push_patch(to: Elektrine.Paths.chat_root_path())
-         |> notify_info("Chat deleted")}
-
-      {:error, _} ->
+    with {:ok, conversation_id} <- parse_positive_int(conversation_id),
+         {:ok, conversation} <-
+           Messaging.get_conversation!(conversation_id, socket.assigns.current_user.id),
+         {:ok, _} <- Messaging.delete_conversation(conversation) do
+      {:noreply,
+       socket
+       |> push_patch(to: Elektrine.Paths.chat_root_path())
+       |> notify_info("Chat deleted")}
+    else
+      _ ->
         {:noreply, notify_error(socket, "Failed to delete chat")}
     end
   end
 
   def handle_event("leave_conversation", %{"conversation_id" => conversation_id}, socket) do
-    conversation_id = String.to_integer(conversation_id)
-    do_leave_conversation(conversation_id, socket)
+    case parse_positive_int(conversation_id) do
+      {:ok, conversation_id} -> do_leave_conversation(conversation_id, socket)
+      :error -> {:noreply, notify_error(socket, "Failed to leave chat")}
+    end
   end
 
   def handle_event("leave_conversation", _params, socket) do
@@ -296,6 +315,17 @@ defmodule ArblargWeb.ChatLive.Operations.ConversationOperations do
   end
 
   # Private helpers
+
+  defp parse_positive_int(value) when is_integer(value) and value > 0, do: {:ok, value}
+
+  defp parse_positive_int(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {id, ""} when id > 0 -> {:ok, id}
+      _ -> :error
+    end
+  end
+
+  defp parse_positive_int(_value), do: :error
 
   defp do_leave_conversation(conversation_id, socket) do
     user_id = socket.assigns.current_user.id

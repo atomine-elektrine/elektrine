@@ -1,6 +1,7 @@
 defmodule ElektrineWeb.NotificationsDropdownLive do
   use ElektrineWeb, :live_view
   alias Elektrine.Notifications
+  alias Elektrine.Utils.SafeConvert
   alias ElektrineWeb.Platform.Integrations
   use Gettext, backend: ElektrineWeb.Gettext
 
@@ -265,7 +266,7 @@ defmodule ElektrineWeb.NotificationsDropdownLive do
   end
 
   def handle_event("mark_as_read", %{"id" => notification_id}, socket) do
-    notification_id = String.to_integer(notification_id)
+    notification_id = event_id(notification_id)
     Notifications.mark_as_read(notification_id, socket.assigns.current_user.id)
 
     # Update the notification in the list
@@ -300,7 +301,7 @@ defmodule ElektrineWeb.NotificationsDropdownLive do
   end
 
   def handle_event("dismiss", %{"id" => notification_id}, socket) do
-    notification_id = String.to_integer(notification_id)
+    notification_id = event_id(notification_id)
     Notifications.dismiss_notification(notification_id, socket.assigns.current_user.id)
 
     # Remove from the list
@@ -331,7 +332,7 @@ defmodule ElektrineWeb.NotificationsDropdownLive do
   end
 
   def handle_event("view_notification", %{"id" => notification_id, "url" => url}, socket) do
-    notification_id = String.to_integer(notification_id)
+    notification_id = event_id(notification_id)
     Notifications.mark_as_read(notification_id, socket.assigns.current_user.id)
 
     socket =
@@ -341,9 +342,16 @@ defmodule ElektrineWeb.NotificationsDropdownLive do
       |> push_event("dropdown_closed", %{})
 
     if present_url?(url) do
-      {:noreply, push_navigate(socket, to: url)}
+      ElektrineWeb.SafeLiveNavigation.noreply(socket, url)
     else
       {:noreply, socket}
+    end
+  end
+
+  defp event_id(value) do
+    case SafeConvert.parse_id(value) do
+      {:ok, id} -> id
+      {:error, :invalid_id} -> 0
     end
   end
 

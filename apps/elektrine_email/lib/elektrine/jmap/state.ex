@@ -73,7 +73,7 @@ defmodule Elektrine.JMAP.State do
   """
   def validate_state(mailbox_id, entity_type, since_state) do
     current = get_state(mailbox_id, entity_type)
-    current_int = String.to_integer(current)
+    current_int = state_to_integer(current)
 
     case Integer.parse(to_string(since_state)) do
       {since_int, ""} when since_int <= current_int ->
@@ -90,7 +90,14 @@ defmodule Elektrine.JMAP.State do
   def get_state_counter(mailbox_id, entity_type) do
     mailbox_id
     |> get_state(entity_type)
-    |> String.to_integer()
+    |> state_to_integer()
+  end
+
+  defp state_to_integer(state) do
+    case Integer.parse(to_string(state)) do
+      {counter, ""} when counter >= 0 -> counter
+      _ -> 0
+    end
   end
 
   @doc """

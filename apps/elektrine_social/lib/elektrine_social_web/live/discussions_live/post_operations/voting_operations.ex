@@ -14,43 +14,48 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.VotingOperations do
   def handle_event("vote", %{"message_id" => message_id, "type" => vote_type}, socket) do
     if socket.assigns.current_user do
       user_id = socket.assigns.current_user.id
-      message_id = String.to_integer(message_id)
 
-      # Get current vote state for optimistic update
-      user_votes = Map.get(socket.assigns, :user_votes, %{})
-      current_vote = Map.get(user_votes, message_id)
+      case parse_positive_int(message_id) do
+        {:ok, message_id} ->
+          # Get current vote state for optimistic update
+          user_votes = Map.get(socket.assigns, :user_votes, %{})
+          current_vote = Map.get(user_votes, message_id)
 
-      # Calculate new vote state
-      new_vote =
-        if current_vote == vote_type, do: nil, else: vote_type
+          # Calculate new vote state
+          new_vote =
+            if current_vote == vote_type, do: nil, else: vote_type
 
-      # Update user_votes optimistically
-      updated_user_votes =
-        if new_vote do
-          Map.put(user_votes, message_id, new_vote)
-        else
-          Map.delete(user_votes, message_id)
-        end
+          # Update user_votes optimistically
+          updated_user_votes =
+            if new_vote do
+              Map.put(user_votes, message_id, new_vote)
+            else
+              Map.delete(user_votes, message_id)
+            end
 
-      case Social.vote_on_message(user_id, message_id, vote_type) do
-        {:ok, _} ->
-          socket = assign(socket, :user_votes, updated_user_votes)
+          case Social.vote_on_message(user_id, message_id, vote_type) do
+            {:ok, _} ->
+              socket = assign(socket, :user_votes, updated_user_votes)
 
-          if message_id == socket.assigns.post.id do
-            updated_post = Messages.get_discussion_post!(message_id)
-            {:noreply, assign(socket, :post, updated_post)}
-          else
-            {:ok, _post, updated_replies} =
-              get_post_with_replies_expanded(
-                socket.assigns.post.id,
-                socket.assigns.community.id,
-                socket.assigns.expanded_threads
-              )
+              if message_id == socket.assigns.post.id do
+                updated_post = Messages.get_discussion_post!(message_id)
+                {:noreply, assign(socket, :post, updated_post)}
+              else
+                {:ok, _post, updated_replies} =
+                  get_post_with_replies_expanded(
+                    socket.assigns.post.id,
+                    socket.assigns.community.id,
+                    socket.assigns.expanded_threads
+                  )
 
-            {:noreply, assign(socket, :replies, updated_replies)}
+                {:noreply, assign(socket, :replies, updated_replies)}
+              end
+
+            {:error, _} ->
+              {:noreply, notify_error(socket, "Failed to vote")}
           end
 
-        {:error, _} ->
+        :error ->
           {:noreply, notify_error(socket, "Failed to vote")}
       end
     else
@@ -63,24 +68,31 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.VotingOperations do
       poll_id = params["poll_id"] || params["poll-id"]
       option_id = params["option_id"] || params["option-id"]
 
-      poll_id = String.to_integer(poll_id)
-      option_id = String.to_integer(option_id)
+      with {:ok, poll_id} <- parse_positive_int(poll_id),
+           {:ok, option_id} <- parse_positive_int(option_id) do
+        case Social.vote_on_poll(poll_id, option_id, socket.assigns.current_user.id) do
+          {:ok, _vote} ->
+            updated_post = Messages.get_discussion_post!(socket.assigns.post.id, force: true)
 
-      case Social.vote_on_poll(poll_id, option_id, socket.assigns.current_user.id) do
-        {:ok, _vote} ->
-          updated_post = Messages.get_discussion_post!(socket.assigns.post.id, force: true)
-          {:noreply, socket |> assign(:post, updated_post) |> put_flash(:info, "Vote recorded")}
+            {:noreply,
+             socket
+             |> assign(:post, updated_post)
+             |> put_flash(:info, "Vote recorded")}
 
-        {:error, :poll_closed} ->
-          {:noreply, notify_error(socket, "This poll has closed")}
+          {:error, :poll_closed} ->
+            {:noreply, notify_error(socket, "This poll has closed")}
 
-        {:error, :invalid_option} ->
-          {:noreply, notify_error(socket, "Invalid poll option")}
+          {:error, :invalid_option} ->
+            {:noreply, notify_error(socket, "Invalid poll option")}
 
-        {:error, :self_vote} ->
-          {:noreply, notify_error(socket, "You cannot vote on your own poll")}
+          {:error, :self_vote} ->
+            {:noreply, notify_error(socket, "You cannot vote on your own poll")}
 
-        {:error, _} ->
+          {:error, _} ->
+            {:noreply, notify_error(socket, "Failed to vote")}
+        end
+      else
+        :error ->
           {:noreply, notify_error(socket, "Failed to vote")}
       end
     else
@@ -91,14 +103,14 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.VotingOperations do
   def handle_event("vote_remote_poll", %{"option_name" => option_name} = params, socket) do
     if socket.assigns.current_user do
       poll_id = params["poll_id"]
-      message_id = String.to_integer(params["message_id"])
 
       remote_actor =
-        message_id
-        |> Repo.get(Elektrine.Social.Message)
-        |> case do
-          nil -> nil
-          message -> Repo.preload(message, [:remote_actor]).remote_actor
+        with {:ok, message_id} <- parse_positive_int(params["message_id"]),
+             %Elektrine.Social.Message{} = message <-
+               Repo.get(Elektrine.Social.Message, message_id) do
+          Repo.preload(message, [:remote_actor]).remote_actor
+        else
+          _ -> nil
         end
 
       if is_binary(poll_id) && remote_actor do
@@ -120,14 +132,18 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.VotingOperations do
 
   def handle_event("like_post", %{"post_id" => post_id}, socket) do
     if socket.assigns.current_user do
-      post_id = String.to_integer(post_id)
+      case parse_positive_int(post_id) do
+        {:ok, post_id} ->
+          if socket.assigns.liked_by_user do
+            Social.unlike_post(socket.assigns.current_user.id, post_id)
+            {:noreply, assign(socket, :liked_by_user, false)}
+          else
+            Social.like_post(socket.assigns.current_user.id, post_id)
+            {:noreply, assign(socket, :liked_by_user, true)}
+          end
 
-      if socket.assigns.liked_by_user do
-        Social.unlike_post(socket.assigns.current_user.id, post_id)
-        {:noreply, assign(socket, :liked_by_user, false)}
-      else
-        Social.like_post(socket.assigns.current_user.id, post_id)
-        {:noreply, assign(socket, :liked_by_user, true)}
+        :error ->
+          {:noreply, notify_error(socket, "Failed to like post")}
       end
     else
       {:noreply, notify_error(socket, "Please sign in to like posts")}
@@ -142,55 +158,71 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.VotingOperations do
   def handle_event("react_to_post", %{"post_id" => post_id, "emoji" => emoji}, socket) do
     if socket.assigns.current_user do
       user_id = socket.assigns.current_user.id
-      message_id = String.to_integer(post_id)
 
-      alias Elektrine.Messaging.Reactions
+      case parse_positive_int(post_id) do
+        {:ok, message_id} ->
+          alias Elektrine.Messaging.Reactions
 
-      # Check if user already has this reaction
-      existing_reaction =
-        Elektrine.Repo.get_by(
-          Elektrine.Social.MessageReaction,
-          message_id: message_id,
-          user_id: user_id,
-          emoji: emoji
-        )
+          # Check if user already has this reaction
+          existing_reaction =
+            Elektrine.Repo.get_by(
+              Elektrine.Social.MessageReaction,
+              message_id: message_id,
+              user_id: user_id,
+              emoji: emoji
+            )
 
-      if existing_reaction do
-        # Remove the existing reaction
-        case Reactions.remove_reaction(message_id, user_id, emoji) do
-          {:ok, _} ->
-            updated_reactions =
-              update_post_reactions(
-                socket,
-                message_id,
-                %{emoji: emoji, user_id: user_id},
-                :remove
-              )
+          if existing_reaction do
+            # Remove the existing reaction
+            case Reactions.remove_reaction(message_id, user_id, emoji) do
+              {:ok, _} ->
+                updated_reactions =
+                  update_post_reactions(
+                    socket,
+                    message_id,
+                    %{emoji: emoji, user_id: user_id},
+                    :remove
+                  )
 
-            {:noreply, assign(socket, :post_reactions, updated_reactions)}
+                {:noreply, assign(socket, :post_reactions, updated_reactions)}
 
-          {:error, _} ->
-            {:noreply, socket}
-        end
-      else
-        # Add new reaction
-        case Reactions.add_reaction(message_id, user_id, emoji) do
-          {:ok, reaction} ->
-            reaction = Elektrine.Repo.preload(reaction, [:user, :remote_actor])
-            updated_reactions = update_post_reactions(socket, message_id, reaction, :add)
-            {:noreply, assign(socket, :post_reactions, updated_reactions)}
+              {:error, _} ->
+                {:noreply, socket}
+            end
+          else
+            # Add new reaction
+            case Reactions.add_reaction(message_id, user_id, emoji) do
+              {:ok, reaction} ->
+                reaction = Elektrine.Repo.preload(reaction, [:user, :remote_actor])
+                updated_reactions = update_post_reactions(socket, message_id, reaction, :add)
+                {:noreply, assign(socket, :post_reactions, updated_reactions)}
 
-          {:error, :rate_limited} ->
-            {:noreply, notify_error(socket, "Slow down! You're reacting too fast")}
+              {:error, :rate_limited} ->
+                {:noreply, notify_error(socket, "Slow down! You're reacting too fast")}
 
-          {:error, _} ->
-            {:noreply, socket}
-        end
+              {:error, _} ->
+                {:noreply, socket}
+            end
+          end
+
+        :error ->
+          {:noreply, notify_error(socket, "Failed to react")}
       end
     else
       {:noreply, notify_error(socket, "Please sign in to react")}
     end
   end
+
+  defp parse_positive_int(value) when is_integer(value) and value > 0, do: {:ok, value}
+
+  defp parse_positive_int(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {id, ""} when id > 0 -> {:ok, id}
+      _ -> :error
+    end
+  end
+
+  defp parse_positive_int(_value), do: :error
 
   defp update_post_reactions(socket, message_id, reaction, action) do
     current_reactions = Map.get(socket.assigns, :post_reactions, %{})

@@ -52,6 +52,15 @@ defmodule ArblargWeb.API.ConversationControllerTest do
       # May return various status codes depending on implementation
       assert conn.status in [200, 201, 400, 422]
     end
+
+    test "returns 400 for malformed dm target user id", %{conn: conn, token: token} do
+      conn =
+        conn
+        |> auth_conn(token)
+        |> post("/api/conversations", %{type: "dm", user_id: "not-an-id"})
+
+      assert json_response(conn, 400)["error"] == "Invalid id"
+    end
   end
 
   describe "POST /api/conversations/:conversation_id/join" do
@@ -95,6 +104,15 @@ defmodule ArblargWeb.API.ConversationControllerTest do
   end
 
   describe "GET /api/conversations/:id" do
+    test "returns 400 for malformed conversation id", %{conn: conn, token: token} do
+      conn =
+        conn
+        |> auth_conn(token)
+        |> get("/api/conversations/not-an-id")
+
+      assert json_response(conn, 400)["error"] == "Invalid id"
+    end
+
     test "returns 404 for non-existent conversation", %{conn: conn, token: token} do
       conn =
         conn
@@ -230,6 +248,15 @@ defmodule ArblargWeb.API.ConversationControllerTest do
   end
 
   describe "GET /api/conversations/:conversation_id/messages" do
+    test "returns 400 for malformed conversation id", %{conn: conn, token: token} do
+      conn =
+        conn
+        |> auth_conn(token)
+        |> get("/api/conversations/not-an-id/messages")
+
+      assert json_response(conn, 400)["error"] == "Invalid id"
+    end
+
     test "returns 404 for non-existent conversation", %{conn: conn, token: token} do
       conn =
         conn
@@ -241,6 +268,15 @@ defmodule ArblargWeb.API.ConversationControllerTest do
   end
 
   describe "POST /api/conversations/:conversation_id/messages" do
+    test "returns 400 for malformed conversation id", %{conn: conn, token: token} do
+      conn =
+        conn
+        |> auth_conn(token)
+        |> post("/api/conversations/not-an-id/messages", %{content: "Hello"})
+
+      assert json_response(conn, 400)["error"] == "Invalid id"
+    end
+
     test "returns 404 for non-existent conversation", %{conn: conn, token: token} do
       conn =
         conn
@@ -248,6 +284,40 @@ defmodule ArblargWeb.API.ConversationControllerTest do
         |> post("/api/conversations/999999/messages", %{content: "Hello"})
 
       assert conn.status in [403, 404]
+    end
+  end
+
+  describe "chat API malformed ids" do
+    test "returns 400 for malformed message mutation ids", %{conn: conn, token: token} do
+      update_conn =
+        conn
+        |> auth_conn(token)
+        |> put("/api/messages/not-an-id", %{content: "edited"})
+
+      assert json_response(update_conn, 400)["error"] == "Invalid id"
+
+      delete_conn =
+        build_conn()
+        |> auth_conn(token)
+        |> delete("/api/messages/not-an-id")
+
+      assert json_response(delete_conn, 400)["error"] == "Invalid id"
+    end
+
+    test "returns 400 for malformed member ids", %{conn: conn, token: token} do
+      add_conn =
+        conn
+        |> auth_conn(token)
+        |> post("/api/conversations/1/members", %{user_id: "not-an-id"})
+
+      assert json_response(add_conn, 400)["error"] == "Invalid id"
+
+      remove_conn =
+        build_conn()
+        |> auth_conn(token)
+        |> delete("/api/conversations/1/members/not-an-id")
+
+      assert json_response(remove_conn, 400)["error"] == "Invalid id"
     end
   end
 end

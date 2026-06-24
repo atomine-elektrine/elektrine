@@ -170,6 +170,75 @@ defmodule ElektrineWeb.Plugs.HTTPSignaturePlugTest do
       assert conn.assigns.signature_error == :digest_mismatch
     end
 
+    test "rejects malformed digest values without raising", %{conn: conn} do
+      {public_key, private_key} = SigningKey.generate_key_pair()
+      actor_uri = "https://8.8.8.8/users/malformed-digest"
+      body = Jason.encode!(%{"type" => "Follow", "actor" => actor_uri})
+
+      actor =
+        %Actor{}
+        |> Actor.changeset(%{
+          uri: actor_uri,
+          username: "malformed-digest",
+          domain: "8.8.8.8",
+          inbox_url: "https://8.8.8.8/inbox",
+          public_key: public_key,
+          last_fetched_at: DateTime.utc_now() |> DateTime.truncate(:second),
+          metadata: %{}
+        })
+        |> Repo.insert!()
+
+      %SigningKey{}
+      |> SigningKey.remote_changeset(%{
+        key_id: "#{actor_uri}#main-key",
+        remote_actor_id: actor.id,
+        public_key: public_key
+      })
+      |> Repo.insert!()
+
+      created = Integer.to_string(System.system_time(:second))
+      expires = Integer.to_string(System.system_time(:second) + 300)
+      date = Calendar.strftime(DateTime.utc_now(), "%a, %d %b %Y %H:%M:%S GMT")
+      malformed_digest = "SHA-256=short"
+
+      signing_string =
+        [
+          "(request-target): post /inbox",
+          "host: #{conn.host}",
+          "date: #{date}",
+          "digest: #{malformed_digest}",
+          "(created): #{created}",
+          "(expires): #{expires}"
+        ]
+        |> Enum.join("\n")
+
+      signature_header =
+        [
+          ~s(keyId="#{actor_uri}#main-key"),
+          ~s(algorithm="hs2019"),
+          "created=#{created}",
+          "expires=#{expires}",
+          ~s|headers="(request-target) host date digest (created) (expires)"|,
+          ~s(signature="#{rsa_sign(signing_string, private_key)}")
+        ]
+        |> Enum.join(",")
+
+      conn =
+        conn
+        |> Map.put(:method, "POST")
+        |> Map.put(:request_path, "/inbox")
+        |> Map.put(:query_string, "")
+        |> Plug.Conn.assign(:raw_body, body)
+        |> put_req_header("date", date)
+        |> put_req_header("digest", malformed_digest)
+        |> put_req_header("signature", signature_header)
+
+      conn = HTTPSignaturePlug.call(conn, [])
+
+      assert conn.assigns.valid_signature == false
+      assert conn.assigns.signature_error == :digest_mismatch
+    end
+
     test "rejects replayed valid signatures", %{conn: conn} do
       {public_key, private_key} = SigningKey.generate_key_pair()
       actor_uri = "https://8.8.8.8/users/replay"

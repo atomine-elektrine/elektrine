@@ -7,6 +7,7 @@ defmodule Elektrine.Developer.Webhook do
 
   use Ecto.Schema
   import Ecto.Changeset
+  alias Elektrine.Secrets.EncryptedString
   alias Elektrine.Security.URLValidator
 
   @valid_events ~w(
@@ -22,7 +23,7 @@ defmodule Elektrine.Developer.Webhook do
     field :name, :string
     field :url, :string
     field :events, {:array, :string}, default: []
-    field :secret, :string
+    field :secret, EncryptedString
     field :enabled, :boolean, default: true
     field :last_triggered_at, :utc_datetime
     field :last_response_status, :integer
@@ -37,6 +38,22 @@ defmodule Elektrine.Developer.Webhook do
   Returns valid webhook event names.
   """
   def valid_events, do: @valid_events
+
+  @doc """
+  Returns a stable non-secret fingerprint for display and API responses.
+  """
+  def secret_fingerprint(%__MODULE__{secret: secret}), do: secret_fingerprint(secret)
+
+  def secret_fingerprint(secret) when is_binary(secret) do
+    digest =
+      :crypto.hash(:sha256, secret)
+      |> Base.encode16(case: :lower)
+      |> String.slice(0, 12)
+
+    "sha256:#{digest}..."
+  end
+
+  def secret_fingerprint(_), do: nil
 
   @doc """
   Changeset for creating/updating webhooks.

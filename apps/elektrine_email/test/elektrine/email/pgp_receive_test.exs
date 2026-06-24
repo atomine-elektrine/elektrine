@@ -432,9 +432,6 @@ defmodule Elektrine.Email.PGPReceiveTest do
       String.contains?(text, "-----END PGP MESSAGE-----")
   end
 
-  defp pgp_signed?(nil), do: false
-  defp pgp_signed?(""), do: false
-
   defp pgp_signed?(text) when is_binary(text) do
     String.contains?(text, "-----BEGIN PGP SIGNED MESSAGE-----") or
       (String.contains?(text, "-----BEGIN PGP SIGNATURE-----") and

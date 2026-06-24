@@ -268,7 +268,7 @@ defmodule ElektrineWeb.API.WebhookController do
       url: webhook.url,
       events: webhook.events || [],
       enabled: webhook.enabled,
-      secret_prefix: format_secret_prefix(webhook.secret),
+      secret_fingerprint: Webhook.secret_fingerprint(webhook),
       last_triggered_at: webhook.last_triggered_at,
       last_response_status: webhook.last_response_status,
       last_error: webhook.last_error,
@@ -315,10 +315,4 @@ defmodule ElektrineWeb.API.WebhookController do
   end
 
   defp parse_positive_int(_, default), do: default
-
-  defp format_secret_prefix(secret) when is_binary(secret) do
-    String.slice(secret, 0, min(8, String.length(secret)))
-  end
-
-  defp format_secret_prefix(_), do: nil
 end

@@ -177,7 +177,7 @@ defmodule Elektrine.Accounts.AppPasswordTest do
       assert invalid_token_user.id == user.id
     end
 
-    test "still accepts existing legacy SHA-256 app password hashes" do
+    test "rejects existing legacy SHA-256 app password hashes" do
       user = user_fixture()
       token = "legacytoken#{System.unique_integer([:positive])}"
 
@@ -190,13 +190,13 @@ defmodule Elektrine.Accounts.AppPasswordTest do
         })
         |> Repo.insert()
 
-      assert {:ok, authenticated_user} =
+      assert {:error, {:invalid_token, invalid_token_user}} =
                Accounts.authenticate_with_app_password(user.username, token)
 
-      assert authenticated_user.id == user.id
+      assert invalid_token_user.id == user.id
     end
 
-    test "still accepts original 4-group SHA-256 app password hashes" do
+    test "rejects original 4-group SHA-256 app password hashes" do
       user = user_fixture()
       token = "abcd-efgh-ijkl-mnop"
       clean_token = "abcdefghijklmnop"
@@ -211,14 +211,14 @@ defmodule Elektrine.Accounts.AppPasswordTest do
         |> Repo.insert()
 
       for typed_token <- [token, String.upcase(token), clean_token] do
-        assert {:ok, authenticated_user} =
+        assert {:error, {:invalid_token, invalid_token_user}} =
                  Accounts.authenticate_with_app_password(user.username, typed_token)
 
-        assert authenticated_user.id == user.id
+        assert invalid_token_user.id == user.id
       end
     end
 
-    test "still accepts existing legacy SHA-256 app password hashes with literal hyphens" do
+    test "rejects existing legacy SHA-256 app password hashes with literal hyphens" do
       user = user_fixture()
       token = "legacy-token-#{System.unique_integer([:positive])}"
 
@@ -231,10 +231,10 @@ defmodule Elektrine.Accounts.AppPasswordTest do
         })
         |> Repo.insert()
 
-      assert {:ok, authenticated_user} =
+      assert {:error, {:invalid_token, invalid_token_user}} =
                Accounts.authenticate_with_app_password(user.username, token)
 
-      assert authenticated_user.id == user.id
+      assert invalid_token_user.id == user.id
     end
 
     test "reports app password hash versions for diagnostics" do
@@ -243,7 +243,7 @@ defmodule Elektrine.Accounts.AppPasswordTest do
 
       assert AppPassword.hash_version(Argon2.hash_pwd_salt("token")) == :argon2id
       assert AppPassword.hash_version("v2$hmac-sha256$abc") == :v2_hmac
-      assert AppPassword.hash_version(legacy_sha256_hash("token")) == :legacy_sha256
+      assert AppPassword.hash_version(legacy_sha256_hash("token")) == :unknown
       assert AppPassword.hash_version(nil) == :unknown
     end
   end

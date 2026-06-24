@@ -114,13 +114,25 @@ defmodule Elektrine.IMAP.Response do
   defp parse_body_item(item_upper) do
     case Regex.run(~r/^BODY(?:\.PEEK)?\[([^\]]*)\](?:<(\d+)\.(\d+)>)?$/, item_upper) do
       [_, section, start_offset, length] ->
-        {:ok, section, String.to_integer(start_offset), String.to_integer(length)}
+        with {:ok, start_offset} <- parse_non_negative_int(start_offset),
+             {:ok, length} <- parse_non_negative_int(length) do
+          {:ok, section, start_offset, length}
+        else
+          _ -> :error
+        end
 
       [_, section] ->
         {:ok, section, nil, nil}
 
       _ ->
         :error
+    end
+  end
+
+  defp parse_non_negative_int(value) do
+    case Integer.parse(to_string(value)) do
+      {parsed, ""} when parsed >= 0 -> {:ok, parsed}
+      _ -> :error
     end
   end
 

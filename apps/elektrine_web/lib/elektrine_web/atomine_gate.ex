@@ -483,7 +483,8 @@ defmodule ElektrineWeb.AtomineGate do
     value = String.trim(value)
 
     if String.starts_with?(value, "/") and not String.starts_with?(value, "//") and
-         String.length(value) <= 2048 do
+         not String.contains?(value, ["\\", "\0"]) and
+         not Regex.match?(~r/[\x00-\x1F\x7F]/, value) and String.length(value) <= 2048 do
       value
     else
       "/"

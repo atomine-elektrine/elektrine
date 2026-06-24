@@ -174,19 +174,24 @@ defmodule ElektrineSocialWeb.Components.Social.EmbeddedPost do
         <% end %>
         
     <!-- Link Preview -->
-        <%= if Ecto.assoc_loaded?(Map.get(@shared_message, :link_preview)) && @shared_message.link_preview && @shared_message.link_preview.status == "success" do %>
+        <% preview_url =
+          if Ecto.assoc_loaded?(Map.get(@shared_message, :link_preview)) &&
+               @shared_message.link_preview && @shared_message.link_preview.status == "success",
+             do: safe_external_href(@shared_message.link_preview.url) %>
+        <%= if preview_url do %>
           <div class="mt-3 border border-base-300 rounded-lg overflow-hidden bg-base-200/30">
             <a
-              href={@shared_message.link_preview.url}
+              href={preview_url}
               target="_blank"
               rel="noopener noreferrer"
               class="block"
             >
-              <%= if @shared_message.link_preview.image_url do %>
+              <%= if preview_image_url =
+                    safe_external_image_url(@shared_message.link_preview.image_url) do %>
                 <div class="aspect-video bg-base-200 max-h-32">
                   <img
-                    id={"embedded-post-preview-image-#{@shared_message.id || :erlang.phash2(@shared_message.link_preview.image_url)}"}
-                    src={ensure_https(@shared_message.link_preview.image_url)}
+                    id={"embedded-post-preview-image-#{@shared_message.id || :erlang.phash2(preview_image_url)}"}
+                    src={preview_image_url}
                     alt=""
                     class="w-full h-full object-cover"
                     loading="lazy"
@@ -197,10 +202,11 @@ defmodule ElektrineSocialWeb.Components.Social.EmbeddedPost do
               <% end %>
               <div class="p-2">
                 <div class="flex items-center gap-1 mb-1">
-                  <%= if @shared_message.link_preview.favicon_url do %>
+                  <%= if favicon_url =
+                        safe_external_image_url(@shared_message.link_preview.favicon_url) do %>
                     <img
-                      id={"embedded-post-preview-favicon-#{@shared_message.id || :erlang.phash2(@shared_message.link_preview.favicon_url)}"}
-                      src={ensure_https(@shared_message.link_preview.favicon_url)}
+                      id={"embedded-post-preview-favicon-#{@shared_message.id || :erlang.phash2(favicon_url)}"}
+                      src={favicon_url}
                       alt=""
                       class="w-3 h-3 flex-shrink-0"
                       phx-hook="ImageFallback"

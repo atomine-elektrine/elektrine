@@ -199,17 +199,24 @@ defmodule ElektrineWeb.ConnectedAccountController do
   end
 
   defp valid_state?(state, expected_state) when is_binary(state) and is_binary(expected_state) do
-    Plug.Crypto.secure_compare(state, expected_state)
+    secure_compare(state, expected_state)
   end
 
   defp valid_state?(_, _), do: false
+
+  defp secure_compare(left, right)
+       when is_binary(left) and is_binary(right) and byte_size(left) == byte_size(right) do
+    Plug.Crypto.secure_compare(left, right)
+  end
+
+  defp secure_compare(_left, _right), do: false
 
   defp random_state do
     :crypto.strong_rand_bytes(32) |> Base.url_encode64(padding: false)
   end
 
   defp safe_return_to(path) when is_binary(path) do
-    if String.starts_with?(path, "/") and not String.starts_with?(path, "//") do
+    if safe_local_path?(path) do
       path
     else
       ~p"/account/proofs"
@@ -217,6 +224,12 @@ defmodule ElektrineWeb.ConnectedAccountController do
   end
 
   defp safe_return_to(_), do: ~p"/account/proofs"
+
+  defp safe_local_path?(path) when is_binary(path) do
+    String.starts_with?(path, "/") and not String.starts_with?(path, "//") and
+      not String.contains?(path, ["\\", "\0"]) and not Regex.match?(~r/[\x00-\x1F\x7F]/, path) and
+      String.length(path) <= 2048
+  end
 
   defp oauth_error(conn, return_to, message) do
     conn

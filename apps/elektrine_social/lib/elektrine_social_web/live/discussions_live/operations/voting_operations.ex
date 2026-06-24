@@ -17,34 +17,45 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.VotingOperations do
   def handle_event("vote", %{"message_id" => message_id, "type" => vote_type}, socket) do
     if socket.assigns.current_user do
       user_id = socket.assigns.current_user.id
-      message_id = String.to_integer(message_id)
 
-      # Optimistic update - update UI immediately
-      current_user_vote = get_user_vote(socket, message_id)
-      updated_socket = optimistic_vote_update(socket, message_id, vote_type, current_user_vote)
+      case parse_positive_int(message_id) do
+        {:ok, message_id} ->
+          # Optimistic update - update UI immediately
+          current_user_vote = get_user_vote(socket, message_id)
 
-      # Perform database operation - run synchronously to ensure persistence
-      # This is fast enough that it won't cause UI delays
-      Social.vote_on_message(user_id, message_id, vote_type)
+          updated_socket =
+            optimistic_vote_update(socket, message_id, vote_type, current_user_vote)
 
-      {:noreply, updated_socket}
+          # Perform database operation - run synchronously to ensure persistence
+          # This is fast enough that it won't cause UI delays
+          Social.vote_on_message(user_id, message_id, vote_type)
+
+          {:noreply, updated_socket}
+
+        :error ->
+          {:noreply, notify_error(socket, "Failed to vote")}
+      end
     else
       {:noreply, notify_error(socket, "You must be signed in to vote")}
     end
   end
 
   def handle_event("show_voters", %{"message_id" => message_id}, socket) do
-    message_id = String.to_integer(message_id)
+    case parse_positive_int(message_id) do
+      {:ok, message_id} ->
+        # Get voters for this message
+        {upvoters, downvoters} = Social.get_message_voters(message_id)
 
-    # Get voters for this message
-    {upvoters, downvoters} = Social.get_message_voters(message_id)
+        {:noreply,
+         socket
+         |> assign(:show_voters_modal, true)
+         |> assign(:voters_tab, "upvotes")
+         |> assign(:upvoters, upvoters)
+         |> assign(:downvoters, downvoters)}
 
-    {:noreply,
-     socket
-     |> assign(:show_voters_modal, true)
-     |> assign(:voters_tab, "upvotes")
-     |> assign(:upvoters, upvoters)
-     |> assign(:downvoters, downvoters)}
+      :error ->
+        {:noreply, notify_error(socket, "Failed to load voters")}
+    end
   end
 
   def handle_event("close_voters", _params, socket) do
@@ -65,57 +76,47 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.VotingOperations do
       poll_id = params["poll_id"] || params["poll-id"]
       option_id = params["option_id"] || params["option-id"]
 
-      poll_id = String.to_integer(poll_id)
-      option_id = String.to_integer(option_id)
+      with {:ok, poll_id} <- parse_positive_int(poll_id),
+           {:ok, option_id} <- parse_positive_int(option_id) do
+        case Social.vote_on_poll(poll_id, option_id, socket.assigns.current_user.id) do
+          {:ok, _vote} ->
+            case load_poll_message(poll_id) do
+              {:ok, message_id, updated_message} ->
+                # Update the post in discussion_posts or pinned_posts
+                updated_discussion_posts =
+                  Enum.map(socket.assigns.discussion_posts, fn post ->
+                    if post.id == message_id, do: updated_message, else: post
+                  end)
 
-      case Social.vote_on_poll(poll_id, option_id, socket.assigns.current_user.id) do
-        {:ok, _vote} ->
-          # Find the message that contains this poll and reload it
-          poll = Repo.get!(Elektrine.Social.Poll, poll_id)
-          message_id = poll.message_id
+                updated_pinned_posts =
+                  Enum.map(socket.assigns.pinned_posts, fn post ->
+                    if post.id == message_id, do: updated_message, else: post
+                  end)
 
-          # Reload the message with fresh poll data
-          updated_message =
-            Repo.get!(Elektrine.Social.Message, message_id)
-            |> Repo.preload(
-              [
-                sender: [:profile],
-                link_preview: [],
-                flair: [],
-                shared_message: [sender: [:profile], conversation: []],
-                poll: [options: []]
-              ],
-              force: true
-            )
-            |> Elektrine.Social.Message.decrypt_content()
+                {:noreply,
+                 socket
+                 |> assign(:discussion_posts, updated_discussion_posts)
+                 |> assign(:pinned_posts, updated_pinned_posts)
+                 |> put_flash(:info, "Vote recorded")}
 
-          # Update the post in discussion_posts or pinned_posts
-          updated_discussion_posts =
-            Enum.map(socket.assigns.discussion_posts, fn post ->
-              if post.id == message_id, do: updated_message, else: post
-            end)
+              :error ->
+                {:noreply, notify_error(socket, "Failed to vote")}
+            end
 
-          updated_pinned_posts =
-            Enum.map(socket.assigns.pinned_posts, fn post ->
-              if post.id == message_id, do: updated_message, else: post
-            end)
+          {:error, :poll_closed} ->
+            {:noreply, notify_error(socket, "This poll has closed")}
 
-          {:noreply,
-           socket
-           |> assign(:discussion_posts, updated_discussion_posts)
-           |> assign(:pinned_posts, updated_pinned_posts)
-           |> put_flash(:info, "Vote recorded")}
+          {:error, :invalid_option} ->
+            {:noreply, notify_error(socket, "Invalid poll option")}
 
-        {:error, :poll_closed} ->
-          {:noreply, notify_error(socket, "This poll has closed")}
+          {:error, :self_vote} ->
+            {:noreply, notify_error(socket, "You cannot vote on your own poll")}
 
-        {:error, :invalid_option} ->
-          {:noreply, notify_error(socket, "Invalid poll option")}
-
-        {:error, :self_vote} ->
-          {:noreply, notify_error(socket, "You cannot vote on your own poll")}
-
-        {:error, _} ->
+          {:error, _} ->
+            {:noreply, notify_error(socket, "Failed to vote")}
+        end
+      else
+        :error ->
           {:noreply, notify_error(socket, "Failed to vote")}
       end
     else
@@ -126,14 +127,19 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.VotingOperations do
   def handle_event("vote_remote_poll", %{"option_name" => option_name} = params, socket) do
     if socket.assigns.current_user do
       poll_id = params["poll_id"]
-      message_id = String.to_integer(params["message_id"])
 
       remote_actor =
-        socket.assigns.discussion_posts
-        |> Enum.find(&(&1.id == message_id))
-        |> case do
-          %{remote_actor: remote_actor} when is_map(remote_actor) -> remote_actor
-          _ -> nil
+        case parse_positive_int(params["message_id"]) do
+          {:ok, message_id} ->
+            socket.assigns.discussion_posts
+            |> Enum.find(&(&1.id == message_id))
+            |> case do
+              %{remote_actor: remote_actor} when is_map(remote_actor) -> remote_actor
+              _ -> nil
+            end
+
+          :error ->
+            nil
         end
 
       if is_binary(poll_id) && remote_actor do
@@ -154,6 +160,41 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.VotingOperations do
   end
 
   # Private helpers
+
+  defp parse_positive_int(value) when is_integer(value) and value > 0, do: {:ok, value}
+
+  defp parse_positive_int(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {id, ""} when id > 0 -> {:ok, id}
+      _ -> :error
+    end
+  end
+
+  defp parse_positive_int(_value), do: :error
+
+  defp load_poll_message(poll_id) do
+    with %Elektrine.Social.Poll{message_id: message_id} <-
+           Repo.get(Elektrine.Social.Poll, poll_id),
+         %Elektrine.Social.Message{} = message <- Repo.get(Elektrine.Social.Message, message_id) do
+      updated_message =
+        message
+        |> Repo.preload(
+          [
+            sender: [:profile],
+            link_preview: [],
+            flair: [],
+            shared_message: [sender: [:profile], conversation: []],
+            poll: [options: []]
+          ],
+          force: true
+        )
+        |> Elektrine.Social.Message.decrypt_content()
+
+      {:ok, message_id, updated_message}
+    else
+      _ -> :error
+    end
+  end
 
   defp get_user_vote(socket, message_id) do
     user_votes = socket.assigns[:user_votes] || %{}

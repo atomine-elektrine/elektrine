@@ -10,6 +10,7 @@ defmodule ElektrineSocialWeb.TimelinePostDetailTest do
   alias Elektrine.Repo
   alias Elektrine.Social
   alias Elektrine.Social.Message
+  alias ElektrineSocialWeb.TimelineLive.Post, as: TimelinePostLive
 
   describe "image posts on timeline detail page" do
     test "renders an image-only local post", %{conn: conn} do
@@ -463,6 +464,88 @@ defmodule ElektrineSocialWeb.TimelinePostDetailTest do
     end
   end
 
+  describe "legacy timeline post detail event hardening" do
+    test "ignores malformed forged action ids without crashing" do
+      user = AccountsFixtures.user_fixture()
+      post = %{id: 123, sender_id: user.id, visibility: "public", like_count: 0}
+      socket = timeline_post_socket(user, post)
+
+      assert {:noreply, socket} =
+               TimelinePostLive.handle_event(
+                 "show_reply_to_reply_form",
+                 %{"reply_id" => "12abc"},
+                 socket
+               )
+
+      assert socket.assigns.flash["error"] == "Reply target is no longer available"
+
+      assert {:noreply, socket} =
+               TimelinePostLive.handle_event("like_reply", %{"reply_id" => "12abc"}, socket)
+
+      assert socket.assigns.flash["error"] == "Failed to update like"
+
+      assert {:noreply, socket} =
+               TimelinePostLive.handle_event(
+                 "react_to_post",
+                 %{"post_id" => "12abc", "emoji" => "🔥"},
+                 socket
+               )
+
+      assert socket.assigns.flash["error"] == "Failed to react"
+
+      assert {:noreply, socket} =
+               TimelinePostLive.handle_event(
+                 "discuss_privately",
+                 %{"message_id" => "123", "target_user_id" => "12abc"},
+                 socket
+               )
+
+      assert socket.assigns.flash["error"] == "Could not start private discussion"
+    end
+
+    test "safely handles malformed image modal payloads" do
+      post = %{id: 123, sender_id: nil, visibility: "public", like_count: 0}
+      socket = timeline_post_socket(nil, post)
+
+      assert {:noreply, socket} =
+               TimelinePostLive.handle_event(
+                 "open_image_modal",
+                 %{
+                   "url" => "https://example.com/image.jpg",
+                   "images" => "not-json",
+                   "index" => "-2",
+                   "post_id" => "bad-id"
+                 },
+                 socket
+               )
+
+      assert socket.assigns.show_image_modal
+      assert socket.assigns.modal_images == []
+      assert socket.assigns.modal_image_index == 0
+      assert socket.assigns.modal_post == nil
+    end
+
+    test "refuses forged reply targets before inserting a reply" do
+      user = AccountsFixtures.user_fixture()
+
+      {:ok, post} =
+        Social.create_timeline_post(user.id, "Parent post", visibility: "public")
+
+      before_count = Repo.aggregate(Message, :count)
+      socket = timeline_post_socket(user, post)
+
+      assert {:noreply, socket} =
+               TimelinePostLive.handle_event(
+                 "create_reply",
+                 %{"content" => "Forged reply", "reply_to_id" => "999999999"},
+                 socket
+               )
+
+      assert socket.assigns.flash["error"] == "Failed to post reply"
+      assert Repo.aggregate(Message, :count) == before_count
+    end
+  end
+
   defp log_in_user(conn, user) do
     token =
       Phoenix.Token.sign(ElektrineWeb.Endpoint, "user auth", %{
@@ -475,5 +558,23 @@ defmodule ElektrineSocialWeb.TimelinePostDetailTest do
     conn
     |> Phoenix.ConnTest.init_test_session(%{})
     |> Plug.Conn.put_session(:user_token, token)
+  end
+
+  defp timeline_post_socket(current_user, post, replies \\ []) do
+    %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        flash: %{},
+        current_user: current_user,
+        post: post,
+        replies: replies,
+        liked_replies: %{},
+        post_reactions: %{},
+        liked_by_user: false,
+        show_reply_form: false,
+        reply_to_reply_id: nil,
+        reply_content: ""
+      }
+    }
   end
 end

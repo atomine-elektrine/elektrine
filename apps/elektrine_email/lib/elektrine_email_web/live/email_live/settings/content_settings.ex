@@ -65,20 +65,25 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.ContentSettings do
 
   def handle_event("show_template_modal", %{"id" => id}, socket) do
     user_id = socket.assigns.current_user.id
-    template = Email.get_template(String.to_integer(id), user_id)
 
-    {:noreply,
-     socket
-     |> assign(:show_modal, "template")
-     |> assign(:edit_item, template)
-     |> assign(
-       :template_form,
-       to_form(%{
-         "name" => template.name,
-         "subject" => template.subject || "",
-         "body" => template.body
-       })
-     )}
+    case get_template(id, user_id) do
+      nil ->
+        {:noreply, put_flash(socket, :error, "Template not found")}
+
+      template ->
+        {:noreply,
+         socket
+         |> assign(:show_modal, "template")
+         |> assign(:edit_item, template)
+         |> assign(
+           :template_form,
+           to_form(%{
+             "name" => template.name,
+             "subject" => template.subject || "",
+             "body" => template.body
+           })
+         )}
+    end
   end
 
   def handle_event("save_template", params, socket) do
@@ -121,7 +126,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.ContentSettings do
   def handle_event("delete_template", %{"id" => id}, socket) do
     user_id = socket.assigns.current_user.id
 
-    case Email.get_template(String.to_integer(id), user_id) do
+    case get_template(id, user_id) do
       nil ->
         {:noreply, put_flash(socket, :error, "Template not found")}
 
@@ -163,7 +168,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.ContentSettings do
   def handle_event("delete_folder", %{"id" => id}, socket) do
     user_id = socket.assigns.current_user.id
 
-    case Email.get_custom_folder(String.to_integer(id), user_id) do
+    case get_custom_folder(id, user_id) do
       nil ->
         {:noreply, put_flash(socket, :error, "Folder not found")}
 
@@ -204,7 +209,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.ContentSettings do
   def handle_event("delete_label", %{"id" => id}, socket) do
     user_id = socket.assigns.current_user.id
 
-    case Email.get_label(String.to_integer(id), user_id) do
+    case get_label(id, user_id) do
       nil ->
         {:noreply, put_flash(socket, :error, "Label not found")}
 
@@ -238,7 +243,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.ContentSettings do
   def handle_event("delete_export", %{"id" => id}, socket) do
     user_id = socket.assigns.current_user.id
 
-    case Email.get_export(String.to_integer(id), user_id) do
+    case get_export(id, user_id) do
       nil ->
         {:noreply, put_flash(socket, :error, "Export not found")}
 
@@ -253,6 +258,34 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.ContentSettings do
   end
 
   # Render functions
+
+  defp get_template(id, user_id) do
+    case parse_positive_id(id) do
+      {:ok, id} -> Email.get_template(id, user_id)
+      :error -> nil
+    end
+  end
+
+  defp get_custom_folder(id, user_id) do
+    case parse_positive_id(id) do
+      {:ok, id} -> Email.get_custom_folder(id, user_id)
+      :error -> nil
+    end
+  end
+
+  defp get_label(id, user_id) do
+    case parse_positive_id(id) do
+      {:ok, id} -> Email.get_label(id, user_id)
+      :error -> nil
+    end
+  end
+
+  defp get_export(id, user_id) do
+    case parse_positive_id(id) do
+      {:ok, id} -> Email.get_export(id, user_id)
+      :error -> nil
+    end
+  end
 
   def render_templates_tab(assigns) do
     ~H"""

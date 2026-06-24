@@ -181,22 +181,30 @@ defmodule Elektrine.Accounts.TwoFactorTest do
 
   describe "verify_backup_code/2" do
     test "verifies valid backup codes" do
-      codes = ["ABCD1234", "EFGH5678", "IJKL9012"]
+      {[first_code | _], codes} = TwoFactor.generate_backup_codes(3)
 
-      assert {:ok, remaining} = TwoFactor.verify_backup_code(codes, "ABCD1234")
+      assert {:ok, remaining} = TwoFactor.verify_backup_code(codes, first_code)
       assert length(remaining) == 2
-      refute "ABCD1234" in remaining
+      refute Enum.any?(remaining, &Argon2.verify_pass(first_code, &1))
     end
 
     test "handles case-insensitive codes" do
-      codes = ["ABCD1234"]
+      code = "ABCD1234"
+      codes = [Argon2.hash_pwd_salt(code)]
 
       assert {:ok, _} = TwoFactor.verify_backup_code(codes, "abcd1234")
       assert {:ok, _} = TwoFactor.verify_backup_code(codes, " ABCD1234 ")
     end
 
+    test "rejects legacy plaintext stored backup codes" do
+      codes = ["ABCD1234"]
+
+      assert {:error, :invalid} = TwoFactor.verify_backup_code(codes, "ABCD1234")
+      assert {:error, :invalid} = TwoFactor.verify_backup_code(codes, " abcd1234 ")
+    end
+
     test "rejects invalid codes" do
-      codes = ["ABCD1234", "EFGH5678"]
+      {_plain_codes, codes} = TwoFactor.generate_backup_codes(2)
 
       assert {:error, :invalid} = TwoFactor.verify_backup_code(codes, "INVALID")
       assert {:error, :invalid} = TwoFactor.verify_backup_code(codes, "")
