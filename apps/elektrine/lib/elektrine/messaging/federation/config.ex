@@ -3,6 +3,7 @@ defmodule Elektrine.Messaging.Federation.Config do
 
   alias Elektrine.Domains
   alias Elektrine.Messaging.ArblargSDK
+  alias Elektrine.Security.URLValidator
 
   def delivery_concurrency(config) when is_list(config) do
     Keyword.get(config, :delivery_concurrency, 6)
@@ -57,8 +58,12 @@ defmodule Elektrine.Messaging.Federation.Config do
              |> value_from(:base_url)
              |> normalize_optional_string()
              |> websocket_base_url(allow_insecure_transport) do
-          base when is_binary(base) -> base <> "/_arblarg/session"
-          _ -> nil
+          base when is_binary(base) ->
+            url = base <> "/_arblarg/session"
+            if valid_session_websocket_url?(url, allow_insecure_transport), do: url
+
+          _ ->
+            nil
         end
 
       true ->
@@ -728,17 +733,10 @@ defmodule Elektrine.Messaging.Federation.Config do
 
   defp valid_session_websocket_url?(url, allow_insecure_transport)
        when is_binary(url) and is_boolean(allow_insecure_transport) do
-    case URI.parse(url) do
-      %URI{scheme: "wss", host: host} when is_binary(host) and host != "" ->
-        true
-
-      %URI{scheme: "ws", host: host}
-      when is_binary(host) and host != "" and allow_insecure_transport ->
-        true
-
-      _ ->
-        false
-    end
+    URLValidator.validate_websocket(url,
+      allow_insecure_transport: allow_insecure_transport,
+      allow_localhost: Elektrine.RuntimeEnv.dev_or_test?()
+    ) == :ok
   end
 
   defp valid_session_websocket_url?(_url, _allow_insecure_transport), do: false

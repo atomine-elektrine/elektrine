@@ -1217,12 +1217,12 @@ defmodule Elektrine.Messaging.Federation.Discovery do
     end
   end
 
-  defp maybe_validate_httpish_discovery_url(_url, "wss", _context), do: :ok
-
-  defp maybe_validate_httpish_discovery_url(_url, "ws", context) do
-    if call(context, :allow_insecure_transport?, []),
-      do: :ok,
-      else: {:error, :invalid_discovery_url}
+  defp maybe_validate_httpish_discovery_url(url, scheme, context)
+       when scheme in ["ws", "wss"] do
+    URLValidator.validate_websocket(url,
+      allow_insecure_transport: call(context, :allow_insecure_transport?, []),
+      allow_localhost: Elektrine.RuntimeEnv.dev_or_test?()
+    )
   end
 
   defp extract_discovery_base_url(

@@ -5,6 +5,7 @@ defmodule Elektrine.Messaging.FederationSessionClient do
 
   alias Elektrine.Messaging.Federation
   alias Elektrine.Messaging.Federation.Config
+  alias Elektrine.Security.URLValidator
 
   @default_timeout 12_000
   @connect_timeout 5_000
@@ -582,21 +583,24 @@ defmodule Elektrine.Messaging.FederationSessionClient do
     |> Config.allow_insecure_transport?()
   end
 
-  defp open_socket(%URI{scheme: "ws", host: host, port: port}) do
+  defp open_socket(%URI{scheme: "ws", host: host, port: port} = uri) do
     port = port || 80
 
-    case :gen_tcp.connect(
-           String.to_charlist(host),
-           port,
-           [:binary, active: false, packet: :raw],
-           @connect_timeout
-         ) do
-      {:ok, socket} -> {:ok, :gen_tcp, socket}
-      {:error, reason} -> {:error, {:session_connect_failed, reason}}
+    with :ok <- validate_session_websocket_url(uri),
+         {:ok, address} <- resolve_session_address(host) do
+      case :gen_tcp.connect(
+             address,
+             port,
+             [:binary, active: false, packet: :raw],
+             @connect_timeout
+           ) do
+        {:ok, socket} -> {:ok, :gen_tcp, socket}
+        {:error, reason} -> {:error, {:session_connect_failed, reason}}
+      end
     end
   end
 
-  defp open_socket(%URI{scheme: "wss", host: host, port: port}) do
+  defp open_socket(%URI{scheme: "wss", host: host, port: port} = uri) do
     port = port || 443
 
     ssl_opts = [
@@ -609,10 +613,39 @@ defmodule Elektrine.Messaging.FederationSessionClient do
       customize_hostname_check: [match_fun: :public_key.pkix_verify_hostname_match_fun(:https)]
     ]
 
-    case :ssl.connect(String.to_charlist(host), port, ssl_opts, @connect_timeout) do
-      {:ok, socket} -> {:ok, :ssl, socket}
-      {:error, reason} -> {:error, {:session_connect_failed, reason}}
+    with :ok <- validate_session_websocket_url(uri),
+         {:ok, address} <- resolve_session_address(host) do
+      case :ssl.connect(address, port, ssl_opts, @connect_timeout) do
+        {:ok, socket} -> {:ok, :ssl, socket}
+        {:error, reason} -> {:error, {:session_connect_failed, reason}}
+      end
     end
+  end
+
+  defp validate_session_websocket_url(%URI{} = uri) do
+    URLValidator.validate_websocket(URI.to_string(uri),
+      allow_insecure_transport: allow_insecure_transport?(),
+      allow_localhost: Elektrine.RuntimeEnv.dev_or_test?()
+    )
+  end
+
+  defp resolve_session_address(host) when is_binary(host) do
+    if Elektrine.RuntimeEnv.dev_or_test?() and session_localhost?(host) do
+      URLValidator.resolve_address(host)
+    else
+      URLValidator.resolve_public_address(host)
+    end
+  end
+
+  defp session_localhost?(host) do
+    normalized_host =
+      host
+      |> String.downcase()
+      |> String.trim_leading("[")
+      |> String.trim_trailing("]")
+      |> String.trim_trailing(".")
+
+    normalized_host in ["localhost", "127.0.0.1", "::1"]
   end
 
   defp websocket_handshake(peer, transport, socket, %URI{host: host, port: port} = uri) do
