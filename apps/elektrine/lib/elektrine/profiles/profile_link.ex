@@ -50,13 +50,11 @@ defmodule Elektrine.Profiles.ProfileLink do
       :display_style,
       :highlight_effect
     ])
+    |> update_change(:url, &String.trim/1)
     |> validate_required([:profile_id, :title, :url])
     |> validate_length(:title, max: 50)
     |> validate_length(:description, max: 100)
     |> validate_url()
-    |> validate_format(:url, ~r/^https?:\/\/|^mailto:|^tel:/,
-      message: "must be a valid URL, email, or phone number"
-    )
     |> validate_inclusion(:display_style, ["circular", "full_width", nil], allow_nil: true)
     |> validate_inclusion(:highlight_effect, ["none", "glow", "pulse", "border", "shine", nil],
       allow_nil: true
@@ -150,30 +148,58 @@ defmodule Elektrine.Profiles.ProfileLink do
     end
   end
 
-  # Validate URL to prevent javascript: and other dangerous protocols
+  # Validate URL to prevent javascript:, header splitting, and malformed redirects.
   defp validate_url(changeset) do
     case get_change(changeset, :url) do
       nil ->
         changeset
 
       url when is_binary(url) ->
-        # Block dangerous protocols
-        dangerous_protocols = ["javascript:", "data:", "vbscript:", "file:", "about:"]
-
-        is_dangerous =
-          Enum.any?(dangerous_protocols, fn protocol ->
-            String.downcase(url) |> String.starts_with?(protocol)
-          end)
-
-        if is_dangerous do
-          add_error(changeset, :url, "contains unsafe protocol")
-        else
-          changeset
-        end
+        validate_profile_link_url(changeset, url)
 
       _ ->
-        changeset
+        add_error(changeset, :url, "must be a valid URL, email, or phone number")
     end
+  end
+
+  defp validate_profile_link_url(changeset, url) do
+    if String.contains?(url, ["\r", "\n", "\0"]) or Regex.match?(~r/[\x00-\x1F\x7F\s]/, url) do
+      add_error(changeset, :url, "must not contain whitespace or control characters")
+    else
+      case URI.parse(url) do
+        %URI{scheme: scheme, host: host, userinfo: nil}
+        when scheme in ["http", "https"] and is_binary(host) and host != "" ->
+          changeset
+
+        %URI{scheme: scheme, path: path} when scheme in ["mailto", "tel"] ->
+          validate_contact_link_url(changeset, scheme, path)
+
+        _ ->
+          add_error(changeset, :url, "must be a valid URL, email, or phone number")
+      end
+    end
+  rescue
+    _ -> add_error(changeset, :url, "must be a valid URL, email, or phone number")
+  end
+
+  defp validate_contact_link_url(changeset, "mailto", path) when is_binary(path) do
+    if Regex.match?(~r/^[^@<>"']+@[^@<>"']+\.[^@<>"']+$/, path) do
+      changeset
+    else
+      add_error(changeset, :url, "must be a valid email link")
+    end
+  end
+
+  defp validate_contact_link_url(changeset, "tel", path) when is_binary(path) do
+    if Regex.match?(~r/^\+?[0-9().-]{3,32}$/, path) do
+      changeset
+    else
+      add_error(changeset, :url, "must be a valid phone link")
+    end
+  end
+
+  defp validate_contact_link_url(changeset, _scheme, _path) do
+    add_error(changeset, :url, "must be a valid URL, email, or phone number")
   end
 
   @doc """

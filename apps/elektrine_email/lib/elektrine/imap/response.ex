@@ -356,11 +356,11 @@ defmodule Elektrine.IMAP.Response do
         boundary = Helpers.generate_boundary()
 
         """
-        From: #{msg.from}\r
-        To: #{msg.to}\r
-        Subject: #{msg.subject}\r
+        From: #{safe_header_value(msg.from)}\r
+        To: #{safe_header_value(msg.to)}\r
+        Subject: #{safe_header_value(msg.subject)}\r
         Date: #{Helpers.format_date(msg.inserted_at)}\r
-        Message-ID: <#{msg.message_id}>\r
+        Message-ID: <#{safe_header_value(msg.message_id)}>\r
         MIME-Version: 1.0\r
         Content-Type: multipart/alternative; boundary="#{boundary}"\r
         \r
@@ -381,11 +381,11 @@ defmodule Elektrine.IMAP.Response do
 
       msg.html_body ->
         """
-        From: #{msg.from}\r
-        To: #{msg.to}\r
-        Subject: #{msg.subject}\r
+        From: #{safe_header_value(msg.from)}\r
+        To: #{safe_header_value(msg.to)}\r
+        Subject: #{safe_header_value(msg.subject)}\r
         Date: #{Helpers.format_date(msg.inserted_at)}\r
-        Message-ID: <#{msg.message_id}>\r
+        Message-ID: <#{safe_header_value(msg.message_id)}>\r
         MIME-Version: 1.0\r
         Content-Type: text/html; charset="UTF-8"\r
         Content-Transfer-Encoding: 8bit\r
@@ -395,11 +395,11 @@ defmodule Elektrine.IMAP.Response do
 
       true ->
         """
-        From: #{msg.from}\r
-        To: #{msg.to}\r
-        Subject: #{msg.subject}\r
+        From: #{safe_header_value(msg.from)}\r
+        To: #{safe_header_value(msg.to)}\r
+        Subject: #{safe_header_value(msg.subject)}\r
         Date: #{Helpers.format_date(msg.inserted_at)}\r
-        Message-ID: <#{msg.message_id}>\r
+        Message-ID: <#{safe_header_value(msg.message_id)}>\r
         MIME-Version: 1.0\r
         Content-Type: text/plain; charset="UTF-8"\r
         Content-Transfer-Encoding: 8bit\r
@@ -459,8 +459,8 @@ defmodule Elektrine.IMAP.Response do
 
     attachment_parts =
       Enum.map(msg.attachments, fn {_key, attachment} ->
-        filename = attachment["filename"] || "attachment"
-        content_type = attachment["content_type"] || "application/octet-stream"
+        filename = safe_mime_quoted_value(attachment["filename"], "attachment")
+        content_type = safe_content_type(attachment["content_type"])
 
         # Properly encode attachment data with line wrapping per RFC 2045
         data =
@@ -475,7 +475,7 @@ defmodule Elektrine.IMAP.Response do
               attachment["data"] || ""
           end
 
-        content_id = attachment["content_id"]
+        content_id = safe_content_id(attachment["content_id"])
 
         disposition =
           if content_id do
@@ -504,11 +504,11 @@ defmodule Elektrine.IMAP.Response do
     parts = parts ++ attachment_parts
 
     """
-    From: #{msg.from}\r
-    To: #{msg.to}\r
-    Subject: #{msg.subject}\r
+    From: #{safe_header_value(msg.from)}\r
+    To: #{safe_header_value(msg.to)}\r
+    Subject: #{safe_header_value(msg.subject)}\r
     Date: #{Helpers.format_date(msg.inserted_at)}\r
-    Message-ID: <#{msg.message_id}>\r
+    Message-ID: <#{safe_header_value(msg.message_id)}>\r
     MIME-Version: 1.0\r
     Content-Type: multipart/mixed; boundary="#{outer_boundary}"\r
     \r
@@ -580,8 +580,8 @@ defmodule Elektrine.IMAP.Response do
 
       attachment_parts =
         Enum.map(msg.attachments, fn {_key, attachment} ->
-          filename = attachment["filename"] || "attachment"
-          content_type = attachment["content_type"] || "application/octet-stream"
+          filename = attachment["filename"] |> safe_mime_quoted_value("attachment")
+          content_type = safe_content_type(attachment["content_type"])
           size = attachment["size"] || byte_size(attachment["data"] || "")
 
           [type, subtype] =
@@ -618,14 +618,56 @@ defmodule Elektrine.IMAP.Response do
     String.split(text, ~r/\r?\n/) |> length()
   end
 
+  defp safe_header_value(value) do
+    value
+    |> to_string()
+    |> String.replace(~r/[\x00-\x1F\x7F]/, " ")
+    |> String.trim()
+  end
+
+  defp safe_mime_quoted_value(value, fallback) do
+    value =
+      value
+      |> to_string()
+      |> Path.basename()
+      |> String.replace(~r/[\x00-\x1F\x7F"\\]/, "_")
+      |> String.trim()
+      |> String.slice(0, 180)
+
+    if value == "", do: fallback, else: value
+  end
+
+  defp safe_content_type(value) when is_binary(value) do
+    normalized = value |> String.trim() |> String.downcase()
+
+    if Regex.match?(~r/^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/, normalized) do
+      normalized
+    else
+      "application/octet-stream"
+    end
+  end
+
+  defp safe_content_type(_), do: "application/octet-stream"
+
+  defp safe_content_id(value) when is_binary(value) do
+    value =
+      value
+      |> String.replace(~r/[\x00-\x1F\x7F<>]/, "")
+      |> String.trim()
+
+    if value == "", do: nil, else: value
+  end
+
+  defp safe_content_id(_), do: nil
+
   @doc "Build message headers for FETCH response"
   def build_message_headers(msg) do
     """
-    From: #{msg.from}\r
-    To: #{msg.to}\r
-    Subject: #{msg.subject}\r
+    From: #{safe_header_value(msg.from)}\r
+    To: #{safe_header_value(msg.to)}\r
+    Subject: #{safe_header_value(msg.subject)}\r
     Date: #{Helpers.format_date(msg.inserted_at)}\r
-    Message-ID: <#{msg.message_id}>\r
+    Message-ID: <#{safe_header_value(msg.message_id)}>\r
     \r
     """
   end
@@ -658,23 +700,25 @@ defmodule Elektrine.IMAP.Response do
                 do: "\"#{Helpers.escape_imap_string(display_name)}\"",
                 else: "NIL"
 
-            "(#{name} NIL \"#{local}\" \"#{domain}\")"
+            "(#{name} NIL #{imap_quoted(local)} #{imap_quoted(domain)})"
 
           _ ->
-            "(NIL NIL \"#{email_part}\" NIL)"
+            "(NIL NIL #{imap_quoted(email_part)} NIL)"
         end
 
       _ ->
         # Plain email address
         case String.split(addr, "@") do
           [local, domain] ->
-            "(NIL NIL \"#{local}\" \"#{domain}\")"
+            "(NIL NIL #{imap_quoted(local)} #{imap_quoted(domain)})"
 
           _ ->
-            "(NIL NIL \"#{addr}\" NIL)"
+            "(NIL NIL #{imap_quoted(addr)} NIL)"
         end
     end
   end
+
+  defp imap_quoted(value), do: "\"#{Helpers.escape_imap_string(value)}\""
 
   @doc "Get message flags"
   def get_message_flags(msg, current_folder) do

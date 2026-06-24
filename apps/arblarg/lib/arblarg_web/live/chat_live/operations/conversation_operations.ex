@@ -272,13 +272,11 @@ defmodule ArblargWeb.ChatLive.Operations.ConversationOperations do
   end
 
   def handle_event("view_profile", %{"user_id" => user_id}, socket) do
-    user = Accounts.get_user!(String.to_integer(user_id))
-
-    {:noreply, redirect(socket, external: profile_url_for_user(user))}
+    ElektrineWeb.ProfileNavigation.navigate(socket, %{"user_id" => user_id})
   end
 
   def handle_event("view_profile", %{"handle" => handle}, socket) do
-    {:noreply, redirect(socket, external: profile_url_for_handle(handle))}
+    ElektrineWeb.ProfileNavigation.navigate(socket, %{"handle" => handle})
   end
 
   def handle_event("share_conversation", _params, socket) do
@@ -318,15 +316,6 @@ defmodule ArblargWeb.ChatLive.Operations.ConversationOperations do
       {:error, _} ->
         {:noreply, notify_error(socket, "Failed to leave chat")}
     end
-  end
-
-  defp profile_url_for_user(user) do
-    Elektrine.Domains.profile_url_for_user(user) ||
-      profile_url_for_handle(user.handle || user.username)
-  end
-
-  defp profile_url_for_handle(handle) do
-    Elektrine.Domains.default_profile_url_for_handle(handle) || "/#{handle}"
   end
 
   defp maybe_add_remote_handle_result(results, query)

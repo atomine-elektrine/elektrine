@@ -215,7 +215,7 @@ defmodule Elektrine.Uptime.Checker do
   end
 
   defp default_ping_fun(host, timeout_seconds) do
-    System.cmd("ping", ["-c", "1", "-W", to_string(timeout_seconds), host],
+    System.cmd("ping", ["-c", "1", "-W", to_string(timeout_seconds), "--", host],
       stderr_to_stdout: true
     )
   end
