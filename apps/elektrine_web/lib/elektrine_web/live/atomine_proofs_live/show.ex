@@ -1,7 +1,8 @@
-defmodule ElektrineWeb.ReputationLive.Show do
+defmodule ElektrineWeb.AtomineProofsLive.Show do
   use ElektrineWeb, :live_view
 
-  alias Elektrine.{Accounts, Reputation}
+  alias Elektrine.Accounts
+  alias Elektrine.AtomineProofGraph
 
   @impl true
   def mount(_params, _session, socket) do
@@ -27,25 +28,25 @@ defmodule ElektrineWeb.ReputationLive.Show do
 
     cond do
       not Elektrine.Strings.present?(query) ->
-        {:noreply, push_patch(socket, to: ~p"/reputation")}
+        {:noreply, push_patch(socket, to: ~p"/proofs")}
 
       user = Accounts.get_user_by_username_or_handle(query) ->
-        {:noreply, push_navigate(socket, to: ~p"/reputation/#{user.handle || user.username}")}
+        {:noreply, push_navigate(socket, to: ~p"/proofs/#{user.handle || user.username}")}
 
       true ->
-        {:noreply, push_patch(socket, to: ~p"/reputation?q=#{query}")}
+        {:noreply, push_patch(socket, to: ~p"/proofs?q=#{query}")}
     end
   end
 
   def handle_event("clear_search", _params, socket) do
-    {:noreply, push_patch(socket, to: ~p"/reputation")}
+    {:noreply, push_patch(socket, to: ~p"/proofs")}
   end
 
   defp assign_not_found(socket) do
     socket
-    |> assign(:page_title, "Reputation Graph")
+    |> assign(:page_title, "Atomine Proofs")
     |> assign(:subject_user, nil)
-    |> assign(:reputation_graph, nil)
+    |> assign(:proof_graph, nil)
     |> assign(:private_graph, false)
     |> assign(:not_found, true)
     |> assign(:search_query, "")
@@ -55,9 +56,9 @@ defmodule ElektrineWeb.ReputationLive.Show do
 
   defp assign_search_state(socket) do
     socket
-    |> assign(:page_title, "Reputation Graph")
+    |> assign(:page_title, "Atomine Proofs")
     |> assign(:subject_user, nil)
-    |> assign(:reputation_graph, nil)
+    |> assign(:proof_graph, nil)
     |> assign(:private_graph, false)
     |> assign(:not_found, false)
     |> assign(:search_query, "")
@@ -71,7 +72,7 @@ defmodule ElektrineWeb.ReputationLive.Show do
     socket
     |> assign_search_state()
     |> assign(:search_query, query)
-    |> assign(:search_results, Reputation.search_public_users(query))
+    |> assign(:search_results, AtomineProofGraph.search_public_users(query))
   end
 
   defp load_graph(socket, handle) do
@@ -82,12 +83,12 @@ defmodule ElektrineWeb.ReputationLive.Show do
       user = Accounts.get_user_by_username_or_handle(handle) ->
         case Accounts.can_view_profile?(user, socket.assigns[:current_user]) do
           {:ok, :allowed} ->
-            graph = Reputation.build_public_graph(user, socket.assigns[:current_user])
+            graph = AtomineProofGraph.build_public_graph(user, socket.assigns[:current_user])
 
             socket
-            |> assign(:page_title, "Reputation Graph - @#{graph.subject.handle}")
+            |> assign(:page_title, "Atomine Proofs - @#{graph.subject.handle}")
             |> assign(:subject_user, user)
-            |> assign(:reputation_graph, graph)
+            |> assign(:proof_graph, graph)
             |> assign(:private_graph, false)
             |> assign(:not_found, false)
             |> assign(:search_query, "")
@@ -96,9 +97,9 @@ defmodule ElektrineWeb.ReputationLive.Show do
 
           {:error, _reason} ->
             socket
-            |> assign(:page_title, "Reputation Graph")
+            |> assign(:page_title, "Atomine Proofs")
             |> assign(:subject_user, user)
-            |> assign(:reputation_graph, nil)
+            |> assign(:proof_graph, nil)
             |> assign(:private_graph, true)
             |> assign(:not_found, false)
             |> assign(:search_query, "")

@@ -6,7 +6,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   alias Elektrine.ActivityPub.LemmyApi
   alias Elektrine.ActivityPub.LemmyCache
   alias Elektrine.{AppCache, Messaging, Profiles, Repo, Social}
-  alias Elektrine.Reputation
+  alias Elektrine.AtomineProofGraph
   alias Elektrine.Social.Recommendations
   alias ElektrineSocialWeb.Components.Social.PostUtilities
   import ElektrineSocialWeb.Components.Platform.ENav
@@ -2021,7 +2021,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   defp search_discovery_people(query, opts) do
     limit = Keyword.get(opts, :limit, 12)
 
-    Reputation.search_public_users(query, limit)
+    AtomineProofGraph.search_public_users(query, limit)
     |> Enum.map(fn person ->
       %{
         id: person.id,

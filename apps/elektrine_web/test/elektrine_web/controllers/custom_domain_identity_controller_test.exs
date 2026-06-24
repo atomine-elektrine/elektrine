@@ -103,6 +103,11 @@ defmodule ElektrineWeb.CustomDomainIdentityControllerTest do
       assert response["auth"]["authorization_endpoint"] =~ "identity_domain=portable.example"
       assert response["auth"]["identity_domain"] == "portable.example"
 
+      assert response["atomine"]["issuer"] == Elektrine.Domains.public_base_url()
+      assert response["atomine"]["proof_bundle"] == "https://portable.example/.well-known/atomine"
+      assert response["atomine"]["subject"] == "domain:portable.example"
+      assert response["atomine"]["jwks_uri"] =~ "/oauth/jwks"
+
       assert response["federation"]["activitypub_actor"] ==
                "https://portable.example/users/domainaccount"
 
@@ -130,6 +135,49 @@ defmodule ElektrineWeb.CustomDomainIdentityControllerTest do
 
       assert response["recovery"]["export_available"] == true
       assert response["recovery"]["portable_root"] == "dns"
+    end
+
+    test "publishes the Atomine proof bundle on a verified custom profile domain", %{
+      conn: conn
+    } do
+      user =
+        user_fixture(%{
+          username: "atomineproofbundle",
+          handle: "atomineproofbundle",
+          display_name: "Atomine Proof Bundle"
+        })
+
+      custom_domain = verified_profile_custom_domain_fixture(user, "proofbundle.example")
+
+      conn =
+        conn
+        |> Map.put(:host, custom_domain.domain)
+        |> put_req_header("accept", "application/json")
+        |> get("/.well-known/atomine")
+
+      response = json_response(conn, 200)
+
+      assert response["type"] == "atomine.proof_bundle"
+      assert response["subject"] == "domain:proofbundle.example"
+      assert response["did"] == "did:web:proofbundle.example"
+      assert response["issuer"] == Elektrine.Domains.public_base_url()
+      assert response["profile"]["atomine"] == "https://proofbundle.example/.well-known/atomine"
+
+      assert Enum.any?(
+               response["claims"],
+               &(&1["type"] == "domain.verified" and &1["value"] == true)
+             )
+
+      assert Enum.any?(
+               response["claims"],
+               &(&1["type"] == "activitypub.actor" and
+                   &1["value"] == "https://proofbundle.example/users/atomineproofbundle")
+             )
+
+      assert response["signature"]["format"] == "jws"
+      assert response["signature"]["alg"] == "RS256"
+      assert response["signature"]["jwks_uri"] =~ "/oauth/jwks"
+      assert [_, _, _] = String.split(response["signature"]["value"], ".")
     end
 
     test "also publishes the Elektrine-namespaced discovery alias", %{conn: conn} do
@@ -163,6 +211,22 @@ defmodule ElektrineWeb.CustomDomainIdentityControllerTest do
                "https://#{domain}/users/builtinaccount"
 
       assert response["auth"]["oidc_issuer"] == Elektrine.Domains.public_base_url()
+    end
+
+    test "publishes the Atomine proof bundle on built-in handle subdomains", %{conn: conn} do
+      user_fixture(%{username: "builtinproofs", handle: "builtinproofs"})
+      domain = "builtinproofs.#{Elektrine.Domains.default_profile_domain()}"
+
+      conn =
+        conn
+        |> Map.put(:host, domain)
+        |> put_req_header("accept", "application/json")
+        |> get("/.well-known/atomine")
+
+      response = json_response(conn, 200)
+
+      assert response["subject"] == "domain:#{domain}"
+      assert response["profile"]["atomine"] == "https://#{domain}/.well-known/atomine"
     end
 
     test "returns not found for unverified hosts", %{conn: conn} do

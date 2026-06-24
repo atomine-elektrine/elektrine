@@ -172,7 +172,7 @@ defmodule Elektrine.Theme do
     end
   end
 
-  def reputation_palette(level) do
+  def proof_palette(level) do
     accent = trust_level_color(level)
 
     %{

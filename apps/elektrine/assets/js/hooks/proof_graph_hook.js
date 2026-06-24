@@ -12,11 +12,11 @@ const CLUSTERS = {
 }
 
 const EDGE_COLORS = {
-  trust: "var(--rep-edge-strong)",
-  signal: "var(--rep-edge-muted)",
-  network: "var(--rep-edge-soft)",
-  invite: "var(--rep-edge-accent)",
-  follow: "var(--rep-edge-muted)"
+  trust: "var(--proof-edge-strong)",
+  signal: "var(--proof-edge-muted)",
+  network: "var(--proof-edge-soft)",
+  invite: "var(--proof-edge-accent)",
+  follow: "var(--proof-edge-muted)"
 }
 
 const EDGE_DASHARRAY = {
@@ -30,93 +30,93 @@ const USER_NODE_KINDS = new Set(["subject", "inviter", "invitee", "follower", "f
 
 const NODE_STYLES = {
   subject: {
-    fill: "url(#rep-node-gradient-primary)",
-    stroke: "var(--rep-accent-strong)",
+    fill: "url(#proof-node-gradient-primary)",
+    stroke: "var(--proof-accent-strong)",
     ring: "oklch(var(--pc) / 0.22)",
-    wash: "url(#rep-node-tint-primary)",
+    wash: "url(#proof-node-tint-primary)",
     washOpacity: 0.12,
-    text: "var(--rep-node-text-inverse)",
-    subtitle: "var(--rep-node-subtle-inverse)",
-    halo: "var(--rep-glow)",
+    text: "var(--proof-node-text-inverse)",
+    subtitle: "var(--proof-node-subtle-inverse)",
+    halo: "var(--proof-glow)",
     haloOpacity: 0.24,
-    glaze: "url(#rep-node-gloss-primary)",
+    glaze: "url(#proof-node-gloss-primary)",
     glazeOpacity: 0.08
   },
   trust: {
-    fill: "url(#rep-node-gradient-ink)",
-    stroke: "var(--rep-accent)",
-    ring: "var(--rep-accent-soft)",
-    wash: "url(#rep-node-tint-accent)",
+    fill: "url(#proof-node-gradient-ink)",
+    stroke: "var(--proof-accent)",
+    ring: "var(--proof-accent-soft)",
+    wash: "url(#proof-node-tint-accent)",
     washOpacity: 0.16,
-    text: "var(--rep-node-text-inverse)",
-    subtitle: "var(--rep-node-subtle-inverse)",
-    halo: "var(--rep-glow-soft)",
+    text: "var(--proof-node-text-inverse)",
+    subtitle: "var(--proof-node-subtle-inverse)",
+    halo: "var(--proof-glow-soft)",
     haloOpacity: 0.08
   },
   signal: {
-    fill: "url(#rep-node-gradient-ink)",
-    stroke: "var(--rep-node-border-soft)",
-    ring: "var(--rep-node-border-soft)",
-    wash: "url(#rep-node-tint-neutral)",
+    fill: "url(#proof-node-gradient-ink)",
+    stroke: "var(--proof-node-border-soft)",
+    ring: "var(--proof-node-border-soft)",
+    wash: "url(#proof-node-tint-neutral)",
     washOpacity: 0.12,
-    text: "var(--rep-node-text-inverse)",
-    subtitle: "var(--rep-node-subtle-inverse)",
-    halo: "var(--rep-glow-soft)",
+    text: "var(--proof-node-text-inverse)",
+    subtitle: "var(--proof-node-subtle-inverse)",
+    halo: "var(--proof-glow-soft)",
     haloOpacity: 0.06
   },
   aggregate: {
-    fill: "url(#rep-node-gradient-ink)",
-    stroke: "var(--rep-accent-soft)",
-    ring: "var(--rep-accent-soft)",
-    wash: "url(#rep-node-tint-accent)",
+    fill: "url(#proof-node-gradient-ink)",
+    stroke: "var(--proof-accent-soft)",
+    ring: "var(--proof-accent-soft)",
+    wash: "url(#proof-node-tint-accent)",
     washOpacity: 0.14,
-    text: "var(--rep-node-text-inverse)",
-    subtitle: "var(--rep-node-subtle-inverse)",
-    halo: "var(--rep-glow-soft)",
+    text: "var(--proof-node-text-inverse)",
+    subtitle: "var(--proof-node-subtle-inverse)",
+    halo: "var(--proof-glow-soft)",
     haloOpacity: 0.08
   },
   inviter: {
-    fill: "url(#rep-node-gradient-ink)",
-    stroke: "var(--rep-accent-soft)",
-    ring: "var(--rep-accent-soft)",
-    wash: "url(#rep-node-tint-accent)",
+    fill: "url(#proof-node-gradient-ink)",
+    stroke: "var(--proof-accent-soft)",
+    ring: "var(--proof-accent-soft)",
+    wash: "url(#proof-node-tint-accent)",
     washOpacity: 0.14,
-    text: "var(--rep-node-text-inverse)",
-    subtitle: "var(--rep-node-subtle-inverse)",
-    halo: "var(--rep-glow-soft)",
+    text: "var(--proof-node-text-inverse)",
+    subtitle: "var(--proof-node-subtle-inverse)",
+    halo: "var(--proof-glow-soft)",
     haloOpacity: 0.08
   },
   invitee: {
-    fill: "url(#rep-node-gradient-ink)",
-    stroke: "var(--rep-accent-soft)",
-    ring: "var(--rep-accent-soft)",
-    wash: "url(#rep-node-tint-accent)",
+    fill: "url(#proof-node-gradient-ink)",
+    stroke: "var(--proof-accent-soft)",
+    ring: "var(--proof-accent-soft)",
+    wash: "url(#proof-node-tint-accent)",
     washOpacity: 0.14,
-    text: "var(--rep-node-text-inverse)",
-    subtitle: "var(--rep-node-subtle-inverse)",
-    halo: "var(--rep-glow-soft)",
+    text: "var(--proof-node-text-inverse)",
+    subtitle: "var(--proof-node-subtle-inverse)",
+    halo: "var(--proof-glow-soft)",
     haloOpacity: 0.08
   },
   follower: {
-    fill: "url(#rep-node-gradient-ink)",
-    stroke: "var(--rep-node-border-soft)",
-    ring: "var(--rep-node-border-soft)",
-    wash: "url(#rep-node-tint-neutral)",
+    fill: "url(#proof-node-gradient-ink)",
+    stroke: "var(--proof-node-border-soft)",
+    ring: "var(--proof-node-border-soft)",
+    wash: "url(#proof-node-tint-neutral)",
     washOpacity: 0.12,
-    text: "var(--rep-node-text-inverse)",
-    subtitle: "var(--rep-node-subtle-inverse)",
-    halo: "var(--rep-glow-soft)",
+    text: "var(--proof-node-text-inverse)",
+    subtitle: "var(--proof-node-subtle-inverse)",
+    halo: "var(--proof-glow-soft)",
     haloOpacity: 0.06
   },
   following: {
-    fill: "url(#rep-node-gradient-ink)",
-    stroke: "var(--rep-node-border-soft)",
-    ring: "var(--rep-node-border-soft)",
-    wash: "url(#rep-node-tint-neutral)",
+    fill: "url(#proof-node-gradient-ink)",
+    stroke: "var(--proof-node-border-soft)",
+    ring: "var(--proof-node-border-soft)",
+    wash: "url(#proof-node-tint-neutral)",
     washOpacity: 0.12,
-    text: "var(--rep-node-text-inverse)",
-    subtitle: "var(--rep-node-subtle-inverse)",
-    halo: "var(--rep-glow-soft)",
+    text: "var(--proof-node-text-inverse)",
+    subtitle: "var(--proof-node-subtle-inverse)",
+    halo: "var(--proof-glow-soft)",
     haloOpacity: 0.06
   }
 }
@@ -277,14 +277,14 @@ function paletteForNode(node) {
 
 function createNodePaints(defs, node, palette) {
   const safeId = sanitizeId(node.id)
-  const fillId = `rep-node-fill-${safeId}`
-  const washId = `rep-node-wash-${safeId}`
-  const glazeId = `rep-node-glaze-${safeId}`
+  const fillId = `proof-node-fill-${safeId}`
+  const washId = `proof-node-wash-${safeId}`
+  const glazeId = `proof-node-glaze-${safeId}`
   let avatarClipId = null
   let avatarRadius = null
 
   if (node.avatar_url) {
-    avatarClipId = `rep-node-avatar-clip-${safeId}`
+    avatarClipId = `proof-node-avatar-clip-${safeId}`
     avatarRadius = Math.max(node.radius - (node.kind === "subject" ? 6 : 4), 0)
     const avatarClip = svg("clipPath")
     const avatarClipCircle = svg("circle")
@@ -338,31 +338,31 @@ function createGraphDefs() {
 
   defs.appendChild(
     createGradient(
-      "rep-node-gradient-surface",
+      "proof-node-gradient-surface",
       "linearGradient",
       { x1: "0%", y1: "0%", x2: "100%", y2: "100%" },
       [
-        { offset: "0%", color: "var(--rep-node-surface-top)" },
-        { offset: "100%", color: "var(--rep-node-surface-bottom)" }
+        { offset: "0%", color: "var(--proof-node-surface-top)" },
+        { offset: "100%", color: "var(--proof-node-surface-bottom)" }
       ]
     )
   )
 
   defs.appendChild(
     createGradient(
-      "rep-node-gradient-primary",
+      "proof-node-gradient-primary",
       "linearGradient",
       { x1: "0%", y1: "0%", x2: "100%", y2: "100%" },
       [
-        { offset: "0%", color: "var(--rep-accent-bright)" },
-        { offset: "100%", color: "var(--rep-accent-strong)" }
+        { offset: "0%", color: "var(--proof-accent-bright)" },
+        { offset: "100%", color: "var(--proof-accent-strong)" }
       ]
     )
   )
 
   defs.appendChild(
     createGradient(
-      "rep-node-gradient-ink",
+      "proof-node-gradient-ink",
       "linearGradient",
       { x1: "0%", y1: "0%", x2: "100%", y2: "100%" },
       [
@@ -374,12 +374,12 @@ function createGraphDefs() {
 
   defs.appendChild(
     createGradient(
-      "rep-node-tint-neutral",
+      "proof-node-tint-neutral",
       "linearGradient",
       { x1: "0%", y1: "0%", x2: "100%", y2: "100%" },
       [
-        { offset: "0%", color: "var(--rep-neutral-tint)" },
-        { offset: "46%", color: "var(--rep-ink-wash)" },
+        { offset: "0%", color: "var(--proof-neutral-tint)" },
+        { offset: "46%", color: "var(--proof-ink-wash)" },
         { offset: "100%", color: "#ffffff", opacity: 0 }
       ]
     )
@@ -387,12 +387,12 @@ function createGraphDefs() {
 
   defs.appendChild(
     createGradient(
-      "rep-node-tint-accent",
+      "proof-node-tint-accent",
       "linearGradient",
       { x1: "0%", y1: "0%", x2: "100%", y2: "100%" },
       [
-        { offset: "0%", color: "var(--rep-accent-soft)" },
-        { offset: "46%", color: "var(--rep-ink-wash)" },
+        { offset: "0%", color: "var(--proof-accent-soft)" },
+        { offset: "46%", color: "var(--proof-ink-wash)" },
         { offset: "100%", color: "#ffffff", opacity: 0 }
       ]
     )
@@ -400,7 +400,7 @@ function createGraphDefs() {
 
   defs.appendChild(
     createGradient(
-      "rep-node-tint-primary",
+      "proof-node-tint-primary",
       "linearGradient",
       { x1: "0%", y1: "0%", x2: "100%", y2: "100%" },
       [
@@ -413,7 +413,7 @@ function createGraphDefs() {
 
   defs.appendChild(
     createGradient(
-      "rep-node-gloss",
+      "proof-node-gloss",
       "radialGradient",
       { cx: "28%", cy: "24%", r: "82%" },
       [
@@ -426,7 +426,7 @@ function createGraphDefs() {
 
   defs.appendChild(
     createGradient(
-      "rep-node-gloss-primary",
+      "proof-node-gloss-primary",
       "radialGradient",
       { cx: "30%", cy: "22%", r: "84%" },
       [
@@ -541,7 +541,7 @@ function createNodeElements(node) {
     fill: paints.fill,
     stroke: palette.stroke,
     "stroke-width": node.kind === "subject" ? 2.8 : 2.2,
-    filter: "drop-shadow(0 16px 28px var(--rep-shadow))",
+    filter: "drop-shadow(0 16px 28px var(--proof-shadow))",
     "pointer-events": "none"
   })
 
@@ -646,7 +646,7 @@ function hideTooltip(tooltip) {
   tooltip.classList.add("hidden")
 }
 
-export const ReputationGraph = {
+export const ProofGraph = {
   mounted() {
     this.canvas = this.el.querySelector('[data-role="graph-canvas"]')
     this.tooltip = this.el.querySelector('[data-role="graph-tooltip"]')
@@ -682,7 +682,7 @@ export const ReputationGraph = {
       width: "100%",
       height: "100%",
       viewBox: `0 0 ${this.el.clientWidth || 1200} ${this.el.clientHeight || 620}`,
-      "aria-label": "Interactive reputation graph"
+      "aria-label": "Interactive proof graph"
     })
     this.svg.style.display = "block"
 

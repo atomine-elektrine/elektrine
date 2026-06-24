@@ -1,7 +1,7 @@
-defmodule Elektrine.ReputationTest do
+defmodule Elektrine.AtomineProofGraphTest do
   use Elektrine.DataCase
 
-  alias Elektrine.{Accounts, Profiles, Reputation}
+  alias Elektrine.{Accounts, AtomineProofGraph, Profiles}
   alias Elektrine.AccountsFixtures
 
   test "build_public_graph exposes trust, invite lineage, and visible network samples" do
@@ -38,7 +38,7 @@ defmodule Elektrine.ReputationTest do
     {:ok, _follow} = Profiles.follow_user(subject.id, followee.id)
     {:ok, subject} = Accounts.admin_update_user(subject, %{trust_level: 2})
 
-    graph = Reputation.build_public_graph(subject)
+    graph = AtomineProofGraph.build_public_graph(subject)
 
     assert graph.subject.handle == subject.handle
     assert Enum.any?(graph.nodes, &(&1.id == "trust:#{subject.id}" and &1.label == "TL2"))
@@ -79,7 +79,7 @@ defmodule Elektrine.ReputationTest do
         profile_visibility: "private"
       })
 
-    results = Reputation.search_public_users("graph")
+    results = AtomineProofGraph.search_public_users("graph")
 
     assert Enum.any?(results, &(&1.username == public_user.username))
     refute Enum.any?(results, &(&1.username == "graphprivate#{unique}"))

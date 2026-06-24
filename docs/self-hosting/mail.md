@@ -134,6 +134,64 @@ POP3_TLS_CERT_PATH=/opt/elektrine/certs/pop.crt
 POP3_TLS_KEY_PATH=/opt/elektrine/certs/pop.key
 ```
 
+## Haraka TLS with Elektrine wildcard certs
+
+Haraka owns inbound SMTP on port `25`, so MTA-STS delivery depends on the
+certificate Haraka serves, not only the certificate used by Caddy or Elektrine's
+mail submission container. Do not keep Haraka on a separately copied
+`deployment_ssl-certs` Docker volume; it can go stale after wildcard renewal.
+
+Use Elektrine's wildcard cert directory as the single source of truth:
+
+```bash
+scripts/deploy/configure_haraka_wildcard_tls.sh \
+  --haraka-dir /opt/elektrine-haraka \
+  --domain example.com
+```
+
+The script writes `compose.override.yml` in the Haraka deployment. It
+bind-mounts:
+
+```text
+/opt/elektrine/certs/example.com.fullchain.pem -> /app/ssl/cert.crt
+/opt/elektrine/certs/example.com.key.pem       -> /app/ssl/cert.key
+```
+
+Recreate Haraka after writing the override:
+
+```bash
+cd /opt/elektrine-haraka
+docker compose up -d --force-recreate haraka-inbound haraka-submission haraka-outbound haraka-worker
+```
+
+Or do both in one command:
+
+```bash
+scripts/deploy/configure_haraka_wildcard_tls.sh \
+  --haraka-dir /opt/elektrine-haraka \
+  --domain example.com \
+  --apply
+```
+
+After renewal, restarting or recreating Haraka is enough; no cert copy step is
+needed because the bind mount points at the renewed wildcard files. If ACME runs
+on the host, use the `--apply` command above as the renewal deploy hook.
+
+Verify inbound SMTP before enabling or keeping MTA-STS `mode: enforce`:
+
+```bash
+openssl s_client -starttls smtp -connect localhost:25 \
+  -servername mail.example.com \
+  -verify_hostname mail.example.com
+```
+
+The output must include `Verify return code: 0 (ok)`.
+
+When `scripts/deploy/docker_deploy.sh` runs on a host that has a Haraka
+deployment at `/opt/elektrine-haraka` or `/opt/elektrine/haraka`, it performs
+this configuration automatically after ensuring wildcard certs. No extra env is
+needed for the standard layout.
+
 If you are not ready to run Haraka, keep the `email` module off for production
 hosts. Enabling only Elektrine's `email` module/profile gives you mailbox and
 protocol pieces, not a complete internet mail service.

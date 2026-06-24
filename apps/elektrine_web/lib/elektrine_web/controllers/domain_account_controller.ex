@@ -2,6 +2,7 @@ defmodule ElektrineWeb.DomainAccountController do
   use ElektrineWeb, :controller
 
   alias Elektrine.Accounts
+  alias Elektrine.AtomineProofBundle
   alias Elektrine.DomainAccount
   alias Elektrine.Domains
   alias Elektrine.Profiles
@@ -36,6 +37,21 @@ defmodule ElektrineWeb.DomainAccountController do
         conn
         |> put_status(:not_found)
         |> json(%{error: "did_not_found"})
+    end
+  end
+
+  def atomine(conn, _params) do
+    case domain_account_for_host(conn.host) do
+      {:ok, domain, user} ->
+        json(
+          conn,
+          AtomineProofBundle.document(user, domain, provider_base_url: Domains.public_base_url())
+        )
+
+      _ ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{error: "atomine_proof_bundle_not_found"})
     end
   end
 
