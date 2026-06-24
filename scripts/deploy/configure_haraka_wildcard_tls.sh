@@ -200,6 +200,7 @@ docker_cmd() {
 
 find_existing_haraka_container() {
   local service_name
+  local container_name
   local container_id
 
   for service_name in haraka-inbound haraka-submission haraka-outbound haraka-worker; do
@@ -209,6 +210,23 @@ find_existing_haraka_container() {
         --format '{{.ID}}' \
         | head -n 1
     )"
+
+    if [[ -n "$container_id" ]]; then
+      printf '%s' "$container_id"
+      return 0
+    fi
+  done
+
+  for container_name in \
+    deployment-haraka-inbound-1 \
+    deployment-haraka-submission-1 \
+    deployment-haraka-outbound-1 \
+    deployment-haraka-worker-1 \
+    haraka-inbound \
+    haraka-submission \
+    haraka-outbound \
+    haraka-worker; do
+    container_id="$(docker_cmd ps --filter "name=^/${container_name}$" --format '{{.ID}}' | head -n 1)"
 
     if [[ -n "$container_id" ]]; then
       printf '%s' "$container_id"
@@ -228,28 +246,31 @@ compose_label() {
 }
 
 append_compose_file_arg() {
-  local -n args_ref="$1"
+  local args_name="$1"
+  local -n compose_file_args_ref="$args_name"
   local file_path="$2"
 
   [[ -f "$file_path" ]] || return 1
-  args_ref+=("-f" "$file_path")
+  compose_file_args_ref+=("-f" "$file_path")
 }
 
 append_existing_default_compose_files() {
-  local -n args_ref="$1"
+  local args_name="$1"
+  local -n default_compose_args_ref="$args_name"
   local compose_dir="$2"
-  local before_count="${#args_ref[@]}"
+  local before_count="${#default_compose_args_ref[@]}"
   local file_name
 
   for file_name in compose.yml compose.yaml docker-compose.yml docker-compose.yaml; do
-    append_compose_file_arg args_ref "$compose_dir/$file_name" || true
+    append_compose_file_arg "$args_name" "$compose_dir/$file_name" || true
   done
 
-  [[ "${#args_ref[@]}" -gt "$before_count" ]]
+  [[ "${#default_compose_args_ref[@]}" -gt "$before_count" ]]
 }
 
 compose_apply_args() {
-  local -n args_ref="$1"
+  local args_name="$1"
+  local -n apply_compose_args_ref="$args_name"
   local container_id=""
   local project_dir=""
   local config_files=""
@@ -262,11 +283,11 @@ compose_apply_args() {
     config_files="$(compose_label "$container_id" "com.docker.compose.project.config_files")"
 
     if [[ -n "$project_dir" && "$project_dir" != "<no value>" ]]; then
-      args_ref+=("--project-directory" "$project_dir")
+      apply_compose_args_ref+=("--project-directory" "$project_dir")
     fi
 
     if [[ -n "$config_files" && "$config_files" != "<no value>" ]]; then
-      before_file_count="${#args_ref[@]}"
+      before_file_count="${#apply_compose_args_ref[@]}"
 
       IFS=',' read -r -a config_file_list <<< "$config_files"
       for config_file in "${config_file_list[@]}"; do
@@ -278,33 +299,33 @@ compose_apply_args() {
           *) resolved_file="${project_dir:-$HARAKA_DEPLOY_DIR}/$config_file" ;;
         esac
 
-        append_compose_file_arg args_ref "$resolved_file" || true
+        append_compose_file_arg "$args_name" "$resolved_file" || true
       done
 
-      if [[ "${#args_ref[@]}" -gt "$before_file_count" ]]; then
-        args_ref+=("-f" "$OUTPUT_PATH")
+      if [[ "${#apply_compose_args_ref[@]}" -gt "$before_file_count" ]]; then
+        apply_compose_args_ref+=("-f" "$OUTPUT_PATH")
         return 0
       fi
     fi
 
     if [[ -n "$project_dir" && "$project_dir" != "<no value>" ]]; then
-      before_file_count="${#args_ref[@]}"
-      append_existing_default_compose_files args_ref "$project_dir" || true
+      before_file_count="${#apply_compose_args_ref[@]}"
+      append_existing_default_compose_files "$args_name" "$project_dir" || true
 
-      if [[ "${#args_ref[@]}" -gt "$before_file_count" ]]; then
-        args_ref+=("-f" "$OUTPUT_PATH")
+      if [[ "${#apply_compose_args_ref[@]}" -gt "$before_file_count" ]]; then
+        apply_compose_args_ref+=("-f" "$OUTPUT_PATH")
         return 0
       fi
     fi
   fi
 
-  args_ref=()
-  args_ref+=("--project-directory" "$HARAKA_DEPLOY_DIR")
-  before_file_count="${#args_ref[@]}"
-  append_existing_default_compose_files args_ref "$HARAKA_DEPLOY_DIR" || true
+  apply_compose_args_ref=()
+  apply_compose_args_ref+=("--project-directory" "$HARAKA_DEPLOY_DIR")
+  before_file_count="${#apply_compose_args_ref[@]}"
+  append_existing_default_compose_files "$args_name" "$HARAKA_DEPLOY_DIR" || true
 
-  if [[ "${#args_ref[@]}" -gt "$before_file_count" ]]; then
-    args_ref+=("-f" "$OUTPUT_PATH")
+  if [[ "${#apply_compose_args_ref[@]}" -gt "$before_file_count" ]]; then
+    apply_compose_args_ref+=("-f" "$OUTPUT_PATH")
     return 0
   fi
 
