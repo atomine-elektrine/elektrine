@@ -13,4 +13,32 @@ defmodule Elektrine.Security.URLValidatorTest do
       assert result in [{:error, :private_domain}, {:error, :private_ip}]
     end
   end
+
+  describe "validate_websocket/2" do
+    test "rejects private websocket endpoints" do
+      assert {:error, :private_ip} =
+               URLValidator.validate_websocket("wss://10.0.0.1/_arblarg/session")
+
+      assert {:error, :private_ip} =
+               URLValidator.validate_websocket("wss://[::ffff:127.0.0.1]/_arblarg/session")
+    end
+
+    test "rejects plaintext websocket endpoints unless explicitly allowed" do
+      assert {:error, :invalid_scheme} =
+               URLValidator.validate_websocket("ws://example.com/_arblarg/session")
+    end
+
+    test "allows localhost websocket endpoints only when requested" do
+      assert {:error, :private_ip} =
+               URLValidator.validate_websocket("ws://127.0.0.1:49152/_arblarg/session",
+                 allow_insecure_transport: true
+               )
+
+      assert :ok =
+               URLValidator.validate_websocket("ws://127.0.0.1:49152/_arblarg/session",
+                 allow_insecure_transport: true,
+                 allow_localhost: true
+               )
+    end
+  end
 end

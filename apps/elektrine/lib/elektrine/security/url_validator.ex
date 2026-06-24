@@ -33,6 +33,49 @@ defmodule Elektrine.Security.URLValidator do
 
   def validate(_), do: {:error, :invalid_url}
 
+  @doc """
+  Validates a WebSocket URL for SSRF protection.
+
+  `wss://` is treated like `https://` and `ws://` is treated like `http://`
+  for host and port validation. Plaintext `ws://` is rejected unless
+  `:allow_insecure_transport` is true.
+  """
+  def validate_websocket(url, opts \\ [])
+
+  def validate_websocket(url, opts) when is_binary(url) and is_list(opts) do
+    allow_insecure_transport = Keyword.get(opts, :allow_insecure_transport, false)
+    allow_localhost = Keyword.get(opts, :allow_localhost, false)
+
+    case URI.parse(url) do
+      %URI{scheme: scheme, host: host, userinfo: userinfo} = uri
+      when scheme in ["ws", "wss"] and is_binary(host) and host != "" and is_nil(userinfo) ->
+        cond do
+          scheme == "ws" and not allow_insecure_transport ->
+            {:error, :invalid_scheme}
+
+          allow_localhost and websocket_localhost?(host) ->
+            websocket_uri_for_http_validation(uri)
+            |> validate_request_port_only()
+
+          true ->
+            uri
+            |> websocket_uri_for_http_validation()
+            |> validate_uri()
+        end
+
+      %URI{userinfo: userinfo} when not is_nil(userinfo) ->
+        {:error, :userinfo_not_allowed}
+
+      %URI{scheme: nil} ->
+        {:error, :missing_scheme}
+
+      %URI{scheme: _scheme} ->
+        {:error, :invalid_scheme}
+    end
+  end
+
+  def validate_websocket(_, _), do: {:error, :invalid_url}
+
   defp validate_uri(%URI{scheme: scheme, host: host} = uri)
        when scheme in ["http", "https"] and is_binary(host) do
     with :ok <- validate_host(host),
@@ -53,6 +96,17 @@ defmodule Elektrine.Security.URLValidator do
     do: {:error, :invalid_scheme}
 
   defp validate_uri(_), do: {:error, :invalid_url}
+
+  defp websocket_uri_for_http_validation(%URI{scheme: "ws"} = uri), do: %{uri | scheme: "http"}
+  defp websocket_uri_for_http_validation(%URI{scheme: "wss"} = uri), do: %{uri | scheme: "https"}
+
+  defp validate_request_port_only(%URI{} = uri) do
+    if dangerous_port?(uri), do: {:error, :dangerous_port}, else: :ok
+  end
+
+  defp websocket_localhost?(host) when is_binary(host) do
+    normalize_host(host) in ["localhost", "127.0.0.1", "::1"]
+  end
 
   defp validate_host(host) when is_binary(host) do
     normalized_host = normalize_host(host)
