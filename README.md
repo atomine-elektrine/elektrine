@@ -166,7 +166,10 @@ inbound message data back into Phoenix.
 If you enable the `email` module for production, deploy `elektrine-haraka`
 alongside it and configure `HARAKA_BASE_URL`, an outbound Haraka API key, and an
 inbound webhook key. Both deployments can live on the same bare-metal server as
-separate Docker projects.
+separate Docker projects. For reproducible split deployments, set
+`HARAKA_DEPLOY_DIR` and `HARAKA_COMPOSE_FILES` in Elektrine's production env so
+Elektrine can apply the wildcard TLS override to the committed Haraka compose
+file instead of discovering live container state.
 
 ## Bluesky Integration
 
