@@ -606,6 +606,37 @@ defmodule ElektrineWeb.JMAPControllerTest do
       assert body =~ "Subject: Blob source"
       assert body =~ "raw body"
     end
+
+    test "raw message blobs collapse control characters in generated headers", %{
+      conn: conn,
+      user: user,
+      mailbox: mailbox
+    } do
+      {:ok, message} =
+        Email.create_message(%{
+          from: "sender@example.com\r\nBcc: victim@example.com",
+          to: mailbox.email,
+          cc: "copy@example.com\r\nX-Injected: cc",
+          subject: "Blob source\r\nX-Injected: subject",
+          text_body: "raw body",
+          message_id:
+            "<jmap-blob-#{System.unique_integer([:positive])}@example.com>\r\nX-Injected: id",
+          mailbox_id: mailbox.id
+        })
+
+      conn =
+        conn
+        |> jmap_conn(user)
+        |> get("/jmap/download/u#{user.id}/#{message.id}/source.eml")
+
+      body = response(conn, 200)
+
+      refute body =~ "\r\nBcc:"
+      refute body =~ "\r\nX-Injected:"
+      assert body =~ "From: sender@example.com  Bcc: victim@example.com\r\n"
+      assert body =~ "Cc: copy@example.com  X-Injected: cc\r\n"
+      assert body =~ "Subject: Blob source  X-Injected: subject\r\n"
+    end
   end
 
   defp jmap_conn(conn, user) do

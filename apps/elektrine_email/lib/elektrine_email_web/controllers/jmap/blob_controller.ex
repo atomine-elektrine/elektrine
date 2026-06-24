@@ -257,15 +257,15 @@ defmodule ElektrineEmailWeb.JMAP.BlobController do
     date = format_date(message.inserted_at)
 
     headers = [
-      "From: #{message.from}",
-      "To: #{message.to}",
+      "From: #{safe_header_value(message.from)}",
+      "To: #{safe_header_value(message.to)}",
       if message.cc do
-        "Cc: #{message.cc}"
+        "Cc: #{safe_header_value(message.cc)}"
       else
         nil
       end,
-      "Subject: #{message.subject || ""}",
-      "Message-ID: #{message.message_id}",
+      "Subject: #{safe_header_value(message.subject || "")}",
+      "Message-ID: #{safe_header_value(message.message_id)}",
       "Date: #{date}",
       "MIME-Version: 1.0"
     ]
@@ -302,6 +302,13 @@ Content-Type: text/html; charset=utf-8
     |> Enum.join("\r\n")
     |> Kernel.<>("\r\n\r\n")
     |> Kernel.<>(body)
+  end
+
+  defp safe_header_value(value) do
+    value
+    |> to_string()
+    |> String.replace(~r/[\x00-\x1F\x7F]/, " ")
+    |> String.trim()
   end
 
   defp format_date(datetime) do
