@@ -1,6 +1,6 @@
 defmodule Elektrine.Captcha do
   @moduledoc """
-  Simple server-side image captcha for Tor registration.
+  Simple server-side image captcha for Tor-protected auth flows.
   Generates math problems rendered as images.
   """
 

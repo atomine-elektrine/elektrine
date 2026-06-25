@@ -12,7 +12,6 @@ defmodule Elektrine.AppCache do
   @search_ttl :timer.minutes(5)
   @admin_ttl :timer.minutes(10)
   @contact_ttl :timer.minutes(15)
-  @temp_mailbox_ttl :timer.minutes(2)
   # Increased from 15 min to reduce HTTP/DB load
   @actor_ttl :timer.hours(1)
   # Short TTL for fetched objects - balance freshness vs network load
@@ -25,8 +24,6 @@ defmodule Elektrine.AppCache do
   # WebFinger lookups cached longer since they rarely change
   @webfinger_ttl :timer.hours(6)
   @webfinger_negative_ttl :timer.minutes(15)
-  # Instance metadata (nodeinfo) cached for a day
-  @instance_ttl :timer.hours(24)
   # Passkey challenges - short TTL for security (5 minutes)
   @passkey_challenge_ttl :timer.minutes(5)
   alias Elektrine.Telemetry.Events
@@ -59,15 +56,7 @@ defmodule Elektrine.AppCache do
   """
   def get_user_data(user_id, fetch_fn) do
     key = {:user, user_id}
-
-    case fetch_with_telemetry(key, fn _key ->
-           {:commit, fetch_fn.(), ttl: @user_ttl}
-         end) do
-      {:commit, value} -> {:ok, value}
-      {:commit, value, _opts} -> {:ok, value}
-      {:ok, value} -> {:ok, value}
-      error -> error
-    end
+    fetch_ok(key, @user_ttl, fetch_fn)
   end
 
   @doc """
@@ -75,15 +64,7 @@ defmodule Elektrine.AppCache do
   """
   def get_user_preferences(user_id, fetch_fn) do
     key = {:user_preferences, user_id}
-
-    case fetch_with_telemetry(key, fn _key ->
-           {:commit, fetch_fn.(), ttl: @user_ttl}
-         end) do
-      {:commit, value} -> {:ok, value}
-      {:commit, value, _opts} -> {:ok, value}
-      {:ok, value} -> {:ok, value}
-      error -> error
-    end
+    fetch_ok(key, @user_ttl, fetch_fn)
   end
 
   @doc """
@@ -91,15 +72,7 @@ defmodule Elektrine.AppCache do
   """
   def get_mailbox_settings(mailbox_id, fetch_fn) do
     key = {:mailbox_settings, mailbox_id}
-
-    case fetch_with_telemetry(key, fn _key ->
-           {:commit, fetch_fn.(), ttl: @user_ttl}
-         end) do
-      {:commit, value} -> {:ok, value}
-      {:commit, value, _opts} -> {:ok, value}
-      {:ok, value} -> {:ok, value}
-      error -> error
-    end
+    fetch_ok(key, @user_ttl, fetch_fn)
   end
 
   # Search caching
@@ -113,15 +86,7 @@ defmodule Elektrine.AppCache do
       :crypto.hash(:sha256, query) |> Base.encode16(case: :lower) |> String.slice(0, 32)
 
     key = {:search, user_id, query_hash, page, per_page}
-
-    case fetch_with_telemetry(key, fn _key ->
-           {:commit, fetch_fn.(), ttl: @search_ttl}
-         end) do
-      {:commit, value} -> {:ok, value}
-      {:commit, value, _opts} -> {:ok, value}
-      {:ok, value} -> {:ok, value}
-      error -> error
-    end
+    fetch_ok(key, @search_ttl, fetch_fn)
   end
 
   @doc """
@@ -129,15 +94,7 @@ defmodule Elektrine.AppCache do
   """
   def get_recent_searches(user_id, fetch_fn) do
     key = {:recent_searches, user_id}
-
-    case fetch_with_telemetry(key, fn _key ->
-           {:commit, fetch_fn.(), ttl: @system_ttl}
-         end) do
-      {:commit, value} -> {:ok, value}
-      {:commit, value, _opts} -> {:ok, value}
-      {:ok, value} -> {:ok, value}
-      error -> error
-    end
+    fetch_ok(key, @system_ttl, fetch_fn)
   end
 
   # Alias management caching
@@ -147,15 +104,7 @@ defmodule Elektrine.AppCache do
   """
   def get_aliases(user_id, fetch_fn) do
     key = {:aliases, user_id}
-
-    case fetch_with_telemetry(key, fn _key ->
-           {:commit, fetch_fn.(), ttl: @contact_ttl}
-         end) do
-      {:commit, value} -> {:ok, value}
-      {:commit, value, _opts} -> {:ok, value}
-      {:ok, value} -> {:ok, value}
-      error -> error
-    end
+    fetch_ok(key, @contact_ttl, fetch_fn)
   end
 
   @doc """
@@ -173,31 +122,7 @@ defmodule Elektrine.AppCache do
   """
   def get_system_config(key, fetch_fn) do
     cache_key = {:system_config, key}
-
-    case fetch_with_telemetry(cache_key, fn _key ->
-           {:commit, fetch_fn.(), ttl: @system_ttl}
-         end) do
-      {:commit, value} -> {:ok, value}
-      {:commit, value, _opts} -> {:ok, value}
-      {:ok, value} -> {:ok, value}
-      error -> error
-    end
-  end
-
-  @doc """
-  Caches invite code settings and validation.
-  """
-  def get_invite_settings(fetch_fn) do
-    key = {:invite_settings}
-
-    case fetch_with_telemetry(key, fn _key ->
-           {:commit, fetch_fn.(), ttl: @system_ttl}
-         end) do
-      {:commit, value} -> {:ok, value}
-      {:commit, value, _opts} -> {:ok, value}
-      {:ok, value} -> {:ok, value}
-      error -> error
-    end
+    fetch_ok(cache_key, @system_ttl, fetch_fn)
   end
 
   # Admin dashboard caching
@@ -207,15 +132,7 @@ defmodule Elektrine.AppCache do
   """
   def get_admin_stats(stat_type, fetch_fn) do
     key = {:admin_stats, stat_type}
-
-    case fetch_with_telemetry(key, fn _key ->
-           {:commit, fetch_fn.(), ttl: @admin_ttl}
-         end) do
-      {:commit, value} -> {:ok, value}
-      {:commit, value, _opts} -> {:ok, value}
-      {:ok, value} -> {:ok, value}
-      error -> error
-    end
+    fetch_ok(key, @admin_ttl, fetch_fn)
   end
 
   @doc """
@@ -223,33 +140,7 @@ defmodule Elektrine.AppCache do
   """
   def get_admin_recent_activity(activity_type, fetch_fn) do
     key = {:admin_recent, activity_type}
-
-    case fetch_with_telemetry(key, fn _key ->
-           {:commit, fetch_fn.(), ttl: @admin_ttl}
-         end) do
-      {:commit, value} -> {:ok, value}
-      {:commit, value, _opts} -> {:ok, value}
-      {:ok, value} -> {:ok, value}
-      error -> error
-    end
-  end
-
-  # Temporary mailbox caching
-
-  @doc """
-  Caches temporary mailbox validation and metadata.
-  """
-  def get_temp_mailbox_data(token, fetch_fn) do
-    key = {:temp_mailbox, token}
-
-    case fetch_with_telemetry(key, fn _key ->
-           {:commit, fetch_fn.(), ttl: @temp_mailbox_ttl}
-         end) do
-      {:commit, value} -> {:ok, value}
-      {:commit, value, _opts} -> {:ok, value}
-      {:ok, value} -> {:ok, value}
-      error -> error
-    end
+    fetch_ok(key, @admin_ttl, fetch_fn)
   end
 
   # ActivityPub actor caching
@@ -260,22 +151,7 @@ defmodule Elektrine.AppCache do
   """
   def get_actor(uri, fetch_fn) do
     key = {:actor, uri}
-
-    case fetch_with_telemetry(key, fn _key ->
-           {:commit, fetch_fn.(), ttl: @actor_ttl}
-         end) do
-      {:commit, value} -> value
-      {:commit, value, _opts} -> value
-      {:ok, value} -> value
-      error -> error
-    end
-  end
-
-  @doc """
-  Invalidates cached actor data.
-  """
-  def invalidate_actor(uri) do
-    delete_with_telemetry({:actor, uri})
+    fetch_value(key, @actor_ttl, fetch_fn)
   end
 
   # ActivityPub object caching
@@ -381,43 +257,6 @@ defmodule Elektrine.AppCache do
     end
   end
 
-  @doc """
-  Invalidates cached WebFinger data.
-  """
-  def invalidate_webfinger(acct) do
-    delete_with_telemetry({:webfinger, acct})
-  end
-
-  # Instance metadata caching
-
-  @doc """
-  Caches instance metadata (nodeinfo) by domain.
-  Instance software/version rarely changes.
-  """
-  def get_instance_metadata(domain, fetch_fn) do
-    key = {:instance_metadata, domain}
-
-    case fetch_with_telemetry(key, fn _key ->
-           case fetch_fn.() do
-             {:ok, metadata} -> {:commit, {:ok, metadata}, ttl: @instance_ttl}
-             {:error, reason} -> {:ignore, {:error, reason}}
-           end
-         end) do
-      {:commit, value} -> value
-      {:commit, value, _opts} -> value
-      {:ok, value} -> value
-      {:ignore, value} -> value
-      error -> error
-    end
-  end
-
-  @doc """
-  Invalidates cached instance metadata.
-  """
-  def invalidate_instance_metadata(domain) do
-    delete_with_telemetry({:instance_metadata, domain})
-  end
-
   # Platform stats caching (for home page, public pages)
 
   @doc """
@@ -426,15 +265,7 @@ defmodule Elektrine.AppCache do
   """
   def get_platform_stats(fetch_fn) do
     key = {:platform_stats}
-
-    case fetch_with_telemetry(key, fn _key ->
-           {:commit, fetch_fn.(), ttl: @admin_ttl}
-         end) do
-      {:commit, value} -> {:ok, value}
-      {:commit, value, _opts} -> {:ok, value}
-      {:ok, value} -> {:ok, value}
-      error -> error
-    end
+    fetch_ok(key, @admin_ttl, fetch_fn)
   end
 
   @doc """
@@ -451,15 +282,7 @@ defmodule Elektrine.AppCache do
   """
   def get_storage_info(user_id, fetch_fn) do
     key = {:storage_info, user_id}
-
-    case fetch_with_telemetry(key, fn _key ->
-           {:commit, fetch_fn.(), ttl: @user_ttl}
-         end) do
-      {:commit, value} -> {:ok, value}
-      {:commit, value, _opts} -> {:ok, value}
-      {:ok, value} -> {:ok, value}
-      error -> error
-    end
+    fetch_ok(key, @user_ttl, fetch_fn)
   end
 
   @doc """
@@ -476,15 +299,7 @@ defmodule Elektrine.AppCache do
   """
   def get_chat_unread_count(user_id, fetch_fn) do
     key = {:chat_unread, user_id}
-
-    case fetch_with_telemetry(key, fn _key ->
-           {:commit, fetch_fn.(), ttl: @user_ttl}
-         end) do
-      {:commit, value} -> {:ok, value}
-      {:commit, value, _opts} -> {:ok, value}
-      {:ok, value} -> {:ok, value}
-      error -> error
-    end
+    fetch_ok(key, @user_ttl, fetch_fn)
   end
 
   @doc """
@@ -492,15 +307,7 @@ defmodule Elektrine.AppCache do
   """
   def get_conversations(user_id, fetch_fn) do
     key = {:conversations, user_id}
-
-    case fetch_with_telemetry(key, fn _key ->
-           {:commit, fetch_fn.(), ttl: @user_ttl}
-         end) do
-      {:commit, value} -> {:ok, value}
-      {:commit, value, _opts} -> {:ok, value}
-      {:ok, value} -> {:ok, value}
-      error -> error
-    end
+    fetch_ok(key, @user_ttl, fetch_fn)
   end
 
   @doc """
@@ -518,15 +325,7 @@ defmodule Elektrine.AppCache do
   """
   def get_notification_unread_count(user_id, fetch_fn) do
     key = {:notification_unread, user_id}
-
-    case fetch_with_telemetry(key, fn _key ->
-           {:commit, fetch_fn.(), ttl: @user_ttl}
-         end) do
-      {:commit, value} -> {:ok, value}
-      {:commit, value, _opts} -> {:ok, value}
-      {:ok, value} -> {:ok, value}
-      error -> error
-    end
+    fetch_ok(key, @user_ttl, fetch_fn)
   end
 
   @doc """
@@ -543,15 +342,7 @@ defmodule Elektrine.AppCache do
   """
   def get_friends(user_id, fetch_fn) do
     key = {:friends, user_id}
-
-    case fetch_with_telemetry(key, fn _key ->
-           {:commit, fetch_fn.(), ttl: @user_ttl}
-         end) do
-      {:commit, value} -> {:ok, value}
-      {:commit, value, _opts} -> {:ok, value}
-      {:ok, value} -> {:ok, value}
-      error -> error
-    end
+    fetch_ok(key, @user_ttl, fetch_fn)
   end
 
   @doc """
@@ -559,15 +350,7 @@ defmodule Elektrine.AppCache do
   """
   def get_pending_friend_requests(user_id, fetch_fn) do
     key = {:pending_friend_requests, user_id}
-
-    case fetch_with_telemetry(key, fn _key ->
-           {:commit, fetch_fn.(), ttl: @user_ttl}
-         end) do
-      {:commit, value} -> {:ok, value}
-      {:commit, value, _opts} -> {:ok, value}
-      {:ok, value} -> {:ok, value}
-      error -> error
-    end
+    fetch_ok(key, @user_ttl, fetch_fn)
   end
 
   @doc """
@@ -583,15 +366,7 @@ defmodule Elektrine.AppCache do
   """
   def get_remote_user_counts(actor_id, fetch_fn) do
     key = {:remote_user_counts, actor_id}
-
-    case fetch_with_telemetry(key, fn _key ->
-           {:commit, fetch_fn.(), ttl: @contact_ttl}
-         end) do
-      {:commit, value} -> {:ok, value}
-      {:commit, value, _opts} -> {:ok, value}
-      {:ok, value} -> {:ok, value}
-      error -> error
-    end
+    fetch_ok(key, @contact_ttl, fetch_fn)
   end
 
   def put_remote_user_counts(actor_id, counts) do
@@ -600,15 +375,7 @@ defmodule Elektrine.AppCache do
 
   def get_remote_user_community_stats(actor_id, fetch_fn) do
     key = {:remote_user_community_stats, actor_id}
-
-    case fetch_with_telemetry(key, fn _key ->
-           {:commit, fetch_fn.(), ttl: @contact_ttl}
-         end) do
-      {:commit, value} -> {:ok, value}
-      {:commit, value, _opts} -> {:ok, value}
-      {:ok, value} -> {:ok, value}
-      error -> error
-    end
+    fetch_ok(key, @contact_ttl, fetch_fn)
   end
 
   def put_remote_user_community_stats(actor_id, stats) do
@@ -640,23 +407,10 @@ defmodule Elektrine.AppCache do
   end
 
   @doc """
-  Invalidates cache entries for a specific mailbox.
-  """
-  def invalidate_mailbox_cache(mailbox_id) do
-    patterns = [
-      {:mailbox_settings, mailbox_id}
-    ]
-
-    patterns
-    |> Enum.each(&delete_with_telemetry(&1))
-  end
-
-  @doc """
   Invalidates system configuration cache.
   """
   def invalidate_system_cache do
     clear_by_pattern({:system_config, :_})
-    clear_by_pattern({:invite_settings})
   end
 
   @doc """
@@ -673,13 +427,6 @@ defmodule Elektrine.AppCache do
   def invalidate_search_cache(user_id) do
     clear_user_searches(user_id)
     delete_with_telemetry({:recent_searches, user_id})
-  end
-
-  @doc """
-  Invalidates temporary mailbox cache.
-  """
-  def invalidate_temp_mailbox_cache(token) do
-    delete_with_telemetry({:temp_mailbox, token})
   end
 
   # Warming functions
@@ -733,6 +480,28 @@ defmodule Elektrine.AppCache do
   end
 
   # Private helper functions
+
+  defp fetch_ok(key, ttl, fetch_fn) do
+    case fetch_with_telemetry(key, fn _key ->
+           {:commit, fetch_fn.(), ttl: ttl}
+         end) do
+      {:commit, value} -> {:ok, value}
+      {:commit, value, _opts} -> {:ok, value}
+      {:ok, value} -> {:ok, value}
+      error -> error
+    end
+  end
+
+  defp fetch_value(key, ttl, fetch_fn) do
+    case fetch_with_telemetry(key, fn _key ->
+           {:commit, fetch_fn.(), ttl: ttl}
+         end) do
+      {:commit, value} -> value
+      {:commit, value, _opts} -> value
+      {:ok, value} -> value
+      error -> error
+    end
+  end
 
   defp clear_user_searches(user_id) do
     {:ok, keys} = keys_with_telemetry()

@@ -3,9 +3,6 @@
  * Organized by feature area for maintainability.
  */
 
-// Legacy tag input (from parent directory)
-import { TagInput } from "../tag_input";
-
 // Chat hooks
 import {
   AutoExpandTextarea,
@@ -47,7 +44,6 @@ import {
   FileExplorer,
   CopyButton,
   TimelineReply,
-  IframeAutoResize,
   ScrollToTop,
   RemoteProfileStickyFollow,
   ImageFallback,
@@ -118,9 +114,6 @@ import { DragDrop, CodeEditor } from "./static_site_hooks";
 
 // Export all hooks as a single object
 export const Hooks = {
-  // Legacy
-  TagInput,
-
   // Chat
   AutoExpandTextarea,
   SimpleChatInput,
@@ -155,7 +148,6 @@ export const Hooks = {
   FileExplorer,
   CopyButton,
   TimelineReply,
-  IframeAutoResize,
   ScrollToTop,
   RemoteProfileStickyFollow,
   ImageFallback,
