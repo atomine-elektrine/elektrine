@@ -45,12 +45,9 @@ defmodule Elektrine.ActivityPub.Publisher do
           raise "Failed to create activity: #{inspect(changeset)}"
       end
 
-    # Create delivery records
+    # Create delivery records and enqueue delivery jobs.
     unique_inboxes = Enum.uniq(inbox_urls)
     ActivityPub.create_deliveries(activity_record.id, unique_inboxes)
-
-    # Trigger delivery worker
-    schedule_deliveries()
 
     {:ok, activity_record}
   end
@@ -78,12 +75,9 @@ defmodule Elektrine.ActivityPub.Publisher do
           raise "Failed to create activity: #{inspect(changeset)}"
       end
 
-    # Create delivery records
+    # Create delivery records and enqueue delivery jobs.
     unique_inboxes = Enum.uniq(inbox_urls)
     ActivityPub.create_deliveries(activity_record.id, unique_inboxes)
-
-    # Trigger delivery worker
-    schedule_deliveries()
 
     {:ok, activity_record}
   end
@@ -259,13 +253,6 @@ defmodule Elektrine.ActivityPub.Publisher do
   end
 
   defp validate_inbox_url(_), do: {:error, :unsafe_inbox_url}
-
-  # Schedule delivery processing
-  defp schedule_deliveries do
-    # Trigger the delivery worker
-    # This will be handled by the DeliveryWorker
-    Process.send_after(self(), :process_deliveries, 100)
-  end
 
   @doc """
   Asynchronously publishes an activity via Oban job queue.

@@ -25,7 +25,7 @@ defmodule ElektrineWeb.Components.Notification.Bell do
 
   def notification_bell_live(assigns) do
     ~H"""
-    <div class="indicator" id="notification-bell" phx-hook="NotificationBell">
+    <div class="indicator" id="notification-bell">
       <%= if @count > 0 do %>
         <span class="indicator-item badge badge-secondary badge-xs animate-pulse">
           {if @count > 99, do: "99+", else: @count}
