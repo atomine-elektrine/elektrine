@@ -495,9 +495,6 @@ defmodule ElektrineWeb.Router do
       ElektrineWeb.Routes.Email.public_browser_routes()
     end
 
-    # Temporary email routes disabled
-    # Guest temporary mail system has been disabled for security
-
     # Link click tracking and redirect
     get("/l/:id", LinkController, :click)
 

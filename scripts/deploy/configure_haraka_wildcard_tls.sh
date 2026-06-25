@@ -23,6 +23,7 @@ CLI_OUTPUT_PATH=""
 CLI_DOCKER_CMD=""
 CLI_FORCE=false
 CLI_APPLY=false
+HARAKA_SERVICES=(haraka-inbound haraka-submission haraka-outbound haraka-worker)
 
 usage() {
   cat <<'USAGE'
@@ -219,7 +220,7 @@ find_existing_haraka_container() {
   local container_name
   local container_id
 
-  for service_name in haraka-inbound haraka-submission haraka-outbound haraka-worker; do
+  for service_name in "${HARAKA_SERVICES[@]}"; do
     container_id="$(
       docker_cmd ps \
         --filter "label=com.docker.compose.service=$service_name" \
@@ -394,6 +395,22 @@ compose_apply_args() {
   return 1
 }
 
+recreate_haraka_services() {
+  local args_name="$1"
+  local -n compose_args_ref="$args_name"
+  local service_name
+
+  for service_name in "${HARAKA_SERVICES[@]}"; do
+    if docker_cmd compose "${compose_args_ref[@]}" up -d --no-deps --force-recreate "$service_name"; then
+      continue
+    fi
+
+    echo "Warn: retrying Haraka service recreate after clearing stale Compose state: $service_name" >&2
+    docker_cmd compose "${compose_args_ref[@]}" rm -sf "$service_name" >/dev/null 2>&1 || true
+    docker_cmd compose "${compose_args_ref[@]}" up -d --no-deps --force-recreate "$service_name"
+  done
+}
+
 if [[ -z "$HARAKA_DEPLOY_DIR" ]]; then
   if [[ -d /opt/elektrine-haraka ]]; then
     HARAKA_DEPLOY_DIR=/opt/elektrine-haraka
@@ -489,8 +506,7 @@ if [[ "$APPLY" == true ]]; then
   compose_args=()
 
   if compose_apply_args compose_args; then
-    docker_cmd compose "${compose_args[@]}" up -d --force-recreate \
-      haraka-inbound haraka-submission haraka-outbound haraka-worker
+    recreate_haraka_services compose_args
   else
     echo "Warn: could not infer Haraka Docker Compose base file; wrote $OUTPUT_PATH but did not apply it." >&2
     echo "      Recreate Haraka with its normal compose file plus -f $OUTPUT_PATH." >&2

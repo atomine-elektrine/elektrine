@@ -1,6 +1,6 @@
 defmodule ElektrineWeb.Components.UI.BrandIcon do
   @moduledoc """
-  Brand icon components from @iconify-json/simple-icons.
+  Inline brand icon components.
   """
   use Phoenix.Component
   import Phoenix.HTML, only: [raw: 1]
@@ -8,7 +8,7 @@ defmodule ElektrineWeb.Components.UI.BrandIcon do
   alias Elektrine.Theme
 
   @doc """
-  Renders a brand icon from simple-icons.
+  Renders a brand icon.
 
   ## Examples
 
