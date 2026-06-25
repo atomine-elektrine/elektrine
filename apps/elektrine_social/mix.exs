@@ -27,16 +27,8 @@ defmodule ElektrineSocial.MixProject do
   defp elixirc_paths(_), do: ["lib"]
 
   defp elixirc_options do
-    opts = [no_warn_undefined: no_warn_undefined()]
-
-    if Mix.env() == :test do
-      Keyword.put(opts, :ignore_module_conflict, true)
-    else
-      opts
-    end
+    if Mix.env() == :test, do: [ignore_module_conflict: true], else: []
   end
-
-  defp no_warn_undefined, do: []
 
   defp deps do
     [

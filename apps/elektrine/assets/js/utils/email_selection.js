@@ -6,7 +6,7 @@
 /**
  * Update message checkboxes based on selection state
  */
-export function updateCheckboxes({ selected_ids, select_all }) {
+function updateCheckboxes({ selected_ids, select_all }) {
   const checkboxes = document.querySelectorAll('[id^="message-checkbox-"]')
   checkboxes.forEach(checkbox => {
     const messageId = parseInt(checkbox.id.replace('message-checkbox-', ''))
@@ -24,7 +24,7 @@ export function updateCheckboxes({ selected_ids, select_all }) {
 /**
  * Handle keyboard shortcuts for message selection
  */
-export function handleSelectionKeyboard(e) {
+function handleSelectionKeyboard(e) {
   // Only handle shortcuts when not typing in an input
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
 
@@ -45,7 +45,7 @@ export function handleSelectionKeyboard(e) {
 /**
  * Handle shift+click and checkbox clicks for message selection
  */
-export function handleSelectionClick(e) {
+function handleSelectionClick(e) {
   const messageCard = e.target.closest('.message-card[data-message-id]')
   if (messageCard && e.shiftKey) {
     e.preventDefault()
