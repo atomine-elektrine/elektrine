@@ -21,12 +21,12 @@ defmodule Elektrine.Messaging.Federation.Builders do
   alias Elektrine.Messaging.Federation.{DirectMessageState, State, Visibility, VoiceCalls}
   alias Elektrine.Repo
 
-  @dm_message_create_event_type ArblargSDK.dm_message_create_event_type()
-  @dm_call_invite_event_type ArblargSDK.dm_call_invite_event_type()
-  @dm_call_accept_event_type ArblargSDK.dm_call_accept_event_type()
-  @dm_call_reject_event_type ArblargSDK.dm_call_reject_event_type()
-  @dm_call_end_event_type ArblargSDK.dm_call_end_event_type()
-  @dm_call_signal_event_type ArblargSDK.dm_call_signal_event_type()
+  @dm_message_create_event_type "urn:arblarg:ext:dm:1#message.create"
+  @dm_call_invite_event_type "urn:arblarg:ext:voice:1#dm.call.invite"
+  @dm_call_accept_event_type "urn:arblarg:ext:voice:1#dm.call.accept"
+  @dm_call_reject_event_type "urn:arblarg:ext:voice:1#dm.call.reject"
+  @dm_call_end_event_type "urn:arblarg:ext:voice:1#dm.call.end"
+  @dm_call_signal_event_type "urn:arblarg:ext:voice:1#dm.call.signal"
 
   def build_server_upsert_event(server_id, context)
       when is_integer(server_id) and is_map(context) do
@@ -1036,12 +1036,12 @@ defmodule Elektrine.Messaging.Federation.Builders do
 
   defp shared_governance_extension_event_types do
     [
-      ArblargSDK.canonical_event_type("role.upsert"),
-      ArblargSDK.canonical_event_type("role.assignment.upsert"),
-      ArblargSDK.canonical_event_type("permission.overwrite.upsert"),
-      ArblargSDK.canonical_event_type("thread.upsert"),
-      ArblargSDK.canonical_event_type("thread.archive"),
-      ArblargSDK.canonical_event_type("moderation.action.recorded")
+      "urn:arblarg:ext:roles:1#role.upsert",
+      "urn:arblarg:ext:roles:1#role.assignment.upsert",
+      "urn:arblarg:ext:permissions:1#overwrite.upsert",
+      "urn:arblarg:ext:threads:1#thread.upsert",
+      "urn:arblarg:ext:threads:1#thread.archive",
+      "urn:arblarg:ext:moderation:1#action.recorded"
     ]
   end
 

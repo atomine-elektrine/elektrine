@@ -10,8 +10,9 @@ defmodule ElektrineWeb.ProfileLive.Edit do
   alias ElektrineWeb.GitHubWebhooks
   alias ElektrineWeb.Platform.Integrations
 
-  @max_links Constants.max_profile_links()
-  @max_widgets Constants.max_profile_widgets()
+  import ElektrineWeb.ProfileLive.DesignSections
+  import ElektrineWeb.ProfileLive.EditSections
+
   @profile_tabs [
     {"profile", "hero-user", "Profile"},
     {"design", "hero-paint-brush", "Design"},
@@ -449,8 +450,10 @@ defmodule ElektrineWeb.ProfileLive.Edit do
       current_count =
         if socket.assigns.profile.links, do: length(socket.assigns.profile.links), else: 0
 
-      if current_count >= @max_links do
-        {:noreply, notify_error(socket, "Maximum #{@max_links} links allowed")}
+      max_links = Constants.max_profile_links()
+
+      if current_count >= max_links do
+        {:noreply, notify_error(socket, "Maximum #{max_links} links allowed")}
       else
         # Ensure all keys are strings
         clean_params =
@@ -621,8 +624,10 @@ defmodule ElektrineWeb.ProfileLive.Edit do
       current_count =
         if socket.assigns.profile.widgets, do: length(socket.assigns.profile.widgets), else: 0
 
-      if current_count >= @max_widgets do
-        {:noreply, notify_error(socket, "Maximum #{@max_widgets} widgets allowed")}
+      max_widgets = Constants.max_profile_widgets()
+
+      if current_count >= max_widgets do
+        {:noreply, notify_error(socket, "Maximum #{max_widgets} widgets allowed")}
       else
         # Transform widget content based on type
         widget_attrs =
@@ -1855,17 +1860,6 @@ defmodule ElektrineWeb.ProfileLive.Edit do
     socket
     |> assign(:profile, updated_profile)
     |> assign(:profile_save_status, "Saved")
-  end
-
-  defp design_presets do
-    [
-      {"minimal", "Minimal", "Clean white card with a quiet blue accent"},
-      {"terminal", "Terminal", "Dark console-inspired profile"},
-      {"neon", "Neon", "High-energy dark theme with pink and cyan"},
-      {"soft", "Soft", "Warm pastel profile with gentle contrast"},
-      {"high_contrast", "High Contrast", "Sharp black, white, and yellow palette"},
-      {"creator", "Creator", "Card-forward theme for links and media"}
-    ]
   end
 
   defp design_preset_attrs("minimal") do

@@ -8,8 +8,8 @@ Wants=network-online.target
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=/opt/elektrine/app
-ExecStart=/opt/elektrine/app/scripts/deploy/docker_deploy.sh --output /opt/elektrine/app/deploy/docker/generated.docker.yml
-ExecStop=/usr/bin/docker compose -f /opt/elektrine/app/deploy/docker/generated.docker.yml down
+ExecStart=/opt/elektrine/app/scripts/deploy/docker_deploy.sh --output /opt/elektrine/app/deploy/generated/generated.docker.yml
+ExecStop=/usr/bin/docker compose -f /opt/elektrine/app/deploy/generated/generated.docker.yml down
 TimeoutStartSec=0
 
 [Install]

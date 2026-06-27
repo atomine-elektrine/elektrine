@@ -28,12 +28,12 @@
    -------------------------------------------------------------------------- */
 
 .email-content-container {
-  background: var(--fallback-b1,oklch(var(--b1)));
+  background: var(--color-base-100);
   border-radius: 8px;
   padding: 24px;
   margin: 16px 0;
   box-shadow: var(--theme-surface-elevated-shadow);
-  border: 1px solid var(--fallback-bc,oklch(var(--bc)/0.1));
+  border: 1px solid color-mix(in srgb, var(--color-base-content) 10%, transparent);
   position: relative;
   overflow: auto;
   max-width: 100%;
@@ -125,8 +125,8 @@
 .email-content-container blockquote {
   margin: 16px 0;
   padding-left: 16px;
-  border-left: 4px solid var(--fallback-bc,oklch(var(--bc)/0.2));
-  color: var(--fallback-bc,oklch(var(--bc)/0.6));
+  border-left: 4px solid color-mix(in srgb, var(--color-base-content) 20%, transparent);
+  color: color-mix(in srgb, var(--color-base-content) 60%, transparent);
 }
 
 .email-content-container center {
@@ -136,19 +136,19 @@
 .email-content-container pre {
   font-size: 13px;
   font-weight: 500;
-  background: var(--fallback-b2,oklch(var(--b2)));
+  background: var(--color-base-200);
   padding: 12px;
   border-radius: 4px;
   overflow-x: auto;
   margin: 16px 0;
-  border: 1px solid var(--fallback-bc,oklch(var(--bc)/0.1));
+  border: 1px solid color-mix(in srgb, var(--color-base-content) 10%, transparent);
   white-space: pre-wrap;
 }
 
 .email-content-container code {
   font-size: 13px;
   font-weight: 500;
-  background: var(--fallback-b2,oklch(var(--b2)));
+  background: var(--color-base-200);
   padding: 2px 4px;
   border-radius: 3px;
 }
@@ -175,7 +175,7 @@
 
 .email-content-container hr {
   border: none;
-  border-top: 1px solid var(--fallback-bc,oklch(var(--bc)/0.1));
+  border-top: 1px solid color-mix(in srgb, var(--color-base-content) 10%, transparent);
   margin: 24px 0;
 }
 
@@ -286,7 +286,7 @@
 
 .message-card:hover,
 .message-card:focus-within {
-  border-color: oklch(var(--p) / 0.45);
+  border-color: color-mix(in srgb, var(--color-primary) 45%, transparent);
   box-shadow: var(--theme-surface-interactive-shadow);
 }
 
@@ -305,7 +305,7 @@
 .message-card:focus-within .message-sender,
 .message-card:hover .message-subject,
 .message-card:focus-within .message-subject {
-  color: oklch(var(--bc) / 0.95);
+  color: color-mix(in srgb, var(--color-base-content) 95%, transparent);
 }
 
 .message-card:hover .message-preview,
@@ -314,7 +314,7 @@
 .message-card:focus-within .message-attachment-indicator,
 .message-card:hover .message-timestamp,
 .message-card:focus-within .message-timestamp {
-  color: oklch(var(--bc) / 0.72);
+  color: color-mix(in srgb, var(--color-base-content) 72%, transparent);
 }
 
 .message-card:hover .message-checkbox,
@@ -325,7 +325,7 @@
 .message-card:hover .message-unread-dot,
 .message-card:focus-within .message-unread-dot {
   transform: scale(1.15);
-  box-shadow: 0 0 0 3px oklch(var(--s) / 0.16);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-secondary) 16%, transparent);
 }
 
 @media (min-width: 640px) {
@@ -349,7 +349,7 @@
 .email-card:hover {
   transform: translateY(-1px);
   box-shadow: var(--theme-surface-hover-shadow);
-  border-color: oklch(var(--p) / 0.35);
+  border-color: color-mix(in srgb, var(--color-primary) 35%, transparent);
 }
 
 .email-avatar {
@@ -362,7 +362,7 @@
 
 .compose-field:focus {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px oklch(var(--p) / 0.12);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-primary) 12%, transparent);
 }
 
 .line-clamp-2 {

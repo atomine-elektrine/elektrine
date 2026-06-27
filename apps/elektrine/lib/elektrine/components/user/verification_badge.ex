@@ -2,10 +2,9 @@ defmodule Elektrine.Components.User.VerificationBadge do
   @moduledoc false
   use Phoenix.Component
 
-  alias Elektrine.Profiles.UserProfile
   alias Elektrine.Theme
 
-  attr :color, :string, default: UserProfile.default(:tick_color)
+  attr :color, :string, default: "#5f87b8"
   attr :size, :string, default: "md"
   attr :class, :string, default: ""
   attr :tooltip, :string, default: "Verified"

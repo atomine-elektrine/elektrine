@@ -2,6 +2,7 @@ defmodule ElektrineSocialWeb.WebFingerController do
   use ElektrineSocialWeb, :controller
 
   alias Elektrine.Accounts
+  alias Elektrine.Accounts.User
   alias Elektrine.ActivityPub
   alias Elektrine.Domains
   alias Elektrine.Profiles
@@ -43,12 +44,14 @@ defmodule ElektrineSocialWeb.WebFingerController do
   def host_meta(conn, _params) do
     base_url = host_meta_base_url(conn)
 
-    xml = """
-    <?xml version="1.0" encoding="UTF-8"?>
-    <XRD xmlns="http://docs.oasis-open.org/ns/xri/xrd-1.0">
-      <Link rel="lrdd" type="application/xrd+xml" template="#{base_url}/.well-known/webfinger?resource={uri}" />
-    </XRD>
-    """
+    xml =
+      """
+      <?xml version="1.0" encoding="UTF-8"?>
+      <XRD xmlns="http://docs.oasis-open.org/ns/xri/xrd-1.0">
+        <Link rel="lrdd" type="application/xrd+xml" template="#{base_url}/.well-known/webfinger?resource={uri}" />
+      </XRD>
+      """
+      |> String.trim_leading()
 
     conn
     |> put_resp_content_type("application/xrd+xml")
@@ -69,6 +72,10 @@ defmodule ElektrineSocialWeb.WebFingerController do
 
           custom_profile_alias_domain?(requested_domain) ->
             parse_custom_profile_acct_identifier(username_or_community, requested_domain)
+
+          Domains.built_in_profile_subdomain_identifier(requested_domain) ==
+              username_or_community ->
+            parse_built_in_profile_acct_identifier(username_or_community, requested_domain)
 
           true ->
             {:error, :invalid_resource}
@@ -125,6 +132,17 @@ defmodule ElektrineSocialWeb.WebFingerController do
   end
 
   defp parse_custom_profile_acct_identifier(_, _), do: {:error, :invalid_resource}
+
+  defp parse_built_in_profile_acct_identifier(username, requested_domain)
+       when is_binary(username) and username != "" do
+    if String.starts_with?(username, "!") do
+      {:error, :invalid_resource}
+    else
+      {:ok, :user, username, requested_domain}
+    end
+  end
+
+  defp parse_built_in_profile_acct_identifier(_, _), do: {:error, :invalid_resource}
 
   defp handle_user_lookup(conn, identifier, requested_domain) do
     requested_identifier = ActivityPub.actor_identifier(identifier)
@@ -283,14 +301,16 @@ defmodule ElektrineSocialWeb.WebFingerController do
       end)
       |> Enum.map_join("\n    ", & &1)
 
-    xml = """
-    <?xml version="1.0" encoding="UTF-8"?>
-    <XRD xmlns="http://docs.oasis-open.org/ns/xri/xrd-1.0">
-      <Subject>#{xml_escape(subject)}</Subject>
-      #{alias_elements}
-      #{link_elements}
-    </XRD>
-    """
+    xml =
+      """
+      <?xml version="1.0" encoding="UTF-8"?>
+      <XRD xmlns="http://docs.oasis-open.org/ns/xri/xrd-1.0">
+        <Subject>#{xml_escape(subject)}</Subject>
+        #{alias_elements}
+        #{link_elements}
+      </XRD>
+      """
+      |> String.trim_leading()
 
     conn
     |> put_resp_content_type("application/xrd+xml")
@@ -323,7 +343,8 @@ defmodule ElektrineSocialWeb.WebFingerController do
 
   defp allowed_requested_user_domain?(user, requested_domain) do
     Domains.local_activitypub_domain?(requested_domain) or
-      match?(%{domain: _}, custom_profile_domain_for_user(user, requested_domain))
+      match?(%{domain: _}, custom_profile_domain_for_user(user, requested_domain)) or
+      built_in_profile_subdomain_for_user?(user, requested_domain)
   end
 
   defp custom_profile_domain_for_user(%{id: user_id}, requested_domain)
@@ -345,6 +366,9 @@ defmodule ElektrineSocialWeb.WebFingerController do
       requested != "" and custom_profile_alias_domain?(requested) ->
         ActivityPub.instance_url_for_domain(requested)
 
+      requested != "" and not is_nil(Domains.built_in_profile_subdomain_identifier(requested)) ->
+        ActivityPub.instance_url_for_domain(requested)
+
       requested != "" and requested == move_from_domain ->
         ActivityPub.instance_url_for_domain(requested)
 
@@ -364,6 +388,9 @@ defmodule ElektrineSocialWeb.WebFingerController do
       requested_domain != "" and custom_profile_domain_for_user(user, requested_domain) ->
         ActivityPub.actor_uri(user, ActivityPub.instance_url_for_domain(requested_domain))
 
+      requested_domain != "" and built_in_profile_subdomain_for_user?(user, requested_domain) ->
+        ActivityPub.actor_uri(user, ActivityPub.instance_url_for_domain(requested_domain))
+
       requested_domain != "" and requested_domain == move_from_domain ->
         ActivityPub.actor_uri(
           requested_identifier,
@@ -381,10 +408,14 @@ defmodule ElektrineSocialWeb.WebFingerController do
         ActivityPub.instance_url_for_domain(domain)
 
       _ ->
-        handle =
-          if is_binary(user.handle) and user.handle != "", do: user.handle, else: user.username
+        if built_in_profile_subdomain_for_user?(user, requested_domain) do
+          ActivityPub.instance_url_for_domain(requested_domain)
+        else
+          handle =
+            if is_binary(user.handle) and user.handle != "", do: user.handle, else: user.username
 
-        "#{webfinger_base_url(requested_domain)}/#{handle}"
+          "#{webfinger_base_url(requested_domain)}/#{handle}"
+        end
     end
   end
 
@@ -393,7 +424,8 @@ defmodule ElektrineSocialWeb.WebFingerController do
 
     if requested_host != "" and
          (Domains.local_activitypub_domain?(requested_host) or
-            custom_profile_alias_domain?(requested_host)) do
+            custom_profile_alias_domain?(requested_host) or
+            not is_nil(Domains.built_in_profile_subdomain_identifier(requested_host))) do
       ActivityPub.instance_url_for_domain(requested_host)
     else
       ActivityPub.instance_url()
@@ -406,4 +438,14 @@ defmodule ElektrineSocialWeb.WebFingerController do
       template: "#{base_url}/authorize_interaction?uri={uri}"
     }
   end
+
+  defp built_in_profile_subdomain_for_user?(%User{} = user, requested_domain) do
+    identifier = Domains.built_in_profile_subdomain_identifier(requested_domain)
+
+    not is_nil(identifier) and
+      identifier == ActivityPub.actor_identifier(user) and
+      User.built_in_subdomain_hosted_by_platform?(user)
+  end
+
+  defp built_in_profile_subdomain_for_user?(_, _), do: false
 end

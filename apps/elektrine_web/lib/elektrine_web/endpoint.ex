@@ -3,6 +3,23 @@ defmodule ElektrineWeb.Endpoint do
 
   alias Elektrine.Constants
 
+  @cache_raw_body_plug :"Elixir.ElektrineWeb.Plugs.CacheRawBody"
+  @cache_raw_body_opts %{
+    paths: [
+      "/webhook/stripe",
+      "/api/ext/v1/static-site/deploy/github/webhook",
+      "/_arblarg/events",
+      "/_arblarg/events/batch",
+      "/_arblarg/ephemeral",
+      "/_arblarg/sync"
+    ],
+    suffixes: ["/inbox"],
+    max_length: 1 * 1024 * 1024,
+    max_lengths: %{
+      "/_arblarg/sync" => 5 * 1024 * 1024
+    }
+  }
+
   # Helper to get session options at runtime for LiveView/WebSocket connections
   # Must return a keyword list, not a processed map
   def session_options do
@@ -56,26 +73,13 @@ defmodule ElektrineWeb.Endpoint do
   plug ElektrineWeb.Plugs.ActivityPubRequestGuard
 
   # Cache raw body for signature verification on signed webhook/federation endpoints.
-  plug ElektrineWeb.Plugs.CacheRawBody,
-    paths: [
-      "/webhook/stripe",
-      "/api/ext/v1/static-site/deploy/github/webhook",
-      "/_arblarg/events",
-      "/_arblarg/events/batch",
-      "/_arblarg/ephemeral",
-      "/_arblarg/sync"
-    ],
-    suffixes: ["/inbox"],
-    max_length: 1 * 1024 * 1024,
-    max_lengths: %{
-      "/_arblarg/sync" => 5 * 1024 * 1024
-    }
+  plug :cache_raw_body
 
   plug Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],
     pass: ["*/*"],
     json_decoder: Phoenix.json_library(),
-    body_reader: {ElektrineWeb.Plugs.CacheRawBody, :read_body, []},
+    body_reader: {@cache_raw_body_plug, :read_body, []},
     # Security: Limit request body size to prevent memory exhaustion
     # 25MB limit for all requests including email attachments
     length: 25 * 1024 * 1024
@@ -89,4 +93,8 @@ defmodule ElektrineWeb.Endpoint do
   plug ElektrineWeb.Plugs.ProfileCustomDomain
   plug PostHog.Integrations.Plug
   plug ElektrineWeb.Router
+
+  defp cache_raw_body(conn, _opts) do
+    @cache_raw_body_plug.call(conn, @cache_raw_body_opts)
+  end
 end

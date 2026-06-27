@@ -13,8 +13,8 @@ defmodule Elektrine.Messaging.Federation.EventRouter do
     Utils
   }
 
-  @bootstrap_server_upsert_event_type ArblargSDK.bootstrap_server_upsert_event_type()
-  @dm_message_create_event_type ArblargSDK.dm_message_create_event_type()
+  @bootstrap_server_upsert_event_type "urn:arblarg:ext:bootstrap:1#server.upsert"
+  @dm_message_create_event_type "urn:arblarg:ext:dm:1#message.create"
 
   def event_server_id(data) when is_map(data) do
     refs = data["refs"] || %{}

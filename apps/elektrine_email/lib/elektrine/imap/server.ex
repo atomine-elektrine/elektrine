@@ -17,13 +17,14 @@ defmodule Elektrine.IMAP.Server do
   alias Elektrine.ProxyProtocol
 
   # Security limits
-  @max_connections Constants.imap_max_connections()
-  @max_connections_per_ip Constants.imap_max_connections_per_ip()
-  @connection_timeout_ms Constants.imap_connection_timeout_ms()
-  @inactivity_timeout_ms Constants.imap_inactivity_timeout_ms()
   @idle_cleanup_interval_ms 5 * 60 * 1000
   @idle_stale_grace_ms 60_000
   @slow_command_threshold_us 500_000
+
+  defp max_connections, do: Constants.imap_max_connections()
+  defp max_connections_per_ip, do: Constants.imap_max_connections_per_ip()
+  defp connection_timeout_ms, do: Constants.imap_connection_timeout_ms()
+  defp inactivity_timeout_ms, do: Constants.imap_inactivity_timeout_ms()
 
   # GenServer callbacks
 
@@ -135,14 +136,25 @@ defmodule Elektrine.IMAP.Server do
       {:ok, {ip, _port}} ->
         client_ip = :inet.ntoa(ip) |> to_string()
 
-        if can_accept_connection?(client_ip, :ssl) do
+        # Reserve a slot before the handshake. The handshake can take up to the
+        # TLS handshake timeout, during which the accepted socket already holds a
+        # file descriptor. Without this gate the single accept loop can pile up
+        # unbounded half-open TLS connections (a slowloris-style flood) and
+        # exhaust file descriptors (:emfile), since established-connection limits
+        # are only checked after the handshake completes.
+        if can_accept_connection?(client_ip, :ssl) and
+             reserve_handshake_slot(client_ip, :ssl) == :ok do
           spawn(fn ->
-            case Socket.handshake(client) do
-              {:ok, tls_client} ->
-                handle_authenticated_client(tls_client, :ssl, tls_opts, allow_insecure_auth)
+            try do
+              case Socket.handshake(client) do
+                {:ok, tls_client} ->
+                  handle_authenticated_client(tls_client, :ssl, tls_opts, allow_insecure_auth)
 
-              _ ->
-                :ok
+                _ ->
+                  :ok
+              end
+            after
+              release_handshake_slot(client_ip, :ssl)
             end
           end)
         else
@@ -330,12 +342,12 @@ defmodule Elektrine.IMAP.Server do
 
     cond do
       # Check total connection timeout (1 hour)
-      now - state.connection_start > @connection_timeout_ms ->
+      now - state.connection_start > connection_timeout_ms() ->
         Helpers.send_response(state.socket, "* BYE Connection time limit exceeded")
         Socket.close(state.socket)
 
       # Check inactivity timeout (15 minutes)
-      now - state.last_activity > @inactivity_timeout_ms ->
+      now - state.last_activity > inactivity_timeout_ms() ->
         Helpers.send_response(state.socket, "* BYE Inactivity timeout")
         Socket.close(state.socket)
 
@@ -424,7 +436,7 @@ defmodule Elektrine.IMAP.Server do
           [] -> 0
         end
 
-      if total >= @max_connections do
+      if total >= max_connections() do
         false
       else
         ip_count =
@@ -433,9 +445,48 @@ defmodule Elektrine.IMAP.Server do
             [] -> 0
           end
 
-        ip_count < @max_connections_per_ip
+        ip_count < max_connections_per_ip()
       end
     end
+  end
+
+  # In-flight TLS handshake accounting. Reserved slots are tracked separately
+  # from established connections (keys :pending_total and {:pending, ip}) so they
+  # never interfere with the established-connection counters, while still being
+  # bounded by the same limits. Each reservation is released exactly once when
+  # the handshake completes (success or failure).
+  defp reserve_handshake_slot(ip, transport) do
+    table = active_table_name(transport)
+
+    if :ets.whereis(table) == :undefined do
+      :error
+    else
+      pending_total = :ets.update_counter(table, :pending_total, {2, 1}, {:pending_total, 0})
+      ip_key = {:pending, ip}
+      ip_pending = :ets.update_counter(table, ip_key, {2, 1}, {ip_key, 0})
+
+      if pending_total > max_connections() or ip_pending > max_connections_per_ip() do
+        release_handshake_slot(ip, transport)
+        :error
+      else
+        :ok
+      end
+    end
+  end
+
+  defp release_handshake_slot(ip, transport) do
+    table = active_table_name(transport)
+
+    if :ets.whereis(table) != :undefined do
+      :ets.update_counter(table, :pending_total, {2, -1, 0, 0}, {:pending_total, 0})
+      ip_key = {:pending, ip}
+
+      if :ets.update_counter(table, ip_key, {2, -1, 0, 0}, {ip_key, 0}) == 0 do
+        :ets.delete(table, ip_key)
+      end
+    end
+
+    :ok
   end
 
   defp increment_connection_count(ip, transport) do
@@ -501,18 +552,20 @@ defmodule Elektrine.IMAP.Server do
   end
 
   defp maybe_alert_session_pressure(total, ip_count, ip) do
-    total_threshold = max(1, div(@max_connections * 8, 10))
-    ip_threshold = max(1, div(@max_connections_per_ip * 8, 10))
+    max_connections = max_connections()
+    max_connections_per_ip = max_connections_per_ip()
+    total_threshold = max(1, div(max_connections * 8, 10))
+    ip_threshold = max(1, div(max_connections_per_ip * 8, 10))
 
     cond do
       total >= total_threshold ->
         Logger.warning(
-          "IMAP connection pressure: total=#{total}/#{@max_connections} ip=#{ip} ip_sessions=#{ip_count}/#{@max_connections_per_ip}"
+          "IMAP connection pressure: total=#{total}/#{max_connections} ip=#{ip} ip_sessions=#{ip_count}/#{max_connections_per_ip}"
         )
 
       ip_count >= ip_threshold ->
         Logger.warning(
-          "IMAP per-IP session pressure: ip=#{ip} sessions=#{ip_count}/#{@max_connections_per_ip} total=#{total}/#{@max_connections}"
+          "IMAP per-IP session pressure: ip=#{ip} sessions=#{ip_count}/#{max_connections_per_ip} total=#{total}/#{max_connections}"
         )
 
       true ->

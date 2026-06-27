@@ -6,14 +6,14 @@ defmodule Elektrine.Profiles.UserBadge do
   use Ecto.Schema
   import Ecto.Changeset
 
-  @default_badge_color Elektrine.Theme.default_value("color_primary")
-  @staff_badge_color Elektrine.Theme.default_value("color_error")
-  @admin_badge_color Elektrine.Theme.default_value("color_error")
-  @moderator_badge_color Elektrine.Theme.default_value("color_success")
-  @supporter_badge_color Elektrine.Theme.default_value("color_warning")
-  @developer_badge_color Elektrine.Theme.default_value("color_primary")
+  @default_badge_color "#5f87b8"
+  @staff_badge_color "#a56b68"
+  @admin_badge_color "#a56b68"
+  @moderator_badge_color "#6f8b74"
+  @supporter_badge_color "#c99152"
+  @developer_badge_color "#5f87b8"
   @contributor_badge_color @default_badge_color
-  @beta_tester_badge_color Elektrine.Theme.default_value("color_secondary")
+  @beta_tester_badge_color "#c9853f"
 
   schema "user_badges" do
     field :badge_type, :string

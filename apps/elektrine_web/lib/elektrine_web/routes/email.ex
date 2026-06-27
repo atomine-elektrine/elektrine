@@ -247,46 +247,4 @@ defmodule ElektrineWeb.Routes.Email do
       end
     end
   end
-
-  def path_prefixes do
-    [
-      "/email",
-      "/emails",
-      "/aliases",
-      "/mailbox",
-      "/jmap",
-      "/calendar",
-      "/.well-known/jmap",
-      "/.well-known/mta-sts.txt",
-      "/.well-known/autoconfig",
-      "/autoconfig",
-      "/unsubscribe",
-      "/api/emails",
-      "/api/aliases",
-      "/api/mailbox",
-      "/api/haraka",
-      "/api/ext/v1/email",
-      "/pripyat/mailboxes",
-      "/pripyat/custom-domains",
-      "/pripyat/haraka",
-      "/pripyat/system-email",
-      "/pripyat/aliases",
-      "/pripyat/forwarded-messages",
-      "/pripyat/messages",
-      "/pripyat/unsubscribe-stats"
-    ]
-  end
-
-  def view_modules do
-    [
-      ElektrineEmailWeb.EmailLive.Compose,
-      ElektrineEmailWeb.EmailLive.Index,
-      ElektrineEmailWeb.EmailLive.Raw,
-      ElektrineEmailWeb.EmailLive.Search,
-      ElektrineEmailWeb.EmailLive.Settings,
-      ElektrineEmailWeb.EmailLive.Show,
-      ElektrineEmailWeb.ContactsLive.Index,
-      ElektrineEmailWeb.UnsubscribeLive.Show
-    ]
-  end
 end

@@ -25,8 +25,6 @@ defmodule ElektrineWeb.Live.Hooks.PresenceEvents do
           handle_presence_event("device_detected", params, socket)
         end
       end
-
-  Or use the `__using__` macro for automatic inclusion.
   """
 
   import Phoenix.LiveView
@@ -173,45 +171,6 @@ defmodule ElektrineWeb.Live.Hooks.PresenceEvents do
     case socket.assigns[:user_statuses] do
       statuses when is_map(statuses) -> statuses
       _ -> %{}
-    end
-  end
-
-  @doc """
-  Macro to automatically add presence event handlers to a LiveView.
-  """
-  defmacro __using__(_opts) do
-    quote do
-      def handle_event("user_activity", params, socket) do
-        ElektrineWeb.Live.Hooks.PresenceEvents.handle_presence_event(
-          "user_activity",
-          params,
-          socket
-        )
-      end
-
-      def handle_event("auto_away_timeout", params, socket) do
-        ElektrineWeb.Live.Hooks.PresenceEvents.handle_presence_event(
-          "auto_away_timeout",
-          params,
-          socket
-        )
-      end
-
-      def handle_event("device_detected", params, socket) do
-        ElektrineWeb.Live.Hooks.PresenceEvents.handle_presence_event(
-          "device_detected",
-          params,
-          socket
-        )
-      end
-
-      def handle_event("connection_changed", params, socket) do
-        ElektrineWeb.Live.Hooks.PresenceEvents.handle_presence_event(
-          "connection_changed",
-          params,
-          socket
-        )
-      end
     end
   end
 end

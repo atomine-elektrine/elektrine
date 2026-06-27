@@ -8,12 +8,4 @@ defmodule ElektrineWeb.Routes.Uptime do
       end
     end
   end
-
-  def path_prefixes do
-    ["/uptime"]
-  end
-
-  def view_modules do
-    [ElektrineUptimeWeb.UptimeLive.Index]
-  end
 end

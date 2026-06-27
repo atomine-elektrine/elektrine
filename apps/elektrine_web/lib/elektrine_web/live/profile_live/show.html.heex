@@ -3,7 +3,7 @@
     <!-- Not Found Error Page (invalid handle format) -->
     <div
       class="min-h-screen flex items-center justify-center p-4 bg-base-100"
-      style="background: linear-gradient(180deg, oklch(var(--b1) / 0.98) 0%, oklch(var(--b2) / 0.94) 100%);"
+      style="background: linear-gradient(180deg, color-mix(in srgb, var(--color-base-100) 98%, transparent) 0%, color-mix(in srgb, var(--color-base-200) 94%, transparent) 100%);"
     >
       <div class="max-w-md w-full">
         <div class="bg-base-200 rounded-lg shadow-2xl p-8 border border-base-300">
@@ -29,7 +29,7 @@
     <!-- Private Profile Error Page -->
     <div
       class="min-h-screen flex items-center justify-center p-4 bg-base-100"
-      style="background: linear-gradient(180deg, oklch(var(--b1) / 0.98) 0%, oklch(var(--b2) / 0.94) 100%);"
+      style="background: linear-gradient(180deg, color-mix(in srgb, var(--color-base-100) 98%, transparent) 0%, color-mix(in srgb, var(--color-base-200) 94%, transparent) 100%);"
     >
       <div class="max-w-md w-full">
         <div class="bg-base-200 rounded-lg shadow-2xl p-8 border border-base-300">
@@ -123,49 +123,7 @@
           else: nil
       }
       class="profile-theme-scope min-h-screen flex items-start justify-center p-0 sm:px-4 relative overflow-hidden"
-      style={
-        background_style =
-          cond do
-            is_default_profile ->
-              "background: linear-gradient(180deg, oklch(var(--b1) / 0.98) 0%, oklch(var(--b2) / 0.94) 100%);"
-
-            # Video background
-            @profile && @profile.background_url && @profile.background_type == "video" ->
-              "background-color: #{profile_color(@profile, :background_color)};"
-
-            # Image background
-            @profile && @profile.background_url && @profile.background_type == "image" ->
-              "background-image: url(#{Elektrine.Uploads.background_url(@profile.background_url)}); background-size: cover; background-position: center; background-repeat: no-repeat; background-attachment: fixed;"
-
-            # Solid color background
-            @profile && @profile.background_type == "solid" && @profile.background_color ->
-              "background-color: #{@profile.background_color};"
-
-            # Gradient (default)
-            @profile && @profile.background_type == "gradient" ->
-              "background: linear-gradient(135deg, color-mix(in srgb, var(--profile-bg) 78%, var(--color-base-100) 22%) 0%, color-mix(in srgb, var(--profile-bg) 68%, var(--color-base-100) 32%) 25%, color-mix(in srgb, var(--profile-bg) 58%, var(--color-base-100) 42%) 50%, color-mix(in srgb, var(--profile-bg) 66%, var(--color-base-100) 34%) 75%, color-mix(in srgb, var(--profile-bg) 82%, var(--color-base-100) 18%) 100%);"
-
-            # Fallback for profiles without background_type set
-            @profile && @profile.background_color ->
-              "background-color: #{@profile.background_color};"
-
-            # Default gradient
-            true ->
-              "background: linear-gradient(135deg, color-mix(in srgb, var(--profile-bg) 78%, var(--color-base-100) 22%) 0%, color-mix(in srgb, var(--profile-bg) 68%, var(--color-base-100) 32%) 25%, color-mix(in srgb, var(--profile-bg) 58%, var(--color-base-100) 42%) 50%, color-mix(in srgb, var(--profile-bg) 66%, var(--color-base-100) 34%) 75%, color-mix(in srgb, var(--profile-bg) 82%, var(--color-base-100) 18%) 100%);"
-          end
-
-        font_style =
-          if @profile && @profile.font_family,
-            do: "font-family: '#{@profile.font_family}', sans-serif;",
-            else: ""
-
-        cursor_style =
-          if @profile && @profile.cursor_style && @profile.cursor_style != "default",
-            do: "cursor: #{@profile.cursor_style};",
-            else: ""
-
-        "#{background_style} #{font_style} #{cursor_style}"
-      }
+      style={profile_page_style(@profile, is_default_profile)}
     >
       <!-- Video Background (if set) -->
       <%= if @profile && @profile.background_url && @profile.background_type == "video" do %>
@@ -190,57 +148,11 @@
             "w-full max-w-full sm:max-w-[580px] relative overflow-visible rounded-none sm:rounded-t-2xl pt-4 sm:pt-6 px-4 pb-4 sm:pb-6 sm:px-6 sm:mt-10 min-h-screen sm:min-h-[calc(100vh-2.5rem)]"
           end
         }
-        style={
-          cond do
-            is_default_profile ->
-              "z-index: 10; position: relative;"
-
-            @profile ->
-              opacity = @profile.profile_opacity || 1.0
-              blur = @profile.profile_blur || 0
-
-              container_color =
-                @profile.container_background_color || profile_color(@profile, :background_color)
-
-              container_opacity = @profile.container_opacity || 0.4
-
-              # Build container background - always apply it
-              # If pattern is set, reduce opacity slightly to let pattern show through
-              adjusted_opacity =
-                if @profile.container_pattern && @profile.container_pattern != "none" do
-                  # Reduce opacity when pattern is active
-                  container_opacity * 0.7
-                else
-                  container_opacity
-                end
-
-              # Convert hex to rgba with opacity
-              container_bg =
-                "background-color: #{Elektrine.Theme.rgba(container_color, adjusted_opacity)};"
-
-              "opacity: #{opacity}; z-index: 10; position: relative; #{container_bg} #{if blur > 0, do: "backdrop-filter: blur(#{blur}px); -webkit-backdrop-filter: blur(#{blur}px);", else: ""}"
-
-            true ->
-              "z-index: 10; position: relative;"
-          end
-        }
+        style={profile_container_style(@profile, is_default_profile)}
       >
         <!-- Timeline Blade - slides out from right edge -->
         <%= if not (@profile && @profile.hide_timeline) do %>
-          <% show_community_posts = @user_discussion_posts && length(@user_discussion_posts) > 0
-
-          timeline_blade_style =
-            if is_default_profile do
-              "z-index: 5; background: linear-gradient(145deg, oklch(var(--b1) / 0.95), oklch(var(--b2) / 0.9)); border-left: 1px solid oklch(var(--bc) / 0.14);"
-            else
-              container_color =
-                (@profile && @profile.container_background_color) ||
-                  profile_color(@profile, :background_color)
-
-              container_opacity = (@profile && @profile.container_opacity) || 0.4
-
-              "z-index: 5; background-color: #{Elektrine.Theme.rgba(container_color, container_opacity)};"
-            end %>
+          <% show_community_posts = @user_discussion_posts && length(@user_discussion_posts) > 0 %>
           <!-- Desktop: Slide-out blade -->
           <div
             id="timeline-blade"
@@ -248,7 +160,7 @@
             data-closed-class="translate-x-0 pointer-events-none opacity-0"
             data-open-class="translate-x-[100%]"
             class={"hidden sm:block absolute top-0 right-0 h-full w-[320px] sm:rounded-tl-2xl rounded-r-2xl #{if @show_timeline_drawer, do: "translate-x-[100%]", else: "translate-x-0 pointer-events-none opacity-0"}"}
-            style={timeline_blade_style}
+            style={timeline_blade_style(@profile, is_default_profile)}
           >
             <div class="h-full overflow-y-auto">
               <!-- Blade Header -->
@@ -1597,22 +1509,9 @@
     
 <!-- Mobile Timeline Section (below profile) -->
     <%= if not (@profile && @profile.hide_timeline) do %>
-      <% # Use same styling as middle column
-      mobile_timeline_style =
-        if is_default_profile do
-          "--profile-text: var(--color-base-content); --profile-accent: var(--color-primary); background: linear-gradient(145deg, oklch(var(--b1) / 0.95), oklch(var(--b2) / 0.9)); border-top: 1px solid oklch(var(--bc) / 0.14);"
-        else
-          mobile_container_color =
-            (@profile && @profile.container_background_color) ||
-              profile_color(@profile, :background_color)
-
-          mobile_container_opacity = (@profile && @profile.container_opacity) || 0.4
-
-          "--profile-text: #{profile_color(@profile, :text_color)}; --profile-accent: #{profile_color(@profile, :accent_color)}; background-color: #{Elektrine.Theme.rgba(mobile_container_color, mobile_container_opacity)};"
-        end %>
       <div
         class="sm:hidden w-full max-w-full px-4 pt-4 pb-4"
-        style={mobile_timeline_style}
+        style={mobile_timeline_style(@profile, is_default_profile)}
       >
         <div>
           <div class="flex items-center gap-2 mb-4">

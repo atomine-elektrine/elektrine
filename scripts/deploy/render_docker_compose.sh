@@ -5,7 +5,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TEMPLATE_PATH="$ROOT_DIR/deploy/docker/compose.full.yml"
 REQUESTED_ENABLED_MODULES=""
 RAW_PROFILES="${DOCKER_PROFILES:-}"
-OUTPUT_PATH="${OUTPUT_PATH:-$ROOT_DIR/deploy/docker/generated.docker.yml}"
+GENERATED_DIR="${ELEKTRINE_GENERATED_DIR:-$ROOT_DIR/deploy/generated}"
+OUTPUT_PATH="${OUTPUT_PATH:-$GENERATED_DIR/generated.docker.yml}"
 
 # shellcheck source=scripts/lib/module_selection.sh
 source "$ROOT_DIR/scripts/lib/module_selection.sh"

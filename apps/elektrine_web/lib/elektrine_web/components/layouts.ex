@@ -11,14 +11,14 @@ defmodule ElektrineWeb.Layouts do
   alias Elektrine.Theme
 
   @footer_wordmark_palette [
-    Theme.default_value("color_error"),
-    Theme.default_value("color_info"),
-    Theme.default_value("color_warning"),
-    Theme.inverse_text_color(),
-    Theme.default_value("color_primary"),
-    Theme.default_value("color_success"),
-    Theme.default_value("color_accent"),
-    Theme.default_value("color_secondary")
+    "#a56b68",
+    "#6f95c4",
+    "#c99152",
+    "#ffffff",
+    "#5f87b8",
+    "#6f8b74",
+    "#7d99bb",
+    "#c9853f"
   ]
 
   @doc ~s|Gets active announcements for display in layouts.\nThis function is called from the layout templates.\n|

@@ -550,6 +550,43 @@ defmodule Elektrine.Domains do
   def profile_base_domain_for_host(_), do: nil
 
   @doc """
+  Returns the single-label built-in profile subdomain for a configured profile host.
+
+  For example, with `example.com` configured as a profile base domain,
+  `alice.example.com` returns `"alice"`. Root hosts, `www` hosts, unknown
+  hosts, and nested subdomains return `nil`.
+  """
+  def built_in_profile_subdomain_identifier(host) when is_binary(host) do
+    normalized_host = normalize_host(host)
+
+    case profile_base_domain_for_host(normalized_host) do
+      base_domain when is_binary(base_domain) ->
+        suffix = "." <> base_domain
+
+        cond do
+          normalized_host in [base_domain, "www." <> base_domain] ->
+            nil
+
+          String.ends_with?(normalized_host, suffix) ->
+            normalized_host
+            |> String.trim_trailing(suffix)
+            |> case do
+              label when label != "" -> if(String.contains?(label, "."), do: nil, else: label)
+              _ -> nil
+            end
+
+          true ->
+            nil
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  def built_in_profile_subdomain_identifier(_), do: nil
+
+  @doc """
   Returns the verified custom profile domain for a host when one exists.
   Supports redirecting `www.` aliases to the root domain.
   """

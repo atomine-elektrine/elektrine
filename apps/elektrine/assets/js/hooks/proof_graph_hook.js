@@ -32,7 +32,7 @@ const NODE_STYLES = {
   subject: {
     fill: "url(#proof-node-gradient-primary)",
     stroke: "var(--proof-accent-strong)",
-    ring: "oklch(var(--pc) / 0.22)",
+    ring: "var(--proof-accent-text-soft)",
     wash: "url(#proof-node-tint-primary)",
     washOpacity: 0.12,
     text: "var(--proof-node-text-inverse)",
@@ -404,7 +404,7 @@ function createGraphDefs() {
       "linearGradient",
       { x1: "0%", y1: "0%", x2: "100%", y2: "100%" },
       [
-        { offset: "0%", color: "oklch(var(--pc) / 0.16)" },
+        { offset: "0%", color: "var(--proof-accent-text-wash)" },
         { offset: "52%", color: "rgba(255, 255, 255, 0.06)" },
         { offset: "100%", color: "#ffffff", opacity: 0 }
       ]

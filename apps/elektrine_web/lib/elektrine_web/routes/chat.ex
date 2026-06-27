@@ -180,22 +180,4 @@ defmodule ElektrineWeb.Routes.Chat do
       end
     end
   end
-
-  def path_prefixes do
-    [
-      "/chat",
-      "/friends",
-      "/_arblarg",
-      "/api/private-attachments",
-      "/api/servers",
-      "/api/conversations",
-      "/api/messages",
-      "/api/ext/v1/chat",
-      "/pripyat/arblarg/messages"
-    ]
-  end
-
-  def view_modules do
-    [ArblargWeb.ChatLive.Index, ElektrineWeb.FriendsLive]
-  end
 end

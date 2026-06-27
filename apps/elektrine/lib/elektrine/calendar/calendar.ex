@@ -7,7 +7,7 @@ defmodule Elektrine.Calendar.Calendar do
 
   schema "calendars" do
     field :name, :string
-    field :color, :string, default: Elektrine.Theme.calendar_default_color()
+    field :color, :string, default: "#5f87b8"
     field :description, :string
     field :timezone, :string, default: "UTC"
     field :is_default, :boolean, default: false

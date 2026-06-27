@@ -44,12 +44,4 @@ defmodule ElektrineWeb.Routes.DNS do
       end
     end
   end
-
-  def path_prefixes do
-    ["/dns", "/api/dns", "/api/ext/v1/dns", "/api/ext/dns", "/pripyat/dns"]
-  end
-
-  def view_modules do
-    [ElektrineDNSWeb.DNSLive.Index]
-  end
 end
