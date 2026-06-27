@@ -65,6 +65,15 @@ jobs:
         continue-on-error: ${{ inputs.allow_format_failure }}
         run: mix format --check-formatted
 
+      - name: Check generated artifacts are not tracked
+        run: scripts/check_tracked_generated_artifacts.sh
+
+      - name: Check maintainability budgets
+        run: scripts/check_maintainability_budgets.sh
+
+      - name: Check JavaScript assets
+        run: npm --prefix apps/elektrine/assets run check
+
       - name: Emit warning when formatting is allowed to fail
         if: ${{ inputs.allow_format_failure && steps.format_check.outcome == 'failure' }}
         run: echo "::warning::Formatting check failed, but deploy can continue."

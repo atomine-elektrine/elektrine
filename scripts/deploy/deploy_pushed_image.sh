@@ -88,11 +88,11 @@ for profile in $DOCKER_PROFILES_VALUE; do
   PROFILE_ARGS+=(--profile "$profile")
 done
 
-ELEKTRINE_IMAGE="$TARGET_IMAGE" COMPOSE_PROJECT_NAME="docker" COMPOSE_PROJECT_DIRECTORY="$DEPLOY_PATH/deploy/docker" CADDY_RENDERED_CONFIG_PATH="$DEPLOY_PATH/deploy/docker/generated.Caddyfile" \
+ELEKTRINE_IMAGE="$TARGET_IMAGE" COMPOSE_PROJECT_NAME="docker" COMPOSE_PROJECT_DIRECTORY="$DEPLOY_PATH/deploy/docker" CADDY_RENDERED_CONFIG_PATH="$DEPLOY_PATH/deploy/generated/generated.Caddyfile" \
   bash scripts/deploy/docker_deploy.sh \
   --modules "$ELEKTRINE_ENABLED_MODULES" \
   --env-file "$DEPLOY_PATH/.env.production" \
-  --output "$DEPLOY_PATH/deploy/docker/generated.docker.yml" \
+  --output "$DEPLOY_PATH/deploy/generated/generated.docker.yml" \
   --pull \
   --skip-build \
   "${PROFILE_ARGS[@]}"

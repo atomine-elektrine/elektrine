@@ -5,7 +5,7 @@ defmodule Elektrine.Messaging.Federation.Runtime do
   alias Elektrine.Messaging.Federation.Config
   alias Elektrine.RuntimeEnv
 
-  @clock_skew_seconds ArblargSDK.clock_skew_seconds()
+  @clock_skew_seconds 300
 
   def federation_config do
     Application.get_env(:elektrine, :messaging_federation, [])

@@ -1,6 +1,27 @@
 # Self-hosting
 
-Start with the default `core` deployment, then add only the pieces you need.
+Start with the small Docker self-hosting path, then enable only the pieces you
+need.
+
+```bash
+scripts/deploy/self_host.sh init --domain example.com --email admin@example.com
+scripts/deploy/self_host.sh doctor
+scripts/deploy/self_host.sh up
+```
+
+Advanced services are enabled as presets:
+
+```bash
+scripts/deploy/self_host.sh presets
+scripts/deploy/self_host.sh enable mail
+scripts/deploy/self_host.sh enable dns
+scripts/deploy/self_host.sh enable turn
+scripts/deploy/self_host.sh doctor
+scripts/deploy/self_host.sh up
+```
+
+The generated `.env.production` stays small. Preset-specific settings are
+appended only when you enable that feature.
 
 ## Profiles
 

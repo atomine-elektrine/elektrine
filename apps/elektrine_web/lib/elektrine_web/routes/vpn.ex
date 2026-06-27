@@ -62,12 +62,4 @@ defmodule ElektrineWeb.Routes.VPN do
       end
     end
   end
-
-  def path_prefixes do
-    ["/vpn", "/api/vpn", "/pripyat/vpn"]
-  end
-
-  def view_modules do
-    [ElektrineVPNWeb.PageLive.VPNPolicy, ElektrineVPNWeb.VPNLive.Index]
-  end
 end

@@ -57,6 +57,26 @@ defmodule Elektrine.Accounts.UserTest do
     end
   end
 
+  describe "built-in subdomain mode helpers" do
+    test "return valid user modes and default invalid user modes to path" do
+      assert User.built_in_subdomain_modes() == ~w(path platform external_dns)
+
+      assert User.built_in_subdomain_mode(%User{built_in_subdomain_mode: "platform"}) ==
+               "platform"
+
+      assert User.built_in_subdomain_mode(%User{built_in_subdomain_mode: "bogus"}) == "path"
+    end
+
+    test "preserve the legacy hosted-by-platform fallback for non-users" do
+      assert User.built_in_subdomain_hosted_by_platform?(%User{
+               built_in_subdomain_mode: "platform"
+             })
+
+      refute User.built_in_subdomain_hosted_by_platform?(%User{built_in_subdomain_mode: "path"})
+      assert User.built_in_subdomain_hosted_by_platform?(nil)
+    end
+  end
+
   describe "reserved usernames" do
     test "registration rejects operational and certificate-validation mailbox names" do
       for username <- ~w(abuse postmaster ssladmin ssladministrator sysadmin noc payments dmca) do

@@ -4,6 +4,8 @@ defmodule Elektrine.DNS.ProfileWildcardTest do
   alias Elektrine.AccountsFixtures
   alias Elektrine.DNS
   alias Elektrine.DNS.Record
+  alias Elektrine.DNS.Zone
+  alias Elektrine.Repo
 
   setup do
     previous_dns_config = Application.get_env(:elektrine, :dns, [])
@@ -61,6 +63,36 @@ defmodule Elektrine.DNS.ProfileWildcardTest do
     assert Record.proxied?(aaaa_record)
   end
 
+  test "installs the wildcard when the profile base-domain zone is created", %{domain: domain} do
+    user = AccountsFixtures.user_fixture()
+    {:ok, zone} = DNS.create_zone(user, %{"domain" => domain})
+
+    assert wildcard_record(zone.id, "A")
+    assert wildcard_record(zone.id, "AAAA")
+  end
+
+  test "startup bootstrap installs the wildcard for an existing profile base-domain zone", %{
+    domain: domain
+  } do
+    user = AccountsFixtures.user_fixture()
+
+    zone =
+      Repo.insert!(%Zone{
+        domain: domain,
+        status: "verified",
+        kind: "native",
+        default_ttl: 300,
+        user_id: user.id
+      })
+
+    start_supervised!(Elektrine.DNS.ProfileWildcardBootstrap)
+
+    assert_eventually(fn ->
+      assert wildcard_record(zone.id, "A")
+      assert wildcard_record(zone.id, "AAAA")
+    end)
+  end
+
   test "is idempotent", %{domain: domain} do
     user = AccountsFixtures.user_fixture()
     {:ok, zone} = DNS.create_zone(user, %{"domain" => domain})
@@ -81,4 +113,16 @@ defmodule Elektrine.DNS.ProfileWildcardTest do
              DNS.ensure_profile_subdomain_wildcards()
              |> Enum.find(fn {d, _result} -> d == domain end)
   end
+
+  defp assert_eventually(fun, attempts \\ 50)
+
+  defp assert_eventually(fun, attempts) when attempts > 0 do
+    fun.()
+  rescue
+    ExUnit.AssertionError ->
+      Process.sleep(10)
+      assert_eventually(fun, attempts - 1)
+  end
+
+  defp assert_eventually(_fun, 0), do: flunk("condition not met before timeout")
 end

@@ -6,6 +6,10 @@ ENV_FILE="$ROOT_DIR/.env.production"
 DOCKER_BIN=(docker)
 ERRORS=0
 WARNINGS=0
+GENERATED_DIR="${ELEKTRINE_GENERATED_DIR:-$ROOT_DIR/deploy/generated}"
+GENERATED_COMPOSE_PATH="$GENERATED_DIR/generated.docker.yml"
+GENERATED_CADDY_PATH="$GENERATED_DIR/generated.Caddyfile"
+ACTIVE_DOCKER_PROFILES=""
 
 # shellcheck source=scripts/lib/module_selection.sh
 source "$ROOT_DIR/scripts/lib/module_selection.sh"
@@ -72,7 +76,7 @@ has_profile() {
   local wanted="$1"
   local profile=""
 
-  for profile in $(default_docker_profiles); do
+  for profile in $ACTIVE_DOCKER_PROFILES; do
     if [[ "$profile" == "$wanted" ]]; then
       return 0
     fi
@@ -85,6 +89,181 @@ host_path_exists() {
   local path="$1"
 
   [[ "$path" == /* && -e "$path" ]]
+}
+
+path_writable_or_sudo_installable() {
+  local path="$1"
+  local dir=""
+
+  dir="$(dirname "$path")"
+
+  if [[ -d "$dir" && -w "$dir" ]]; then
+    if [[ ! -e "$path" || -w "$path" ]]; then
+      return 0
+    fi
+  fi
+
+  command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null
+}
+
+check_generated_output_path() {
+  local path="$1"
+  local label="$2"
+  local dir=""
+
+  dir="$(dirname "$path")"
+
+  if [[ ! -d "$dir" ]]; then
+    if mkdir -p "$dir" 2>/dev/null; then
+      check_ok "$label directory can be created: $dir"
+    elif command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+      check_ok "$label directory can be created with passwordless sudo: $dir"
+    else
+      check_error "$label directory cannot be created: $dir"
+      return
+    fi
+  fi
+
+  if path_writable_or_sudo_installable "$path"; then
+    check_ok "$label is writable or sudo-installable: $path"
+  else
+    check_error "$label is not writable: $path"
+    echo "Hint: keep generated deploy files under deploy/generated/ owned by the deploy user." >&2
+  fi
+}
+
+check_generated_path_location() {
+  local path="$1"
+  local label="$2"
+  local generated_prefix="$ROOT_DIR/deploy/generated/"
+
+  case "$path" in
+    "$generated_prefix"*)
+      check_ok "$label is under deploy/generated"
+      ;;
+    "$ROOT_DIR/deploy/docker/"*|"$ROOT_DIR/deploy/caddy/"*)
+      check_error "$label points into a source template directory: $path"
+      echo "Hint: set ELEKTRINE_GENERATED_DIR=$ROOT_DIR/deploy/generated or remove legacy generated-path overrides." >&2
+      ;;
+    *)
+      check_warn "$label is outside deploy/generated: $path"
+      echo "Hint: generated Compose and Caddy outputs should normally live under deploy/generated/." >&2
+      ;;
+  esac
+}
+
+check_legacy_generated_files() {
+  local paths=()
+  local legacy_path=""
+
+  while IFS= read -r legacy_path; do
+    paths+=("$legacy_path")
+  done < <(
+    find "$ROOT_DIR/deploy/docker" "$ROOT_DIR/deploy/caddy" \
+      \( -name 'generated*.yml' -o -name 'generated.Caddyfile' -o -name 'generated.mongooseim.toml' -o -name 'compose.override.yml' \) \
+      -print 2>/dev/null || true
+  )
+
+  if [[ "${#paths[@]}" -eq 0 ]]; then
+    check_ok "no legacy generated files found in source template directories"
+    return
+  fi
+
+  check_warn "legacy generated files found in source template directories"
+  printf '  %s\n' "${paths[@]}" >&2
+  echo "Hint: move disposable rendered outputs to deploy/generated/ and keep deploy/docker/ and deploy/caddy/ as templates." >&2
+}
+
+check_root_owned_generated_files() {
+  local paths=()
+  local generated_path=""
+
+  while IFS= read -r generated_path; do
+    paths+=("$generated_path")
+  done < <(
+    find "$ROOT_DIR/deploy/generated" "$ROOT_DIR/deploy/docker" \
+      \( -path "$ROOT_DIR/deploy/generated/.gitkeep" -o -name 'generated*.yml' -o -name 'generated.Caddyfile' -o -name 'generated.mongooseim.toml' \) \
+      -user 0 -print 2>/dev/null || true
+  )
+
+  if [[ "${#paths[@]}" -eq 0 ]]; then
+    check_ok "no root-owned generated deploy files found"
+    return
+  fi
+
+  check_error "root-owned generated deploy files found"
+  printf '  %s\n' "${paths[@]}" >&2
+  echo "Hint: chown these files to the deploy user or remove them before deploying." >&2
+}
+
+check_stale_deploy_worktrees() {
+  local paths=()
+  local worktree_path=""
+
+  while IFS= read -r worktree_path; do
+    paths+=("$worktree_path")
+  done < <(find "$ROOT_DIR" -maxdepth 1 -type d -name '.deploy-worktree.*' -print 2>/dev/null || true)
+
+  if [[ "${#paths[@]}" -eq 0 ]]; then
+    check_ok "no stale deploy worktrees found"
+    return
+  fi
+
+  check_warn "stale deploy worktrees found"
+  printf '  %s\n' "${paths[@]}" >&2
+  echo "Hint: remove stale .deploy-worktree.* directories after confirming no deploy is running." >&2
+}
+
+check_compose_project_name() {
+  if present "${COMPOSE_PROJECT_NAME:-}"; then
+    check_ok "COMPOSE_PROJECT_NAME is set to $COMPOSE_PROJECT_NAME"
+  else
+    check_warn "COMPOSE_PROJECT_NAME is unset; Compose will derive it from the project directory"
+    echo "Hint: set COMPOSE_PROJECT_NAME=docker for stable network and volume names across deploy paths." >&2
+  fi
+}
+
+port_in_use() {
+  local port="$1"
+  local proto="$2"
+  local lsof_proto=""
+
+  if command -v ss >/dev/null 2>&1; then
+    ss -H -l "${proto}" "sport = :$port" 2>/dev/null | grep -q .
+  elif command -v lsof >/dev/null 2>&1; then
+    case "$proto" in
+      -t) lsof_proto="TCP" ;;
+      -u) lsof_proto="UDP" ;;
+      *) return 2 ;;
+    esac
+
+    if [[ "$lsof_proto" == "TCP" ]]; then
+      lsof -nP "-i$lsof_proto:$port" -sTCP:LISTEN >/dev/null 2>&1
+    else
+      lsof -nP "-i$lsof_proto:$port" >/dev/null 2>&1
+    fi
+  else
+    return 2
+  fi
+}
+
+check_port() {
+  local port="$1"
+  local proto="$2"
+  local label="$3"
+
+  if port_in_use "$port" "$proto"; then
+    check_warn "$label port appears to be in use: $port/${proto#-}"
+  else
+    case "$?" in
+      2)
+        check_warn "cannot check $label port; install ss or lsof"
+        ;;
+      *)
+        check_ok "$label port appears available: $port/${proto#-}"
+        ;;
+    esac
+  fi
 }
 
 validate_env_file() {
@@ -108,7 +287,7 @@ validate_env_file() {
 
 if [[ ! -f "$ENV_FILE" ]]; then
   check_error "env file does not exist: $ENV_FILE"
-  echo "Hint: scripts/deploy/generate_env.sh --domain example.com --email admin@example.com" >&2
+  echo "Hint: scripts/deploy/self_host.sh init --domain example.com --email admin@example.com" >&2
   exit 1
 fi
 
@@ -120,6 +299,16 @@ source "$ENV_FILE"
 set +a
 
 check_ok "loaded $ENV_FILE"
+ACTIVE_DOCKER_PROFILES="${DOCKER_PROFILES:-$(default_docker_profiles)}"
+
+check_generated_path_location "$GENERATED_COMPOSE_PATH" "generated Compose output"
+check_generated_path_location "$GENERATED_CADDY_PATH" "generated Caddy output"
+check_generated_output_path "$GENERATED_COMPOSE_PATH" "generated Compose output"
+check_generated_output_path "$GENERATED_CADDY_PATH" "generated Caddy output"
+check_legacy_generated_files
+check_root_owned_generated_files
+check_stale_deploy_worktrees
+check_compose_project_name
 
 for required in PRIMARY_DOMAIN DB_PASSWORD ELEKTRINE_MASTER_SECRET; do
   if present "${!required:-}"; then
@@ -138,6 +327,9 @@ if [[ "${ELEKTRINE_MASTER_SECRET:-}" == "replace-with-long-random-secret" || "${
 fi
 
 if has_profile caddy; then
+  check_port 80 -t "Caddy HTTP"
+  check_port 443 -t "Caddy HTTPS"
+
   if present "${ACME_EMAIL:-}"; then
     check_ok "ACME_EMAIL is set for Caddy"
   else
@@ -145,7 +337,25 @@ if has_profile caddy; then
   fi
 fi
 
+if has_profile dns; then
+  check_port 53 -t "DNS TCP"
+  check_port 53 -u "DNS UDP"
+fi
+
+if has_profile email; then
+  check_port 25 -t "SMTP edge"
+  check_port 465 -t "SMTPS"
+  check_port 587 -t "SMTP submission"
+  check_port 993 -t "IMAPS"
+fi
+
 if [[ "${CADDY_MANAGED_SITE_1:-}" == *"*."* ]]; then
+  if path_writable_or_sudo_installable "${CADDY_TLS_MOUNT_DIR:-/opt/elektrine/certs}/.doctor-write-test"; then
+    check_ok "Caddy TLS directory is writable or sudo-installable: ${CADDY_TLS_MOUNT_DIR:-/opt/elektrine/certs}"
+  else
+    check_error "Caddy TLS directory is not writable: ${CADDY_TLS_MOUNT_DIR:-/opt/elektrine/certs}"
+  fi
+
   if present "${CADDY_MANAGED_SITE_1_CERT_PATH:-}" && present "${CADDY_MANAGED_SITE_1_KEY_PATH:-}"; then
     check_ok "wildcard site 1 has external cert paths"
   else

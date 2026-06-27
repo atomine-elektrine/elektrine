@@ -10,8 +10,6 @@ defmodule ElektrineSocialWeb.RemotePostLive.Interactions do
   alias Elektrine.Social.Votes
   alias ElektrineWeb.Live.PostInteractions
 
-  @default_state PostInteractions.default_interaction_state()
-
   def like_message(socket, message_id, opts \\ []) do
     if current_user_missing?(socket) do
       {:noreply,
@@ -22,7 +20,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Interactions do
            ) do
         {:ok, message} ->
           key = PostInteractions.interaction_key(message_id, message)
-          current_state = Map.get(socket.assigns.post_interactions, key, @default_state)
+          current_state = Map.get(socket.assigns.post_interactions, key, default_state())
 
           if Map.get(current_state, :liked, false) do
             {:noreply, socket}
@@ -75,7 +73,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Interactions do
            ) do
         {:ok, message} ->
           key = PostInteractions.interaction_key(post_id, message)
-          current_state = Map.get(socket.assigns.post_interactions, key, @default_state)
+          current_state = Map.get(socket.assigns.post_interactions, key, default_state())
 
           if Map.get(current_state, :liked, false) do
             {:noreply, socket}
@@ -126,7 +124,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Interactions do
            ) do
         {:ok, message} ->
           key = PostInteractions.interaction_key(message_id, message)
-          current_state = Map.get(socket.assigns.post_interactions, key, @default_state)
+          current_state = Map.get(socket.assigns.post_interactions, key, default_state())
 
           if Map.get(current_state, :liked, false) do
             case Social.unlike_post(socket.assigns.current_user.id, message.id) do
@@ -178,7 +176,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Interactions do
            ) do
         {:ok, message} ->
           key = PostInteractions.interaction_key(post_id, message)
-          current_state = Map.get(socket.assigns.post_interactions, key, @default_state)
+          current_state = Map.get(socket.assigns.post_interactions, key, default_state())
 
           if Map.get(current_state, :liked, false) do
             case Social.unlike_post(socket.assigns.current_user.id, message.id) do
@@ -499,7 +497,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Interactions do
           interaction_key = PostInteractions.interaction_key(target_id, message)
 
           current_state =
-            Map.get(socket.assigns.post_interactions, interaction_key, @default_state)
+            Map.get(socket.assigns.post_interactions, interaction_key, default_state())
 
           current_vote = Map.get(current_state, :vote, nil)
           current_vote_delta = Map.get(current_state, :vote_delta, 0)
@@ -607,9 +605,11 @@ defmodule ElektrineSocialWeb.RemotePostLive.Interactions do
   end
 
   defp update_post_interactions(post_interactions, key, updater) when is_function(updater, 1) do
-    current_state = Map.get(post_interactions, key, @default_state)
+    current_state = Map.get(post_interactions, key, default_state())
     Map.put(post_interactions, key, updater.(current_state))
   end
+
+  defp default_state, do: PostInteractions.default_interaction_state()
 
   defp toggle_reaction(socket, message, reaction_key, user_id, emoji) do
     existing_reaction =

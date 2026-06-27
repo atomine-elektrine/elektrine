@@ -4,10 +4,11 @@ defmodule Elektrine.Security.SafeExternalURLTest do
   alias Elektrine.Security.SafeExternalURL
 
   test "normalizes public http and https URLs" do
-    assert {:ok, "https://example.com/path"} =
-             SafeExternalURL.normalize(" https://example.com/path ")
+    assert {:ok, "https://93.184.216.34/path"} =
+             SafeExternalURL.normalize(" https://93.184.216.34/path ")
 
-    assert {:ok, "http://example.com/path"} = SafeExternalURL.normalize("http://example.com/path")
+    assert {:ok, "http://93.184.216.34/path"} =
+             SafeExternalURL.normalize("http://93.184.216.34/path")
   end
 
   test "rejects external redirect URLs with controls, userinfo, and unsafe schemes" do

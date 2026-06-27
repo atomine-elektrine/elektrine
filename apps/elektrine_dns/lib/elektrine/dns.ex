@@ -9,7 +9,7 @@ defmodule Elektrine.DNS do
 
   require Logger
 
-  alias Elektrine.Accounts.User
+  alias Elektrine.Accounts.BuiltInSubdomain
   alias Elektrine.DNS.DomainHealth
   alias Elektrine.DNS.ManagedRecords
   alias Elektrine.DNS.Packet
@@ -28,12 +28,13 @@ defmodule Elektrine.DNS do
   @profile_wildcard_managed_key_aaaa "system:profile-wildcard-aaaa"
   @builtin_user_zone_forbidden_types ~w(ALIAS DNSKEY DS NS TLSA)
   @builtin_user_zone_allowed_apex_types ~w(CAA TXT)
-  @builtin_user_zone_modes User.built_in_subdomain_modes()
+  @builtin_user_zone_modes BuiltInSubdomain.modes()
+  @user_schema :"Elixir.Elektrine.Accounts.User"
 
-  def list_user_zones(%User{} = user) do
+  def list_user_zones(%{id: user_id} = user) when is_integer(user_id) do
     _ = ensure_builtin_user_zone(user)
 
-    user.id
+    user_id
     |> list_user_zones()
     |> sort_user_zones(builtin_user_zone_domain(user))
   end
@@ -48,7 +49,7 @@ defmodule Elektrine.DNS do
 
   def list_user_zones(_), do: []
 
-  def ensure_builtin_user_zone(%User{} = user) do
+  def ensure_builtin_user_zone(%{id: user_id} = user) when is_integer(user_id) do
     case builtin_user_zone_domain(user) do
       nil -> {:error, :invalid_user}
       domain -> ensure_builtin_user_zone(user, domain)
@@ -57,9 +58,9 @@ defmodule Elektrine.DNS do
 
   def ensure_builtin_user_zone(_), do: {:error, :invalid_user}
 
-  def builtin_user_zone_domain(%User{} = user) do
+  def builtin_user_zone_domain(%{handle: handle, username: username}) do
     label =
-      (user.handle || user.username)
+      (handle || username)
       |> to_string()
       |> String.trim()
       |> String.downcase()
@@ -75,16 +76,17 @@ defmodule Elektrine.DNS do
 
   def builtin_user_zone_domain(_), do: nil
 
-  def builtin_user_zone?(%Zone{} = zone, %User{} = user) do
-    zone.user_id == user.id and zone.domain == builtin_user_zone_domain(user)
+  def builtin_user_zone?(%Zone{} = zone, %{id: user_id} = user) when is_integer(user_id) do
+    zone.user_id == user_id and zone.domain == builtin_user_zone_domain(user)
   end
 
-  def builtin_user_zone_mode(%User{} = user), do: User.built_in_subdomain_mode(user)
+  def builtin_user_zone_mode(%{built_in_subdomain_mode: _} = user),
+    do: BuiltInSubdomain.mode(user)
 
   def builtin_user_zone_mode(%Zone{} = zone) do
-    case Repo.get(User, zone.user_id) do
-      %User{} = user -> builtin_user_zone_mode(user)
-      _ -> "platform"
+    case zone.user_id && Repo.get(@user_schema, zone.user_id) do
+      nil -> "platform"
+      user -> builtin_user_zone_mode(user)
     end
   end
 
@@ -93,7 +95,19 @@ defmodule Elektrine.DNS do
   def builtin_user_zone_hosted_by_platform?(user_or_zone),
     do: builtin_user_zone_mode(user_or_zone) == "platform"
 
-  def update_builtin_user_zone_mode(%User{} = user, mode) when mode in @builtin_user_zone_modes do
+  def update_builtin_user_zone_mode(user, mode) when mode in @builtin_user_zone_modes do
+    if user_schema?(user) do
+      update_user_builtin_zone_mode(user, mode)
+    else
+      {:error, :invalid_user}
+    end
+  end
+
+  def update_builtin_user_zone_mode(user, _mode) do
+    if user_schema?(user), do: {:error, :invalid_mode}, else: {:error, :invalid_user}
+  end
+
+  defp update_user_builtin_zone_mode(user, mode) do
     user
     |> Ecto.Changeset.change(%{built_in_subdomain_mode: mode})
     |> Repo.update()
@@ -119,14 +133,10 @@ defmodule Elektrine.DNS do
     end
   end
 
-  def update_builtin_user_zone_mode(%User{} = _user, _mode), do: {:error, :invalid_mode}
-
-  def update_builtin_user_zone_mode(_, _), do: {:error, :invalid_user}
-
   def builtin_user_zone?(%Zone{} = zone) do
-    case zone.user_id && Repo.get(User, zone.user_id) do
-      %User{} = user -> builtin_user_zone?(zone, user)
-      _ -> false
+    case zone.user_id && Repo.get(@user_schema, zone.user_id) do
+      nil -> false
+      user -> builtin_user_zone?(zone, user)
     end
   end
 
@@ -304,7 +314,7 @@ defmodule Elektrine.DNS do
 
   def domain_health(_), do: DomainHealth.analyze(nil)
 
-  def create_zone(%User{id: user_id}, attrs), do: create_zone(user_id, attrs)
+  def create_zone(%{id: user_id}, attrs) when is_integer(user_id), do: create_zone(user_id, attrs)
 
   def create_zone(user_id, attrs) when is_integer(user_id) and is_map(attrs) do
     %Zone{}
@@ -315,6 +325,7 @@ defmodule Elektrine.DNS do
       error -> error
     end
     |> refresh_authority_cache_after_write()
+    |> maybe_ensure_profile_wildcards_after_zone_write()
   end
 
   def create_zone(_, _), do: {:error, :invalid_attributes}
@@ -416,7 +427,7 @@ defmodule Elektrine.DNS do
     |> Record.changeset(attrs)
   end
 
-  def new_zone_changeset(%User{id: user_id}), do: new_zone_changeset(user_id)
+  def new_zone_changeset(%{id: user_id}) when is_integer(user_id), do: new_zone_changeset(user_id)
 
   def new_zone_changeset(user_id) when is_integer(user_id) do
     Zone.changeset(%Zone{}, %{
@@ -1448,6 +1459,20 @@ defmodule Elektrine.DNS do
 
   defp refresh_authority_cache_after_write(result, _opts), do: result
 
+  defp maybe_ensure_profile_wildcards_after_zone_write({:ok, %Zone{} = zone} = result) do
+    profile_base_domains =
+      Domains.profile_base_domains()
+      |> Enum.map(&normalize_zone_host/1)
+
+    if normalize_zone_host(zone.domain) in profile_base_domains do
+      _ = ensure_profile_subdomain_wildcards()
+    end
+
+    result
+  end
+
+  defp maybe_ensure_profile_wildcards_after_zone_write(result), do: result
+
   defp touch_authority_zone(%Record{zone_id: zone_id} = record) do
     _ = touch_zone_publication(zone_id)
     record
@@ -1504,10 +1529,10 @@ defmodule Elektrine.DNS do
     end
   end
 
-  defp ensure_builtin_user_zone(%User{} = user, domain) do
+  defp ensure_builtin_user_zone(%{id: user_id}, domain) when is_integer(user_id) do
     zone =
       Zone
-      |> where([z], z.user_id == ^user.id and fragment("lower(?)", z.domain) == ^domain)
+      |> where([z], z.user_id == ^user_id and fragment("lower(?)", z.domain) == ^domain)
       |> preload([:records, :service_configs])
       |> Repo.one()
 
@@ -1530,7 +1555,7 @@ defmodule Elektrine.DNS do
             %Zone{}
             |> Zone.changeset(%{
               domain: domain,
-              user_id: user.id,
+              user_id: user_id,
               status: "verified",
               kind: "native",
               default_ttl: default_ttl(),
@@ -1959,7 +1984,7 @@ defmodule Elektrine.DNS do
     end)
   end
 
-  defp validate_platform_handoff(%User{} = user) do
+  defp validate_platform_handoff(user) do
     if builtin_user_zone_hosted_by_platform?(user) do
       case get_zone_by_domain(builtin_user_zone_domain(user)) do
         %Zone{} = zone ->
@@ -1994,6 +2019,10 @@ defmodule Elektrine.DNS do
   end
 
   defp record_conflict_label(%Record{} = record), do: "#{record.name} #{record.type}"
+
+  defp user_schema?(%{__struct__: @user_schema, id: id}) when is_integer(id), do: true
+
+  defp user_schema?(_), do: false
 
   defp zone_domain(zone_id) when is_integer(zone_id) do
     case Repo.get(Zone, zone_id) do

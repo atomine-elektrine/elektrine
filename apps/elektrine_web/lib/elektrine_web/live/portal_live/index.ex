@@ -14,6 +14,8 @@ defmodule ElektrineWeb.PortalLive.Index do
   alias ElektrineWeb.Components.Social.PostUtilities
   alias ElektrineWeb.Live.PostInteractions
   alias ElektrineWeb.Platform.Integrations
+  alias ElektrineWeb.PortalLive.ActivityInspector
+  alias ElektrineWeb.PortalLive.DashboardData
   import ElektrineWeb.Components.Platform.ENav
   import ElektrineWeb.Live.Helpers.PostStateHelpers
   @default_filter "all"
@@ -24,12 +26,10 @@ defmodule ElektrineWeb.PortalLive.Index do
   @feed_load_timeout_ms 12_000
   @stats_load_timeout_ms 8000
   @dashboard_load_timeout_ms 10_000
-  @activity_inspector_page_size 25
   @session_interest_dwell_ms 10_000
   @portal_feed_limit 20
   @portal_feed_step 20
   @portal_count_refresh_limit 20
-  @activity_sections ~w(posts timeline gallery discussions likes followers following)
   @impl true
   def mount(_params, session, socket) do
     user = socket.assigns[:current_user]
@@ -82,7 +82,7 @@ defmodule ElektrineWeb.PortalLive.Index do
         |> assign(:loading_feed, true)
         |> assign(:loading_stats, true)
         |> assign(:loading_dashboard, true)
-        |> assign(:dashboard, default_dashboard())
+        |> assign(:dashboard, DashboardData.default())
         |> assign(:reader_params, %{})
         |> assign(:dashboard_last_refreshed_at, nil)
         |> assign(:data_loaded, false)
@@ -102,7 +102,7 @@ defmodule ElektrineWeb.PortalLive.Index do
         |> assign(:quote_target_post, nil)
         |> assign(:quote_content, "")
         |> assign(:show_activity_inspector, false)
-        |> assign(:activity_inspector, default_activity_inspector())
+        |> assign(:activity_inspector, ActivityInspector.default())
         |> assign(:loading_remote_replies, MapSet.new())
 
       socket =
@@ -167,27 +167,12 @@ defmodule ElektrineWeb.PortalLive.Index do
     {:noreply,
      socket
      |> assign(:show_activity_inspector, false)
-     |> assign(:activity_inspector, default_activity_inspector())}
+     |> assign(:activity_inspector, ActivityInspector.default())}
   end
 
   def handle_event("inspect_activity", %{"section" => section}, socket) do
     current_user = socket.assigns.current_user
-    section = normalize_activity_section(section)
-    page_size = @activity_inspector_page_size
-
-    entries =
-      list_activity_entries(current_user.id, section, offset: 0, limit: page_size, query: "")
-
-    inspector = %{
-      section: section,
-      title: activity_section_title(section),
-      empty_message: activity_section_empty_message(section),
-      entries: entries,
-      query: "",
-      offset: length(entries),
-      no_more: length(entries) < page_size,
-      stat_value: activity_section_stat_value(section, socket.assigns.personal_stats)
-    }
+    inspector = ActivityInspector.build(current_user.id, section, socket.assigns.personal_stats)
 
     {:noreply,
      socket
@@ -202,11 +187,11 @@ defmodule ElektrineWeb.PortalLive.Index do
       {:noreply, socket}
     else
       next_entries =
-        list_activity_entries(
+        ActivityInspector.list_entries(
           socket.assigns.current_user.id,
           inspector.section,
           offset: inspector.offset,
-          limit: @activity_inspector_page_size,
+          limit: ActivityInspector.page_size(),
           query: inspector.query
         )
 
@@ -214,7 +199,7 @@ defmodule ElektrineWeb.PortalLive.Index do
         inspector
         | entries: inspector.entries ++ next_entries,
           offset: inspector.offset + length(next_entries),
-          no_more: length(next_entries) < @activity_inspector_page_size
+          no_more: length(next_entries) < ActivityInspector.page_size()
       }
 
       {:noreply, assign(socket, :activity_inspector, updated_inspector)}
@@ -229,11 +214,11 @@ defmodule ElektrineWeb.PortalLive.Index do
       {:noreply, socket}
     else
       entries =
-        list_activity_entries(
+        ActivityInspector.list_entries(
           socket.assigns.current_user.id,
           inspector.section,
           offset: 0,
-          limit: @activity_inspector_page_size,
+          limit: ActivityInspector.page_size(),
           query: query
         )
 
@@ -242,7 +227,7 @@ defmodule ElektrineWeb.PortalLive.Index do
         | query: query,
           entries: entries,
           offset: length(entries),
-          no_more: length(entries) < @activity_inspector_page_size
+          no_more: length(entries) < ActivityInspector.page_size()
       }
 
       {:noreply, assign(socket, :activity_inspector, updated_inspector)}
@@ -1467,7 +1452,9 @@ defmodule ElektrineWeb.PortalLive.Index do
 
       {:error, _reason} ->
         {:noreply,
-         socket |> assign(:dashboard, default_dashboard()) |> assign(:loading_dashboard, false)}
+         socket
+         |> assign(:dashboard, DashboardData.default())
+         |> assign(:loading_dashboard, false)}
     end
   end
 
@@ -1758,13 +1745,15 @@ defmodule ElektrineWeb.PortalLive.Index do
   end
 
   defp maybe_refresh_activity_inspector(socket, user_id) do
-    inspector = socket.assigns[:activity_inspector] || default_activity_inspector()
+    inspector = socket.assigns[:activity_inspector] || ActivityInspector.default()
 
     if socket.assigns[:show_activity_inspector] and inspector.section == "following" do
+      limit = max(inspector.offset, ActivityInspector.page_size())
+
       entries =
-        list_activity_entries(user_id, "following",
+        ActivityInspector.list_entries(user_id, "following",
           offset: 0,
-          limit: max(inspector.offset, @activity_inspector_page_size),
+          limit: limit,
           query: inspector.query
         )
 
@@ -1772,7 +1761,7 @@ defmodule ElektrineWeb.PortalLive.Index do
         inspector
         | entries: entries,
           offset: length(entries),
-          no_more: length(entries) < max(inspector.offset, @activity_inspector_page_size),
+          no_more: length(entries) < limit,
           stat_value: Profiles.get_following_count(user_id)
       }
 
@@ -1784,93 +1773,6 @@ defmodule ElektrineWeb.PortalLive.Index do
 
   defp get_user_boosts_map(user_id, posts) do
     get_user_boosts(user_id, posts)
-  end
-
-  defp default_dashboard do
-    %{
-      inbox_messages: [],
-      inbox_unread_count: 0,
-      chat_unread_count: 0,
-      notifications_unread_count: 0,
-      pending_friend_requests_count: 0,
-      pending_follow_requests_count: 0,
-      vpn_config_count: 0,
-      tasks: [],
-      alerts: [],
-      attention_queue: [],
-      attention_counts: %{"all" => 0},
-      quick_actions: quick_actions(),
-      recent_activity: []
-    }
-  end
-
-  defp quick_actions(user \\ nil) do
-    [
-      if module_available?(user, :email, :email) do
-        %{
-          id: "compose_email",
-          label: "Compose Email",
-          detail: "Start a new message",
-          href: Elektrine.Paths.email_compose_path(return_to: "portal"),
-          icon: "hero-pencil-square",
-          tone: "primary"
-        }
-      end,
-      if module_available?(user, :chat, :chat) do
-        %{
-          id: "new_message",
-          label: "New Message",
-          detail: "Start a direct message",
-          href: Elektrine.Paths.chat_root_path(composer: "message"),
-          icon: "hero-chat-bubble-left-right",
-          tone: "neutral"
-        }
-      end,
-      if module_available?(user, :social, :timeline) do
-        %{
-          id: "new_post",
-          label: "New Post",
-          detail: "Share an update",
-          href: Elektrine.Paths.timeline_path(composer: "post"),
-          icon: "hero-rectangle-stack",
-          tone: "neutral"
-        }
-      end,
-      if module_available?(user, :email, :email) do
-        %{
-          id: "new_task",
-          label: "New Task",
-          detail: "Capture work on the calendar",
-          href: Elektrine.Paths.calendar_path(composer: "task"),
-          icon: "hero-check-circle",
-          tone: "neutral"
-        }
-      end,
-      if module_available?(user, :social, :lists) do
-        %{
-          id: "new_list",
-          label: "New List",
-          detail: "Save a smaller group",
-          href: Elektrine.Paths.lists_path("create-list-panel"),
-          icon: "hero-queue-list",
-          tone: "neutral"
-        }
-      end,
-      %{
-        id: "search",
-        label: "Maid",
-        detail: "Private search",
-        href: Elektrine.Paths.maid_path(),
-        icon: "hero-magnifying-glass",
-        tone: "neutral"
-      }
-    ]
-    |> Enum.reject(&is_nil/1)
-  end
-
-  defp module_available?(user, platform_module, access_module) do
-    Modules.enabled?(platform_module) and
-      Elektrine.System.user_can_access_module?(user, access_module)
   end
 
   defp build_dashboard_data(user) do
@@ -1943,7 +1845,7 @@ defmodule ElektrineWeb.PortalLive.Index do
       alerts: alerts,
       attention_queue: attention_queue,
       attention_counts: attention_queue_counts(attention_queue),
-      quick_actions: quick_actions(user),
+      quick_actions: DashboardData.quick_actions(user),
       recent_activity:
         build_recent_activity(
           inbox_messages,
@@ -3461,19 +3363,6 @@ defmodule ElektrineWeb.PortalLive.Index do
     }
   end
 
-  defp default_activity_inspector do
-    %{
-      section: nil,
-      title: nil,
-      empty_message: nil,
-      entries: [],
-      query: "",
-      offset: 0,
-      no_more: false,
-      stat_value: 0
-    }
-  end
-
   defp load_with_timeout(key, loader, timeout_ms) when is_function(loader, 0) do
     if Elektrine.RuntimeEnv.environment() == :test do
       {:ok, loader.()}
@@ -3647,286 +3536,6 @@ defmodule ElektrineWeb.PortalLive.Index do
       top_post: top_post
     }
   end
-
-  defp normalize_activity_section(section) when section in @activity_sections, do: section
-  defp normalize_activity_section(_section), do: "posts"
-
-  defp activity_section_title("posts"), do: "My Posts"
-  defp activity_section_title("timeline"), do: "Timeline"
-  defp activity_section_title("gallery"), do: "Gallery"
-  defp activity_section_title("discussions"), do: "Discuss"
-  defp activity_section_title("likes"), do: "Likes"
-  defp activity_section_title("followers"), do: "Followers"
-  defp activity_section_title("following"), do: "Following"
-
-  defp activity_section_empty_message("posts"), do: "No posts yet"
-  defp activity_section_empty_message("timeline"), do: "No timeline posts yet"
-  defp activity_section_empty_message("gallery"), do: "No gallery posts yet"
-  defp activity_section_empty_message("discussions"), do: "No discussion posts yet"
-  defp activity_section_empty_message("likes"), do: "No liked posts to show yet"
-  defp activity_section_empty_message("followers"), do: "No followers yet"
-  defp activity_section_empty_message("following"), do: "Not following anyone yet"
-
-  defp activity_section_stat_value("posts", stats), do: Map.get(stats, :total_posts, 0)
-  defp activity_section_stat_value("timeline", stats), do: Map.get(stats, :timeline_posts, 0)
-  defp activity_section_stat_value("gallery", stats), do: Map.get(stats, :gallery_posts, 0)
-  defp activity_section_stat_value("discussions", stats), do: Map.get(stats, :discussion_posts, 0)
-  defp activity_section_stat_value("likes", stats), do: Map.get(stats, :total_likes, 0)
-  defp activity_section_stat_value("followers", stats), do: Map.get(stats, :followers, 0)
-  defp activity_section_stat_value("following", stats), do: Map.get(stats, :following, 0)
-
-  defp list_activity_entries(user_id, section, opts) do
-    offset = Keyword.get(opts, :offset, 0)
-    limit = Keyword.get(opts, :limit, @activity_inspector_page_size)
-    query = Keyword.get(opts, :query, "")
-
-    case section do
-      "posts" ->
-        list_activity_posts(user_id, ["post", "gallery", "discussion"], offset, limit, query)
-
-      "timeline" ->
-        list_activity_posts(user_id, ["post"], offset, limit, query)
-
-      "gallery" ->
-        list_activity_posts(user_id, ["gallery"], offset, limit, query)
-
-      "discussions" ->
-        list_activity_posts(user_id, ["discussion"], offset, limit, query)
-
-      "likes" ->
-        list_activity_likes(user_id, offset, limit, query)
-
-      "followers" ->
-        list_activity_relationships(user_id, :followers, offset, limit, query)
-
-      "following" ->
-        list_activity_relationships(user_id, :following, offset, limit, query)
-    end
-  end
-
-  defp list_activity_posts(user_id, post_types, offset, limit, query) do
-    import Ecto.Query
-
-    search_term = activity_search_pattern(query)
-
-    from(m in Elektrine.Social.Message,
-      where:
-        m.sender_id == ^user_id and m.post_type in ^post_types and is_nil(m.deleted_at) and
-          m.is_draft == false,
-      where:
-        ^is_nil(search_term) or ilike(fragment("coalesce(?, '')", m.title), ^search_term) or
-          ilike(fragment("coalesce(?, '')", m.content), ^search_term),
-      order_by: [desc: m.inserted_at],
-      offset: ^offset,
-      limit: ^limit,
-      preload: [:conversation]
-    )
-    |> Repo.all()
-    |> Elektrine.Social.Message.decrypt_messages()
-    |> Enum.map(&activity_post_entry/1)
-  end
-
-  defp list_activity_likes(user_id, offset, limit, query) do
-    import Ecto.Query
-
-    search_term = activity_search_pattern(query)
-
-    from(m in Elektrine.Social.Message,
-      where:
-        m.sender_id == ^user_id and m.post_type in ["post", "gallery", "discussion"] and
-          is_nil(m.deleted_at) and m.is_draft == false and m.like_count > 0,
-      where:
-        ^is_nil(search_term) or ilike(fragment("coalesce(?, '')", m.title), ^search_term) or
-          ilike(fragment("coalesce(?, '')", m.content), ^search_term),
-      order_by: [desc: m.like_count, desc: m.inserted_at],
-      offset: ^offset,
-      limit: ^limit,
-      preload: [:conversation]
-    )
-    |> Repo.all()
-    |> Elektrine.Social.Message.decrypt_messages()
-    |> Enum.map(&activity_like_entry/1)
-  end
-
-  defp list_activity_relationships(user_id, direction, offset, limit, query) do
-    import Ecto.Query
-
-    search_term = activity_search_pattern(query)
-
-    local_query =
-      case direction do
-        :followers ->
-          from(f in Profiles.Follow,
-            join: u in assoc(f, :follower),
-            where: f.followed_id == ^user_id and not is_nil(f.follower_id) and f.pending == false,
-            select: %{
-              type: "local",
-              name: fragment("coalesce(?, ?)", u.display_name, u.username),
-              handle: fragment("coalesce(?, ?)", u.handle, u.username),
-              domain: type(^nil, :string),
-              href: fragment("concat('/', coalesce(?, ?))", u.handle, u.username),
-              followed_at: f.inserted_at,
-              user_id: u.id,
-              remote_actor_id: type(^nil, :integer)
-            }
-          )
-
-        :following ->
-          from(f in Profiles.Follow,
-            join: u in assoc(f, :followed),
-            where: f.follower_id == ^user_id and not is_nil(f.followed_id) and f.pending == false,
-            select: %{
-              type: "local",
-              name: fragment("coalesce(?, ?)", u.display_name, u.username),
-              handle: fragment("coalesce(?, ?)", u.handle, u.username),
-              domain: type(^nil, :string),
-              href: fragment("concat('/', coalesce(?, ?))", u.handle, u.username),
-              followed_at: f.inserted_at,
-              user_id: u.id,
-              remote_actor_id: type(^nil, :integer)
-            }
-          )
-      end
-
-    remote_query =
-      case direction do
-        :followers ->
-          from(f in Profiles.Follow,
-            join: a in assoc(f, :remote_actor),
-            where:
-              f.followed_id == ^user_id and not is_nil(f.remote_actor_id) and f.pending == false,
-            select: %{
-              type: "remote",
-              name: fragment("coalesce(?, ?)", a.display_name, a.username),
-              handle: a.username,
-              domain: a.domain,
-              href: fragment("concat('/remote/', ?, '@', ?)", a.username, a.domain),
-              followed_at: f.inserted_at,
-              user_id: type(^nil, :integer),
-              remote_actor_id: a.id
-            }
-          )
-
-        :following ->
-          from(f in Profiles.Follow,
-            join: a in assoc(f, :remote_actor),
-            where:
-              f.follower_id == ^user_id and not is_nil(f.remote_actor_id) and
-                (f.pending == false or a.manually_approves_followers == false),
-            select: %{
-              type: "remote",
-              name: fragment("coalesce(?, ?)", a.display_name, a.username),
-              handle: a.username,
-              domain: a.domain,
-              href: fragment("concat('/remote/', ?, '@', ?)", a.username, a.domain),
-              followed_at: f.inserted_at,
-              user_id: type(^nil, :integer),
-              remote_actor_id: a.id
-            }
-          )
-      end
-
-    combined_query = union_all(local_query, ^remote_query)
-
-    from(r in subquery(combined_query),
-      where:
-        ^is_nil(search_term) or ilike(fragment("coalesce(?, '')", r.name), ^search_term) or
-          ilike(fragment("coalesce(?, '')", r.handle), ^search_term) or
-          ilike(fragment("coalesce(?, '')", r.domain), ^search_term),
-      order_by: [desc: r.followed_at],
-      offset: ^offset,
-      limit: ^limit
-    )
-    |> Repo.all()
-    |> Enum.map(&activity_relationship_entry(&1, direction))
-  end
-
-  defp activity_post_entry(post) do
-    image_preview_url =
-      post.media_urls
-      |> List.wrap()
-      |> PostUtilities.filter_image_urls()
-      |> List.first()
-
-    media_count = length(List.wrap(post.media_urls))
-
-    %{
-      kind: :post,
-      id: post.id,
-      href: Elektrine.Paths.post_path(post.id),
-      title: social_post_title(post),
-      preview:
-        PostUtilities.render_content_preview(
-          post.content || "",
-          PostUtilities.get_instance_domain(post),
-          160
-        ),
-      meta: activity_post_type_label(post.post_type),
-      at: post.inserted_at,
-      count_label: nil,
-      count_value: nil,
-      media_count: media_count,
-      media_label: activity_media_label(post, media_count),
-      preview_image_url: image_preview_url,
-      remote_actor_id: nil,
-      user_id: nil
-    }
-  end
-
-  defp activity_like_entry(post) do
-    post
-    |> activity_post_entry()
-    |> Map.put(:meta, "#{activity_post_type_label(post.post_type)} post")
-    |> Map.put(:count_label, "likes")
-    |> Map.put(:count_value, post.like_count || 0)
-  end
-
-  defp activity_relationship_entry(entry, direction) do
-    handle =
-      case entry.type do
-        "remote" -> "@#{entry.handle}@#{entry.domain}"
-        _ -> "@#{entry.handle}"
-      end
-
-    %{
-      kind: :relationship,
-      id: entry.user_id || entry.remote_actor_id,
-      href: entry.href,
-      title: entry.name,
-      preview: ElektrineWeb.HtmlHelpers.escape_html(handle),
-      meta: if(direction == :followers, do: "followed you", else: "you follow"),
-      at: entry.followed_at,
-      count_label: nil,
-      count_value: nil,
-      media_count: 0,
-      media_label: nil,
-      preview_image_url: nil,
-      remote_actor_id: entry.remote_actor_id,
-      user_id: entry.user_id
-    }
-  end
-
-  defp activity_post_type_label("post"), do: "Timeline"
-  defp activity_post_type_label("gallery"), do: "Gallery"
-  defp activity_post_type_label("discussion"), do: "Discuss"
-  defp activity_post_type_label(type), do: String.capitalize(type)
-
-  defp activity_search_pattern(query) do
-    case String.trim(query || "") do
-      "" -> nil
-      trimmed -> "%#{trimmed}%"
-    end
-  end
-
-  defp activity_media_label(_post, 0), do: nil
-
-  defp activity_media_label(post, count) when post.post_type == "gallery",
-    do: pluralize_media(count)
-
-  defp activity_media_label(_post, count), do: pluralize_media(count)
-
-  defp pluralize_media(1), do: "1 media item"
-  defp pluralize_media(count), do: "#{count} media items"
 
   defp get_user_own_posts(user_id, limit) do
     import Ecto.Query

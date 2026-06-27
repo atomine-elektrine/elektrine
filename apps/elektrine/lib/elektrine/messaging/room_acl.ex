@@ -7,7 +7,6 @@ defmodule Elektrine.Messaging.RoomACL do
   alias Elektrine.ActivityPub.Actor
 
   alias Elektrine.Messaging.{
-    ArblargSDK,
     ChatConversation,
     ChatConversationMember,
     FederationExtensionEvent,
@@ -101,14 +100,14 @@ defmodule Elektrine.Messaging.RoomACL do
   }
 
   @acl_event_types [
-    ArblargSDK.canonical_event_type("role.upsert"),
-    ArblargSDK.canonical_event_type("role.assignment.upsert"),
-    ArblargSDK.canonical_event_type("permission.overwrite.upsert")
+    "urn:arblarg:ext:roles:1#role.upsert",
+    "urn:arblarg:ext:roles:1#role.assignment.upsert",
+    "urn:arblarg:ext:permissions:1#overwrite.upsert"
   ]
 
-  @role_upsert_event_type ArblargSDK.canonical_event_type("role.upsert")
-  @role_assignment_event_type ArblargSDK.canonical_event_type("role.assignment.upsert")
-  @permission_overwrite_event_type ArblargSDK.canonical_event_type("permission.overwrite.upsert")
+  @role_upsert_event_type "urn:arblarg:ext:roles:1#role.upsert"
+  @role_assignment_event_type "urn:arblarg:ext:roles:1#role.assignment.upsert"
+  @permission_overwrite_event_type "urn:arblarg:ext:permissions:1#overwrite.upsert"
 
   def authorize_local_user_action(conversation_id, user_id, action)
       when is_integer(conversation_id) and is_integer(user_id) and is_atom(action) do

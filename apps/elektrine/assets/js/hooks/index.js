@@ -12,9 +12,9 @@ import {
   MessageContextMenu,
   ChatKeyboardShortcuts,
   CopyChatMessage,
-  VoiceRecorder,
   ChatE2EE,
 } from "./chat_hooks";
+import { VoiceRecorder } from "./chat_voice_recorder_hook";
 
 // Email hooks
 import {

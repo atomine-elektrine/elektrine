@@ -4,9 +4,10 @@ defmodule Elektrine.Accounts.User do
   import Ecto.Changeset
   import Ecto.Query, warn: false
 
+  alias Elektrine.Accounts.BuiltInSubdomain
   alias Elektrine.Security.URLValidator
 
-  @built_in_subdomain_modes ~w(path platform external_dns)
+  @built_in_subdomain_modes BuiltInSubdomain.modes()
 
   schema "users" do
     # Authentication
@@ -1187,17 +1188,12 @@ defmodule Elektrine.Accounts.User do
     )
   end
 
-  def built_in_subdomain_modes, do: @built_in_subdomain_modes
+  def built_in_subdomain_modes, do: BuiltInSubdomain.modes()
 
-  def built_in_subdomain_mode(%__MODULE__{built_in_subdomain_mode: mode})
-      when mode in @built_in_subdomain_modes,
-      do: mode
+  def built_in_subdomain_mode(user), do: BuiltInSubdomain.mode(user)
 
-  def built_in_subdomain_mode(_), do: "path"
-
-  def built_in_subdomain_hosted_by_platform?(%__MODULE__{} = user) do
-    built_in_subdomain_mode(user) == "platform"
-  end
+  def built_in_subdomain_hosted_by_platform?(%__MODULE__{} = user),
+    do: BuiltInSubdomain.hosted_by_platform?(user)
 
   def built_in_subdomain_hosted_by_platform?(_), do: true
 

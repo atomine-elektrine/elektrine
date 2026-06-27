@@ -92,7 +92,7 @@ defmodule Elektrine.MixProject do
        app: false,
        compile: false,
        depth: 1},
-      {:swoosh, "== 1.25.2"},
+      {:swoosh, "~> 1.26"},
       {:finch, "== 0.22.0"},
       {:mail, "~> 0.5.1"},
       {:telemetry_metrics, "== 1.1.0"},
@@ -106,7 +106,7 @@ defmodule Elektrine.MixProject do
       {:gen_smtp, "== 1.3.0"},
       {:oban, "== 2.22.1"},
       {:oban_live_dashboard, "~> 0.1"},
-      {:ex_aws, "== 2.6.1"},
+      {:ex_aws, "~> 2.7"},
       {:ex_aws_s3, "== 2.5.9"},
       {:sweet_xml, "== 0.7.5"},
       {:html_sanitize_ex, "== 1.5.1"},
@@ -121,7 +121,10 @@ defmodule Elektrine.MixProject do
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false},
       {:wallaby, "~> 0.30", only: :test, runtime: false},
-      {:stripity_stripe, "~> 3.0"}
+      {:httpoison, "~> 3.0", only: :test, override: true},
+      {:web_driver_client, "~> 0.3", only: :test, override: true},
+      {:hackney, "~> 4.4", override: true},
+      {:stripity_stripe, "~> 3.3"}
     ]
   end
 

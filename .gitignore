@@ -72,6 +72,8 @@ npm-debug.log*
 /deploy/docker/generated*.yml
 /deploy/docker/generated.Caddyfile
 /deploy/docker/generated.mongooseim.toml
+/deploy/generated/*
+!/deploy/generated/.gitkeep
 
 # =============================================================================
 # IDE / Editor

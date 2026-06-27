@@ -4,7 +4,8 @@
   "description": "Elektrine Phoenix application",
   "main": "js/app.js",
   "scripts": {
-    "deploy": "cd .. && mix assets.deploy && rm -f _build/esbuild*"
+    "deploy": "cd .. && mix assets.deploy && rm -f _build/esbuild*",
+    "check": "node scripts/check_js.mjs"
   },
   "dependencies": {
     "@noble/hashes": "^2.2.0",

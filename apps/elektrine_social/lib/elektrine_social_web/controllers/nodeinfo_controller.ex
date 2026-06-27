@@ -18,12 +18,12 @@ defmodule ElektrineSocialWeb.NodeinfoController do
     data = %{
       links: [
         %{
-          rel: "http://nodeinfo.diaspora.software/ns/schema/2.0",
-          href: "#{base_url}/nodeinfo/2.0"
-        },
-        %{
           rel: "http://nodeinfo.diaspora.software/ns/schema/2.1",
           href: "#{base_url}/nodeinfo/2.1"
+        },
+        %{
+          rel: "http://nodeinfo.diaspora.software/ns/schema/2.0",
+          href: "#{base_url}/nodeinfo/2.0"
         }
       ]
     }

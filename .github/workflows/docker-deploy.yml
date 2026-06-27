@@ -189,8 +189,8 @@ jobs:
 
           WORKTREE_PATH="$DEPLOY_PATH/.deploy-worktree.$(date +%s).$$"
 
-          OUTPUT_FILE="$DEPLOY_PATH/deploy/docker/generated.docker.yml"
-          CADDY_OUTPUT_FILE="$DEPLOY_PATH/deploy/docker/generated.Caddyfile"
+          OUTPUT_FILE="$DEPLOY_PATH/deploy/generated/generated.docker.yml"
+          CADDY_OUTPUT_FILE="$DEPLOY_PATH/deploy/generated/generated.Caddyfile"
           trap 'git -C "$DEPLOY_PATH" worktree remove --force "$WORKTREE_PATH" >/dev/null 2>&1 || rm -rf "$WORKTREE_PATH"' EXIT
 
           git worktree add --force --detach "$WORKTREE_PATH" "$DEPLOY_REF"
@@ -277,6 +277,6 @@ jobs:
             DOCKER_CMD="sudo -n docker"
           fi
           cd "$DEPLOY_PATH"
-          COMPOSE_FILE="$DEPLOY_PATH/deploy/docker/generated.docker.yml"
+          COMPOSE_FILE="$DEPLOY_PATH/deploy/generated/generated.docker.yml"
           \$DOCKER_CMD compose --project-directory "$DEPLOY_PATH/deploy/docker" --env-file "$DEPLOY_PATH/.env.production" -f "\$COMPOSE_FILE" --profile caddy --profile dns --profile email --profile tor --profile turn --profile bluesky --profile vpn ps || \$DOCKER_CMD ps
           EOF

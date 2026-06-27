@@ -7,13 +7,13 @@ defmodule Elektrine.Profiles.UserProfile do
   import Ecto.Changeset
   alias Elektrine.Markdown
 
-  @default_accent_color Elektrine.Theme.default_value("color_primary")
-  @default_text_color Elektrine.Theme.inverse_text_color()
-  @default_background_color Elektrine.Theme.default_value("color_base_100")
-  @default_icon_color Elektrine.Theme.default_value("color_primary")
-  @default_username_glow_color Elektrine.Theme.default_value("color_primary")
-  @default_username_shadow_color Elektrine.Theme.default_value("color_base_100")
-  @default_tick_color Elektrine.Theme.default_value("color_primary")
+  @default_accent_color "#5f87b8"
+  @default_text_color "#ffffff"
+  @default_background_color "#121214"
+  @default_icon_color "#5f87b8"
+  @default_username_glow_color "#5f87b8"
+  @default_username_shadow_color "#121214"
+  @default_tick_color "#5f87b8"
 
   schema "user_profiles" do
     field :display_name, :string

@@ -13,12 +13,11 @@ defmodule Elektrine.POP3.Server do
   alias Elektrine.Mail.Socket
   alias Elektrine.Mail.Telemetry, as: MailTelemetry
   alias Elektrine.MailAuth.RateLimiter, as: MailAuthRateLimiter
+  alias Elektrine.POP3.ConnectionTracker
   alias Elektrine.POP3.RateLimiter
   alias Elektrine.ProxyProtocol
 
   # Security limits
-  @max_connections Constants.pop3_max_connections()
-  @max_connections_per_ip Constants.pop3_max_connections_per_ip()
   @slow_command_threshold_us 500_000
 
   def start_link(opts \\ []) do
@@ -59,10 +58,7 @@ defmodule Elektrine.POP3.Server do
          ) do
       {:ok, socket} ->
         Logger.info("Startup: pop3 listener ready (port=#{port}, transport=#{transport})")
-        # Create ETS table for connection tracking
-        active_table = active_table_name(transport)
-        ensure_table(active_table)
-        :ets.insert(active_table, {:total, 0})
+        ConnectionTracker.initialize(transport)
         spawn_link(fn -> accept_loop(socket, transport, tls_opts, allow_insecure_auth) end)
 
         {:ok,
@@ -107,14 +103,23 @@ defmodule Elektrine.POP3.Server do
       {:ok, {ip, _port}} ->
         client_ip = :inet.ntoa(ip) |> to_string() |> normalize_ipv6_subnet()
 
-        if can_accept_connection?(client_ip, :ssl) do
+        # Reserve a slot before the handshake so in-flight TLS handshakes are
+        # bounded by the same limits as established connections. Otherwise the
+        # accept loop can pile up unbounded half-open TLS sockets (each holding a
+        # file descriptor for the handshake timeout) and exhaust FDs (:emfile).
+        if ConnectionTracker.can_accept?(client_ip, :ssl) and
+             ConnectionTracker.reserve_handshake_slot(client_ip, :ssl) == :ok do
           spawn(fn ->
-            case Socket.handshake(client) do
-              {:ok, tls_client} ->
-                handle_authenticated_client(tls_client, :ssl, tls_opts, allow_insecure_auth)
+            try do
+              case Socket.handshake(client) do
+                {:ok, tls_client} ->
+                  handle_authenticated_client(tls_client, :ssl, tls_opts, allow_insecure_auth)
 
-              _ ->
-                :ok
+                _ ->
+                  :ok
+              end
+            after
+              ConnectionTracker.release_handshake_slot(client_ip, :ssl)
             end
           end)
         else
@@ -181,9 +186,9 @@ defmodule Elektrine.POP3.Server do
   defp maybe_start_client_session(client, client_ip, initial_data, tls_opts, allow_insecure_auth) do
     transport = transport_for_socket(client)
 
-    if can_accept_connection?(client_ip, transport) do
+    if ConnectionTracker.can_accept?(client_ip, transport) do
       configure_client_socket(client)
-      increment_connection_count(client_ip, transport)
+      ConnectionTracker.increment(client_ip, transport)
       spawn_client_handler(client, client_ip, initial_data, tls_opts, allow_insecure_auth)
     else
       reject_client_connection(client, client_ip)
@@ -214,7 +219,7 @@ defmodule Elektrine.POP3.Server do
         try do
           handle_client(client, client_ip, initial_data, tls_opts, allow_insecure_auth)
         after
-          decrement_connection_count(client_ip, connection_transport)
+          ConnectionTracker.decrement(client_ip, connection_transport)
         end
       end)
 
@@ -225,7 +230,7 @@ defmodule Elektrine.POP3.Server do
       {:error, reason} ->
         Logger.error("POP3 failed to transfer socket ownership: #{inspect(reason)}")
         Socket.close(client)
-        decrement_connection_count(client_ip, connection_transport)
+        ConnectionTracker.decrement(client_ip, connection_transport)
     end
   end
 
@@ -1100,107 +1105,6 @@ defmodule Elektrine.POP3.Server do
     Calendar.strftime(datetime, "%a, %d %b %Y %H:%M:%S +0000")
   end
 
-  # Connection limit enforcement (DOS protection)
-  defp can_accept_connection?(ip, transport) do
-    table = active_table_name(transport)
-
-    # Check total connections
-    [{:total, total}] = :ets.lookup(table, :total)
-
-    if total >= @max_connections do
-      false
-    else
-      # Check per-IP limit
-      ip_count =
-        case :ets.lookup(table, ip) do
-          [{^ip, count}] -> count
-          [] -> 0
-        end
-
-      ip_count < @max_connections_per_ip
-    end
-  end
-
-  defp increment_connection_count(ip, transport) do
-    table = active_table_name(transport)
-
-    # Increment total
-    :ets.update_counter(table, :total, {2, 1})
-
-    # Increment per-IP
-    case :ets.lookup(table, ip) do
-      [{^ip, count}] ->
-        :ets.insert(table, {ip, count + 1})
-
-      [] ->
-        :ets.insert(table, {ip, 1})
-    end
-
-    emit_session_count(ip, transport)
-  end
-
-  defp decrement_connection_count(ip, transport) do
-    table = active_table_name(transport)
-
-    # Decrement total
-    :ets.update_counter(table, :total, {2, -1})
-
-    # Decrement per-IP
-    case :ets.lookup(table, ip) do
-      [{^ip, count}] when count > 1 ->
-        :ets.insert(table, {ip, count - 1})
-
-      [{^ip, 1}] ->
-        :ets.delete(table, ip)
-
-      [] ->
-        Logger.warning(
-          "Attempted to decrement POP3 connection count for #{ip} but no entry found"
-        )
-    end
-
-    emit_session_count(ip, transport)
-  end
-
-  defp emit_session_count(ip, transport) do
-    table = active_table_name(transport)
-
-    total =
-      case :ets.lookup(table, :total) do
-        [{:total, count}] -> count
-        [] -> 0
-      end
-
-    ip_count =
-      case :ets.lookup(table, ip) do
-        [{^ip, count}] -> count
-        [] -> 0
-      end
-
-    MailTelemetry.sessions(:pop3, total, ip_count)
-    maybe_alert_session_pressure(total, ip_count, ip)
-  end
-
-  defp maybe_alert_session_pressure(total, ip_count, ip) do
-    total_threshold = max(1, div(@max_connections * 8, 10))
-    ip_threshold = max(1, div(@max_connections_per_ip * 8, 10))
-
-    cond do
-      total >= total_threshold ->
-        Logger.warning(
-          "POP3 connection pressure: total=#{total}/#{@max_connections} ip=#{ip} ip_sessions=#{ip_count}/#{@max_connections_per_ip}"
-        )
-
-      ip_count >= ip_threshold ->
-        Logger.warning(
-          "POP3 per-IP session pressure: ip=#{ip} sessions=#{ip_count}/#{@max_connections_per_ip} total=#{total}/#{@max_connections}"
-        )
-
-      true ->
-        :ok
-    end
-  end
-
   defp command_outcome({:continue, _state}), do: :ok
   defp command_outcome({:quit, _state}), do: :quit
 
@@ -1290,18 +1194,9 @@ defmodule Elektrine.POP3.Server do
     end)
   end
 
-  defp ensure_table(table) do
-    if :ets.whereis(table) == :undefined do
-      :ets.new(table, [:set, :public, :named_table])
-    end
-  end
-
   defp transport_for_socket(socket)
        when is_tuple(socket) and tuple_size(socket) > 0 and elem(socket, 0) == :sslsocket,
        do: :ssl
 
   defp transport_for_socket(_socket), do: :tcp
-
-  defp active_table_name(:ssl), do: :pop3_active_connections_tls
-  defp active_table_name(_transport), do: :pop3_active_connections
 end
