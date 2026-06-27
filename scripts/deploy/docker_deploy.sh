@@ -3,7 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 REQUESTED_MODULES=""
-OUTPUT_PATH="$ROOT_DIR/deploy/docker/generated.docker.yml"
+GENERATED_DIR="${ELEKTRINE_GENERATED_DIR:-$ROOT_DIR/deploy/generated}"
+OUTPUT_PATH="$GENERATED_DIR/generated.docker.yml"
 ENV_FILE="$ROOT_DIR/.env.production"
 PROFILE_ARGS=()
 PROFILE_ARGS_SPECIFIED=0
@@ -21,7 +22,7 @@ DOCKER_BIN=(docker)
 POSTGRES_EXTENSIONS_RAW="${POSTGRES_EXTENSIONS:-vector}"
 RENDER_PROFILES=""
 FORCE_RECREATE_ARGS=(--force-recreate)
-CADDY_RENDERED_CONFIG_PATH="${CADDY_RENDERED_CONFIG_PATH:-$ROOT_DIR/deploy/docker/generated.Caddyfile}"
+CADDY_RENDERED_CONFIG_PATH="${CADDY_RENDERED_CONFIG_PATH:-$GENERATED_DIR/generated.Caddyfile}"
 
 # shellcheck source=scripts/lib/module_selection.sh
 source "$ROOT_DIR/scripts/lib/module_selection.sh"
@@ -653,7 +654,7 @@ remove_caddy_with_stale_config_mount() {
 
   if [[ -n "$mounted_config" && ! -f "$mounted_config" ]]; then
     echo "Info: removing $container_name because its Caddyfile bind mount no longer exists: $mounted_config" >&2
-    "${DOCKER_BIN[@]}" rm -f "$container_name" >/dev/null
+    "${DOCKER_BIN[@]}" rm -f "$container_name" >/dev/null 2>&1 || true
   fi
 }
 

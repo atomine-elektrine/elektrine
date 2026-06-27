@@ -3,17 +3,16 @@ defmodule Elektrine.IMAP.Commands do
   require Logger
   alias Elektrine.Constants
   alias Elektrine.Domains
-  alias Elektrine.Email.AttachmentStorage
-  alias Elektrine.Email.MimeBodyExtractor
-  alias Elektrine.IMAP.{Helpers, RecentTracker, Response}
+  alias Elektrine.IMAP.{AppendParser, Helpers, IdleTracker, RecentTracker, Response}
   alias Elektrine.Mail.Socket
   alias Elektrine.Mail.Telemetry, as: MailTelemetry
   alias Elektrine.MailAuth.RateLimiter, as: MailAuthRateLimiter
-  @max_message_size Constants.imap_max_message_size()
-  @max_idle_per_ip Constants.imap_max_idle_per_ip()
-  @idle_timeout_ms Constants.imap_idle_timeout_ms()
-  @idle_stale_grace_ms 60_000
   @default_storage_limit_bytes 524_288_000
+
+  defp max_message_size, do: Constants.imap_max_message_size()
+  defp max_idle_per_ip, do: Constants.imap_max_idle_per_ip()
+  defp idle_timeout_ms, do: Constants.imap_idle_timeout_ms()
+
   @authenticated_capabilities [
     "IMAP4rev1",
     "UIDPLUS",
@@ -1603,14 +1602,14 @@ defmodule Elektrine.IMAP.Commands do
   end
 
   defp handle_idle(tag, state) do
-    idle_count = count_idle_connections(state)
+    idle_count = IdleTracker.count_connections(state)
 
-    if idle_count >= @max_idle_per_ip do
+    if idle_count >= max_idle_per_ip() do
       Helpers.send_response(state.socket, "#{tag} NO Too many IDLE connections from your IP")
       {:continue, state}
     else
       session_id = Helpers.generate_session_id()
-      track_idle_connection(state, state.client_ip, session_id)
+      IdleTracker.track_connection(state, state.client_ip, session_id)
       Process.put(:imap_idle_session_id, session_id)
       mailbox_topic = "mailbox:#{state.mailbox.id}"
       Phoenix.PubSub.subscribe(Elektrine.PubSub, mailbox_topic)
@@ -1637,14 +1636,14 @@ defmodule Elektrine.IMAP.Commands do
         result
       after
         Phoenix.PubSub.unsubscribe(Elektrine.PubSub, mailbox_topic)
-        untrack_idle_connection(state, state.client_ip, session_id)
+        IdleTracker.untrack_connection(state, state.client_ip, session_id)
         Process.delete(:imap_idle_session_id)
       end
     end
   end
 
   defp handle_unrecognized(tag, cmd, state) do
-    track_invalid_command(state, state.client_ip, cmd)
+    IdleTracker.track_invalid_command(state, state.client_ip, cmd)
     Logger.warning("IMAP unrecognized command from #{state.client_ip}: #{cmd}")
     Helpers.send_response(state.socket, "#{tag} BAD Command not recognized")
     {:continue, state}
@@ -2266,7 +2265,7 @@ defmodule Elektrine.IMAP.Commands do
   end
 
   defp receive_literal_data(socket, size) do
-    if size > @max_message_size do
+    if size > max_message_size() do
       {:error, :message_too_large}
     else
       Socket.setopts(socket, packet: :raw, active: false)
@@ -2369,10 +2368,10 @@ defmodule Elektrine.IMAP.Commands do
         end
 
       text_body =
-        extract_text_body(body, headers, message)
+        AppendParser.extract_text_body(body, headers, message)
 
       html_body =
-        extract_html_body(body, headers, message)
+        AppendParser.extract_html_body(body, headers, message)
 
       if folder_lower not in ["inbox", "sent", "drafts", "trash", "spam"] &&
            is_nil(custom_folder_id) do
@@ -2442,12 +2441,15 @@ defmodule Elektrine.IMAP.Commands do
           {:ok, existing}
         else
           message_attrs =
-            case extract_attachments(body, headers, message) do
+            case AppendParser.extract_attachments(body, headers, message) do
               attachments when map_size(attachments) > 0 ->
-                validated_attachments = validate_extracted_attachments(attachments)
+                validated_attachments = AppendParser.validate_extracted_attachments(attachments)
 
                 updated_html =
-                  replace_cid_with_data_urls(message_attrs[:html_body], validated_attachments)
+                  AppendParser.replace_cid_with_data_urls(
+                    message_attrs[:html_body],
+                    validated_attachments
+                  )
 
                 message_attrs
                 |> Map.put(:attachments, validated_attachments)
@@ -2477,286 +2479,20 @@ defmodule Elektrine.IMAP.Commands do
     end
   end
 
-  def parse_email_data(data) do
-    message = Mail.Parsers.RFC2822.parse(data)
+  def parse_email_data(data), do: AppendParser.parse_email_data(data)
 
-    headers =
-      message.headers
-      |> Enum.into(%{}, fn {k, v} -> {to_string(k), stringify_header_value(v)} end)
-      |> Map.new(fn {k, v} -> {String.downcase(k), v} end)
+  def extract_text_body(body, headers, message \\ nil),
+    do: AppendParser.extract_text_body(body, headers, message)
 
-    body = message.body || ""
-    {headers, body, message}
-  rescue
-    e in MatchError ->
-      Logger.error("Failed to parse email data. size=#{byte_size(data)} error=#{inspect(e)}")
-      {%{"subject" => "(Parse Error)", "from" => "", "to" => ""}, data, nil}
-  end
+  def extract_html_body(body, headers, message \\ nil),
+    do: AppendParser.extract_html_body(body, headers, message)
 
-  defp stringify_header_value(value) when is_binary(value) do
-    value
-  end
-
-  defp stringify_header_value({name, email}) when is_binary(name) and is_binary(email) do
-    if Elektrine.Strings.present?(name) do
-      "#{name} <#{email}>"
-    else
-      email
-    end
-  end
-
-  defp stringify_header_value({email}) when is_binary(email) do
-    email
-  end
-
-  defp stringify_header_value([first | _rest]) when is_binary(first) do
-    first
-  end
-
-  defp stringify_header_value([first | rest]) when is_tuple(first) do
-    [first | rest] |> Enum.map_join(", ", &stringify_header_value/1)
-  end
-
-  defp stringify_header_value(value) when is_list(value) do
-    inspect(value)
-  end
-
-  defp stringify_header_value(value) when is_tuple(value) do
-    inspect(value)
-  end
-
-  defp stringify_header_value(value) do
-    to_string(value)
-  end
-
-  def extract_text_body(_body, _headers, message \\ nil) do
-    if message do
-      MimeBodyExtractor.text_body(message)
-    else
-      nil
-    end
-  end
-
-  def extract_html_body(_body, _headers, message \\ nil) do
-    if message do
-      MimeBodyExtractor.html_body(message)
-    else
-      nil
-    end
-  end
-
-  def extract_attachments(_body, _headers, message \\ nil) do
-    if message do
-      extract_attachments_from_message(message)
-    else
-      %{}
-    end
-  end
-
-  defp extract_attachments_from_message(message) do
-    {attachments, _counter} = walk_parts(message, %{}, 0)
-    attachments
-  end
-
-  defp walk_parts(%Mail.Message{multipart: true, parts: parts}, acc, counter) do
-    Enum.reduce(parts, {acc, counter}, fn part, {inner_acc, inner_counter} ->
-      walk_parts(part, inner_acc, inner_counter)
-    end)
-  end
-
-  defp walk_parts(%Mail.Message{} = message, acc, counter) do
-    if Mail.Message.is_attachment?(message) do
-      fallback_filename = "attachment_#{:rand.uniform(10_000)}"
-
-      filename =
-        get_attachment_filename(message) |> sanitize_attachment_filename(fallback_filename)
-
-      content_type = get_content_type(message)
-      raw_body = message.body || ""
-
-      attachment_map = %{
-        "filename" => filename,
-        "content_type" => content_type,
-        # Keep parsed attachments JSON-safe and consistent with other outbound paths.
-        "data" => Base.encode64(raw_body),
-        "encoding" => "base64",
-        "size" =>
-          if message.body do
-            byte_size(raw_body)
-          else
-            0
-          end
-      }
-
-      attachment_map =
-        case Mail.Message.get_header(message, :content_id) do
-          nil -> attachment_map
-          cid -> Map.put(attachment_map, "content_id", String.trim(cid, "<>"))
-        end
-
-      {Map.put(acc, "#{counter}_#{filename}", attachment_map), counter + 1}
-    else
-      {acc, counter}
-    end
-  end
-
-  defp get_attachment_filename(message) do
-    case Mail.Message.get_header(message, :content_disposition) do
-      nil ->
-        "attachment_#{:rand.uniform(10_000)}"
-
-      disposition when is_list(disposition) ->
-        Enum.find_value(disposition, fn
-          {"filename", filename} when is_binary(filename) -> filename
-          _ -> nil
-        end) || "attachment_#{:rand.uniform(10_000)}"
-
-      disposition when is_binary(disposition) ->
-        case Regex.run(~r/filename[*]?=\s*"?([^";]+)"?/i, disposition) do
-          [_, filename] -> filename
-          _ -> "attachment_#{:rand.uniform(10_000)}"
-        end
-
-      _ ->
-        "attachment_#{:rand.uniform(10_000)}"
-    end
-  end
-
-  defp sanitize_attachment_filename(filename, fallback) when is_binary(filename) do
-    case Elektrine.Email.Sanitizer.sanitize_utf8(filename) |> String.trim() do
-      "" -> fallback
-      sanitized -> sanitized
-    end
-  end
-
-  defp sanitize_attachment_filename(_, fallback), do: fallback
-
-  defp get_content_type(message) do
-    case Mail.Message.get_content_type(message) do
-      [type | _] when is_binary(type) -> type
-      [type, _ | _] when is_binary(type) -> type
-      _ -> "application/octet-stream"
-    end
-  end
-
-  defp validate_extracted_attachments(attachments) do
-    allowed_types = [
-      "image/jpeg",
-      "image/png",
-      "image/gif",
-      "image/webp",
-      "application/pdf",
-      "application/msword",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "application/vnd.ms-excel",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "text/plain"
-    ]
-
-    attachments
-    |> Enum.filter(fn {_key, attachment} ->
-      content_type = attachment["content_type"] || ""
-      filename = attachment["filename"] || ""
-
-      dangerous_extensions = [
-        ".exe",
-        ".bat",
-        ".sh",
-        ".cmd",
-        ".com",
-        ".scr",
-        ".vbs",
-        ".js",
-        ".jar",
-        ".app",
-        ".dmg",
-        ".apk",
-        ".msi",
-        ".php",
-        ".py",
-        ".rb",
-        ".zip",
-        ".tar",
-        ".gz",
-        ".7z",
-        ".rar"
-      ]
-
-      has_dangerous_ext =
-        Enum.any?(dangerous_extensions, fn ext ->
-          String.ends_with?(String.downcase(filename), ext)
-        end)
-
-      type_allowed =
-        Enum.any?(allowed_types, fn allowed -> String.starts_with?(content_type, allowed) end)
-
-      cond do
-        has_dangerous_ext ->
-          Logger.warning("IMAP: Blocked dangerous attachment: #{filename} (#{content_type})")
-          false
-
-        not type_allowed ->
-          Logger.warning(
-            "IMAP: Blocked non-allowed attachment type: #{filename} (#{content_type})"
-          )
-
-          false
-
-        true ->
-          true
-      end
-    end)
-    |> Enum.into(%{})
-  end
-
-  defp replace_cid_with_data_urls(nil, _attachments) do
-    nil
-  end
-
-  defp replace_cid_with_data_urls(html_body, attachments) do
-    Enum.reduce(attachments, html_body, fn {_attachment_id, attachment}, html ->
-      if attachment["content_id"] do
-        raw_data =
-          case attachment do
-            %{"storage_type" => storage_type} when storage_type in ["local", "s3"] ->
-              case AttachmentStorage.download_attachment(attachment) do
-                {:ok, content} -> content
-                {:error, _} -> attachment["data"]
-              end
-
-            _ ->
-              attachment["data"]
-          end
-
-        if raw_data do
-          data =
-            if attachment["encoding"] == "base64" do
-              case Base.decode64(raw_data, ignore: :whitespace) do
-                {:ok, decoded} -> decoded
-                :error -> raw_data
-              end
-            else
-              raw_data
-            end
-
-          content_type = attachment["content_type"] || "application/octet-stream"
-          clean_content_type = content_type |> String.split(";") |> List.first() |> String.trim()
-          base64_data = Base.encode64(data)
-          data_url = "data:#{clean_content_type};base64,#{base64_data}"
-          cid_pattern = "cid:#{attachment["content_id"]}"
-          String.replace(html, cid_pattern, data_url)
-        else
-          html
-        end
-      else
-        html
-      end
-    end)
-  end
+  def extract_attachments(body, headers, message \\ nil),
+    do: AppendParser.extract_attachments(body, headers, message)
 
   defp idle_loop(state, start_time) do
     elapsed = System.monotonic_time(:millisecond) - start_time
-    timeout = max(1000, @idle_timeout_ms - elapsed)
+    timeout = max(1000, idle_timeout_ms() - elapsed)
     Socket.setopts(state.socket, active: :once)
 
     receive do
@@ -2830,72 +2566,6 @@ defmodule Elektrine.IMAP.Commands do
       timeout ->
         Socket.setopts(state.socket, active: false)
         {:timeout, state}
-    end
-  end
-
-  defp count_idle_connections(state) do
-    table = idle_table_name(state)
-
-    if :ets.whereis(table) != :undefined do
-      case :ets.lookup(table, state.client_ip) do
-        [{ip, sessions}] when ip == state.client_ip ->
-          active_sessions = persist_active_idle_sessions(table, state.client_ip, sessions)
-          length(active_sessions)
-
-        [] ->
-          0
-      end
-    else
-      0
-    end
-  end
-
-  defp track_idle_connection(state, ip, session_id) do
-    table = idle_table_name(state)
-
-    if :ets.whereis(table) != :undefined do
-      now = System.monotonic_time(:millisecond)
-
-      sessions =
-        case :ets.lookup(table, ip) do
-          [{^ip, existing}] ->
-            existing
-            |> normalize_idle_sessions(now)
-            |> Enum.reject(fn {existing_session_id, _started_at} ->
-              existing_session_id == session_id
-            end)
-            |> then(&[{session_id, now} | &1])
-
-          [] ->
-            [{session_id, now}]
-        end
-
-      :ets.insert(table, {ip, sessions})
-    end
-  end
-
-  defp untrack_idle_connection(state, ip, session_id) do
-    table = idle_table_name(state)
-
-    if :ets.whereis(table) != :undefined do
-      case :ets.lookup(table, ip) do
-        [{^ip, sessions}] ->
-          new_sessions =
-            sessions
-            |> normalize_idle_sessions(System.monotonic_time(:millisecond))
-            |> Enum.reject(fn {existing_session_id, _started_at} ->
-              existing_session_id == session_id
-            end)
-
-          if new_sessions == [] do
-            :ets.delete(table, ip)
-          else
-            :ets.insert(table, {ip, new_sessions})
-          end
-
-        [] ->
-          :ok
-      end
     end
   end
 
@@ -3005,32 +2675,6 @@ defmodule Elektrine.IMAP.Commands do
     end
   end
 
-  defp persist_active_idle_sessions(table, ip, sessions) do
-    now = System.monotonic_time(:millisecond)
-
-    active_sessions =
-      sessions
-      |> normalize_idle_sessions(now)
-      |> Enum.reject(fn {_session_id, started_at} ->
-        now - started_at > @idle_timeout_ms + @idle_stale_grace_ms
-      end)
-
-    if active_sessions == [] do
-      :ets.delete(table, ip)
-    else
-      :ets.insert(table, {ip, active_sessions})
-    end
-
-    active_sessions
-  end
-
-  defp normalize_idle_sessions(sessions, now) do
-    Enum.map(sessions, fn
-      {session_id, started_at} when is_integer(started_at) -> {session_id, started_at}
-      session_id -> {session_id, now}
-    end)
-  end
-
   defp should_notify_idle_folder_update?(message, selected_folder) do
     if system_folder_name?(selected_folder || "") do
       Helpers.message_in_current_folder?(message, selected_folder)
@@ -3038,60 +2682,4 @@ defmodule Elektrine.IMAP.Commands do
       true
     end
   end
-
-  defp track_invalid_command(state, ip, _command) do
-    table = invalid_table_name(state)
-
-    if :ets.whereis(table) != :undefined do
-      now = System.system_time(:second)
-      table_size = :ets.info(table, :size)
-      max_tracked_ips = 10_000
-
-      if table_size >= max_tracked_ips do
-        cleanup_old_invalid_command_entries(table, now)
-      end
-
-      {count, first_seen} =
-        case :ets.lookup(table, ip) do
-          [{^ip, c, t}] -> {c + 1, t}
-          [] -> {1, now}
-        end
-
-      :ets.insert(table, {ip, count, first_seen})
-
-      if count >= 5 do
-        Logger.error(
-          "SECURITY ALERT: Possible port scanner detected from #{ip} - #{count} invalid commands in #{now - first_seen}s"
-        )
-      end
-
-      count
-    else
-      0
-    end
-  end
-
-  defp cleanup_old_invalid_command_entries(table, now) do
-    if :ets.whereis(table) != :undefined do
-      cutoff = now - 3600
-
-      :ets.foldl(
-        fn {ip, _count, first_seen}, acc ->
-          if first_seen < cutoff do
-            :ets.delete(table, ip)
-          end
-
-          acc
-        end,
-        nil,
-        table
-      )
-    end
-  end
-
-  defp idle_table_name(%{transport: :ssl}), do: :imap_idle_connections_tls
-  defp idle_table_name(_state), do: :imap_idle_connections
-
-  defp invalid_table_name(%{transport: :ssl}), do: :imap_invalid_commands_tls
-  defp invalid_table_name(_state), do: :imap_invalid_commands
 end

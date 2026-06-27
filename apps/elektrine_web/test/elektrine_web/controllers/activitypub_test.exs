@@ -237,6 +237,45 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
              end)
     end
 
+    test "returns webfinger for platform-hosted built-in profile subdomain", %{conn: conn} do
+      previous_profile_domains = Application.get_env(:elektrine, :profile_base_domains)
+
+      on_exit(fn ->
+        restore_env(:profile_base_domains, previous_profile_domains)
+      end)
+
+      Application.put_env(:elektrine, :profile_base_domains, ["example.com"])
+
+      user =
+        AccountsFixtures.user_fixture(%{username: "builtinsubdomain"})
+        |> Ecto.Changeset.change(built_in_subdomain_mode: "platform")
+        |> Repo.update!()
+
+      profile_host = "#{user.username}.example.com"
+
+      conn =
+        conn
+        |> Map.put(:host, profile_host)
+        |> put_req_header("accept", "application/jrd+json")
+        |> get("/.well-known/webfinger", %{
+          resource: "acct:#{user.username}@#{profile_host}"
+        })
+
+      response = json_response(conn, 200)
+
+      assert response["subject"] == "acct:#{user.username}@#{profile_host}"
+
+      assert Enum.any?(response["links"], fn link ->
+               link["rel"] == "self" and
+                 link["href"] == "https://#{profile_host}/users/#{user.username}"
+             end)
+
+      assert Enum.any?(response["links"], fn link ->
+               link["rel"] == "http://webfinger.net/rel/profile-page" and
+                 link["href"] == "https://#{profile_host}"
+             end)
+    end
+
     test "does not resolve other users on someone else's custom profile domain", %{conn: conn} do
       owner = AccountsFixtures.user_fixture(%{username: "customdomainowner"})
       other_user = AccountsFixtures.user_fixture(%{username: "customdomainother"})
@@ -286,6 +325,8 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
 
       body = response(conn, 200)
 
+      assert String.starts_with?(body, "<?xml")
+
       assert body =~
                "template=\"https://#{custom_domain.domain}/.well-known/webfinger?resource={uri}\""
     end
@@ -301,6 +342,7 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
       response = json_response(conn, 200)
       assert is_list(response["links"])
       assert Enum.any?(response["links"], &(&1["rel"] =~ "nodeinfo"))
+      assert hd(response["links"])["rel"] == "http://nodeinfo.diaspora.software/ns/schema/2.1"
     end
   end
 
@@ -404,6 +446,36 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
       assert response["preferredUsername"] == user.username
       assert response["inbox"]
       assert response["outbox"]
+    end
+
+    test "returns actor ids on the platform-hosted built-in profile subdomain", %{conn: conn} do
+      previous_profile_domains = Application.get_env(:elektrine, :profile_base_domains)
+
+      on_exit(fn ->
+        restore_env(:profile_base_domains, previous_profile_domains)
+      end)
+
+      Application.put_env(:elektrine, :profile_base_domains, ["example.com"])
+
+      user =
+        AccountsFixtures.user_fixture(%{username: "actorsubdomain"})
+        |> Ecto.Changeset.change(built_in_subdomain_mode: "platform")
+        |> Repo.update!()
+
+      profile_host = "#{user.username}.example.com"
+
+      conn =
+        conn
+        |> Map.put(:host, profile_host)
+        |> put_req_header("accept", "application/activity+json")
+        |> get("/users/#{user.username}")
+
+      response = json_response(conn, 200)
+
+      assert response["id"] == "https://#{profile_host}/users/#{user.username}"
+      assert response["inbox"] == "https://#{profile_host}/users/#{user.username}/inbox"
+      assert response["endpoints"]["sharedInbox"] == "https://#{profile_host}/inbox"
+      refute Map.has_key?(response, "movedTo")
     end
 
     test "serves handle paths as canonical actors and username paths as moved aliases", %{

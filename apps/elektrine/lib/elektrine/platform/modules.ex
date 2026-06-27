@@ -21,14 +21,14 @@ defmodule Elektrine.Platform.Modules do
       id: :social,
       label: "Social",
       app: :elektrine_social,
-      provider: ElektrineSocial.Platform,
+      provider: :"Elixir.ElektrineSocial.Platform",
       description: "Timeline, communities, gallery, lists, remote profiles, and ActivityPub."
     },
     %{
       id: :email,
       label: "Email",
       app: :elektrine_email,
-      provider: ElektrineEmail.Platform,
+      provider: :"Elixir.ElektrineEmail.Platform",
       description: "Mailbox UI, aliases, message APIs, Haraka, and JMAP."
     },
     %{
@@ -41,7 +41,7 @@ defmodule Elektrine.Platform.Modules do
       id: :vpn,
       label: "VPN",
       app: :elektrine_vpn,
-      provider: ElektrineVPN.Platform,
+      provider: :"Elixir.ElektrineVPN.Platform",
       description: "WireGuard VPN management, configs, and host integrations."
     },
     %{

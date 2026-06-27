@@ -229,6 +229,14 @@ services:
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
+    # Mail listeners (SMTP/IMAP/POP3 + TLS variants) hold one file descriptor per
+    # connection, plus in-flight TLS handshakes. The Docker default soft nofile
+    # (1024) is far too low and leads to :emfile ("too many open files") storms
+    # under connection floods. Recreate the container for changes to take effect.
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
 
   dns:
     profiles: ["dns"]

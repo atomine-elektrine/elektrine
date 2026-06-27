@@ -3,8 +3,10 @@
 The Docker deployment keeps the main app and background services in one Compose
 stack.
 
-`scripts/deploy/docker_deploy.sh` is the module-aware wrapper around that stack.
-If you run it without explicit modules or profiles, it defaults to all modules and all profiles.
+`scripts/deploy/self_host.sh` is the recommended entrypoint for self-hosts.
+`scripts/deploy/docker_deploy.sh` remains the lower-level module-aware wrapper;
+when run directly without explicit modules or profiles, it keeps the legacy
+all-modules/all-profiles behavior.
 
 ## Services
 
@@ -52,19 +54,35 @@ main app release and does not have a separate Docker profile.
 3. Install Docker Engine with the Compose plugin.
 4. Install `deploy/docker/elektrine-compose.service` as a systemd unit if you want boot-time restarts.
 
+Source deploy templates live under `deploy/docker/` and `deploy/caddy/`.
+Rendered Compose and Caddy files are disposable and live under
+`deploy/generated/`. Host-owned persistent data should live outside the repo,
+usually under `/opt/elektrine/data` or Docker named volumes, so deploy worktrees
+and generated files can be removed without touching user data.
+
+Do not point generated Compose or Caddy output back into `deploy/docker/` or
+`deploy/caddy/`. Those directories are source templates. If an older deploy left
+files such as `deploy/docker/compose.override.yml`,
+`deploy/docker/generated.docker.yml`, or `deploy/caddy/generated.Caddyfile`,
+remove them after confirming they are not hand-maintained. `doctor.sh` now flags
+those legacy locations because root-owned generated files there commonly cause
+permission failures on the next deploy.
+
 ## Environment Files
 
-For a first deploy, generate a minimal `.env.production` instead of starting from
-the full root example:
+For a first deploy, use the self-host wrapper instead of starting from the full
+root example:
 
 ```bash
-scripts/deploy/generate_env.sh --domain example.com --email admin@example.com
-scripts/deploy/doctor.sh
-scripts/deploy/docker_deploy.sh
+scripts/deploy/self_host.sh init --domain example.com --email admin@example.com
+scripts/deploy/self_host.sh doctor
+scripts/deploy/self_host.sh up
 ```
 
-Use the smaller files under `env/` as reference for feature-specific overrides,
-and keep `.env.production` limited to the values you actually need on that host.
+The wrapper creates a small `.env.production` for the normal web stack:
+`chat,social,nerve,atomine` plus the `caddy` Docker profile. Use presets for
+feature-specific overrides and keep `.env.production` limited to values this
+host actually uses.
 
 Minimal first-run values are usually:
 
@@ -73,9 +91,44 @@ Minimal first-run values are usually:
 - `ELEKTRINE_MASTER_SECRET`
 - `ACME_EMAIL` if you want automatic HTTPS via Caddy
 
+## Presets
+
+List available presets:
+
+```bash
+scripts/deploy/self_host.sh presets
+```
+
+Enable only the services you need:
+
+```bash
+scripts/deploy/self_host.sh enable mail
+scripts/deploy/self_host.sh enable dns
+scripts/deploy/self_host.sh enable wildcard-tls
+scripts/deploy/self_host.sh enable s3
+scripts/deploy/self_host.sh enable vpn
+scripts/deploy/self_host.sh enable tor
+scripts/deploy/self_host.sh enable turn
+scripts/deploy/self_host.sh enable bluesky
+```
+
+Preset snippets live under `env/presets/`. Enabling a preset updates
+`ELEKTRINE_ENABLED_MODULES` and `DOCKER_PROFILES` when needed, appends a marked
+env block, and generates secrets for presets that need local shared secrets.
+Review the appended block before deploying; some presets intentionally leave
+provider credentials or public hostnames commented.
+
 `scripts/deploy/doctor.sh` checks these values before deploy and also validates
 the common Caddy, wildcard TLS, Magpie/S3, Docker, and stale bind-mount failure
 points.
+
+The doctor also checks the self-host file layout:
+
+- generated Compose/Caddy paths are under `deploy/generated/`
+- source template directories do not contain legacy generated files
+- generated files are writable by the deploy user or installable with sudo
+- no stale `.deploy-worktree.*` directories are left behind
+- `COMPOSE_PROJECT_NAME` is set for stable container, network, and volume names
 
 By default, the DNS service derives:
 
@@ -142,8 +195,14 @@ If the shared network has a different name, set the same
 scripts/deploy/docker_deploy.sh
 ```
 
-Pass `--modules` or one or more `--profile` arguments only when you want a
-smaller stack than the full default.
+The public self-host path is:
+
+```bash
+scripts/deploy/self_host.sh up
+```
+
+Use `scripts/deploy/docker_deploy.sh` directly when you need low-level Compose
+flags or are maintaining an existing raw-script deployment.
 
 When `vpn` is in the module list, `scripts/deploy/docker_deploy.sh` also enables the `vpn`
 profile automatically so the bundled WireGuard container comes up with the stack.
@@ -260,7 +319,8 @@ scripts/deploy/explain_deploy.sh --modules all --profiles "caddy dns email tor t
 Keep the repo owned by your deploy user and avoid running `git` operations as
 `root` inside the checkout. Use `sudo` only for Docker commands. If a rendered
 compose file becomes unwritable because of ownership drift, render to a
-writable temporary path instead:
+writable temporary path instead. The default generated path is
+`deploy/generated/generated.docker.yml`.
 
 ```bash
 scripts/deploy/docker_deploy.sh --output /tmp/elektrine.generated.docker.yml
@@ -268,29 +328,29 @@ scripts/deploy/docker_deploy.sh --output /tmp/elektrine.generated.docker.yml
 
 ## Optional Services
 
-The full default profile set includes Elektrine's separate mail protocol
-container. In a smaller custom stack, enable it with:
+The mail preset enables Elektrine's separate mail protocol container. With the
+lower-level wrapper, enable it with:
 
 ```bash
 scripts/deploy/docker_deploy.sh --modules chat,social,email,nerve,atomine --profile caddy --profile email
 ```
 
-The full default profile set includes the separate authoritative DNS service. In
-a smaller custom stack, enable it with:
+The DNS preset enables the separate authoritative DNS service. With the
+lower-level wrapper, enable it with:
 
 ```bash
 scripts/deploy/docker_deploy.sh --modules all --profile dns
 ```
 
-The full default profile set includes onion hosting. In a smaller custom stack,
-set the onion variables already present in `.env.example`, then deploy with:
+The Tor preset enables onion hosting. With the lower-level wrapper, set the
+onion variables already present in `.env.example`, then deploy with:
 
 ```bash
 scripts/deploy/docker_deploy.sh --modules chat,social,nerve,atomine --profile caddy --profile tor
 ```
 
-The full default profile set includes self-hosted STUN/TURN for chat calls. In a
-smaller custom stack, enable it with:
+The TURN preset enables self-hosted STUN/TURN for chat calls. With the
+lower-level wrapper, enable it with:
 
 ```bash
 scripts/deploy/docker_deploy.sh --modules chat,social,nerve,atomine --profile caddy --profile turn
@@ -308,7 +368,8 @@ Tor starts when the `tor` profile is active. For custom profile subsets, include
 
 ## What The Wrapper Does
 
-- renders `deploy/docker/generated.docker.yml`
+- renders `deploy/generated/generated.docker.yml`
+- renders `deploy/generated/generated.Caddyfile` when the Caddy profile is active
 - keeps `app` and `worker` in the stack
 - can start the dedicated `mail` service when the `email` profile is enabled
 - runs database migrations through the app release
@@ -346,7 +407,7 @@ Deploy secrets for `.github/workflows/docker-deploy.yml`:
 
 Variables for `.github/workflows/docker-deploy.yml`:
 
-- The workflow pins `ELEKTRINE_ENABLED_MODULES=all`, `ELEKTRINE_RELEASE_MODULES=all`, and `DOCKER_PROFILES="caddy dns email tor turn bluesky vpn"`; those are also the deploy-script defaults when unset.
+- The workflow pins `ELEKTRINE_ENABLED_MODULES=all`, `ELEKTRINE_RELEASE_MODULES=all`, and `DOCKER_PROFILES="caddy dns email tor turn bluesky vpn"` for full-stack CI/CD deploys. The recommended self-host wrapper starts smaller.
 - `DOCKER_BUILD_PRIMARY_DOMAIN`
 - `DOCKER_BUILD_EMAIL_DOMAIN`
 - `DOCKER_BUILD_SUPPORTED_DOMAINS`

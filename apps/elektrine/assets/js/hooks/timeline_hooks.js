@@ -699,9 +699,7 @@ export const InfiniteScroll = {
 
   resetReloadScrollPosition() {
     const navigation = performance.getEntriesByType?.("navigation")?.[0];
-    const legacyNavigation = performance.navigation;
-    const isReload =
-      navigation?.type === "reload" || legacyNavigation?.type === 1;
+    const isReload = navigation?.type === "reload";
 
     if (isReload && currentScrollY() > 0) {
       window.scrollTo({ top: 0, behavior: "auto" });

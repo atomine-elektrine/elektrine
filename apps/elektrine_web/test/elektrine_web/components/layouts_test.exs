@@ -99,4 +99,30 @@ defmodule ElektrineWeb.LayoutsTest do
 
     assert html =~ ~s(<meta name="robots" content="noindex, nofollow")
   end
+
+  test "root layout exposes user theme overrides to the grid background" do
+    html =
+      render_component(&Layouts.root/1,
+        inner_content: "",
+        page_title: "Test",
+        current_user: %{
+          theme_overrides: %{"color_base_100" => "#203040", "color_info" => "#405060"}
+        },
+        current_url: "https://example.com/settings"
+      )
+
+    assert html =~ ~s(--theme-override-color-base-100: #203040)
+    assert html =~ ~s(--theme-override-color-info: #405060)
+    assert html =~ ~s(data-grid="cyan")
+  end
+
+  test "body grid background uses theme CSS variables instead of DaisyUI oklch aliases" do
+    css =
+      Path.expand("../../../../elektrine/assets/css/base.css", __DIR__)
+      |> File.read!()
+
+    assert css =~ "body.bg-base-100"
+    assert css =~ "background-color: var(--color-base-100)"
+    refute css =~ "background-color: oklch(var(--b1))"
+  end
 end

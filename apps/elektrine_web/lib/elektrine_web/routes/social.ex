@@ -246,46 +246,4 @@ defmodule ElektrineWeb.Routes.Social do
       end
     end
   end
-
-  def path_prefixes do
-    [
-      "/authorize_interaction",
-      "/activitypub",
-      "/communities",
-      "/discussions",
-      "/timeline",
-      "/hashtag",
-      "/gallery",
-      "/videos",
-      "/lists",
-      "/remote",
-      "/users/",
-      "/c/",
-      "/relay",
-      "/inbox",
-      "/tags",
-      "/media_proxy",
-      "/api/social",
-      "/api/ext/v1/social",
-      "/pripyat/communities"
-    ]
-  end
-
-  def view_modules do
-    [
-      ElektrineSocialWeb.DiscussionsLive.Community,
-      ElektrineSocialWeb.DiscussionsLive.Index,
-      ElektrineSocialWeb.DiscussionsLive.Post,
-      ElektrineSocialWeb.DiscussionsLive.Settings,
-      ElektrineSocialWeb.GalleryLive.Index,
-      ElektrineSocialWeb.HashtagLive.Show,
-      ElektrineSocialWeb.ListLive.Index,
-      ElektrineSocialWeb.ListLive.Show,
-      ElektrineSocialWeb.RemotePostLive.Show,
-      ElektrineSocialWeb.RemoteUserLive.Show,
-      ElektrineSocialWeb.TimelineLive.Index,
-      ElektrineSocialWeb.TimelineLive.Post,
-      ElektrineSocialWeb.VideosLive.Index
-    ]
-  end
 end

@@ -29,16 +29,4 @@ defmodule ElektrineWeb.Routes.Nerve do
       end
     end
   end
-
-  def path_prefixes do
-    [
-      "/account/nerve",
-      "/api/ext/v1/nerve",
-      "/api/ext/nerve"
-    ]
-  end
-
-  def view_modules do
-    [ElektrineNerveWeb.NerveLive]
-  end
 end

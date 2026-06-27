@@ -25,8 +25,6 @@ defmodule ElektrineDNSWeb do
       use Phoenix.LiveView,
         layout: {ElektrineWeb.Layouts, :app}
 
-      use ElektrineWeb.Live.Hooks.PresenceEvents
-
       on_mount ElektrineWeb.Live.AnnouncementCache
 
       import ElektrineWeb.Live.NotificationHelpers
@@ -35,6 +33,38 @@ defmodule ElektrineDNSWeb do
 
       def handle_event("set_timezone", %{"timezone" => timezone}, socket) do
         {:noreply, assign(socket, :timezone, timezone)}
+      end
+
+      def handle_event("user_activity", params, socket) do
+        ElektrineWeb.Live.Hooks.PresenceEvents.handle_presence_event(
+          "user_activity",
+          params,
+          socket
+        )
+      end
+
+      def handle_event("auto_away_timeout", params, socket) do
+        ElektrineWeb.Live.Hooks.PresenceEvents.handle_presence_event(
+          "auto_away_timeout",
+          params,
+          socket
+        )
+      end
+
+      def handle_event("device_detected", params, socket) do
+        ElektrineWeb.Live.Hooks.PresenceEvents.handle_presence_event(
+          "device_detected",
+          params,
+          socket
+        )
+      end
+
+      def handle_event("connection_changed", params, socket) do
+        ElektrineWeb.Live.Hooks.PresenceEvents.handle_presence_event(
+          "connection_changed",
+          params,
+          socket
+        )
       end
     end
   end

@@ -5,14 +5,131 @@ defmodule ElektrineWeb.PlatformAccess do
 
   alias Elektrine.Platform.Modules
 
-  @optional_route_modules [
-    {:email, ElektrineWeb.Routes.Email},
-    {:chat, ElektrineWeb.Routes.Chat},
-    {:social, ElektrineWeb.Routes.Social},
-    {:nerve, ElektrineWeb.Routes.Nerve},
-    {:vpn, ElektrineWeb.Routes.VPN},
-    {:dns, ElektrineWeb.Routes.DNS},
-    {:uptime, ElektrineWeb.Routes.Uptime}
+  @path_prefixes [
+    email: [
+      "/email",
+      "/emails",
+      "/aliases",
+      "/mailbox",
+      "/jmap",
+      "/calendar",
+      "/.well-known/jmap",
+      "/.well-known/mta-sts.txt",
+      "/.well-known/autoconfig",
+      "/autoconfig",
+      "/unsubscribe",
+      "/api/emails",
+      "/api/aliases",
+      "/api/mailbox",
+      "/api/haraka",
+      "/api/ext/v1/email",
+      "/pripyat/mailboxes",
+      "/pripyat/custom-domains",
+      "/pripyat/haraka",
+      "/pripyat/system-email",
+      "/pripyat/aliases",
+      "/pripyat/forwarded-messages",
+      "/pripyat/messages",
+      "/pripyat/unsubscribe-stats"
+    ],
+    chat: [
+      "/chat",
+      "/friends",
+      "/_arblarg",
+      "/api/private-attachments",
+      "/api/servers",
+      "/api/conversations",
+      "/api/messages",
+      "/api/ext/v1/chat",
+      "/pripyat/arblarg/messages"
+    ],
+    social: [
+      "/authorize_interaction",
+      "/activitypub",
+      "/communities",
+      "/discussions",
+      "/timeline",
+      "/hashtag",
+      "/gallery",
+      "/videos",
+      "/lists",
+      "/remote",
+      "/users/",
+      "/c/",
+      "/relay",
+      "/inbox",
+      "/tags",
+      "/media_proxy",
+      "/api/social",
+      "/api/ext/v1/social",
+      "/pripyat/communities"
+    ],
+    nerve: ["/account/nerve", "/api/ext/v1/nerve", "/api/ext/nerve"],
+    vpn: ["/vpn", "/api/vpn", "/pripyat/vpn"],
+    dns: ["/dns", "/api/dns", "/api/ext/v1/dns", "/api/ext/dns", "/pripyat/dns"],
+    uptime: ["/uptime"]
+  ]
+
+  @view_modules %{
+    email: [
+      :"Elixir.ElektrineEmailWeb.EmailLive.Compose",
+      :"Elixir.ElektrineEmailWeb.EmailLive.Index",
+      :"Elixir.ElektrineEmailWeb.EmailLive.Raw",
+      :"Elixir.ElektrineEmailWeb.EmailLive.Search",
+      :"Elixir.ElektrineEmailWeb.EmailLive.Settings",
+      :"Elixir.ElektrineEmailWeb.EmailLive.Show",
+      :"Elixir.ElektrineEmailWeb.ContactsLive.Index",
+      :"Elixir.ElektrineEmailWeb.UnsubscribeLive.Show"
+    ],
+    chat: [:"Elixir.ArblargWeb.ChatLive.Index", :"Elixir.ElektrineWeb.FriendsLive"],
+    social: [
+      :"Elixir.ElektrineSocialWeb.DiscussionsLive.Community",
+      :"Elixir.ElektrineSocialWeb.DiscussionsLive.Index",
+      :"Elixir.ElektrineSocialWeb.DiscussionsLive.Post",
+      :"Elixir.ElektrineSocialWeb.DiscussionsLive.Settings",
+      :"Elixir.ElektrineSocialWeb.GalleryLive.Index",
+      :"Elixir.ElektrineSocialWeb.HashtagLive.Show",
+      :"Elixir.ElektrineSocialWeb.ListLive.Index",
+      :"Elixir.ElektrineSocialWeb.ListLive.Show",
+      :"Elixir.ElektrineSocialWeb.RemotePostLive.Show",
+      :"Elixir.ElektrineSocialWeb.RemoteUserLive.Show",
+      :"Elixir.ElektrineSocialWeb.TimelineLive.Index",
+      :"Elixir.ElektrineSocialWeb.TimelineLive.Post",
+      :"Elixir.ElektrineSocialWeb.VideosLive.Index"
+    ],
+    nerve: [:"Elixir.ElektrineNerveWeb.NerveLive"],
+    vpn: [:"Elixir.ElektrineVPNWeb.PageLive.VPNPolicy", :"Elixir.ElektrineVPNWeb.VPNLive.Index"],
+    dns: [:"Elixir.ElektrineDNSWeb.DNSLive.Index"],
+    uptime: [:"Elixir.ElektrineUptimeWeb.UptimeLive.Index"]
+  }
+
+  @portal_views [:"Elixir.ElektrineWeb.PortalLive.Index"]
+  @email_access_views [
+    :"Elixir.ElektrineEmailWeb.EmailLive.Compose",
+    :"Elixir.ElektrineEmailWeb.EmailLive.Index",
+    :"Elixir.ElektrineEmailWeb.EmailLive.Raw",
+    :"Elixir.ElektrineEmailWeb.EmailLive.Search",
+    :"Elixir.ElektrineEmailWeb.EmailLive.Settings",
+    :"Elixir.ElektrineEmailWeb.EmailLive.Show",
+    :"Elixir.ElektrineEmailWeb.ContactsLive.Index",
+    :"Elixir.ElektrineWeb.CalendarLive.Index"
+  ]
+  @communities_views [
+    :"Elixir.ElektrineSocialWeb.DiscussionsLive.Community",
+    :"Elixir.ElektrineSocialWeb.DiscussionsLive.Index",
+    :"Elixir.ElektrineSocialWeb.DiscussionsLive.Post",
+    :"Elixir.ElektrineSocialWeb.DiscussionsLive.Settings"
+  ]
+  @list_views [
+    :"Elixir.ElektrineSocialWeb.ListLive.Index",
+    :"Elixir.ElektrineSocialWeb.ListLive.Show"
+  ]
+  @timeline_views [
+    :"Elixir.ElektrineSocialWeb.HashtagLive.Show",
+    :"Elixir.ElektrineSocialWeb.RemotePostLive.Show",
+    :"Elixir.ElektrineSocialWeb.RemoteUserLive.Show",
+    :"Elixir.ElektrineSocialWeb.TimelineLive.Index",
+    :"Elixir.ElektrineSocialWeb.TimelineLive.Post"
   ]
 
   def required_module_for_path(path) when is_binary(path) do
@@ -145,69 +262,49 @@ defmodule ElektrineWeb.PlatformAccess do
 
   def required_access_module_for_view(view) do
     cond do
-      view == ElektrineWeb.PortalLive.Index ->
+      view in @portal_views ->
         :portal
 
-      view == ArblargWeb.ChatLive.Index ->
+      view in @view_modules.chat ->
         :chat
 
-      view in [
-        ElektrineEmailWeb.EmailLive.Compose,
-        ElektrineEmailWeb.EmailLive.Index,
-        ElektrineEmailWeb.EmailLive.Raw,
-        ElektrineEmailWeb.EmailLive.Search,
-        ElektrineEmailWeb.EmailLive.Settings,
-        ElektrineEmailWeb.EmailLive.Show,
-        ElektrineEmailWeb.ContactsLive.Index,
-        ElektrineWeb.CalendarLive.Index
-      ] ->
+      view in @email_access_views ->
         :email
 
-      view in [
-        ElektrineSocialWeb.DiscussionsLive.Community,
-        ElektrineSocialWeb.DiscussionsLive.Index,
-        ElektrineSocialWeb.DiscussionsLive.Post,
-        ElektrineSocialWeb.DiscussionsLive.Settings
-      ] ->
+      view in @communities_views ->
         :communities
 
-      view == ElektrineSocialWeb.GalleryLive.Index ->
+      view == :"Elixir.ElektrineSocialWeb.GalleryLive.Index" ->
         :gallery
 
-      view in [ElektrineSocialWeb.ListLive.Index, ElektrineSocialWeb.ListLive.Show] ->
+      view in @list_views ->
         :lists
 
-      view == ElektrineWeb.FriendsLive ->
+      view == :"Elixir.ElektrineWeb.FriendsLive" ->
         :friends
 
-      view in [
-        ElektrineSocialWeb.HashtagLive.Show,
-        ElektrineSocialWeb.RemotePostLive.Show,
-        ElektrineSocialWeb.RemoteUserLive.Show,
-        ElektrineSocialWeb.TimelineLive.Index,
-        ElektrineSocialWeb.TimelineLive.Post
-      ] ->
+      view in @timeline_views ->
         :timeline
 
-      view == ElektrineNerveWeb.NerveLive ->
+      view == :"Elixir.ElektrineNerveWeb.NerveLive" ->
         :nerve
 
-      view == ElektrineDNSWeb.DNSLive.Index ->
+      view == :"Elixir.ElektrineDNSWeb.DNSLive.Index" ->
         :dns
 
-      view == ElektrineVPNWeb.VPNLive.Index ->
+      view == :"Elixir.ElektrineVPNWeb.VPNLive.Index" ->
         :vpn
 
-      view == ElektrineUptimeWeb.UptimeLive.Index ->
+      view == :"Elixir.ElektrineUptimeWeb.UptimeLive.Index" ->
         :uptime
 
-      view == ElektrineWeb.StorageLive ->
+      view == :"Elixir.ElektrineWeb.StorageLive" ->
         :storage
 
-      view == ElektrineWeb.DriveLive ->
+      view == :"Elixir.ElektrineWeb.DriveLive" ->
         :drive
 
-      view == ElektrineWeb.NotesLive ->
+      view == :"Elixir.ElektrineWeb.NotesLive" ->
         :notes
 
       true ->
@@ -228,21 +325,7 @@ defmodule ElektrineWeb.PlatformAccess do
     end
   end
 
-  defp path_prefixes do
-    optional_route_metadata(:path_prefixes)
-  end
+  defp path_prefixes, do: @path_prefixes
 
-  defp view_modules do
-    Map.new(optional_route_metadata(:view_modules))
-  end
-
-  defp optional_route_metadata(function) do
-    Enum.flat_map(@optional_route_modules, fn {module_id, route_module} ->
-      if Code.ensure_loaded?(route_module) and function_exported?(route_module, function, 0) do
-        [{module_id, apply(route_module, function, [])}]
-      else
-        []
-      end
-    end)
-  end
+  defp view_modules, do: @view_modules
 end

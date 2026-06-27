@@ -9,8 +9,8 @@ source "$ROOT_DIR/scripts/lib/module_selection.sh"
 OUTPUT_PATH="$ROOT_DIR/.env.production"
 PRIMARY_DOMAIN=""
 ACME_EMAIL=""
-MODULES="all"
-PROFILES="$(default_docker_profiles)"
+MODULES="chat,social,nerve,atomine"
+PROFILES="caddy"
 FORCE=0
 
 usage() {
@@ -22,8 +22,8 @@ Creates a minimal .env.production for first-run Docker self-hosting.
 Options:
   --domain DOMAIN       Primary domain for the instance.
   --email EMAIL         ACME account email for Caddy-managed TLS.
-  --modules LIST        Enabled modules. Default: all
-  --profiles LIST       Docker profiles separated by spaces. Default: all addons
+  --modules LIST        Enabled modules. Default: chat,social,nerve,atomine
+  --profiles LIST       Docker profiles separated by spaces. Default: caddy
   --output PATH         Env file path. Default: .env.production
   --force               Overwrite an existing output file.
 EOF
@@ -130,6 +130,7 @@ ELEKTRINE_MASTER_SECRET=$ELEKTRINE_MASTER_SECRET
 
 ELEKTRINE_ENABLED_MODULES=$MODULES
 DOCKER_PROFILES="$PROFILES"
+COMPOSE_PROJECT_NAME=docker
 
 ACME_EMAIL=$ACME_EMAIL
 CADDY_EDGE_API_KEY=$CADDY_EDGE_API_KEY

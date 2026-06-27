@@ -50,7 +50,6 @@ defmodule Elektrine.Uploads do
     text/plain
   ]
   @chat_attachment_extensions ~w[.jpg .jpeg .png .gif .webp .heic .heif .avif .mp4 .webm .ogv .mov .mp3 .wav .m4a .aac .flac .pdf .doc .docx .xls .xlsx .txt]
-  @max_chat_attachment_size Constants.max_chat_attachment_size()
   @voice_message_mime_types ~w[
     audio/webm
     audio/mp4
@@ -74,7 +73,6 @@ defmodule Elektrine.Uploads do
     image/jpg
   ]
   @favicon_extensions ~w[.png .ico .jpg .jpeg]
-  @max_favicon_size Constants.max_favicon_size()
   @private_attachment_prefixes ~w[
     attachments/
     chat-attachments/
@@ -588,11 +586,11 @@ defmodule Elektrine.Uploads do
   end
 
   defp max_file_size_for_upload_type(:chat_attachment) do
-    @max_chat_attachment_size
+    Constants.max_chat_attachment_size()
   end
 
   defp max_file_size_for_upload_type(:favicon) do
-    @max_favicon_size
+    Constants.max_favicon_size()
   end
 
   defp max_file_size_for_upload_type(_) do

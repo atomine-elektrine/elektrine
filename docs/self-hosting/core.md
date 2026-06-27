@@ -4,8 +4,8 @@
 
 This guide covers the plain app-plus-Postgres baseline in
 `deploy/docker/compose.core.yml`. For a normal public Docker host, use
-`docs/self-hosting/docker.md`; the wrapper renders the larger stack and defaults
-to all modules and profiles unless you override them.
+`docs/self-hosting/docker.md`; the self-host wrapper generates a small public
+web stack and lets you enable optional services through presets.
 
 It does not include:
 
@@ -30,8 +30,8 @@ only for local testing or when an external firewall/proxy already protects the
 port.
 
 If you want the module-aware wrapper, use `docs/self-hosting/docker.md` instead.
-That path is for the generated multi-service stack and defaults to all modules
-and profiles unless you override them.
+That path is for the generated multi-service stack and starts with only the
+common public web services.
 
 ## Add-ons
 

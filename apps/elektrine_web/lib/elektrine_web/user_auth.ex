@@ -17,9 +17,7 @@ defmodule ElektrineWeb.UserAuth do
 
   # Make the remember me cookie valid for 60 days.
   # If you want to customize, set :elektrine, :user_remember_me_cookie_max_age
-  @max_age Constants.session_max_age_seconds()
   @remember_me_cookie "_elektrine_web_user_remember_me"
-  @remember_me_options [sign: true, max_age: @max_age, same_site: "Lax", http_only: true]
   @recent_auth_session_key :user_recent_auth_at
 
   @doc """
@@ -277,7 +275,9 @@ defmodule ElektrineWeb.UserAuth do
   end
 
   defp fetch_user_by_token(token) do
-    case Phoenix.Token.verify(ElektrineWeb.Endpoint, "user auth", token, max_age: @max_age) do
+    case Phoenix.Token.verify(ElektrineWeb.Endpoint, "user auth", token,
+           max_age: Constants.session_max_age_seconds()
+         ) do
       {:ok, claims} -> claims |> session_user_id() |> fetch_user_for_claims(claims)
       {:error, _} -> nil
     end
@@ -556,7 +556,13 @@ defmodule ElektrineWeb.UserAuth do
   end
 
   defp remember_me_options(conn) do
-    Keyword.put(@remember_me_options, :secure, SessionConfig.secure_cookies?(conn))
+    [
+      sign: true,
+      max_age: Constants.session_max_age_seconds(),
+      same_site: "Lax",
+      http_only: true,
+      secure: SessionConfig.secure_cookies?(conn)
+    ]
   end
 
   defp ensure_flash_fetched(%Plug.Conn{assigns: %{flash: _}} = conn), do: conn

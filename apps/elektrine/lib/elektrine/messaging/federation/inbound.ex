@@ -3,10 +3,10 @@ defmodule Elektrine.Messaging.Federation.Inbound do
 
   alias Elektrine.Messaging.ArblargSDK
 
-  @presence_update_event_type ArblargSDK.canonical_event_type("presence.update")
-  @typing_start_event_type ArblargSDK.canonical_event_type("typing.start")
-  @typing_stop_event_type ArblargSDK.canonical_event_type("typing.stop")
-  @dm_call_signal_event_type ArblargSDK.canonical_event_type("dm.call.signal")
+  @presence_update_event_type "urn:arblarg:ext:presence:1#presence.update"
+  @typing_start_event_type "urn:arblarg:ext:presence:1#typing.start"
+  @typing_stop_event_type "urn:arblarg:ext:presence:1#typing.stop"
+  @dm_call_signal_event_type "urn:arblarg:ext:voice:1#dm.call.signal"
 
   def normalize_incoming_batch_payload(%{"events" => events} = payload, context)
       when is_list(events) and is_map(context) do

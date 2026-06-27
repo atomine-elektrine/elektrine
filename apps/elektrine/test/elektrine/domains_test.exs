@@ -1,5 +1,5 @@
 defmodule Elektrine.DomainsTest do
-  use ExUnit.Case, async: false
+  use Elektrine.DataCase, async: false
 
   alias Elektrine.Accounts.User
   alias Elektrine.Domains
