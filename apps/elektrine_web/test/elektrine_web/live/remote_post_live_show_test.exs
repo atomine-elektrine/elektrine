@@ -1912,7 +1912,7 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
     assert html =~ ~s(phx-click="unboost_post")
     assert html =~ "hero-heart-solid"
     assert html =~ "hero-arrow-path-solid"
-    assert html =~ "text-secondary"
+    assert html =~ "text-primary"
     assert html =~ "text-success"
   end
 

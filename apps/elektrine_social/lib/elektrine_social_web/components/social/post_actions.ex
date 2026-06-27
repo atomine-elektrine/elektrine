@@ -145,16 +145,16 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
               @btn_class,
               "cursor-pointer transition-colors phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
               @is_liked &&
-                "bg-secondary/10 text-secondary phx-click-loading:bg-transparent phx-click-loading:text-base-content/70",
+                "bg-primary/10 text-primary phx-click-loading:bg-transparent phx-click-loading:text-base-content/70",
               !@is_liked &&
-                "text-base-content hover:text-secondary phx-click-loading:bg-secondary/10 phx-click-loading:text-secondary"
+                "text-base-content hover:text-primary phx-click-loading:bg-primary/10 phx-click-loading:text-primary"
             ]}
             type="button"
           >
             <span class="inline-flex items-center gap-1">
               <.icon
                 name={if @is_liked, do: "hero-heart-solid", else: "hero-heart"}
-                class={[@icon_size, @is_liked && "text-secondary"]}
+                class={[@icon_size, @is_liked && "text-primary"]}
               />
               <.animated_count
                 id={count_id(@dom_id_prefix, "like")}
@@ -345,8 +345,8 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
             class={[
               "flex items-center gap-1.5 transition-all duration-150 cursor-pointer phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
               if(@is_liked,
-                do: "text-secondary phx-click-loading:text-base-content/60",
-                else: "text-base-content hover:text-secondary phx-click-loading:text-secondary"
+                do: "text-primary phx-click-loading:text-base-content/60",
+                else: "text-base-content hover:text-primary phx-click-loading:text-primary"
               )
             ]}
             type="button"
@@ -354,7 +354,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
             <span class="inline-flex items-center gap-1.5">
               <.icon
                 name={if @is_liked, do: "hero-heart-solid", else: "hero-heart"}
-                class={[@icon_size, @is_liked && "text-secondary"]}
+                class={[@icon_size, @is_liked && "text-primary"]}
               />
               <.animated_count id={count_id(@dom_id_prefix, "like")} count={@like_count} />
             </span>
@@ -484,8 +484,8 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
       class={[
         "flex items-center gap-1.5 transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
         if(@is_liked,
-          do: "text-secondary phx-click-loading:text-base-content/60",
-          else: "text-base-content hover:text-secondary phx-click-loading:text-secondary"
+          do: "text-primary phx-click-loading:text-base-content/60",
+          else: "text-base-content hover:text-primary phx-click-loading:text-primary"
         )
       ]}
       type="button"
@@ -493,7 +493,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
       <span class="inline-flex items-center gap-1.5">
         <.icon
           name={if @is_liked, do: "hero-heart-solid", else: "hero-heart"}
-          class={[@icon_size, @is_liked && "text-secondary"]}
+          class={[@icon_size, @is_liked && "text-primary"]}
         />
         <%= if @show_count do %>
           <span>{normalize_interaction_count(@like_count)}</span>
