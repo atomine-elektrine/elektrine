@@ -11,7 +11,8 @@ mapfile -t tracked_generated < <(
     'deploy/generated/*' \
     'deploy/docker/generated*.yml' \
     'deploy/docker/generated.Caddyfile' \
-    'deploy/docker/generated.mongooseim.toml'
+    'deploy/docker/generated.mongooseim.toml' |
+    grep -v '^deploy/generated/\.gitkeep$' || true
 )
 
 if ((${#tracked_generated[@]} == 0)); then
