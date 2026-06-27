@@ -84,6 +84,10 @@ fi
 mkdir -p "$RELEASE_CONFIG_DIR"
 cp "$ROOT_DIR/config/runtime.exs" "$RELEASE_CONFIG_DIR/runtime.exs"
 
+if [[ -d "$ROOT_DIR/config/runtime" ]]; then
+  cp -R "$ROOT_DIR/config/runtime" "$RELEASE_CONFIG_DIR/runtime"
+fi
+
 rm -rf "$DEPLOY_DIR"
 mkdir -p "$(dirname "$DEPLOY_DIR")"
 cp -R "$RELEASE_DIR" "$DEPLOY_DIR"

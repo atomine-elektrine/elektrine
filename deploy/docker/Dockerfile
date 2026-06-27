@@ -116,6 +116,7 @@ WORKDIR /app
 COPY apps apps
 COPY release_builder release_builder
 COPY config/runtime.exs config/runtime.exs
+COPY config/runtime config/runtime
 COPY --chmod=755 scripts/release/deploy_release.sh scripts/release/deploy_release.sh
 COPY scripts/lib scripts/lib
 
