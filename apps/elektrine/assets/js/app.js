@@ -12,8 +12,8 @@ import topbar from "../vendor/topbar"
 // Import hooks
 import { Hooks } from "./hooks"
 import { initTimezoneDetectors } from "./hooks/form_hooks"
-import { initBackupCodesPrinters } from "./hooks/ui_hooks"
-import { initPrivateMailboxAuthForms } from "./hooks/mailbox_private_storage_hooks"
+import { initBackupCodesPrinters } from "./hooks/backup_codes_printer"
+import { initPrivateMailboxAuthForms } from "./hooks/mailbox_private_auth_forms"
 
 // Import utilities
 import {

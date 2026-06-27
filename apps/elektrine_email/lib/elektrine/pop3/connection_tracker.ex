@@ -2,7 +2,6 @@ defmodule Elektrine.POP3.ConnectionTracker do
   @moduledoc false
 
   require Logger
-
   alias Elektrine.Constants
   alias Elektrine.Mail.Telemetry, as: MailTelemetry
 
@@ -38,6 +37,8 @@ defmodule Elektrine.POP3.ConnectionTracker do
     else
       :error
     end
+  rescue
+    ArgumentError -> :error
   end
 
   def release_handshake_slot(ip, transport) do
@@ -62,6 +63,8 @@ defmodule Elektrine.POP3.ConnectionTracker do
     :ets.update_counter(table, :total, {2, 1}, {:total, 0})
     :ets.update_counter(table, ip, {2, 1}, {ip, 0})
     emit_session_count(ip, transport)
+  rescue
+    ArgumentError -> :ok
   end
 
   def decrement(ip, transport) do
@@ -94,6 +97,8 @@ defmodule Elektrine.POP3.ConnectionTracker do
       [] ->
         0
     end
+  rescue
+    ArgumentError -> 0
   end
 
   defp decrement_counter(table, key) do
@@ -114,6 +119,8 @@ defmodule Elektrine.POP3.ConnectionTracker do
     else
       :ok
     end
+  rescue
+    ArgumentError -> :ok
   end
 
   defp maybe_alert_session_pressure(total, ip_count, ip) do

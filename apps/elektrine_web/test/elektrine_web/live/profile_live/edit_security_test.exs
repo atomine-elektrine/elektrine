@@ -6,6 +6,16 @@ defmodule ElektrineWeb.ProfileLive.EditSecurityTest do
   alias Elektrine.AccountsFixtures
   alias Elektrine.Profiles
 
+  test "renders extracted effects tab sections", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+    {:ok, _view, html} = conn |> log_in_user(user) |> live(~p"/account/profile/edit?tab=effects")
+
+    assert html =~ "Typewriter Effect"
+    assert html =~ "Avatar Effects"
+    assert html =~ "Username Effects"
+    assert html =~ ~s(name="profile[username_effect]")
+  end
+
   test "ignores forged username color field targets", %{conn: conn} do
     user = AccountsFixtures.user_fixture()
     {:ok, view, _html} = conn |> log_in_user(user) |> live(~p"/account/profile/edit")

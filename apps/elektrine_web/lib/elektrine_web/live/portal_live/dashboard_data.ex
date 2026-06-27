@@ -85,6 +85,130 @@ defmodule ElektrineWeb.PortalLive.DashboardData do
     |> Enum.reject(&is_nil/1)
   end
 
+  def tasks(
+        inbox_unread_count,
+        reply_later_count,
+        chat_unread_count,
+        pending_friend_requests_count,
+        pending_follow_requests_count,
+        vpn_config_count
+      ) do
+    [
+      if inbox_unread_count > 0 do
+        %{
+          id: "review_inbox",
+          title: "Review unread inbox",
+          detail: "#{inbox_unread_count} message(s) waiting",
+          href: Elektrine.Paths.email_index_path(tab: "inbox", filter: "unread"),
+          icon: "hero-envelope",
+          priority: "high"
+        }
+      end,
+      if reply_later_count > 0 do
+        %{
+          id: "reply_later",
+          title: "Handle boomerang reminders",
+          detail: "#{reply_later_count} follow-up reminder(s)",
+          href: Elektrine.Paths.email_index_path(tab: "inbox", filter: "boomerang"),
+          icon: "hero-arrow-uturn-left",
+          priority: "medium"
+        }
+      end,
+      if pending_friend_requests_count > 0 do
+        %{
+          id: "friend_requests",
+          title: "Respond to friend requests",
+          detail: "#{pending_friend_requests_count} pending request(s)",
+          href: Elektrine.Paths.friends_path(tab: "requests"),
+          icon: "hero-user-plus",
+          priority: "medium"
+        }
+      end,
+      if pending_follow_requests_count > 0 do
+        %{
+          id: "follow_requests",
+          title: "Review fediverse follows",
+          detail: "#{pending_follow_requests_count} remote request(s)",
+          href: Elektrine.Paths.friends_path(tab: "requests"),
+          icon: "hero-globe-americas",
+          priority: "high"
+        }
+      end,
+      if chat_unread_count > 0 do
+        %{
+          id: "chat_unread",
+          title: "Catch up on chat",
+          detail: "#{chat_unread_count} unread chat message(s)",
+          href: Elektrine.Paths.chat_root_path(),
+          icon: "hero-chat-bubble-left-right",
+          priority: "medium"
+        }
+      end,
+      if Modules.enabled?(:vpn) and vpn_config_count == 0 do
+        %{
+          id: "vpn_setup",
+          title: "Create your first VPN config",
+          detail: "Protect your traffic before browsing",
+          href: Elektrine.Paths.vpn_path(),
+          icon: "hero-shield-check",
+          priority: "low"
+        }
+      end
+    ]
+    |> Enum.reject(&is_nil/1)
+  end
+
+  def alerts(
+        inbox_unread_count,
+        notifications_unread_count,
+        chat_unread_count,
+        pending_follow_requests_count
+      ) do
+    [
+      if pending_follow_requests_count > 0 do
+        %{
+          id: "fediverse_follow_requests",
+          title: "Pending fediverse follow approvals",
+          detail: "#{pending_follow_requests_count} request(s) are waiting",
+          href: Elektrine.Paths.friends_path(tab: "requests"),
+          icon: "hero-globe-americas",
+          level: "high"
+        }
+      end,
+      if notifications_unread_count >= 15 do
+        %{
+          id: "notification_backlog",
+          title: "Notification backlog building up",
+          detail: "#{notifications_unread_count} unread notifications",
+          href: Elektrine.Paths.notifications_path(),
+          icon: "hero-bell-alert",
+          level: "medium"
+        }
+      end,
+      if inbox_unread_count >= 25 do
+        %{
+          id: "inbox_backlog",
+          title: "Inbox backlog is growing",
+          detail: "#{inbox_unread_count} unread inbox messages",
+          href: Elektrine.Paths.email_index_path(tab: "inbox", filter: "unread"),
+          icon: "hero-envelope",
+          level: "medium"
+        }
+      end,
+      if chat_unread_count >= 20 do
+        %{
+          id: "chat_backlog",
+          title: "Chat backlog is growing",
+          detail: "#{chat_unread_count} unread chat messages",
+          href: Elektrine.Paths.chat_root_path(),
+          icon: "hero-chat-bubble-left-right",
+          level: "low"
+        }
+      end
+    ]
+    |> Enum.reject(&is_nil/1)
+  end
+
   defp module_available?(user, platform_module, access_module) do
     Modules.enabled?(platform_module) and
       Elektrine.System.user_can_access_module?(user, access_module)

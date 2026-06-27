@@ -23,8 +23,8 @@ defmodule Elektrine.ActivityPub.NodeInfoFetcherWorkerSecurityTest do
     end
 
     test "normalizes safe relative favicon URLs" do
-      assert NodeInfoFetcherWorker.normalize_favicon_url("/favicon.ico", "example.com") ==
-               "https://example.com/favicon.ico"
+      assert NodeInfoFetcherWorker.normalize_favicon_url("/favicon.ico", "93.184.216.34") ==
+               "https://93.184.216.34/favicon.ico"
     end
   end
 end

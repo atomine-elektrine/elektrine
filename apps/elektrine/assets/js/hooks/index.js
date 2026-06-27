@@ -9,8 +9,8 @@ import {
   SimpleChatInput,
   MessageList,
   ChatKeyboardShortcuts,
-  ChatE2EE,
 } from "./chat_hooks";
+import { ChatE2EE } from "./chat_e2ee_hook";
 import {
   ContextMenu,
   MessageContextMenu,
@@ -21,10 +21,10 @@ import { VoiceRecorder } from "./chat_voice_recorder_hook";
 // Email hooks
 import {
   KeyboardShortcuts,
-  EmailIframeResize,
   EmailShowKeyboardShortcuts,
-  EmailComposeKeyboardShortcuts,
 } from "./email_hooks";
+import { EmailComposeKeyboardShortcuts } from "./email_compose_shortcuts_hook";
+import { EmailIframeResize } from "./email_iframe_resize_hook";
 
 // Markdown hooks
 import { ReplyMarkdownEditor } from "./markdown_hooks";
@@ -38,18 +38,20 @@ import { NotificationVisibility } from "./notification_visibility";
 
 // UI hooks
 import {
-  CopyEmail,
   PreserveFocus,
   PreserveSearchFocus,
   FlashAutoDismiss,
-  CopyToClipboard,
-  FileExplorer,
-  CopyButton,
   TimelineReply,
   ScrollToTop,
   RemoteProfileStickyFollow,
   ImageFallback,
 } from "./ui_hooks";
+import { FileExplorer } from "./file_explorer_hook";
+import {
+  CopyEmail,
+  CopyToClipboard,
+  CopyButton,
+} from "./clipboard_hooks";
 
 // Call hooks
 import {
@@ -73,15 +75,15 @@ import { UPlotChart } from "./analytics_hooks";
 // Timeline/Feed hooks
 import {
   PostClick,
-  AnimatedCount,
-  RemoteFollowButton,
   InfiniteScroll,
+} from "./timeline_hooks";
+import { UserHoverCard, ImageModal } from "./timeline_media_hooks";
+import {
   PreserveStreamAnchor,
   PreserveQueuedPostsButtonScroll,
-  UserHoverCard,
-  ImageModal,
-  SessionContinuity,
-} from "./timeline_hooks";
+} from "./timeline_preservation_hooks";
+import { SessionContinuity } from "./timeline_session_continuity";
+import { AnimatedCount, RemoteFollowButton } from "./timeline_status_hooks";
 
 // Form/Utility hooks
 import {
@@ -98,9 +100,9 @@ import { Nerve } from "./nerve_hooks";
 // Mailbox private storage hooks
 import {
   MailboxPrivateStorage,
-  PrivateMailboxCompose,
-  PrivateMailboxMessages,
 } from "./mailbox_private_storage_hooks";
+import { PrivateMailboxCompose } from "./mailbox_private_compose_hook";
+import { PrivateMailboxMessages } from "./mailbox_private_messages_hook";
 
 // Passkey hooks
 import { PasskeyRegister, PasskeyAuth } from "./passkey_hooks";

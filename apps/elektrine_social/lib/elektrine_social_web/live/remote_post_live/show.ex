@@ -5,8 +5,6 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Helpers, as: APHelpers
-  alias Elektrine.ActivityPub.Visibility
-  alias Elektrine.Friends
   alias Elektrine.Messaging
   alias Elektrine.Paths
   alias Elektrine.Profiles
@@ -18,10 +16,16 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   @cached_reply_poll_max_attempts 8
 
   alias ElektrineSocialWeb.RemotePostLive.{
+    AccessPolicy,
     AncestorContextComponents,
+    CachedPostFields,
+    Counts,
     DiscussionSource,
     Interactions,
+    Navigation,
+    Polls,
     QuickReplyComponents,
+    SubmittedLinks,
     SurfaceHelpers,
     ThreadedCommentComponents,
     Threading
@@ -51,6 +55,16 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   import ElektrineSocialWeb.RemotePostLive.QuickReplyComponents,
     only: [quick_reply_recent_replies_preview: 1]
 
+  import CachedPostFields,
+    only: [
+      cached_message_attachments: 1,
+      cached_remote_status_fields: 1,
+      map_get_value: 2,
+      maybe_preserve_cached_post_fields: 2,
+      message_attachment_url: 2,
+      normalize_attachment_list: 1
+    ]
+
   import ElektrineWeb.HtmlHelpers
   import Elektrine.Components.Loaders.Skeleton
 
@@ -59,6 +73,10 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
   defdelegate render_threaded_comments(assigns, comments), to: ThreadedCommentComponents
   defdelegate ancestor_context_stack(assigns), to: AncestorContextComponents
+  defdelegate message_submitted_link(message), to: SubmittedLinks
+  defdelegate detect_submitted_url(post, local_message, remote_actor_domain), to: SubmittedLinks
+  defdelegate extract_youtube_id(url), to: SubmittedLinks
+  defdelegate submitted_url_host(url), to: SubmittedLinks
 
   defp thread_hydration_state(
          reported_reply_count,
@@ -124,8 +142,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   def handle_params(_params, _uri, socket), do: {:noreply, socket}
 
   defp handle_canonical_params(ref, uri, socket) do
-    current_path = current_post_path_from_uri(uri)
-    canonical_path = canonical_remote_post_path(ref)
+    current_path = Navigation.current_post_path_from_uri(uri)
+    canonical_path = Navigation.canonical_remote_post_path(ref)
 
     if is_binary(canonical_path) and canonical_path != current_path do
       {:noreply, push_patch(socket, to: canonical_path, replace: true)}
@@ -140,7 +158,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   defp mount_post_ref(decoded_post_id, socket) do
     # Check if this is a numeric local post ID
     local_post_id =
-      case parse_local_message_id(decoded_post_id) do
+      case Navigation.parse_local_message_id(decoded_post_id) do
         {:ok, parsed} -> parsed
         :error -> nil
       end
@@ -216,7 +234,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       |> assign(:community_lookup_ref, nil)
       |> assign(
         :current_url,
-        ElektrineWeb.Endpoint.url() <> (canonical_remote_post_path(decoded_post_id) || "")
+        ElektrineWeb.Endpoint.url() <>
+          (Navigation.canonical_remote_post_path(decoded_post_id) || "")
       )
 
     # For initial render (not connected), do a quick synchronous fetch for SEO/link previews
@@ -255,29 +274,11 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     {:ok, socket}
   end
 
-  defp canonical_remote_post_path(ref) when is_binary(ref), do: remote_detail_post_path(ref)
-
-  defp canonical_remote_post_path(ref), do: remote_detail_post_path(ref)
-
-  defp remote_detail_post_path(ref), do: Paths.remote_post_path(ref)
-
-  defp current_post_path_from_uri(uri) when is_binary(uri) do
-    parsed = URI.parse(uri)
-
-    case {parsed.path, parsed.query} do
-      {path, nil} when is_binary(path) -> path
-      {path, query} when is_binary(path) and is_binary(query) -> path <> "?" <> query
-      _ -> nil
-    end
-  end
-
-  defp current_post_path_from_uri(_), do: nil
-
   # Build an ActivityPub-like post object from a local message
   defp build_post_object_from_message(msg) do
-    poll_fields = build_poll_fields_from_message(msg)
-    reply_count = cached_reply_count(msg)
-    submitted_link = message_submitted_link(msg)
+    poll_fields = Polls.build_poll_fields_from_message(msg)
+    reply_count = Counts.cached_reply_count(msg)
+    submitted_link = SubmittedLinks.message_submitted_link(msg)
     post_url = submitted_link || msg.activitypub_url || msg.activitypub_id
     metadata = msg.media_metadata || %{}
     in_reply_to = message_in_reply_to(msg)
@@ -298,7 +299,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       "published" => NaiveDateTime.to_iso8601(msg.inserted_at) <> "Z",
       "attributedTo" => msg.remote_actor && msg.remote_actor.uri,
       "inReplyTo" => in_reply_to,
-      "indexable" => cached_message_indexable?(msg),
+      "indexable" => AccessPolicy.cached_message_indexable?(msg),
       "audience" => community_uri,
       "to" => build_cached_post_audience(community_uri),
       "inReplyToAuthor" => metadata["inReplyToAuthor"],
@@ -323,143 +324,6 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     |> Map.merge(cached_remote_status_fields(metadata))
     |> Map.merge(poll_fields)
   end
-
-  defp cached_remote_status_fields(metadata) when is_map(metadata) do
-    metadata
-    |> Map.take([
-      "emoji_reactions",
-      "quotes_count",
-      "quote",
-      "quote_id",
-      "quote_url",
-      "card",
-      "application",
-      "language",
-      "media_attachments",
-      "pleroma",
-      "misskey"
-    ])
-  end
-
-  defp cached_remote_status_fields(_), do: %{}
-
-  defp cached_message_attachments(msg) do
-    metadata = msg.media_metadata || %{}
-
-    media_url_attachments =
-      (msg.media_urls || [])
-      |> Enum.map(fn url ->
-        full_url = message_attachment_url(url, msg)
-
-        if Elektrine.Strings.present?(full_url) do
-          attachment_type = media_attachment_type(full_url, metadata)
-
-          %{
-            "type" => attachment_type,
-            "url" => full_url,
-            "mediaType" => default_media_type(attachment_type)
-          }
-        end
-      end)
-
-    metadata_attachments =
-      [
-        field_value(metadata, ["attachment", :attachment]),
-        field_value(metadata, ["attachments", :attachments]),
-        field_value(metadata, ["media_attachments", :media_attachments])
-      ]
-      |> Enum.flat_map(&normalize_attachment_list/1)
-      |> Enum.map(&normalize_cached_attachment/1)
-
-    (metadata_attachments ++ media_url_attachments)
-    |> Enum.reject(&is_nil/1)
-    |> Enum.uniq_by(&attachment_url/1)
-  end
-
-  defp normalize_cached_attachment(attachment) when is_map(attachment) do
-    url =
-      attachment_url(attachment) ||
-        field_value(attachment, ["remote_url", :remote_url]) ||
-        field_value(attachment, ["preview_url", :preview_url])
-
-    if Elektrine.Strings.present?(url) do
-      type =
-        field_value(attachment, ["type", :type]) ||
-          media_attachment_type(url)
-
-      media_type =
-        field_value(attachment, ["mediaType", :mediaType, "media_type", :media_type]) ||
-          default_media_type(type)
-
-      %{
-        "type" => type,
-        "url" => url,
-        "mediaType" => media_type,
-        "preview_url" => field_value(attachment, ["preview_url", :preview_url]),
-        "width" => field_value(attachment, ["width", :width]),
-        "height" => field_value(attachment, ["height", :height]),
-        "duration" => field_value(attachment, ["duration", :duration]),
-        "name" => field_value(attachment, ["name", :name, "description", :description])
-      }
-    end
-  end
-
-  defp normalize_cached_attachment(_), do: nil
-
-  defp media_attachment_type(url, metadata \\ %{}) when is_binary(url) do
-    cond do
-      String.match?(url, ~r/\.(mp4|webm|ogv|mov)(\?.*)?$/i) -> "Video"
-      String.match?(url, ~r/\.(mp3|wav|ogg|m4a|flac)(\?.*)?$/i) -> "Audio"
-      video_object_metadata?(metadata) -> "Video"
-      true -> "Image"
-    end
-  end
-
-  defp video_object_metadata?(metadata) when is_map(metadata) do
-    type = metadata |> field_value(["type", :type]) |> to_string() |> String.downcase()
-
-    type == "video" ||
-      metadata
-      |> field_value(["media_attachments", :media_attachments, "attachments", :attachments])
-      |> normalize_attachment_list()
-      |> Enum.any?(fn attachment ->
-        media_type = field_value(attachment, ["mediaType", :mediaType, "media_type", :media_type])
-
-        attachment_type =
-          attachment |> field_value(["type", :type]) |> to_string() |> String.downcase()
-
-        attachment_type == "video" || video_media_type?(media_type)
-      end)
-  end
-
-  defp video_object_metadata?(_), do: false
-
-  defp video_media_type?(media_type) when is_binary(media_type) do
-    media_type = String.downcase(media_type)
-
-    String.starts_with?(media_type, "video/") ||
-      media_type in ["application/x-mpegurl", "application/vnd.apple.mpegurl"]
-  end
-
-  defp video_media_type?(_), do: false
-
-  defp default_media_type(type) when is_binary(type) do
-    case String.downcase(type) do
-      "video" -> "video/mp4"
-      "audio" -> "audio/mpeg"
-      _ -> "image/jpeg"
-    end
-  end
-
-  defp default_media_type(_), do: "image/jpeg"
-
-  defp message_attachment_url(url, %{federated: true}) when is_binary(url) do
-    if String.starts_with?(url, ["http://", "https://"]),
-      do: url,
-      else: Elektrine.Uploads.attachment_url(url)
-  end
-
-  defp message_attachment_url(url, message), do: Elektrine.Uploads.attachment_url(url, message)
 
   defp maybe_enrich_cached_federated_post(post_object, msg)
        when is_map(post_object) and is_map(msg) do
@@ -493,75 +357,6 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     [community_uri, "https://www.w3.org/ns/activitystreams#Public"]
   end
 
-  defp message_submitted_link(msg) do
-    metadata = map_get_value(msg, "media_metadata") || %{}
-    link_preview_url = message_link_preview_url(msg)
-    message_id = map_get_value(msg, "activitypub_id")
-    message_url = map_get_value(msg, "activitypub_url")
-
-    [
-      map_get_value(msg, "primary_url"),
-      metadata["external_link"],
-      metadata["url"],
-      metadata["source_url"],
-      metadata["canonical_url"],
-      metadata["link_url"],
-      metadata["link"],
-      link_preview_url,
-      extract_http_url_from_content(map_get_value(msg, "content"))
-    ]
-    |> Enum.map(&normalize_http_url/1)
-    |> Enum.find(fn url ->
-      is_binary(url) && !same_activitypub_object_url?(url, message_id) &&
-        !same_activitypub_object_url?(url, message_url)
-    end)
-  end
-
-  defp message_link_preview_url(%{
-         link_preview: %Elektrine.Social.LinkPreview{status: "success", url: url}
-       })
-       when is_binary(url),
-       do: url
-
-  defp message_link_preview_url(%{
-         "link_preview" => %Elektrine.Social.LinkPreview{status: "success", url: url}
-       })
-       when is_binary(url),
-       do: url
-
-  defp message_link_preview_url(_), do: nil
-
-  defp detect_submitted_url(post, local_message, remote_actor_domain)
-       when is_map(post) do
-    post_id = map_get_value(post, "id")
-
-    [
-      extract_attachment_submitted_link(map_get_value(post, "attachment")),
-      extract_source_submitted_link(map_get_value(post, "source")),
-      extract_url_field_submitted_link(map_get_value(post, "url"), post_id, remote_actor_domain),
-      if(local_message, do: message_submitted_link(local_message), else: nil),
-      extract_http_url_from_content(map_get_value(post, "content"))
-    ]
-    |> Enum.map(&normalize_http_url/1)
-    |> Enum.find(&valid_submitted_url?(&1, post_id))
-  end
-
-  defp detect_submitted_url(nil, local_message, _remote_actor_domain)
-       when is_map(local_message) do
-    message_submitted_link(local_message)
-  end
-
-  defp detect_submitted_url(_, _, _), do: nil
-
-  defp submitted_url_host(url) when is_binary(url) do
-    case URI.parse(url) do
-      %URI{host: host} when is_binary(host) and host != "" -> host
-      _ -> nil
-    end
-  end
-
-  defp submitted_url_host(_), do: nil
-
   defp effective_link_preview(local_message, submitted_link_preview, submitted_url) do
     cond do
       match?(%Elektrine.Social.LinkPreview{status: "success"}, submitted_link_preview) and
@@ -579,7 +374,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
   defp preview_matches_submitted_url?(%Elektrine.Social.LinkPreview{url: url}, submitted_url)
        when is_binary(url) and is_binary(submitted_url) do
-    normalize_http_url(url) == normalize_http_url(submitted_url)
+    SubmittedLinks.normalize_http_url(url) == SubmittedLinks.normalize_http_url(submitted_url)
   end
 
   defp preview_matches_submitted_url?(_, nil), do: false
@@ -601,7 +396,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
   defp ensure_submitted_link_preview(socket, post_object, local_message, remote_actor_domain)
        when is_map(post_object) do
-    case detect_submitted_url(post_object, local_message, remote_actor_domain) do
+    case SubmittedLinks.detect_submitted_url(post_object, local_message, remote_actor_domain) do
       url when is_binary(url) ->
         if preview_matches_submitted_url?(local_message && local_message.link_preview, url) do
           assign(socket, :submitted_link_preview, nil)
@@ -651,7 +446,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   defp current_submitted_url(%Phoenix.LiveView.Socket{} = socket) do
-    detect_submitted_url(
+    SubmittedLinks.detect_submitted_url(
       socket.assigns[:post],
       socket.assigns[:local_message],
       socket.assigns[:remote_actor] && socket.assigns.remote_actor.domain
@@ -659,7 +454,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   defp current_submitted_url(assigns) when is_map(assigns) do
-    detect_submitted_url(
+    SubmittedLinks.detect_submitted_url(
       Map.get(assigns, :post),
       Map.get(assigns, :local_message),
       case Map.get(assigns, :remote_actor) do
@@ -673,8 +468,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
        when is_map(local_message) and is_map(post_object) do
     local_message = resolve_local_message_for_post(local_message, post_object)
 
-    case {message_submitted_link(local_message),
-          detect_submitted_url(post_object, local_message, remote_actor_domain)} do
+    case {SubmittedLinks.message_submitted_link(local_message),
+          SubmittedLinks.detect_submitted_url(post_object, local_message, remote_actor_domain)} do
       {nil, submitted_url} when is_binary(submitted_url) ->
         import Ecto.Query
 
@@ -711,7 +506,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
   defp maybe_enqueue_submitted_link_repair(%{id: message_id} = local_message)
        when is_integer(message_id) do
-    if is_nil(message_submitted_link(local_message)) do
+    if is_nil(SubmittedLinks.message_submitted_link(local_message)) do
       _ = Elektrine.ActivityPub.SubmittedLinkRepairWorker.enqueue_single(message_id)
     end
 
@@ -733,366 +528,31 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
   defp decode_preview_entities(text, _), do: text
 
-  defp extract_youtube_id(url) when is_binary(url) do
-    patterns = [
-      ~r/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
-      ~r/youtube\.com\/watch\?.*v=([a-zA-Z0-9_-]{11})/
-    ]
-
-    Enum.find_value(patterns, fn pattern ->
-      case Regex.run(pattern, url) do
-        [_, video_id] -> video_id
-        _ -> nil
-      end
-    end)
-  end
-
-  defp extract_youtube_id(_), do: nil
-
   defp quote_message_path(%{activitypub_id: activitypub_id})
        when is_binary(activitypub_id) and activitypub_id != "" do
-    remote_detail_post_path(activitypub_id)
+    Navigation.remote_detail_post_path(activitypub_id)
   end
 
-  defp quote_message_path(%{id: id}) when is_integer(id), do: remote_detail_post_path(id)
+  defp quote_message_path(%{id: id}) when is_integer(id),
+    do: Navigation.remote_detail_post_path(id)
 
   defp quote_message_path(%{id: id}) when is_binary(id) and id != "" do
-    remote_detail_post_path(id)
+    Navigation.remote_detail_post_path(id)
   end
 
   defp quote_message_path(_), do: nil
-
-  defp valid_submitted_url?(url, post_id) when is_binary(url) do
-    String.starts_with?(url, ["http://", "https://"]) &&
-      !same_activitypub_object_url?(url, post_id)
-  end
-
-  defp valid_submitted_url?(_, _), do: false
-
-  defp extract_attachment_submitted_link(attachments) do
-    attachments
-    |> normalize_attachment_list()
-    |> Enum.find_value(fn attachment ->
-      type = map_get_value(attachment, "type")
-      media_type = map_get_value(attachment, "mediaType")
-      attachment_url = attachment_url(attachment)
-
-      cond do
-        !is_binary(attachment_url) ->
-          nil
-
-        type == "Link" ->
-          attachment_url
-
-        is_binary(media_type) && String.starts_with?(String.downcase(media_type), "text/html") ->
-          attachment_url
-
-        true ->
-          nil
-      end
-    end)
-  end
-
-  defp extract_source_submitted_link(source) when is_map(source) do
-    [map_get_value(source, "url"), map_get_value(source, "href")]
-    |> Enum.map(&normalize_http_url/1)
-    |> Enum.find(&is_binary/1)
-  end
-
-  defp extract_source_submitted_link(_), do: nil
-
-  defp extract_url_field_submitted_link(url_field, post_id, remote_actor_domain) do
-    urls =
-      url_field
-      |> url_candidates_from_field()
-      |> Enum.map(&normalize_http_url/1)
-      |> Enum.filter(fn url -> is_binary(url) && url != post_id end)
-
-    Enum.find(urls, fn url ->
-      case URI.parse(url) do
-        %URI{host: host} when is_binary(host) and is_binary(remote_actor_domain) ->
-          host != remote_actor_domain
-
-        _ ->
-          false
-      end
-    end) || List.first(urls)
-  end
-
-  defp normalize_attachment_list(nil), do: []
-  defp normalize_attachment_list(attachments) when is_list(attachments), do: attachments
-  defp normalize_attachment_list(attachment) when is_map(attachment), do: [attachment]
-  defp normalize_attachment_list(_), do: []
-
-  defp url_candidates_from_field(nil), do: []
-  defp url_candidates_from_field(url) when is_binary(url), do: [url]
-
-  defp url_candidates_from_field(urls) when is_list(urls) do
-    Enum.flat_map(urls, &url_candidates_from_field/1)
-  end
-
-  defp url_candidates_from_field(url_map) when is_map(url_map) do
-    [
-      map_get_value(url_map, "href"),
-      map_get_value(url_map, "url"),
-      map_get_value(url_map, "id")
-    ]
-    |> Enum.filter(&is_binary/1)
-  end
-
-  defp url_candidates_from_field(_), do: []
-
-  defp attachment_url(attachment) when is_map(attachment) do
-    case map_get_value(attachment, "url") do
-      url when is_binary(url) ->
-        url
-
-      url_map when is_map(url_map) ->
-        map_get_value(url_map, "href") || map_get_value(url_map, "url")
-
-      url_list when is_list(url_list) ->
-        url_list
-        |> Enum.flat_map(&url_candidates_from_field/1)
-        |> List.first()
-
-      _ ->
-        map_get_value(attachment, "href")
-    end
-  end
-
-  defp attachment_url(_), do: nil
-
-  defp map_get_value(map, key) when is_map(map) and is_binary(key) do
-    case Map.fetch(map, key) do
-      {:ok, value} ->
-        value
-
-      :error ->
-        existing_atom_map_value(map, key)
-    end
-  end
-
-  defp map_get_value(_, _), do: nil
-
-  defp existing_atom_map_value(map, key) do
-    Map.get(map, remote_post_atom_key(key))
-  end
-
-  defp remote_post_atom_key("id"), do: :id
-  defp remote_post_atom_key("_local_message_id"), do: :_local_message_id
-  defp remote_post_atom_key("_local_activitypub_id"), do: :_local_activitypub_id
-  defp remote_post_atom_key("_lemmy"), do: :_lemmy
-  defp remote_post_atom_key("attributedTo"), do: :attributedTo
-  defp remote_post_atom_key("actor"), do: :actor
-  defp remote_post_atom_key("_local_user"), do: :_local_user
-  defp remote_post_atom_key("_local"), do: :_local
-  defp remote_post_atom_key("content"), do: :content
-  defp remote_post_atom_key("summary"), do: :summary
-  defp remote_post_atom_key("published"), do: :published
-  defp remote_post_atom_key("_submitted_url"), do: :_submitted_url
-  defp remote_post_atom_key("_youtube_id"), do: :_youtube_id
-  defp remote_post_atom_key("_link_preview"), do: :_link_preview
-  defp remote_post_atom_key("upvotes"), do: :upvotes
-  defp remote_post_atom_key("score"), do: :score
-  defp remote_post_atom_key("_local_like_count"), do: :_local_like_count
-  defp remote_post_atom_key("likes"), do: :likes
-  defp remote_post_atom_key("shares"), do: :shares
-  defp remote_post_atom_key("_local_share_count"), do: :_local_share_count
-  defp remote_post_atom_key("child_count"), do: :child_count
-  defp remote_post_atom_key("attachment"), do: :attachment
-  defp remote_post_atom_key("media_metadata"), do: :media_metadata
-  defp remote_post_atom_key("activitypub_id"), do: :activitypub_id
-  defp remote_post_atom_key("activitypub_url"), do: :activitypub_url
-  defp remote_post_atom_key("primary_url"), do: :primary_url
-  defp remote_post_atom_key("source"), do: :source
-  defp remote_post_atom_key("url"), do: :url
-  defp remote_post_atom_key("type"), do: :type
-  defp remote_post_atom_key("mediaType"), do: :mediaType
-  defp remote_post_atom_key("href"), do: :href
-  defp remote_post_atom_key("reply_count"), do: :reply_count
-  defp remote_post_atom_key("repliesCount"), do: :repliesCount
-  defp remote_post_atom_key("replies"), do: :replies
-  defp remote_post_atom_key("comments"), do: :comments
-  defp remote_post_atom_key("inReplyTo"), do: :inReplyTo
-  defp remote_post_atom_key("in_reply_to"), do: :in_reply_to
-  defp remote_post_atom_key("inReplyToContent"), do: :inReplyToContent
-  defp remote_post_atom_key("inReplyToTitle"), do: :inReplyToTitle
-  defp remote_post_atom_key("inReplyToAuthor"), do: :inReplyToAuthor
-  defp remote_post_atom_key("name"), do: :name
-  defp remote_post_atom_key("likesCount"), do: :likesCount
-  defp remote_post_atom_key("sharesCount"), do: :sharesCount
-  defp remote_post_atom_key("announcesCount"), do: :announcesCount
-  defp remote_post_atom_key(_), do: nil
-
-  defp normalize_http_url(url) when is_binary(url) do
-    trimmed =
-      url
-      |> String.trim()
-      |> then(&Regex.replace(~r/[\)\]\}\.,!?;:]+$/u, &1, ""))
-
-    if String.starts_with?(trimmed, ["http://", "https://"]) do
-      trimmed
-    else
-      nil
-    end
-  end
-
-  defp normalize_http_url(_), do: nil
-
-  defp same_activitypub_object_url?(url, other_url)
-       when is_binary(url) and is_binary(other_url) do
-    normalized_url = normalize_http_url(url)
-    normalized_other_url = normalize_http_url(other_url)
-
-    cond do
-      !is_binary(normalized_url) || !is_binary(normalized_other_url) ->
-        false
-
-      normalized_url == normalized_other_url ->
-        true
-
-      true ->
-        same_status_permalink?(normalized_url, normalized_other_url)
-    end
-  end
-
-  defp same_activitypub_object_url?(_, _), do: false
-
-  defp same_status_permalink?(url, other_url) do
-    with %URI{host: host} = uri when is_binary(host) <- URI.parse(url),
-         %URI{host: ^host} = other_uri <- URI.parse(other_url),
-         segment when is_binary(segment) <- terminal_path_segment(uri.path),
-         ^segment <- terminal_path_segment(other_uri.path) do
-      status_permalink_path?(uri.path) || status_permalink_path?(other_uri.path)
-    else
-      _ -> false
-    end
-  end
-
-  defp terminal_path_segment(path) when is_binary(path) do
-    path
-    |> String.split("/", trim: true)
-    |> List.last()
-  end
-
-  defp terminal_path_segment(_), do: nil
-
-  defp status_permalink_path?(path) when is_binary(path) do
-    segments = String.split(path, "/", trim: true)
-
-    Enum.any?(segments, &(&1 == "statuses")) ||
-      Enum.any?(segments, &String.starts_with?(&1, "@"))
-  end
-
-  defp extract_http_url_from_content(content) when is_binary(content) do
-    with [_, href] <- Regex.run(~r/href=["']([^"']+)["']/i, content),
-         normalized when is_binary(normalized) <- normalize_http_url(href) do
-      normalized
-    else
-      _ ->
-        case Regex.run(~r/https?:\/\/[^\s<>"']+/i, content) do
-          [url] -> normalize_http_url(url)
-          _ -> nil
-        end
-    end
-  end
-
-  defp extract_http_url_from_content(_), do: nil
-
-  defp maybe_preserve_cached_post_fields(post_object, existing_post) do
-    post_object
-    |> maybe_put_field_from_existing(existing_post, "content")
-    |> maybe_put_field_from_existing(existing_post, "name")
-    |> maybe_put_field_from_existing(existing_post, "inReplyTo")
-    |> maybe_put_field_from_existing(existing_post, "inReplyToAuthor")
-    |> maybe_put_field_from_existing(existing_post, "inReplyToContent")
-    |> maybe_put_field_from_existing(existing_post, "inReplyToTitle")
-    |> maybe_put_non_empty_field_from_existing(existing_post, "attachment")
-    |> maybe_put_non_empty_field_from_existing(existing_post, "sensitive")
-    |> maybe_put_non_empty_field_from_existing(existing_post, "summary")
-    |> maybe_preserve_higher_reply_count(existing_post)
-  end
-
-  defp maybe_put_field_from_existing(post_object, existing_post, key) do
-    current = map_get_value(post_object, key)
-    fallback = map_get_value(existing_post, key)
-
-    if Elektrine.Strings.present?(current) do
-      post_object
-    else
-      if Elektrine.Strings.present?(fallback) do
-        Map.put(post_object, key, fallback)
-      else
-        post_object
-      end
-    end
-  end
-
-  defp maybe_put_non_empty_field_from_existing(post_object, existing_post, key) do
-    current = map_get_value(post_object, key)
-    fallback = map_get_value(existing_post, key)
-
-    if non_empty_value?(current) || !non_empty_value?(fallback) do
-      post_object
-    else
-      Map.put(post_object, key, fallback)
-    end
-  end
-
-  defp non_empty_value?(value) when is_binary(value), do: Elektrine.Strings.present?(value)
-  defp non_empty_value?(value) when is_list(value), do: value != []
-  defp non_empty_value?(value) when is_map(value), do: map_size(value) > 0
-  defp non_empty_value?(value), do: not is_nil(value) and value != false
-
-  defp maybe_preserve_higher_reply_count(post_object, existing_post)
-       when is_map(post_object) and is_map(existing_post) do
-    current_count =
-      [
-        map_get_value(post_object, "reply_count"),
-        map_get_value(post_object, "repliesCount"),
-        total_items_from_collection(map_get_value(post_object, "replies")),
-        total_items_from_collection(map_get_value(post_object, "comments"))
-      ]
-      |> Enum.map(&normalize_cached_reply_count/1)
-      |> Enum.max(fn -> 0 end)
-
-    fallback_count =
-      [
-        map_get_value(existing_post, "reply_count"),
-        map_get_value(existing_post, "repliesCount"),
-        total_items_from_collection(map_get_value(existing_post, "replies")),
-        total_items_from_collection(map_get_value(existing_post, "comments"))
-      ]
-      |> Enum.map(&normalize_cached_reply_count/1)
-      |> Enum.max(fn -> 0 end)
-
-    if fallback_count > current_count do
-      post_object
-      |> Map.put("reply_count", fallback_count)
-      |> Map.put("repliesCount", fallback_count)
-      |> Map.put("replies", put_collection_total(Map.get(post_object, "replies"), fallback_count))
-      |> Map.put(
-        "comments",
-        put_collection_total(Map.get(post_object, "comments"), fallback_count)
-      )
-    else
-      post_object
-    end
-  end
-
-  defp maybe_preserve_higher_reply_count(post_object, _), do: post_object
 
   defp assign_local_first_post(socket, local_message, fallback_post_object)
        when is_map(local_message) do
     local_message
     |> build_post_object_from_message()
-    |> merge_local_poll_data(local_message)
+    |> Polls.merge_local_poll_data(local_message)
     |> maybe_preserve_cached_post_fields(fallback_post_object || %{})
     |> then(fn post ->
       robots =
         if local_message.federated,
-          do: robots_for_remote_post(post),
-          else: robots_for_local_post(local_message)
+          do: AccessPolicy.robots_for_remote_post(post),
+          else: AccessPolicy.robots_for_local_post(local_message)
 
       socket
       |> assign(:post, post)
@@ -1197,7 +657,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         upvotes: max(Map.get(message, :upvotes) || 0, 0),
         downvotes: max(Map.get(message, :downvotes) || 0, 0),
         score: max(Map.get(message, :score) || 0, Map.get(message, :like_count) || 0),
-        comments: max(cached_reply_count(message), 0)
+        comments: max(Counts.cached_reply_count(message), 0)
       })
     else
       socket
@@ -1572,84 +1032,6 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     |> Enum.any?(fn prefix -> String.starts_with?(uri, prefix) end)
   end
 
-  defp build_poll_fields_from_message(nil), do: %{}
-
-  defp build_poll_fields_from_message(message) do
-    cond do
-      message.post_type != "poll" ->
-        %{}
-
-      !Ecto.assoc_loaded?(message.poll) || is_nil(message.poll) ->
-        %{}
-
-      true ->
-        poll = message.poll
-
-        options =
-          if Ecto.assoc_loaded?(poll.options) do
-            Enum.map(poll.options, fn option ->
-              %{
-                "type" => "Note",
-                "name" => option.option_text,
-                "replies" => %{
-                  "type" => "Collection",
-                  "totalItems" => option.vote_count || 0
-                }
-              }
-            end)
-          else
-            []
-          end
-
-        if options == [] do
-          %{}
-        else
-          poll_key = if poll.allow_multiple, do: "anyOf", else: "oneOf"
-
-          %{
-            "type" => "Question",
-            poll_key => options,
-            "votersCount" => poll.voters_count || poll.total_votes || 0
-          }
-          |> maybe_add_poll_close_time(poll.closes_at)
-        end
-    end
-  end
-
-  defp maybe_add_poll_close_time(poll_fields, %DateTime{} = closes_at) do
-    timestamp = DateTime.to_iso8601(closes_at)
-
-    poll_fields
-    |> Map.put("endTime", timestamp)
-    |> Map.put("closed", timestamp)
-  end
-
-  defp maybe_add_poll_close_time(poll_fields, %NaiveDateTime{} = closes_at) do
-    timestamp = closes_at |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_iso8601()
-
-    poll_fields
-    |> Map.put("endTime", timestamp)
-    |> Map.put("closed", timestamp)
-  end
-
-  defp maybe_add_poll_close_time(poll_fields, _), do: poll_fields
-
-  defp post_has_poll_data?(post_object) when is_map(post_object) do
-    post_object["type"] == "Question" ||
-      is_list(post_object["oneOf"]) ||
-      is_list(post_object["anyOf"])
-  end
-
-  defp post_has_poll_data?(_), do: false
-
-  defp merge_local_poll_data(post_object, local_message) do
-    if post_has_poll_data?(post_object) do
-      post_object
-    else
-      Map.merge(post_object, build_poll_fields_from_message(local_message))
-    end
-  end
-
   # Quick synchronous fetch for SEO meta tags (only on initial render)
   defp fetch_post_for_meta_tags(socket, post_id, true = _is_local) when is_integer(post_id) do
     # Local post - quick database lookup
@@ -1670,7 +1052,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         end
 
       message ->
-        if can_view_local_post?(message, socket.assigns[:current_user]) do
+        if AccessPolicy.can_view_local_post?(message, socket.assigns[:current_user]) do
           # Build meta tags from local message
           description = build_og_description(message.content)
           image = get_first_media_url(message.media_urls, message)
@@ -1693,7 +1075,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
           |> assign(:page_title, title)
           |> assign(:meta_description, description)
           |> assign(:og_image, image)
-          |> assign(:meta_robots, robots_for_local_post(message))
+          |> assign(:meta_robots, AccessPolicy.robots_for_local_post(message))
         else
           socket
         end
@@ -1723,7 +1105,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       is_nil(message.remote_actor) ->
         socket
 
-      can_view_local_post?(message, socket.assigns[:current_user]) ->
+      AccessPolicy.can_view_local_post?(message, socket.assigns[:current_user]) ->
         post_object = build_post_object_from_message(message)
         apply_loaded_remote_post(socket, post_object, message.remote_actor, nil)
 
@@ -1742,7 +1124,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
     case Task.yield(task, 3_000) || Task.shutdown(task) do
       {:ok, {:ok, post_object}} ->
-        if remote_post_publicly_visible?(post_object) do
+        if AccessPolicy.remote_post_publicly_visible?(post_object) do
           content = post_object["content"] || post_object["summary"] || ""
           description = build_og_description(content)
 
@@ -1777,7 +1159,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
           |> assign(:page_title, page_title)
           |> assign(:meta_description, description)
           |> assign(:og_image, image)
-          |> assign(:meta_robots, robots_for_remote_post(post_object))
+          |> assign(:meta_robots, AccessPolicy.robots_for_remote_post(post_object))
         else
           socket
         end
@@ -1908,7 +1290,11 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     post_id = normalize_in_reply_to_ref(post_object["id"] || post_object["url"])
     local_message = latest_local_message_for_post(post_id)
 
-    if can_view_remote_post?(post_object, local_message, socket.assigns[:current_user]) do
+    if AccessPolicy.can_view_remote_post?(
+         post_object,
+         local_message,
+         socket.assigns[:current_user]
+       ) do
       do_apply_loaded_remote_post(
         socket,
         post_object,
@@ -2022,7 +1408,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         post_object["name"] || "Post by @#{remote_actor.username}@#{remote_actor.domain}"
       )
       |> assign(:post, post_object)
-      |> assign(:meta_robots, robots_for_remote_post(post_object))
+      |> assign(:meta_robots, AccessPolicy.robots_for_remote_post(post_object))
       |> assign(:remote_actor, remote_actor)
       |> assign(:community_actor, community_actor)
       |> assign(
@@ -2119,47 +1505,6 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
     socket
   end
-
-  defp can_view_remote_post?(post_object, local_message, current_user) do
-    cond do
-      match?(%{deleted_at: %DateTime{}}, local_message) ->
-        false
-
-      is_map(local_message) ->
-        can_view_local_post?(local_message, current_user) ||
-          remote_post_publicly_visible?(post_object)
-
-      true ->
-        remote_post_publicly_visible?(post_object)
-    end
-  end
-
-  defp remote_post_publicly_visible?(post_object) when is_map(post_object) do
-    Visibility.publicly_addressed?(%{
-      "to" =>
-        post_object |> Map.get("to", []) |> List.wrap() |> Enum.map(&normalize_in_reply_to_ref/1),
-      "cc" =>
-        post_object |> Map.get("cc", []) |> List.wrap() |> Enum.map(&normalize_in_reply_to_ref/1)
-    })
-  end
-
-  defp remote_post_publicly_visible?(_), do: false
-
-  defp robots_for_local_post(%{visibility: "public", is_draft: draft}) when draft != true,
-    do: "index, follow"
-
-  defp robots_for_local_post(_), do: "noindex, nofollow"
-
-  defp robots_for_remote_post(post_object) when is_map(post_object) do
-    if Visibility.indexable?(post_object), do: "index, follow", else: "noindex, nofollow"
-  end
-
-  defp robots_for_remote_post(_), do: "noindex, nofollow"
-
-  defp cached_message_indexable?(%{visibility: "public", is_draft: draft}) when draft != true,
-    do: true
-
-  defp cached_message_indexable?(_), do: false
 
   defp deny_remote_post_access(socket) do
     socket
@@ -2417,7 +1762,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
     socket =
       update(socket, :post, fn
-        %{} = post -> apply_status_metadata_to_post_object(post, metadata)
+        %{} = post -> Counts.apply_status_metadata_to_post_object(post, metadata)
         post -> post
       end)
 
@@ -2442,8 +1787,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       update(socket, :post, fn
         %{} = post ->
           post
-          |> apply_counts_to_post_object(counts)
-          |> apply_status_metadata_to_post_object(metadata)
+          |> Counts.apply_counts_to_post_object(counts)
+          |> Counts.apply_status_metadata_to_post_object(metadata)
 
         post ->
           post
@@ -2612,7 +1957,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
     post_object =
       post_object
-      |> merge_local_poll_data(local_message)
+      |> Polls.merge_local_poll_data(local_message)
       |> maybe_preserve_cached_post_fields(existing_post)
 
     is_community_post =
@@ -2627,7 +1972,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       |> assign(:post, post_object)
       |> assign(:is_community_post, is_community_post)
       |> assign(:page_title, post_object["name"] || socket.assigns.page_title)
-      |> assign(:meta_robots, robots_for_remote_post(post_object))
+      |> assign(:meta_robots, AccessPolicy.robots_for_remote_post(post_object))
       |> assign_reply_parent_fallback(post_object, local_message)
       |> ensure_submitted_link_preview(
         post_object,
@@ -2691,7 +2036,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       federated: message && message.federated
     )
 
-    if message && can_view_local_post?(message, socket.assigns[:current_user]) do
+    if message && AccessPolicy.can_view_local_post?(message, socket.assigns[:current_user]) do
       if message.federated && is_binary(message.activitypub_id) &&
            match?(%Elektrine.ActivityPub.Actor{}, message.remote_actor) do
         post_object = build_post_object_from_message(message)
@@ -2704,7 +2049,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       else
         visible_replies =
           (message.replies || [])
-          |> Enum.filter(&can_view_local_post?(&1, socket.assigns[:current_user]))
+          |> Enum.filter(&AccessPolicy.can_view_local_post?(&1, socket.assigns[:current_user]))
 
         message = %{message | replies: visible_replies}
 
@@ -2942,7 +2287,11 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       |> maybe_enqueue_submitted_link_repair()
       |> maybe_apply_initial_remote_counts(post_object)
 
-    if can_view_remote_post?(post_object, local_message, socket.assigns[:current_user]) do
+    if AccessPolicy.can_view_remote_post?(
+         post_object,
+         local_message,
+         socket.assigns[:current_user]
+       ) do
       local_community_uri = DiscussionSource.community_uri_from_local_message(local_message)
 
       socket =
@@ -3164,9 +2513,9 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     started_at = System.monotonic_time(:millisecond)
     post_id = msg.activitypub_id || msg.activitypub_url
     post_url = msg.activitypub_url || post_id
-    replies_count = cached_reply_count(msg)
-    replies_object = cached_replies_object(msg, replies_count)
-    comments_object = cached_comments_object(msg, replies_count)
+    replies_count = Counts.cached_reply_count(msg)
+    replies_object = Counts.cached_replies_object(msg, replies_count)
+    comments_object = Counts.cached_comments_object(msg, replies_count)
     community_uri = DiscussionSource.community_uri_from_local_message(msg)
 
     local_replies =
@@ -3639,11 +2988,11 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
           reply_count: counts.reply_count
       }
 
-      updated_post = apply_counts_to_post_object(socket.assigns[:post], counts)
+      updated_post = Counts.apply_counts_to_post_object(socket.assigns[:post], counts)
 
       updated_modal_post =
         case socket.assigns[:modal_post] do
-          %{"id" => _id} = post -> apply_counts_to_post_object(post, counts)
+          %{"id" => _id} = post -> Counts.apply_counts_to_post_object(post, counts)
           post -> post
         end
 
@@ -3812,148 +3161,6 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     {:noreply, assign(socket, :remote_post_load_ref, load_ref)}
   end
 
-  defp cached_reply_count(msg) do
-    metadata = msg.media_metadata || %{}
-
-    [
-      normalize_cached_reply_count(msg.reply_count),
-      normalize_cached_reply_count(metadata["original_reply_count"]),
-      normalize_cached_reply_count(metadata["reply_count"]),
-      normalize_cached_reply_count(metadata["replies_count"]),
-      normalize_cached_reply_count(total_items_from_collection(metadata["replies"])),
-      normalize_cached_reply_count(total_items_from_collection(metadata["comments"]))
-    ]
-    |> Enum.max(fn -> 0 end)
-  end
-
-  defp total_items_from_collection(collection) when is_map(collection) do
-    Map.get(collection, "totalItems") || Map.get(collection, :totalItems)
-  end
-
-  defp total_items_from_collection(_), do: nil
-
-  defp apply_counts_to_post_object(nil, _counts), do: nil
-
-  defp apply_counts_to_post_object(post, counts) when is_map(post) do
-    like_count = Map.get(counts, :like_count)
-    reply_count = Map.get(counts, :reply_count)
-    share_count = Map.get(counts, :share_count)
-    quote_count = Map.get(counts, :quote_count)
-
-    post
-    |> maybe_put_collection_total("likes", like_count)
-    |> maybe_put_collection_total("replies", reply_count)
-    |> maybe_put_collection_total("shares", share_count)
-    |> maybe_put_optional_count("like_count", like_count)
-    |> maybe_put_optional_count("reply_count", reply_count)
-    |> maybe_put_optional_count("share_count", share_count)
-    |> maybe_put_optional_count("quotes_count", quote_count)
-    |> maybe_put_optional_count("upvotes", Map.get(counts, :upvotes))
-    |> maybe_put_optional_count("downvotes", Map.get(counts, :downvotes))
-    |> maybe_put_optional_count("score", Map.get(counts, :score))
-  end
-
-  defp apply_status_metadata_to_post_object(post, metadata)
-       when is_map(post) and is_map(metadata) do
-    metadata
-    |> Enum.reduce(post, fn
-      {key, value}, acc
-      when key in [
-             "emoji_reactions",
-             "quotes_count",
-             "quote",
-             "quote_id",
-             "quote_url",
-             "card",
-             "application",
-             "language",
-             "media_attachments",
-             "pleroma"
-           ] ->
-        maybe_put_status_metadata_field(acc, key, value)
-
-      _, acc ->
-        acc
-    end)
-  end
-
-  defp apply_status_metadata_to_post_object(post, _metadata), do: post
-
-  defp maybe_put_status_metadata_field(post, _key, nil), do: post
-  defp maybe_put_status_metadata_field(post, _key, []), do: post
-
-  defp maybe_put_status_metadata_field(post, _key, %{} = value) when map_size(value) == 0,
-    do: post
-
-  defp maybe_put_status_metadata_field(post, key, value), do: Map.put(post, key, value)
-
-  defp maybe_put_collection_total(post, _key, total)
-       when not is_map(post) or not is_integer(total),
-       do: post
-
-  defp maybe_put_collection_total(post, key, total) do
-    Map.put(post, key, put_collection_total(Map.get(post, key), total))
-  end
-
-  defp put_collection_total(nil, total), do: %{"type" => "Collection", "totalItems" => total}
-
-  defp put_collection_total(collection, total) when is_map(collection) do
-    collection
-    |> Map.put("totalItems", total)
-    |> Map.put(:totalItems, total)
-  end
-
-  defp put_collection_total(_collection, total), do: total
-
-  defp maybe_put_optional_count(post, _key, value) when not is_map(post) or not is_integer(value),
-    do: post
-
-  defp maybe_put_optional_count(post, key, value), do: Map.put(post, key, value)
-
-  defp cached_replies_object(msg, replies_count) do
-    metadata = msg.media_metadata || %{}
-
-    cond do
-      is_map(metadata["replies"]) ->
-        Map.put_new(metadata["replies"], "totalItems", replies_count)
-
-      is_binary(metadata["replies_url"]) ->
-        %{"id" => metadata["replies_url"], "totalItems" => replies_count}
-
-      replies_count > 0 ->
-        %{"totalItems" => replies_count}
-
-      true ->
-        nil
-    end
-  end
-
-  defp cached_comments_object(msg, replies_count) do
-    metadata = msg.media_metadata || %{}
-
-    cond do
-      is_map(metadata["comments"]) ->
-        Map.put_new(metadata["comments"], "totalItems", replies_count)
-
-      is_binary(metadata["comments_url"]) ->
-        %{"id" => metadata["comments_url"], "totalItems" => replies_count}
-
-      true ->
-        nil
-    end
-  end
-
-  defp normalize_cached_reply_count(value) when is_integer(value), do: max(value, 0)
-
-  defp normalize_cached_reply_count(value) when is_binary(value) do
-    case Integer.parse(String.trim(value)) do
-      {parsed, _} -> max(parsed, 0)
-      :error -> 0
-    end
-  end
-
-  defp normalize_cached_reply_count(_), do: 0
-
   defp latest_local_message_for_post(post_id) when is_binary(post_id) do
     case local_message_by_activitypub_ref(post_id) do
       %{} = message -> preload_cached_message_associations(message)
@@ -4077,11 +3284,11 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     comments_collection = if is_map(post_object), do: post_object["comments"], else: nil
 
     [
-      if(is_map(local_message), do: cached_reply_count(local_message), else: 0),
-      normalize_cached_reply_count(post_reply_count),
-      normalize_cached_reply_count(replies_count),
-      normalize_cached_reply_count(total_items_from_collection(replies_collection)),
-      normalize_cached_reply_count(total_items_from_collection(comments_collection))
+      if(is_map(local_message), do: Counts.cached_reply_count(local_message), else: 0),
+      Counts.normalize_cached_reply_count(post_reply_count),
+      Counts.normalize_cached_reply_count(replies_count),
+      Counts.normalize_cached_reply_count(Counts.total_items_from_collection(replies_collection)),
+      Counts.normalize_cached_reply_count(Counts.total_items_from_collection(comments_collection))
     ]
     |> Enum.max(fn -> 0 end)
   end
@@ -4377,8 +3584,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     post
     |> Map.put("reply_count", reply_count)
     |> Map.put("repliesCount", reply_count)
-    |> Map.put("replies", put_collection_total(Map.get(post, "replies"), reply_count))
-    |> Map.put("comments", put_collection_total(Map.get(post, "comments"), reply_count))
+    |> Map.put("replies", Counts.put_collection_total(Map.get(post, "replies"), reply_count))
+    |> Map.put("comments", Counts.put_collection_total(Map.get(post, "comments"), reply_count))
   end
 
   defp apply_local_reply_count_to_post(post, _reply_count), do: post
@@ -4403,7 +3610,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   def handle_event("navigate_to_embedded_post", %{"id" => id}, socket) do
-    navigate_id = normalize_navigate_post_id(socket, id)
+    navigate_id = Navigation.normalize_post_id(socket, id)
     {:noreply, ElektrineWeb.PostNavigation.navigate(socket, navigate_id)}
   end
 
@@ -4417,22 +3624,23 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   def handle_event("navigate_to_post", %{"post_id" => post_id}, socket) do
-    {:noreply, ElektrineWeb.PostNavigation.navigate(socket, navigate_post_path(socket, post_id))}
+    {:noreply,
+     ElektrineWeb.PostNavigation.navigate(socket, Navigation.post_path(socket, post_id))}
   end
 
   def handle_event("navigate_to_post", %{"id" => id}, socket) do
-    {:noreply, ElektrineWeb.PostNavigation.navigate(socket, navigate_post_path(socket, id))}
+    {:noreply, ElektrineWeb.PostNavigation.navigate(socket, Navigation.post_path(socket, id))}
   end
 
   def handle_event("navigate_to_post", %{"message_id" => message_id}, socket) do
     {:noreply,
-     ElektrineWeb.PostNavigation.navigate(socket, navigate_post_path(socket, message_id))}
+     ElektrineWeb.PostNavigation.navigate(socket, Navigation.post_path(socket, message_id))}
   end
 
   def handle_event("navigate_to_remote_post", %{"id" => id, "url" => url}, socket)
       when is_binary(url) and url != "" do
     path =
-      case parse_local_message_id(decode_post_ref(id)) do
+      case Navigation.parse_local_message_id(Navigation.decode_post_ref(id)) do
         {:ok, local_id} -> Paths.remote_post_path(local_id)
         :error -> Paths.post_path_or_external(url)
       end
@@ -4446,11 +3654,11 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   def handle_event("navigate_to_remote_post", %{"id" => id}, socket) do
-    {:noreply, navigate_to_remote_post_ref(socket, id)}
+    {:noreply, Navigation.navigate_to_remote_post_ref(socket, id)}
   end
 
   def handle_event("navigate_to_remote_post", %{"post_id" => post_id}, socket) do
-    {:noreply, navigate_to_remote_post_ref(socket, post_id)}
+    {:noreply, Navigation.navigate_to_remote_post_ref(socket, post_id)}
   end
 
   def handle_event("navigate_to_remote_post", _params, socket) do
@@ -4496,7 +3704,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   def handle_event("submit_comment_reply", %{"content" => content}, socket) do
-    if current_user_missing?(socket) do
+    if AccessPolicy.current_user_missing?(socket) do
       {:noreply, put_flash(socket, :error, "You must be signed in to reply")}
     else
       if Elektrine.Strings.present?(content) do
@@ -4586,7 +3794,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   def handle_event("submit_reply", %{"content" => content}, socket) do
-    if current_user_missing?(socket) do
+    if AccessPolicy.current_user_missing?(socket) do
       {:noreply, put_flash(socket, :error, "You must be signed in to reply")}
     else
       if Elektrine.Strings.present?(content) do
@@ -4734,7 +3942,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   def handle_event("like_post", %{"message_id" => message_id}, socket) do
     if main_detail_message_id?(socket, message_id) do
       cond do
-        current_user_missing?(socket) ->
+        AccessPolicy.current_user_missing?(socket) ->
           {:noreply, put_flash(socket, :error, "You must be signed in to like posts")}
 
         main_detail_liked?(socket) ->
@@ -4795,7 +4003,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   def handle_event("toggle_modal_like", %{"post_id" => post_id}, socket) do
-    if current_user_missing?(socket) do
+    if AccessPolicy.current_user_missing?(socket) do
       {:noreply, put_flash(socket, :error, "You must be signed in to like posts")}
     else
       # Check current like state
@@ -4815,7 +4023,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   def handle_event("boost_post", %{"message_id" => message_id}, socket) do
     if main_detail_message_id?(socket, message_id) do
       cond do
-        current_user_missing?(socket) ->
+        AccessPolicy.current_user_missing?(socket) ->
           {:noreply, put_flash(socket, :error, "You must be signed in to boost posts")}
 
         main_detail_boosted?(socket) ->
@@ -4879,7 +4087,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   def handle_event("save_post", %{"message_id" => message_id}, socket) do
     if main_detail_message_id?(socket, message_id) do
       cond do
-        current_user_missing?(socket) ->
+        AccessPolicy.current_user_missing?(socket) ->
           {:noreply, put_flash(socket, :error, "You must be signed in to save posts")}
 
         main_detail_saved?(socket) ->
@@ -5063,7 +4271,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   def handle_event("toggle_follow_community", _params, socket) do
     require Logger
 
-    if current_user_missing?(socket) do
+    if AccessPolicy.current_user_missing?(socket) do
       {:noreply, put_flash(socket, :error, "You must be signed in to follow communities")}
     else
       community_actor = socket.assigns.community_actor
@@ -5135,7 +4343,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   def handle_event("toggle_follow_author", _params, socket) do
-    if current_user_missing?(socket) do
+    if AccessPolicy.current_user_missing?(socket) do
       {:noreply, put_flash(socket, :error, "You must be signed in to follow users")}
     else
       remote_actor = socket.assigns[:remote_actor]
@@ -5202,7 +4410,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   def handle_event("toggle_follow", %{"user_id" => user_id}, socket) do
-    if current_user_missing?(socket) do
+    if AccessPolicy.current_user_missing?(socket) do
       {:noreply, put_flash(socket, :error, "You must be signed in to follow users")}
     else
       case Integer.parse(to_string(user_id)) do
@@ -5246,7 +4454,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   def handle_event("toggle_follow_remote", %{"remote_actor_id" => remote_actor_id}, socket) do
-    if current_user_missing?(socket) do
+    if AccessPolicy.current_user_missing?(socket) do
       {:noreply, put_flash(socket, :error, "You must be signed in to follow users")}
     else
       case Integer.parse(to_string(remote_actor_id)) do
@@ -5321,7 +4529,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   def handle_event("vote_poll", params, socket) do
-    if current_user_missing?(socket) do
+    if AccessPolicy.current_user_missing?(socket) do
       {:noreply, put_flash(socket, :error, "You must be signed in to vote")}
     else
       poll_id = params["poll_id"] || params["poll-id"]
@@ -5345,7 +4553,10 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
             {:noreply,
              socket
              |> assign(:local_message, refreshed_message)
-             |> assign(:post, merge_local_poll_data(socket.assigns[:post], refreshed_message))
+             |> assign(
+               :post,
+               Polls.merge_local_poll_data(socket.assigns[:post], refreshed_message)
+             )
              |> put_flash(:info, "Vote recorded")}
 
           {:error, :poll_closed} ->
@@ -5367,7 +4578,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   def handle_event("vote_remote_poll", %{"option_name" => option_name} = params, socket) do
-    if current_user_missing?(socket) do
+    if AccessPolicy.current_user_missing?(socket) do
       {:noreply, put_flash(socket, :error, "You must be signed in to vote")}
     else
       post = socket.assigns.post
@@ -5509,13 +4720,14 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         reply when is_map(reply) ->
           submitted_url =
             field_value(reply, ["_submitted_url", :_submitted_url]) ||
-              detect_submitted_url(reply, nil, remote_actor_domain)
+              SubmittedLinks.detect_submitted_url(reply, nil, remote_actor_domain)
 
           reply
           |> Map.put("_submitted_url", submitted_url)
           |> Map.put(
             "_youtube_id",
-            field_value(reply, ["_youtube_id", :_youtube_id]) || extract_youtube_id(submitted_url)
+            field_value(reply, ["_youtube_id", :_youtube_id]) ||
+              SubmittedLinks.extract_youtube_id(submitted_url)
           )
 
         reply ->
@@ -5612,85 +4824,6 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   defp message_reply_author_from_parent(_), do: nil
-
-  defp normalize_navigate_post_id(socket, value) do
-    decoded_value = decode_post_ref(value)
-
-    case parse_local_message_id(decoded_value) do
-      {:ok, id} ->
-        case socket.assigns[:local_message] do
-          %{id: ^id, activitypub_id: activitypub_id}
-          when is_binary(activitypub_id) and activitypub_id != "" ->
-            activitypub_id
-
-          _ ->
-            Integer.to_string(id)
-        end
-
-      :error ->
-        to_string(decoded_value)
-    end
-  end
-
-  defp navigate_post_path(socket, value) do
-    decoded_value = decode_post_ref(value)
-
-    case parse_local_message_id(decoded_value) do
-      {:ok, id} ->
-        post =
-          case socket.assigns[:local_message] do
-            %Elektrine.Social.Message{id: ^id} = message ->
-              Elektrine.Repo.preload(message, [:conversation])
-
-            _ ->
-              fetch_post_for_navigation(id)
-          end
-
-        Paths.post_path(post || id)
-
-      :error ->
-        Paths.post_path_or_external(normalize_navigate_post_id(socket, decoded_value))
-    end
-  end
-
-  defp navigate_to_remote_post_ref(socket, value) do
-    navigate_id = normalize_navigate_post_id(socket, value)
-
-    case parse_local_message_id(navigate_id) do
-      {:ok, local_id} -> push_navigate(socket, to: Paths.remote_post_path(local_id))
-      :error -> ElektrineWeb.PostNavigation.navigate(socket, navigate_id)
-    end
-  end
-
-  defp fetch_post_for_navigation(id) when is_integer(id) do
-    case Elektrine.Messaging.get_message(id) do
-      %Elektrine.Social.Message{} = post -> Elektrine.Repo.preload(post, [:conversation])
-      _ -> nil
-    end
-  end
-
-  defp parse_local_message_id(value) when is_integer(value), do: {:ok, value}
-
-  defp parse_local_message_id(value) when is_binary(value) do
-    case Integer.parse(String.trim(value)) do
-      {parsed, ""} -> {:ok, parsed}
-      _ -> :error
-    end
-  end
-
-  defp parse_local_message_id(_), do: :error
-
-  defp decode_post_ref(value) when is_binary(value) do
-    trimmed = String.trim(value)
-
-    try do
-      URI.decode_www_form(trimmed)
-    rescue
-      ArgumentError -> trimmed
-    end
-  end
-
-  defp decode_post_ref(value), do: value
 
   defp initial_community_stats(%{actor_type: "Group", metadata: metadata}) do
     metadata = metadata || %{}
@@ -6088,7 +5221,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
         socket
         |> assign(:local_message, apply_display_counts_to_message(local_message, counts))
-        |> assign(:post, apply_counts_to_post_object(socket.assigns[:post], counts))
+        |> assign(:post, Counts.apply_counts_to_post_object(socket.assigns[:post], counts))
         |> assign(
           :modal_post,
           apply_display_counts_to_modal_post(socket.assigns[:modal_post], counts)
@@ -6111,7 +5244,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   defp apply_displayed_local_message(socket, _message), do: socket
 
   defp displayed_local_message_counts(message) do
-    reply_count = cached_reply_count(message)
+    reply_count = Counts.cached_reply_count(message)
     like_count = message.like_count || 0
 
     %{
@@ -6140,7 +5273,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
   defp apply_display_counts_to_modal_post(%{} = post, counts) do
     if Map.has_key?(post, "id") do
-      apply_counts_to_post_object(post, counts)
+      Counts.apply_counts_to_post_object(post, counts)
     else
       counts
       |> Enum.reduce(post, fn {field, value}, acc ->
@@ -6333,37 +5466,6 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   defp hydrate_ancestor_surface_data(socket, _), do: socket
-
-  defp current_user_missing?(socket), do: is_nil(socket.assigns[:current_user])
-
-  defp can_view_local_post?(message, current_user) do
-    viewer_id = current_user && current_user.id
-    owner? = not is_nil(message.sender_id) and viewer_id == message.sender_id
-    approved? = message.approval_status in ["approved", nil]
-
-    visible? =
-      case message.visibility do
-        "public" ->
-          true
-
-        "unlisted" ->
-          true
-
-        "followers" ->
-          owner? or (is_integer(viewer_id) and Profiles.following?(viewer_id, message.sender_id))
-
-        "friends" ->
-          owner? or (is_integer(viewer_id) and Friends.are_friends?(viewer_id, message.sender_id))
-
-        "private" ->
-          owner?
-
-        _ ->
-          false
-      end
-
-    visible? and is_nil(message.deleted_at) and (approved? or owner?)
-  end
 
   defp redirect_to_external_url(socket, url) do
     case SafeExternalURL.normalize(url) do

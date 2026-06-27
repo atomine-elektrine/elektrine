@@ -29,15 +29,70 @@ const relativeImportPattern =
   /(?:import|export)\s+(?:[\s\S]*?\s+from\s+)?["'](\.{1,2}\/[^"']+)["']/g;
 
 const lineBudgets = new Map([
-  ["js/hooks/chat_hooks.js", 2425],
-  ["js/hooks/chat_context_menu_hooks.js", 200],
-  ["js/hooks/chat_voice_recorder_hook.js", 200],
-  ["js/hooks/mailbox_private_storage_hooks.js", 1500],
-  ["js/hooks/timeline_hooks.js", 1500],
-  ["js/hooks/ui_hooks.js", 1450],
-  ["js/hooks/email_hooks.js", 1200],
-  ["js/hooks/proof_graph_hook.js", 1000],
+  ["js/hooks/backup_codes_printer.js", 100],
+  ["js/hooks/analytics_hooks.js", 250],
+  ["js/hooks/call_hooks.js", 450],
+  ["js/hooks/chat_context_menu_hooks.js", 180],
+  ["js/hooks/chat_e2ee_crypto.js", 325],
+  ["js/hooks/chat_e2ee_hook.js", 1300],
+  ["js/hooks/chat_e2ee_messages.js", 110],
+  ["js/hooks/chat_hooks.js", 775],
+  ["js/hooks/chat_voice_recorder_hook.js", 180],
+  ["js/hooks/clipboard_hooks.js", 140],
+  ["js/hooks/email_compose_shortcuts_hook.js", 275],
+  ["js/hooks/email_hooks.js", 800],
+  ["js/hooks/email_iframe_resize_hook.js", 140],
+  ["js/hooks/email_shortcut_helpers.js", 50],
+  ["js/hooks/file_explorer_hook.js", 375],
+  ["js/hooks/form_hooks.js", 525],
+  ["js/hooks/index.js", 225],
+  ["js/hooks/mailbox_private_auth_forms.js", 125],
+  ["js/hooks/mailbox_private_compose_hook.js", 225],
+  ["js/hooks/mailbox_private_content.js", 325],
+  ["js/hooks/mailbox_private_messages_hook.js", 275],
+  ["js/hooks/mailbox_private_storage_hooks.js", 675],
+  ["js/hooks/markdown_hooks.js", 330],
+  ["js/hooks/nerve_hooks.js", 700],
+  ["js/hooks/notes_hooks.js", 110],
+  ["js/hooks/notification_hooks.js", 160],
+  ["js/hooks/notification_visibility.js", 150],
+  ["js/hooks/passkey_hooks.js", 320],
+  ["js/hooks/presence_hooks.js", 215],
+  ["js/hooks/portal_dropdowns.js", 300],
+  ["js/hooks/profile_hooks.js", 320],
+  ["js/hooks/proof_graph_dom.js", 30],
+  ["js/hooks/proof_graph_hook.js", 650],
+  ["js/hooks/proof_graph_paints.js", 250],
+  ["js/hooks/proof_graph_styles.js", 125],
+  ["js/hooks/static_site_hooks.js", 110],
+  ["js/hooks/timeline_hooks.js", 775],
+  ["js/hooks/timeline_media_hooks.js", 150],
+  ["js/hooks/timeline_preservation_hooks.js", 290],
+  ["js/hooks/timeline_session_continuity.js", 125],
+  ["js/hooks/timeline_status_hooks.js", 180],
+  ["js/hooks/ui_hooks.js", 575],
 ]);
+
+const lifecycleRules = [
+  {
+    resource: "setInterval",
+    acquire: /\bsetInterval\s*\(/g,
+    release: /\bclearInterval\s*\(/g,
+    message: "hooks that create intervals must clear them",
+  },
+  {
+    resource: "MutationObserver",
+    acquire: /\bnew\s+MutationObserver\s*\(/g,
+    release: /\.disconnect\s*\(/g,
+    message: "hooks that create MutationObserver instances must disconnect them",
+  },
+  {
+    resource: "ResizeObserver",
+    acquire: /\bnew\s+ResizeObserver\s*\(/g,
+    release: /\.disconnect\s*\(/g,
+    message: "hooks that create ResizeObserver instances must disconnect them",
+  },
+];
 
 function jsFiles(dir) {
   return readdirSync(dir)
@@ -57,6 +112,10 @@ function resolveRelativeImport(file, specifier) {
   const candidates = [basePath, `${basePath}.js`, join(basePath, "index.js")];
 
   return candidates.find((candidate) => existsSync(candidate));
+}
+
+function countMatches(source, pattern) {
+  return Array.from(source.matchAll(pattern)).length;
 }
 
 let failures = 0;
@@ -114,6 +173,34 @@ for (const file of jsFiles(jsDir)) {
     process.stderr.write(
       `error: ${displayPath}: hooks that attach event listeners in mounted() must define destroyed()\n`,
     );
+  }
+
+  if (displayPath.startsWith("js/hooks/")) {
+    const globalListenerAdds = countMatches(
+      source,
+      /\b(?:window|document)\.addEventListener\s*\(/g,
+    );
+    const globalListenerRemoves = countMatches(
+      source,
+      /\b(?:window|document)\.removeEventListener\s*\(/g,
+    );
+    const allowsAppLifetimeListeners = source.includes(
+      "js-check: allow-global-listener-singleton",
+    );
+
+    if (globalListenerAdds > globalListenerRemoves && !allowsAppLifetimeListeners) {
+      failures += 1;
+      process.stderr.write(
+        `error: ${displayPath}: global window/document listeners must be removed or documented as an app-lifetime singleton\n`,
+      );
+    }
+
+    for (const { acquire, release, message } of lifecycleRules) {
+      if (countMatches(source, acquire) > 0 && countMatches(source, release) === 0) {
+        failures += 1;
+        process.stderr.write(`error: ${displayPath}: ${message}\n`);
+      }
+    }
   }
 }
 

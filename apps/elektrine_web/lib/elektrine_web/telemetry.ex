@@ -10,11 +10,17 @@ defmodule ElektrineWeb.Telemetry do
   def init(_arg) do
     ElektrineWeb.PostHogErrorReporter.attach()
 
-    poller_period_ms = Application.get_env(:elektrine_web, :telemetry_poller_period_ms, 60_000)
+    children =
+      if telemetry_poller_enabled?() do
+        poller_period_ms =
+          Application.get_env(:elektrine_web, :telemetry_poller_period_ms, 60_000)
 
-    children = [
-      telemetry_poller: [measurements: periodic_measurements(), period: poller_period_ms]
-    ]
+        [
+          telemetry_poller: [measurements: periodic_measurements(), period: poller_period_ms]
+        ]
+      else
+        []
+      end
 
     Supervisor.init(children, strategy: :one_for_one)
   end
@@ -123,5 +129,9 @@ defmodule ElektrineWeb.Telemetry do
 
   defp periodic_measurements do
     [{ElektrineWeb.TelemetryMeasurements, :measure_system_health, []}]
+  end
+
+  defp telemetry_poller_enabled? do
+    Application.get_env(:elektrine_web, :telemetry_poller_enabled, true)
   end
 end

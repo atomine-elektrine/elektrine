@@ -126,6 +126,10 @@ config :logger, level: :warning
 # ownership errors when they query the DB during ExUnit.
 config :elektrine, Oban, testing: :inline, plugins: []
 
+# Disable the periodic telemetry poller in tests. It performs background Oban
+# DB queries that can contend with sandboxed ExUnit tests under full-suite load.
+config :elektrine_web, telemetry_poller_enabled: false
+
 # Initialize plugs at runtime for faster test compilation
 config :phoenix, :plug_init_mode, :runtime
 

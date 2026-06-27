@@ -141,6 +141,8 @@ if [[ -f "$ENV_FILE" ]]; then
   set +a
 fi
 
+export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-docker}"
+
 if truthy "${ELEKTRINE_AUTO_CONFIGURE_DOCKER_SOURCE_IPS:-false}"; then
   DO_CONFIGURE_DOCKER_SOURCE_IPS=1
 fi

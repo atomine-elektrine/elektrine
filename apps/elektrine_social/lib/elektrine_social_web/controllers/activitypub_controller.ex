@@ -5,7 +5,6 @@ defmodule ElektrineSocialWeb.ActivityPubController do
 
   alias Elektrine.Accounts
   alias Elektrine.Accounts.Cached, as: CachedAccounts
-  alias Elektrine.Accounts.User
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Builder
   alias Elektrine.ActivityPub.InboxQueue
@@ -15,6 +14,7 @@ defmodule ElektrineSocialWeb.ActivityPubController do
   alias Elektrine.Profiles
   alias Elektrine.Social.Message
   alias Elektrine.Telemetry.Events
+  alias ElektrineSocialWeb.ActivityPub.ActorRequest
   alias ElektrineSocialWeb.ActivityPub.SignatureActorVerifier
 
   @doc """
@@ -83,25 +83,11 @@ defmodule ElektrineSocialWeb.ActivityPubController do
           # Preload profile links so actor attachments include exported profile fields.
           user = Elektrine.Repo.preload(user, profile: :links)
 
-          base_url = activitypub_base_url_for_conn(conn)
-          canonical_base_url = canonical_activitypub_base_url_for_request(user, conn)
-
-          legacy_base_url =
-            case Domains.activitypub_move_from_domain() do
-              nil -> nil
-              domain -> ActivityPub.instance_url_for_domain(domain)
-            end
-
-          actor_opts =
-            actor_request_opts(
+          actor_data =
+            Builder.build_actor(
               user,
-              requested_identifier,
-              base_url,
-              canonical_base_url,
-              legacy_base_url
+              ActorRequest.opts_for_actor(user, requested_identifier, conn)
             )
-
-          actor_data = Builder.build_actor(user, actor_opts)
 
           conn
           |> put_resp_content_type("application/activity+json")
@@ -320,127 +306,6 @@ defmodule ElektrineSocialWeb.ActivityPubController do
     ElektrineWeb.ClientIP.client_ip(conn)
   end
 
-  defp activitypub_base_url_for_conn(conn) do
-    request_host =
-      (conn.host || "")
-      |> String.trim()
-      |> String.downcase()
-      |> String.trim_leading("www.")
-
-    move_from_domain = Domains.activitypub_move_from_domain()
-    canonical_domain = ActivityPub.instance_domain()
-
-    cond do
-      request_host != "" and
-          match?(%{domain: _}, Domains.profile_custom_domain_for_host(request_host)) ->
-        ActivityPub.instance_url_for_domain(request_host)
-
-      request_host != "" and
-          not is_nil(Domains.built_in_profile_subdomain_identifier(request_host)) ->
-        ActivityPub.instance_url_for_domain(request_host)
-
-      request_host != "" and request_host == move_from_domain ->
-        ActivityPub.instance_url_for_domain(request_host)
-
-      request_host != "" and request_host == canonical_domain ->
-        ActivityPub.instance_url()
-
-      true ->
-        ActivityPub.instance_url()
-    end
-  end
-
-  defp canonical_activitypub_base_url_for_request(user, conn) do
-    request_host =
-      (conn.host || "")
-      |> String.trim()
-      |> String.downcase()
-      |> String.trim_leading("www.")
-
-    case Domains.profile_custom_domain_for_host(request_host) do
-      %{domain: domain, user_id: user_id} when user_id == user.id ->
-        ActivityPub.instance_url_for_domain(domain)
-
-      _ ->
-        if built_in_profile_subdomain_for_user?(user, request_host) do
-          ActivityPub.instance_url_for_domain(request_host)
-        else
-          ActivityPub.instance_url()
-        end
-    end
-  end
-
-  defp built_in_profile_subdomain_for_user?(%User{} = user, request_host) do
-    identifier = Domains.built_in_profile_subdomain_identifier(request_host)
-
-    not is_nil(identifier) and
-      identifier == ActivityPub.actor_identifier(user) and
-      User.built_in_subdomain_hosted_by_platform?(user)
-  end
-
-  defp built_in_profile_subdomain_for_user?(_, _), do: false
-
-  defp actor_request_opts(
-         user,
-         requested_identifier,
-         base_url,
-         canonical_base_url,
-         legacy_base_url
-       ) do
-    canonical_actor_uri = ActivityPub.actor_uri(user, canonical_base_url)
-    requested_actor_uri = ActivityPub.actor_uri(requested_identifier, base_url)
-
-    if requested_actor_uri != canonical_actor_uri do
-      %{
-        base_url: base_url,
-        actor_identifier: requested_identifier,
-        moved_to: canonical_actor_uri
-      }
-    else
-      aliases = actor_alias_uris(user, canonical_base_url, legacy_base_url)
-
-      if aliases == [] do
-        %{base_url: base_url}
-      else
-        %{base_url: base_url, also_known_as: aliases}
-      end
-    end
-  end
-
-  defp actor_alias_uris(user, canonical_base_url, legacy_base_url) do
-    canonical_actor_uri = ActivityPub.actor_uri(user, canonical_base_url)
-
-    [
-      username_alias_uri(user, canonical_base_url),
-      legacy_actor_uri(user, legacy_base_url),
-      legacy_username_alias_uri(user, legacy_base_url)
-    ]
-    |> Enum.reject(&(is_nil(&1) or &1 == canonical_actor_uri))
-    |> Enum.uniq()
-  end
-
-  defp username_alias_uri(user, base_url) do
-    canonical_identifier = ActivityPub.actor_identifier(user)
-
-    if canonical_identifier == user.username do
-      nil
-    else
-      ActivityPub.actor_uri_by_username(user, base_url)
-    end
-  end
-
-  defp legacy_actor_uri(user, legacy_base_url) when is_binary(legacy_base_url) do
-    ActivityPub.actor_uri(user, legacy_base_url)
-  end
-
-  defp legacy_actor_uri(_user, _legacy_base_url), do: nil
-
-  defp legacy_username_alias_uri(user, legacy_base_url) when is_binary(legacy_base_url) do
-    username_alias_uri(user, legacy_base_url)
-  end
-
-  defp legacy_username_alias_uri(_user, _legacy_base_url), do: nil
-
   @doc """
   Returns the outbox collection for a user.
   """
@@ -467,7 +332,7 @@ defmodule ElektrineSocialWeb.ActivityPubController do
 
   defp render_outbox(conn, user, requested_identifier, nil) do
     # Return the collection metadata
-    base_url = activitypub_base_url_for_conn(conn)
+    base_url = ActorRequest.base_url_for_conn(conn)
     outbox_url = ActivityPub.user_collection_uri(requested_identifier, "outbox", base_url)
     total_items = ActivityPub.count_outbox_activities(user.id)
     page_size = 20
@@ -502,7 +367,7 @@ defmodule ElektrineSocialWeb.ActivityPubController do
 
     items = Enum.map(activities, & &1.data)
 
-    base_url = activitypub_base_url_for_conn(conn)
+    base_url = ActorRequest.base_url_for_conn(conn)
     outbox_url = ActivityPub.user_collection_uri(requested_identifier, "outbox", base_url)
 
     collection_page = %{
@@ -555,7 +420,7 @@ defmodule ElektrineSocialWeb.ActivityPubController do
 
       user ->
         if user.activitypub_enabled do
-          base_url = activitypub_base_url_for_conn(conn)
+          base_url = ActorRequest.base_url_for_conn(conn)
 
           followers_url =
             ActivityPub.user_collection_uri(requested_identifier, "followers", base_url)
@@ -596,7 +461,7 @@ defmodule ElektrineSocialWeb.ActivityPubController do
 
       user ->
         if user.activitypub_enabled do
-          base_url = activitypub_base_url_for_conn(conn)
+          base_url = ActorRequest.base_url_for_conn(conn)
 
           following_url =
             ActivityPub.user_collection_uri(requested_identifier, "following", base_url)
