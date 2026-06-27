@@ -335,6 +335,8 @@ defmodule Elektrine.IMAP.Server do
           :ok
       end
     end
+  rescue
+    ArgumentError -> :ok
   end
 
   defp client_loop(state) do
@@ -448,6 +450,8 @@ defmodule Elektrine.IMAP.Server do
         ip_count < max_connections_per_ip()
       end
     end
+  rescue
+    ArgumentError -> false
   end
 
   # In-flight TLS handshake accounting. Reserved slots are tracked separately
@@ -472,6 +476,8 @@ defmodule Elektrine.IMAP.Server do
         :ok
       end
     end
+  rescue
+    ArgumentError -> :error
   end
 
   defp release_handshake_slot(ip, transport) do
@@ -487,6 +493,8 @@ defmodule Elektrine.IMAP.Server do
     end
 
     :ok
+  rescue
+    ArgumentError -> :ok
   end
 
   defp increment_connection_count(ip, transport) do
@@ -508,6 +516,8 @@ defmodule Elektrine.IMAP.Server do
     else
       Logger.warning("IMAP connection count table does not exist, skipping increment for #{ip}")
     end
+  rescue
+    ArgumentError -> :ok
   end
 
   defp decrement_connection_count(ip, transport) do
@@ -530,6 +540,8 @@ defmodule Elektrine.IMAP.Server do
 
       emit_session_count(ip, transport)
     end
+  rescue
+    ArgumentError -> :ok
   end
 
   defp emit_session_count(ip, transport) do
@@ -549,6 +561,8 @@ defmodule Elektrine.IMAP.Server do
 
     MailTelemetry.sessions(:imap, total, ip_count)
     maybe_alert_session_pressure(total, ip_count, ip)
+  rescue
+    ArgumentError -> :ok
   end
 
   defp maybe_alert_session_pressure(total, ip_count, ip) do

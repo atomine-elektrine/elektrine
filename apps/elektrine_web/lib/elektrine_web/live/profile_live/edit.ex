@@ -11,6 +11,8 @@ defmodule ElektrineWeb.ProfileLive.Edit do
   alias ElektrineWeb.Platform.Integrations
 
   import ElektrineWeb.ProfileLive.DesignSections
+  import ElektrineWeb.ProfileLive.DesignThemeSections
+  import ElektrineWeb.ProfileLive.EffectsSections
   import ElektrineWeb.ProfileLive.EditSections
 
   @profile_tabs [

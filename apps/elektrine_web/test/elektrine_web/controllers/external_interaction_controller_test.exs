@@ -1,8 +1,36 @@
 defmodule ElektrineWeb.ExternalInteractionControllerTest do
-  use ElektrineWeb.ConnCase, async: true
+  use ElektrineWeb.ConnCase, async: false
 
   alias Elektrine.AccountsFixtures
   alias Elektrine.ActivityPub
+
+  setup do
+    previous_email_config = Application.get_env(:elektrine, :email)
+    previous_profile_base_domains = Application.get_env(:elektrine, :profile_base_domains)
+
+    Application.put_env(:elektrine, :email,
+      domain: "elektrine.com",
+      supported_domains: ["elektrine.com", "elektrine.net", "elektrine.org"]
+    )
+
+    Application.put_env(:elektrine, :profile_base_domains, ["elektrine.com"])
+
+    on_exit(fn ->
+      if is_nil(previous_email_config) do
+        Application.delete_env(:elektrine, :email)
+      else
+        Application.put_env(:elektrine, :email, previous_email_config)
+      end
+
+      if is_nil(previous_profile_base_domains) do
+        Application.delete_env(:elektrine, :profile_base_domains)
+      else
+        Application.put_env(:elektrine, :profile_base_domains, previous_profile_base_domains)
+      end
+    end)
+
+    :ok
+  end
 
   defp request(conn, path, params \\ %{}), do: get(conn, path, params)
 

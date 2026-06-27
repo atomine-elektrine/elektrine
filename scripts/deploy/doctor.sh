@@ -298,6 +298,8 @@ set -a
 source "$ENV_FILE"
 set +a
 
+export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-docker}"
+
 check_ok "loaded $ENV_FILE"
 ACTIVE_DOCKER_PROFILES="${DOCKER_PROFILES:-$(default_docker_profiles)}"
 
@@ -408,6 +410,23 @@ if has_profile email; then
   else
     check_warn "email profile is enabled without IMAP_TLS_CERT_PATH/KEY or MAIL_TLS_CERT_PATH/KEY"
     echo "Hint: Gmail mobile works best with public IMAPS on 993 and a trusted certificate for the configured mail host." >&2
+  fi
+
+  if [[ ! "${HARAKA_WILDCARD_TLS_AUTO_CONFIGURE:-true}" =~ ^(0|false|FALSE|no|NO)$ ]]; then
+    haraka_dir="${HARAKA_DEPLOY_DIR:-}"
+    [[ -z "$haraka_dir" && -d /opt/elektrine-haraka ]] && haraka_dir=/opt/elektrine-haraka
+    [[ -z "$haraka_dir" && -d /opt/elektrine/haraka ]] && haraka_dir=/opt/elektrine/haraka
+
+    if present "$haraka_dir" && [[ -d "$haraka_dir" ]]; then
+      haraka_override_path="$haraka_dir/compose.override.yml"
+
+      if path_writable_or_sudo_installable "$haraka_override_path"; then
+        check_ok "Haraka TLS override is writable or sudo-installable: $haraka_override_path"
+      else
+        check_error "Haraka TLS override is not writable: $haraka_override_path"
+        echo "Hint: chown the Haraka deployment directory to the SSH deploy user or disable HARAKA_WILDCARD_TLS_AUTO_CONFIGURE." >&2
+      fi
+    fi
   fi
 fi
 

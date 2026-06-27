@@ -1,5 +1,5 @@
 defmodule ElektrineWeb.API.ExtV1ControllerTest do
-  use ElektrineWeb.ConnCase, async: true
+  use ElektrineWeb.ConnCase, async: false
 
   import Elektrine.AccountsFixtures
   import Elektrine.EmailFixtures
@@ -22,6 +22,16 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
 
   setup do
     previous_mailer_config = Application.get_env(:elektrine, Elektrine.Mailer, [])
+    previous_email_config = Application.get_env(:elektrine, :email, [])
+
+    Application.put_env(
+      :elektrine,
+      :email,
+      Keyword.merge(previous_email_config,
+        domain: "elektrine.com",
+        supported_domains: ["elektrine.com", "elektrine.net", "elektrine.org"]
+      )
+    )
 
     Application.put_env(
       :elektrine,
@@ -31,6 +41,7 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
 
     on_exit(fn ->
       Application.put_env(:elektrine, Elektrine.Mailer, previous_mailer_config)
+      Application.put_env(:elektrine, :email, previous_email_config)
     end)
 
     :ok

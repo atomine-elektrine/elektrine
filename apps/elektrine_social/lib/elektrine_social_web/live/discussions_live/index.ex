@@ -9,6 +9,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   alias Elektrine.AtomineProofGraph
   alias Elektrine.Social.Recommendations
   alias ElektrineSocialWeb.Components.Social.PostUtilities
+  alias ElektrineSocialWeb.DiscussionsLive.SessionContext
   import ElektrineSocialWeb.Components.Platform.ENav
   import ElektrineSocialWeb.Components.Social.TimelinePost, only: [timeline_post: 1]
   import ElektrineWeb.Live.Helpers.PostStateHelpers, only: [get_post_reactions: 1]
@@ -17,7 +18,6 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   @community_feed_page_size 20
   @overview_page_size 6
   @community_count_refresh_limit 20
-  @session_interest_dwell_ms 10_000
   @impl true
   def mount(_params, session, socket) do
     user = socket.assigns[:current_user]
@@ -87,7 +87,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
       |> assign(:overview_card_limit, @overview_page_size)
       |> assign(:overview_no_more, false)
       |> assign(:feed_sort, "new")
-      |> assign(:session_context, default_session_context())
+      |> assign(:session_context, SessionContext.default())
       |> assign(:remote_user_preview, nil)
       |> assign(:remote_user_loading, false)
       |> assign(:show_image_upload_modal, false)
@@ -154,8 +154,8 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
             })
 
             acc
-            |> note_community_view_signal(post_id)
-            |> maybe_note_community_dwell_interest(post_id, view["dwell_time_ms"])
+            |> SessionContext.note_view(post_id)
+            |> SessionContext.maybe_note_dwell_interest(post_id, view["dwell_time_ms"])
           else
             acc
           end
@@ -180,8 +180,8 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
         })
 
         socket
-        |> note_community_view_signal(params["post_id"])
-        |> maybe_note_community_dwell_interest(params["post_id"], params["dwell_time_ms"])
+        |> SessionContext.note_view(params["post_id"])
+        |> SessionContext.maybe_note_dwell_interest(params["post_id"], params["dwell_time_ms"])
       else
         socket
       end
@@ -202,7 +202,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
         )
 
         socket
-        |> note_community_dismissal_signal(params["post_id"])
+        |> SessionContext.note_dismissal(params["post_id"])
       else
         socket
       end
@@ -211,27 +211,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   end
 
   def handle_event("update_session_context", params, socket) do
-    liked_creators = params["liked_creators"] || []
-    liked_local_creators = params["liked_local_creators"] || liked_creators
-    current_context = socket.assigns[:session_context] || default_session_context()
-
-    updated_context = %{
-      current_context
-      | liked_hashtags:
-          merge_recent_unique(current_context.liked_hashtags, params["liked_hashtags"] || [], 20),
-        liked_creators: merge_recent_unique(current_context.liked_creators, liked_creators, 10),
-        liked_local_creators:
-          merge_recent_unique(current_context.liked_local_creators, liked_local_creators, 10),
-        liked_remote_creators:
-          merge_recent_unique(
-            current_context.liked_remote_creators,
-            params["liked_remote_creators"] || [],
-            10
-          ),
-        viewed_posts:
-          merge_recent_unique(current_context.viewed_posts, params["viewed_posts"] || [], 50),
-        engagement_rate: coerce_float(params["engagement_rate"], current_context.engagement_rate)
-    }
+    updated_context = SessionContext.update_from_params(socket.assigns[:session_context], params)
 
     {:noreply,
      socket
@@ -777,7 +757,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
 
           {:noreply,
            updated_socket
-           |> note_community_positive_signal(post)}
+           |> SessionContext.note_positive(post)}
 
         :error ->
           {:noreply, socket}
@@ -796,7 +776,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
 
           {:noreply,
            updated_socket
-           |> note_community_dismissal_signal(post_id)}
+           |> SessionContext.note_dismissal(post_id)}
 
         :error ->
           {:noreply, socket}
@@ -2988,57 +2968,13 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
 
   defp community_rank_score(post, sort, lemmy_counts, session_context, now) do
     community_base_score(post, sort, lemmy_counts, now) +
-      community_personalization_score(post, session_context) *
+      SessionContext.personalization_score(post, session_context) *
         community_personalization_weight(sort)
   end
 
   defp community_personalization_weight("hot"), do: 1.0
   defp community_personalization_weight("comments"), do: 0.5
   defp community_personalization_weight(_sort), do: 0.35
-
-  defp community_personalization_score(post, session_context) do
-    session_context = session_context || default_session_context()
-    hashtags = extract_post_hashtags(post)
-    hashtag_matches = Enum.count(hashtags, &(&1 in (session_context.liked_hashtags || [])))
-
-    creator_bonus =
-      cond do
-        post.federated && post.remote_actor_id in (session_context.liked_remote_creators || []) ->
-          28
-
-        !post.federated && post.sender_id in (session_context.liked_local_creators || []) ->
-          28
-
-        true ->
-          0
-      end
-
-    viewed_penalty =
-      if normalize_post_id(post.id) in (session_context.viewed_posts || []) do
-        -18
-      else
-        0
-      end
-
-    dismissed_penalty =
-      if normalize_post_id(post.id) in (session_context.dismissed_posts || []) do
-        -80
-      else
-        0
-      end
-
-    {_likes, replies} = PostUtilities.get_display_counts(post, %{}, %{})
-
-    total_engagement =
-      PostUtilities.display_primary_count(post) + replies + (post.share_count || 0)
-
-    underexposed_bonus = if total_engagement <= 8, do: 6, else: 0
-
-    media_bonus = if Enum.empty?(post.media_urls || []), do: 0, else: 4
-
-    creator_bonus + hashtag_matches * 4 + viewed_penalty + dismissed_penalty + underexposed_bonus +
-      media_bonus
-  end
 
   defp recency_boost_for_post(post, now) do
     hours_ago = NaiveDateTime.diff(now, normalize_inserted_at(post.inserted_at), :hour)
@@ -3051,176 +2987,6 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
       true -> 0
     end
   end
-
-  defp extract_post_hashtags(post) do
-    case Map.get(post, :hashtags) do
-      hashtags when is_list(hashtags) -> Enum.map(hashtags, & &1.normalized_name)
-      _ -> []
-    end
-  end
-
-  defp default_session_context do
-    %{
-      liked_hashtags: [],
-      liked_creators: [],
-      liked_local_creators: [],
-      liked_remote_creators: [],
-      viewed_posts: [],
-      dismissed_posts: [],
-      total_views: 0,
-      total_interactions: 0,
-      engagement_rate: 0.0
-    }
-  end
-
-  defp note_community_positive_signal(socket, nil), do: socket
-
-  defp note_community_positive_signal(socket, post) do
-    session_context =
-      socket.assigns[:session_context]
-      |> default_if_nil(default_session_context())
-      |> merge_community_positive_signal(post, 1)
-
-    assign(socket, :session_context, session_context)
-  end
-
-  defp note_community_view_signal(socket, post_id) do
-    normalized_post_id = normalize_post_id(post_id)
-
-    if is_nil(normalized_post_id) do
-      socket
-    else
-      session_context =
-        socket.assigns[:session_context]
-        |> default_if_nil(default_session_context())
-        |> merge_community_view_signal(normalized_post_id)
-
-      assign(socket, :session_context, session_context)
-    end
-  end
-
-  defp maybe_note_community_dwell_interest(socket, post_id, dwell_time_ms) do
-    if coerce_int(dwell_time_ms, 0) >= @session_interest_dwell_ms do
-      post =
-        Enum.find(socket.assigns.followed_community_posts || [], fn candidate ->
-          candidate.id == normalize_post_id(post_id)
-        end)
-
-      note_community_positive_signal(socket, post)
-    else
-      socket
-    end
-  end
-
-  defp note_community_dismissal_signal(socket, post_id) do
-    normalized_post_id = normalize_post_id(post_id)
-
-    if is_nil(normalized_post_id) do
-      socket
-    else
-      session_context =
-        socket.assigns[:session_context]
-        |> default_if_nil(default_session_context())
-        |> Map.update!(:dismissed_posts, &merge_recent_unique(&1, [normalized_post_id], 50))
-
-      assign(socket, :session_context, session_context)
-    end
-  end
-
-  defp merge_community_positive_signal(session_context, post, interaction_increment) do
-    session_context
-    |> Map.update!(:liked_hashtags, &merge_recent_unique(&1, extract_post_hashtags(post), 20))
-    |> Map.update!(:liked_local_creators, fn creators ->
-      if post.federated do
-        creators
-      else
-        merge_recent_unique(creators, [post.sender_id], 10)
-      end
-    end)
-    |> Map.update!(:liked_remote_creators, fn creators ->
-      if post.federated do
-        merge_recent_unique(creators, [post.remote_actor_id], 10)
-      else
-        creators
-      end
-    end)
-    |> then(fn context ->
-      Map.put(context, :liked_creators, context.liked_local_creators)
-    end)
-    |> Map.update!(:total_interactions, &(&1 + interaction_increment))
-    |> refresh_community_engagement_rate()
-  end
-
-  defp merge_community_view_signal(session_context, post_id) do
-    already_viewed = post_id in (session_context.viewed_posts || [])
-
-    session_context
-    |> Map.update!(:viewed_posts, &merge_recent_unique(&1, [post_id], 50))
-    |> Map.update!(:total_views, fn count -> if(already_viewed, do: count, else: count + 1) end)
-    |> refresh_community_engagement_rate()
-  end
-
-  defp refresh_community_engagement_rate(session_context) do
-    total_views =
-      max(session_context.total_views || length(session_context.viewed_posts || []), 1)
-
-    total_interactions = session_context.total_interactions || 0
-    Map.put(session_context, :engagement_rate, total_interactions / total_views)
-  end
-
-  defp normalize_post_id(post_id) when is_integer(post_id) and post_id > 0, do: post_id
-
-  defp normalize_post_id(post_id) when is_binary(post_id) do
-    case Integer.parse(post_id) do
-      {value, ""} when value > 0 -> value
-      _ -> nil
-    end
-  end
-
-  defp normalize_post_id(_), do: nil
-
-  defp merge_recent_unique(values, additions, limit) do
-    Enum.reduce(List.wrap(additions), values || [], fn value, acc ->
-      if is_nil(value) or (is_binary(value) and not Elektrine.Strings.present?(value)) do
-        acc
-      else
-        (Enum.reject(acc, &(&1 == value)) ++ [value])
-        |> trim_recent(limit)
-      end
-    end)
-  end
-
-  defp trim_recent(values, limit) when is_list(values) and length(values) > limit do
-    Enum.take(values, -limit)
-  end
-
-  defp trim_recent(values, _limit), do: values
-
-  defp coerce_int(value, _default) when is_integer(value), do: value
-
-  defp coerce_int(value, default) when is_binary(value) do
-    case Integer.parse(value) do
-      {int, ""} -> int
-      _ -> default
-    end
-  end
-
-  defp coerce_int(_, default), do: default
-
-  defp coerce_float(value, _default) when is_float(value), do: value
-  defp coerce_float(value, _default) when is_integer(value), do: value / 1
-
-  defp coerce_float(value, default) when is_binary(value) do
-    case Float.parse(value) do
-      {float, ""} -> float
-      _ -> default
-    end
-  end
-
-  defp coerce_float(_, default), do: default
-
-  defp default_if_nil(nil, default), do: default
-  defp default_if_nil(value, _default), do: value
 
   defp normalize_inserted_at(%NaiveDateTime{} = inserted_at), do: inserted_at
   defp normalize_inserted_at(%DateTime{} = inserted_at), do: DateTime.to_naive(inserted_at)

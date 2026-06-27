@@ -6,7 +6,6 @@ defmodule ElektrineWeb.PortalLive.Index do
   alias Elektrine.Messaging
   alias Elektrine.Messaging.Reactions
   alias Elektrine.Notifications
-  alias Elektrine.Platform.Modules
   alias Elektrine.Profiles
   alias Elektrine.Repo
   alias Elektrine.Security.SafeExternalURL
@@ -15,7 +14,10 @@ defmodule ElektrineWeb.PortalLive.Index do
   alias ElektrineWeb.Live.PostInteractions
   alias ElektrineWeb.Platform.Integrations
   alias ElektrineWeb.PortalLive.ActivityInspector
+  alias ElektrineWeb.PortalLive.Attention
   alias ElektrineWeb.PortalLive.DashboardData
+  alias ElektrineWeb.PortalLive.RecentActivity
+  alias ElektrineWeb.PortalLive.SessionContext
   import ElektrineWeb.Components.Platform.ENav
   import ElektrineWeb.Live.Helpers.PostStateHelpers
   @default_filter "all"
@@ -26,7 +28,6 @@ defmodule ElektrineWeb.PortalLive.Index do
   @feed_load_timeout_ms 12_000
   @stats_load_timeout_ms 8000
   @dashboard_load_timeout_ms 10_000
-  @session_interest_dwell_ms 10_000
   @portal_feed_limit 20
   @portal_feed_step 20
   @portal_count_refresh_limit 20
@@ -92,7 +93,7 @@ defmodule ElektrineWeb.PortalLive.Index do
         |> assign(:loading_more, false)
         |> assign(:no_more_posts, false)
         |> assign(:last_fetched_post_count, 0)
-        |> assign(:session_context, default_session_context())
+        |> assign(:session_context, SessionContext.default())
         |> assign(:show_image_modal, false)
         |> assign(:modal_image_url, nil)
         |> assign(:modal_images, [])
@@ -356,7 +357,7 @@ defmodule ElektrineWeb.PortalLive.Index do
                    |> update(:all_posts, update_likes_fn)
                    |> update(:filtered_all_posts, update_likes_fn)
                    |> sync_portal_posts_stream()
-                   |> note_positive_signal(post)}
+                   |> SessionContext.note_positive(post)}
 
                 {:error, _} ->
                   {:noreply, put_flash(socket, :error, "Failed to like post")}
@@ -497,7 +498,7 @@ defmodule ElektrineWeb.PortalLive.Index do
                  |> update(:all_posts, update_boosts_fn)
                  |> update(:filtered_all_posts, update_boosts_fn)
                  |> sync_portal_posts_stream()
-                 |> note_positive_signal(post)}
+                 |> SessionContext.note_positive(post)}
 
               {:error, _} ->
                 {:noreply, put_flash(socket, :error, "Failed to boost post")}
@@ -1160,7 +1161,7 @@ defmodule ElektrineWeb.PortalLive.Index do
         Integrations.portal_record_dismissal(user.id, post_id, "not_interested", nil)
 
         socket
-        |> note_dismissal_signal(post_id)
+        |> SessionContext.note_dismissal(post_id)
         |> remove_portal_post(post_id)
         |> put_flash(:info, "We’ll show less like this.")
       else
@@ -1178,7 +1179,7 @@ defmodule ElektrineWeb.PortalLive.Index do
         Integrations.portal_record_dismissal(user.id, post_id, "hidden", nil)
 
         socket
-        |> note_dismissal_signal(post_id)
+        |> SessionContext.note_dismissal(post_id)
         |> remove_portal_post(post_id)
         |> put_flash(:info, "Post hidden from your portal.")
       else
@@ -1206,8 +1207,11 @@ defmodule ElektrineWeb.PortalLive.Index do
           Integrations.portal_record_view_with_dwell(user.id, post_id, attrs)
 
           socket
-          |> note_view_signal(post_id, params["dwell_time_ms"])
-          |> maybe_note_dwell_interest(post_id, params["dwell_time_ms"])
+          |> SessionContext.note_view(post_id)
+          |> SessionContext.maybe_note_dwell_interest(
+            find_portal_post(socket.assigns.all_posts, post_id),
+            params["dwell_time_ms"]
+          )
         else
           socket
         end
@@ -1237,8 +1241,11 @@ defmodule ElektrineWeb.PortalLive.Index do
             Integrations.portal_record_view_with_dwell(user.id, post_id, attrs)
 
             acc
-            |> note_view_signal(post_id, view["dwell_time_ms"])
-            |> maybe_note_dwell_interest(post_id, view["dwell_time_ms"])
+            |> SessionContext.note_view(post_id)
+            |> SessionContext.maybe_note_dwell_interest(
+              find_portal_post(acc.assigns.all_posts, post_id),
+              view["dwell_time_ms"]
+            )
           else
             acc
           end
@@ -1263,7 +1270,7 @@ defmodule ElektrineWeb.PortalLive.Index do
           Integrations.portal_record_dismissal(user.id, post_id, type, dwell_time_ms)
 
           socket
-          |> note_dismissal_signal(post_id)
+          |> SessionContext.note_dismissal(post_id)
         else
           socket
         end
@@ -1275,42 +1282,7 @@ defmodule ElektrineWeb.PortalLive.Index do
   end
 
   def handle_event("update_session_context", params, socket) do
-    liked_creators = params["liked_creators"] || []
-    liked_local_creators = params["liked_local_creators"] || liked_creators
-
-    session_context = %{
-      (socket.assigns[:session_context] || default_session_context())
-      | liked_hashtags:
-          merge_recent_unique(
-            socket.assigns[:session_context][:liked_hashtags],
-            params["liked_hashtags"] || [],
-            20
-          ),
-        liked_creators: merge_recent_unique([], liked_creators, 10),
-        liked_local_creators:
-          merge_recent_unique(
-            socket.assigns[:session_context][:liked_local_creators],
-            liked_local_creators,
-            10
-          ),
-        liked_remote_creators:
-          merge_recent_unique(
-            socket.assigns[:session_context][:liked_remote_creators],
-            params["liked_remote_creators"] || [],
-            10
-          ),
-        viewed_posts:
-          merge_recent_unique(
-            socket.assigns[:session_context][:viewed_posts],
-            params["viewed_posts"] || [],
-            50
-          ),
-        engagement_rate:
-          coerce_float(
-            params["engagement_rate"],
-            socket.assigns[:session_context][:engagement_rate] || 0.0
-          )
-    }
+    session_context = SessionContext.update_from_params(socket.assigns[:session_context], params)
 
     {:noreply, assign(socket, :session_context, session_context)}
   end
@@ -1804,7 +1776,7 @@ defmodule ElektrineWeb.PortalLive.Index do
     vpn_config_count = length(vpn_configs)
 
     tasks =
-      build_dashboard_tasks(
+      DashboardData.tasks(
         inbox_unread_count,
         reply_later_count,
         chat_unread_count,
@@ -1814,7 +1786,7 @@ defmodule ElektrineWeb.PortalLive.Index do
       )
 
     alerts =
-      build_dashboard_alerts(
+      DashboardData.alerts(
         inbox_unread_count,
         notifications_unread_count,
         chat_unread_count,
@@ -1822,7 +1794,7 @@ defmodule ElektrineWeb.PortalLive.Index do
       )
 
     attention_queue =
-      build_attention_queue(
+      Attention.queue(
         inbox_messages,
         recent_notifications,
         inbox_unread_count,
@@ -1844,10 +1816,10 @@ defmodule ElektrineWeb.PortalLive.Index do
       tasks: tasks,
       alerts: alerts,
       attention_queue: attention_queue,
-      attention_counts: attention_queue_counts(attention_queue),
+      attention_counts: Attention.counts(attention_queue),
       quick_actions: DashboardData.quick_actions(user),
       recent_activity:
-        build_recent_activity(
+        RecentActivity.build(
           inbox_messages,
           recent_conversations,
           recent_posts,
@@ -1857,625 +1829,13 @@ defmodule ElektrineWeb.PortalLive.Index do
     }
   end
 
-  defp build_dashboard_tasks(
-         inbox_unread_count,
-         reply_later_count,
-         chat_unread_count,
-         pending_friend_requests_count,
-         pending_follow_requests_count,
-         vpn_config_count
-       ) do
-    [
-      if inbox_unread_count > 0 do
-        %{
-          id: "review_inbox",
-          title: "Review unread inbox",
-          detail: "#{inbox_unread_count} message(s) waiting",
-          href: Elektrine.Paths.email_index_path(tab: "inbox", filter: "unread"),
-          icon: "hero-envelope",
-          priority: "high"
-        }
-      end,
-      if reply_later_count > 0 do
-        %{
-          id: "reply_later",
-          title: "Handle boomerang reminders",
-          detail: "#{reply_later_count} follow-up reminder(s)",
-          href: Elektrine.Paths.email_index_path(tab: "inbox", filter: "boomerang"),
-          icon: "hero-arrow-uturn-left",
-          priority: "medium"
-        }
-      end,
-      if pending_friend_requests_count > 0 do
-        %{
-          id: "friend_requests",
-          title: "Respond to friend requests",
-          detail: "#{pending_friend_requests_count} pending request(s)",
-          href: Elektrine.Paths.friends_path(tab: "requests"),
-          icon: "hero-user-plus",
-          priority: "medium"
-        }
-      end,
-      if pending_follow_requests_count > 0 do
-        %{
-          id: "follow_requests",
-          title: "Review fediverse follows",
-          detail: "#{pending_follow_requests_count} remote request(s)",
-          href: Elektrine.Paths.friends_path(tab: "requests"),
-          icon: "hero-globe-americas",
-          priority: "high"
-        }
-      end,
-      if chat_unread_count > 0 do
-        %{
-          id: "chat_unread",
-          title: "Catch up on chat",
-          detail: "#{chat_unread_count} unread chat message(s)",
-          href: Elektrine.Paths.chat_root_path(),
-          icon: "hero-chat-bubble-left-right",
-          priority: "medium"
-        }
-      end,
-      if Modules.enabled?(:vpn) and vpn_config_count == 0 do
-        %{
-          id: "vpn_setup",
-          title: "Create your first VPN config",
-          detail: "Protect your traffic before browsing",
-          href: Elektrine.Paths.vpn_path(),
-          icon: "hero-shield-check",
-          priority: "low"
-        }
-      end
-    ]
-    |> Enum.reject(&is_nil/1)
-  end
-
-  defp build_dashboard_alerts(
-         inbox_unread_count,
-         notifications_unread_count,
-         chat_unread_count,
-         pending_follow_requests_count
-       ) do
-    [
-      if pending_follow_requests_count > 0 do
-        %{
-          id: "fediverse_follow_requests",
-          title: "Pending fediverse follow approvals",
-          detail: "#{pending_follow_requests_count} request(s) are waiting",
-          href: Elektrine.Paths.friends_path(tab: "requests"),
-          icon: "hero-globe-americas",
-          level: "high"
-        }
-      end,
-      if notifications_unread_count >= 15 do
-        %{
-          id: "notification_backlog",
-          title: "Notification backlog building up",
-          detail: "#{notifications_unread_count} unread notifications",
-          href: Elektrine.Paths.notifications_path(),
-          icon: "hero-bell-alert",
-          level: "medium"
-        }
-      end,
-      if inbox_unread_count >= 25 do
-        %{
-          id: "inbox_backlog",
-          title: "Inbox backlog is growing",
-          detail: "#{inbox_unread_count} unread inbox messages",
-          href: Elektrine.Paths.email_index_path(tab: "inbox", filter: "unread"),
-          icon: "hero-envelope",
-          level: "medium"
-        }
-      end,
-      if chat_unread_count >= 20 do
-        %{
-          id: "chat_backlog",
-          title: "Chat backlog is growing",
-          detail: "#{chat_unread_count} unread chat messages",
-          href: Elektrine.Paths.chat_root_path(),
-          icon: "hero-chat-bubble-left-right",
-          level: "low"
-        }
-      end
-    ]
-    |> Enum.reject(&is_nil/1)
-  end
-
-  defp build_attention_queue(
-         inbox_messages,
-         recent_notifications,
-         inbox_unread_count,
-         notifications_unread_count,
-         reply_later_count,
-         chat_unread_count,
-         pending_friend_requests_count,
-         pending_follow_requests_count
-       ) do
-    unread_email_messages =
-      inbox_messages
-      |> Enum.filter(&(Map.get(&1, :read, false) == false))
-      |> Enum.take(3)
-
-    remaining_unread_count = max(inbox_unread_count - length(unread_email_messages), 0)
-
-    remaining_notification_count =
-      max(notifications_unread_count - min(length(recent_notifications), 4), 0)
-
-    unread_email_items = Enum.map(unread_email_messages, &build_unread_email_attention_item/1)
-
-    request_items =
-      [
-        if pending_friend_requests_count > 0 do
-          %{
-            id: "attention-friend-requests",
-            source: "requests",
-            title: "Respond to friend requests",
-            detail: "#{pending_friend_requests_count} request(s) waiting",
-            href: Elektrine.Paths.friends_path(tab: "requests"),
-            icon: "hero-user-plus",
-            priority: "high",
-            state: "pending",
-            at: nil,
-            actions: [
-              attention_action("Open", Elektrine.Paths.friends_path(tab: "requests")),
-              attention_action("Follow", Elektrine.Paths.friends_path(tab: "requests"))
-            ]
-          }
-        end,
-        if pending_follow_requests_count > 0 do
-          %{
-            id: "attention-follow-requests",
-            source: "requests",
-            title: "Review fediverse follow approvals",
-            detail: "#{pending_follow_requests_count} approval(s) waiting",
-            href: Elektrine.Paths.friends_path(tab: "requests"),
-            icon: "hero-globe-americas",
-            priority: "high",
-            state: "approval",
-            at: nil,
-            actions: [
-              attention_action("Open", Elektrine.Paths.friends_path(tab: "requests")),
-              attention_action("Follow", Elektrine.Paths.friends_path(tab: "requests"))
-            ]
-          }
-        end
-      ]
-
-    backlog_items =
-      [
-        if remaining_unread_count > 0 do
-          %{
-            id: "attention-more-email",
-            source: "email",
-            title: "More unread email waiting",
-            detail: "#{remaining_unread_count} more unread message(s)",
-            href: Elektrine.Paths.email_index_path(tab: "inbox", filter: "unread"),
-            icon: "hero-envelope",
-            priority: "high",
-            state: "backlog",
-            at: nil,
-            actions: [
-              attention_action(
-                "Open",
-                Elektrine.Paths.email_index_path(tab: "inbox", filter: "unread")
-              ),
-              attention_action("Move", Elektrine.Paths.email_index_path(tab: "inbox"))
-            ]
-          }
-        end,
-        if reply_later_count > 0 do
-          %{
-            id: "attention-reply-later",
-            source: "email",
-            title: "Handle reply-later reminders",
-            detail: "#{reply_later_count} reminder(s) due",
-            href: Elektrine.Paths.email_index_path(tab: "inbox", filter: "boomerang"),
-            icon: "hero-arrow-uturn-left",
-            priority: "medium",
-            state: "remind",
-            at: nil,
-            actions: [
-              attention_action(
-                "Open",
-                Elektrine.Paths.email_index_path(tab: "inbox", filter: "boomerang")
-              ),
-              attention_action(
-                "Remind",
-                Elektrine.Paths.email_index_path(tab: "inbox", filter: "boomerang")
-              )
-            ]
-          }
-        end,
-        if chat_unread_count > 0 do
-          %{
-            id: "attention-chat-unread",
-            source: "chat",
-            title: "Catch up on chat",
-            detail: "#{chat_unread_count} unread message(s)",
-            href: Elektrine.Paths.chat_root_path(),
-            icon: "hero-chat-bubble-left-right",
-            priority: "medium",
-            state: "unread",
-            at: nil,
-            actions: [attention_action("Open", Elektrine.Paths.chat_root_path())]
-          }
-        end,
-        if remaining_notification_count > 0 do
-          %{
-            id: "attention-more-notifications",
-            source: "social",
-            title: "More notifications are stacked up",
-            detail:
-              "#{remaining_notification_count} unread notification(s) behind the latest items",
-            href: Elektrine.Paths.notifications_path(),
-            icon: "hero-bell-alert",
-            priority: "medium",
-            state: "backlog",
-            at: nil,
-            actions: [attention_action("Open", Elektrine.Paths.notifications_path())]
-          }
-        end
-      ]
-
-    notification_items =
-      recent_notifications
-      |> Enum.take(4)
-      |> Enum.map(&build_notification_attention_item/1)
-
-    (unread_email_items ++ request_items ++ backlog_items ++ notification_items)
-    |> Enum.reject(&is_nil/1)
-    |> Enum.sort_by(fn item ->
-      {attention_priority_rank(item.priority), -sort_datetime(item.at)}
-    end)
-    |> Enum.take(12)
-  end
-
-  defp build_unread_email_attention_item(message) do
-    href = Elektrine.Paths.email_view_path(message)
-
-    %{
-      id: "attention-email-#{message.id}",
-      source: "email",
-      title: inbox_subject(message),
-      detail: "From #{inbox_sender(message.from)}",
-      href: href,
-      icon: "hero-envelope",
-      priority: "high",
-      state: "unread",
-      at: message.inserted_at,
-      actions: [
-        attention_action("Open", href),
-        attention_action("Move", Elektrine.Paths.email_index_path(tab: "inbox")),
-        attention_action(
-          "Remind",
-          Elektrine.Paths.email_index_path(tab: "inbox", filter: "boomerang")
-        )
-      ]
-    }
-  end
-
-  defp build_notification_attention_item(notification) do
-    source = notification_attention_source(notification)
-    href = normalize_internal_path(notification.url)
-
-    %{
-      id: "attention-notification-#{notification.id}",
-      source: source,
-      title: trim_or(notification.title, "Notification"),
-      detail: notification_activity_detail(notification),
-      href: href,
-      icon: notification_activity_icon(notification),
-      priority: notification_attention_priority(notification),
-      state: "unread",
-      at: notification.inserted_at,
-      actions: attention_actions_for_source(source, href)
-    }
-  end
-
-  defp attention_actions_for_source("email", href) do
-    [
-      attention_action("Open", href),
-      attention_action("Move", Elektrine.Paths.email_index_path(tab: "inbox")),
-      attention_action(
-        "Remind",
-        Elektrine.Paths.email_index_path(tab: "inbox", filter: "boomerang")
-      )
-    ]
-  end
-
-  defp attention_actions_for_source("requests", href) do
-    [attention_action("Open", href), attention_action("Follow", href)]
-  end
-
-  defp attention_actions_for_source("social", href) do
-    [
-      attention_action("Open", href),
-      attention_action("Save", Elektrine.Paths.timeline_path(filter: "saved", view: "all")),
-      attention_action("Share", Elektrine.Paths.timeline_path(composer: "post"))
-    ]
-  end
-
-  defp attention_actions_for_source(_source, href) do
-    [attention_action("Open", href)]
-  end
-
-  defp attention_action(label, href), do: %{label: label, href: href}
-
-  defp attention_queue_counts(queue) do
-    base_counts =
-      Enum.reduce(@allowed_attention_filters, %{}, fn filter, acc ->
-        Map.put(acc, filter, 0)
-      end)
-
-    queue
-    |> Enum.reduce(base_counts, fn item, acc ->
-      Map.update(acc, item.source, 1, &(&1 + 1))
-    end)
-    |> Map.put("all", length(queue))
-  end
-
-  defp filtered_attention_queue(queue, "all"), do: queue
-
-  defp filtered_attention_queue(queue, filter) do
-    Enum.filter(queue, &(&1.source == filter))
-  end
+  defdelegate filtered_attention_queue(queue, filter), to: Attention, as: :filtered_queue
 
   defp normalize_attention_filter(filter) when filter in @allowed_attention_filters, do: filter
   defp normalize_attention_filter(_filter), do: @default_attention_filter
 
-  defp attention_filter_label("all"), do: "All"
-  defp attention_filter_label("email"), do: "Email"
-  defp attention_filter_label("chat"), do: "Chat"
-  defp attention_filter_label("requests"), do: "Requests"
-  defp attention_filter_label("social"), do: "Social"
-  defp attention_filter_label("system"), do: "System"
-  defp attention_filter_label(filter), do: String.capitalize(filter)
-
-  defp attention_source_badge_class("email"), do: "badge badge-info badge-xs"
-  defp attention_source_badge_class("chat"), do: "badge badge-primary badge-xs"
-  defp attention_source_badge_class("requests"), do: "badge badge-warning badge-xs"
-  defp attention_source_badge_class("social"), do: "badge badge-secondary badge-xs"
-  defp attention_source_badge_class(_source), do: "badge badge-ghost badge-xs"
-
-  defp attention_priority_rank("high"), do: 0
-  defp attention_priority_rank("medium"), do: 1
-  defp attention_priority_rank(_priority), do: 2
-
-  defp notification_attention_source(notification) do
-    case {notification.type, notification.source_type} do
-      {"email_received", _} -> "email"
-      {_, "message"} -> "chat"
-      {_, "post"} -> "social"
-      {_, "discussion"} -> "social"
-      {"follow", _} -> "social"
-      {"mention", _} -> "social"
-      _ -> "system"
-    end
-  end
-
-  defp notification_attention_priority(notification) do
-    case notification.type do
-      "mention" -> "high"
-      "reply" -> "high"
-      "email_received" -> "medium"
-      "new_message" -> "medium"
-      "follow" -> "medium"
-      _ -> "low"
-    end
-  end
-
-  defp build_recent_activity(
-         inbox_messages,
-         recent_conversations,
-         recent_posts,
-         recent_notifications,
-         vpn_configs
-       ) do
-    email_items =
-      inbox_messages
-      |> Enum.take(3)
-      |> Enum.map(fn message ->
-        %{
-          id: "email-#{message.id}",
-          app: "Email",
-          title: inbox_subject(message),
-          detail: "From #{inbox_sender(message.from)}",
-          href: Elektrine.Paths.email_view_path(message),
-          icon: "hero-envelope",
-          at: message.inserted_at
-        }
-      end)
-
-    chat_items =
-      recent_conversations
-      |> Enum.take(3)
-      |> Enum.map(fn conversation ->
-        %{
-          id: "chat-#{conversation.id}",
-          app: "Chat",
-          title: conversation_label(conversation),
-          detail: String.capitalize(conversation.type || "conversation"),
-          href: Elektrine.Paths.chat_path(conversation),
-          icon: "hero-chat-bubble-left-right",
-          at: conversation.last_message_at || conversation.updated_at || conversation.inserted_at
-        }
-      end)
-
-    social_items =
-      recent_posts
-      |> Enum.take(3)
-      |> Enum.map(fn post ->
-        %{
-          id: "social-#{post.id}",
-          app: "Social",
-          title: social_post_title(post),
-          detail: "Timeline update",
-          href: Elektrine.Paths.post_path(post.id),
-          icon: "hero-rectangle-stack",
-          at: post.inserted_at
-        }
-      end)
-
-    notification_items =
-      recent_notifications
-      |> Enum.take(3)
-      |> Enum.map(fn notification ->
-        %{
-          id: "notification-#{notification.id}",
-          app: notification_activity_app(notification),
-          title: trim_or(notification.title, "Notification"),
-          detail: notification_activity_detail(notification),
-          href: normalize_internal_path(notification.url),
-          icon: notification_activity_icon(notification),
-          at: notification.inserted_at
-        }
-      end)
-
-    vpn_items =
-      case Enum.max_by(vpn_configs, &sort_datetime(&1.updated_at || &1.inserted_at), fn -> nil end) do
-        nil ->
-          []
-
-        config ->
-          [
-            %{
-              id: "vpn-#{config.id}",
-              app: "VPN",
-              title: "VPN profile ready",
-              detail: trim_or(config.vpn_server && config.vpn_server.name, "VPN config"),
-              href: Elektrine.Paths.vpn_path(),
-              icon: "hero-shield-check",
-              at: config.updated_at || config.inserted_at
-            }
-          ]
-      end
-
-    (email_items ++ chat_items ++ social_items ++ notification_items ++ vpn_items)
-    |> Enum.sort_by(&sort_datetime(&1.at), :desc)
-    |> Enum.take(10)
-  end
-
-  defp trim_or(value, fallback) when is_binary(value) do
-    value = String.trim(value)
-
-    Elektrine.Strings.present(value) || fallback
-  end
-
-  defp trim_or(_value, fallback) do
-    fallback
-  end
-
-  defp inbox_subject(%{subject: subject}) when is_binary(subject) do
-    subject |> trim_or("(No subject)") |> truncate_text(72)
-  end
-
-  defp inbox_subject(_) do
-    "(No subject)"
-  end
-
-  defp inbox_sender(from) do
-    from |> trim_or("Unknown sender") |> extract_sender_name() |> truncate_text(42)
-  end
-
-  defp extract_sender_name(from) when is_binary(from) do
-    case Regex.run(~r/^(.+?)\s*<(.+)>$/, from) do
-      [_, name, _email] -> name |> String.trim() |> String.trim("\"") |> trim_or(from)
-      _ -> from
-    end
-  end
-
-  defp extract_sender_name(from) do
-    from
-  end
-
-  defp truncate_text(text, max_length) when is_binary(text) and max_length > 1 do
-    if String.length(text) > max_length do
-      if max_length <= 3 do
-        String.slice(text, 0, max_length)
-      else
-        String.slice(text, 0, max_length - 3) <> "..."
-      end
-    else
-      text
-    end
-  end
-
-  defp truncate_text(_text, _max_length) do
-    ""
-  end
-
-  defp conversation_label(conversation) do
-    name = trim_or(conversation.name, "")
-
-    cond do
-      Elektrine.Strings.present?(name) -> name
-      conversation.type == "dm" -> "Direct message"
-      true -> "Conversation ##{conversation.id}"
-    end
-  end
-
-  defp social_post_title(post) do
-    post
-    |> then(fn post ->
-      ElektrineWeb.HtmlHelpers.plain_text_content(post.title || post.content)
-    end)
-    |> trim_or("New social post")
-    |> truncate_text(72)
-  end
-
-  defp notification_activity_app(notification) do
-    case {notification.type, notification.source_type} do
-      {"email_received", _} -> "Email"
-      {_, "message"} -> "Chat"
-      {_, "post"} -> "Social"
-      {_, "discussion"} -> "Social"
-      {"follow", _} -> "Social"
-      {"mention", _} -> "Social"
-      _ -> "Alerts"
-    end
-  end
-
-  defp notification_activity_icon(notification) do
-    case notification.type do
-      "email_received" -> "hero-envelope"
-      "new_message" -> "hero-chat-bubble-left-right"
-      "reply" -> "hero-chat-bubble-left"
-      "follow" -> "hero-user-plus"
-      "mention" -> "hero-at-symbol"
-      "like" -> "hero-heart"
-      _ -> "hero-bell"
-    end
-  end
-
-  defp notification_activity_detail(notification) do
-    trim_or(notification.body, "Recent update") |> truncate_text(90)
-  end
-
-  defp normalize_internal_path(path) when is_binary(path) do
-    path = String.trim(path)
-
-    if String.starts_with?(path, "/") do
-      path
-    else
-      Elektrine.Paths.notifications_path()
-    end
-  end
-
-  defp normalize_internal_path(_) do
-    Elektrine.Paths.notifications_path()
-  end
-
-  defp sort_datetime(%DateTime{} = datetime) do
-    DateTime.to_unix(datetime)
-  end
-
-  defp sort_datetime(%NaiveDateTime{} = datetime) do
-    DateTime.from_naive!(datetime, "Etc/UTC") |> DateTime.to_unix()
-  end
-
-  defp sort_datetime(_) do
-    0
-  end
+  defdelegate attention_filter_label(filter), to: Attention, as: :filter_label
+  defdelegate attention_source_badge_class(source), to: Attention, as: :source_badge_class
 
   defp filtered_posts(posts, "timeline", _assigns) do
     Enum.filter(posts, fn post ->
@@ -3075,117 +2435,6 @@ defmodule ElektrineWeb.PortalLive.Index do
 
   defp register_post_state(socket, _post), do: socket
 
-  defp default_session_context do
-    %{
-      liked_hashtags: [],
-      liked_creators: [],
-      liked_local_creators: [],
-      liked_remote_creators: [],
-      viewed_posts: [],
-      dismissed_posts: [],
-      total_views: 0,
-      total_interactions: 0,
-      engagement_rate: 0.0
-    }
-  end
-
-  defp note_positive_signal(socket, nil), do: socket
-
-  defp note_positive_signal(socket, post) do
-    session_context =
-      socket.assigns[:session_context]
-      |> default_if_nil(default_session_context())
-      |> merge_positive_signal(post, 1)
-
-    assign(socket, :session_context, session_context)
-  end
-
-  defp note_view_signal(socket, post_id, _dwell_time_ms) do
-    normalized_post_id = normalize_post_id(post_id)
-
-    if is_nil(normalized_post_id) do
-      socket
-    else
-      session_context =
-        socket.assigns[:session_context]
-        |> default_if_nil(default_session_context())
-        |> merge_view_signal(normalized_post_id)
-
-      assign(socket, :session_context, session_context)
-    end
-  end
-
-  defp maybe_note_dwell_interest(socket, post_id, dwell_time_ms) do
-    if coerce_int(dwell_time_ms, 0) >= @session_interest_dwell_ms do
-      socket
-      |> note_positive_signal(find_portal_post(socket.assigns.all_posts, post_id))
-    else
-      socket
-    end
-  end
-
-  defp note_dismissal_signal(socket, post_id) do
-    normalized_post_id = normalize_post_id(post_id)
-
-    if is_nil(normalized_post_id) do
-      socket
-    else
-      session_context =
-        socket.assigns[:session_context]
-        |> default_if_nil(default_session_context())
-        |> Map.update!(:dismissed_posts, &merge_recent_unique(&1, [normalized_post_id], 50))
-
-      assign(socket, :session_context, session_context)
-    end
-  end
-
-  defp merge_positive_signal(session_context, post, interaction_increment) do
-    hashtags =
-      case Map.get(post, :hashtags) do
-        hashtags when is_list(hashtags) -> Enum.map(hashtags, & &1.normalized_name)
-        _ -> []
-      end
-
-    session_context
-    |> Map.update!(:liked_hashtags, &merge_recent_unique(&1, hashtags, 20))
-    |> Map.update!(:liked_local_creators, fn creators ->
-      if post.federated do
-        creators
-      else
-        merge_recent_unique(creators, [post.sender_id], 10)
-      end
-    end)
-    |> Map.update!(:liked_remote_creators, fn creators ->
-      if post.federated do
-        merge_recent_unique(creators, [post.remote_actor_id], 10)
-      else
-        creators
-      end
-    end)
-    |> then(fn context ->
-      Map.put(context, :liked_creators, context.liked_local_creators)
-    end)
-    |> Map.update!(:total_interactions, &(&1 + interaction_increment))
-    |> refresh_engagement_rate()
-  end
-
-  defp merge_view_signal(session_context, post_id) do
-    already_viewed = post_id in (session_context.viewed_posts || [])
-
-    session_context
-    |> Map.update!(:viewed_posts, &merge_recent_unique(&1, [post_id], 50))
-    |> Map.update!(:total_views, fn count -> if(already_viewed, do: count, else: count + 1) end)
-    |> refresh_engagement_rate()
-  end
-
-  defp refresh_engagement_rate(session_context) do
-    total_views =
-      max(session_context.total_views || length(session_context.viewed_posts || []), 1)
-
-    total_interactions = session_context.total_interactions || 0
-    Map.put(session_context, :engagement_rate, total_interactions / total_views)
-  end
-
   defp remove_portal_post(socket, post_id) do
     normalized_post_id = normalize_post_id(post_id)
 
@@ -3253,49 +2502,6 @@ defmodule ElektrineWeb.PortalLive.Index do
       :error -> nil
     end
   end
-
-  defp coerce_int(value, _default) when is_integer(value), do: value
-
-  defp coerce_int(value, default) when is_binary(value) do
-    case Integer.parse(value) do
-      {int, ""} -> int
-      _ -> default
-    end
-  end
-
-  defp coerce_int(_, default), do: default
-
-  defp coerce_float(value, _default) when is_float(value), do: value
-  defp coerce_float(value, _default) when is_integer(value), do: value / 1
-
-  defp coerce_float(value, default) when is_binary(value) do
-    case Float.parse(value) do
-      {float, ""} -> float
-      _ -> default
-    end
-  end
-
-  defp coerce_float(_, default), do: default
-
-  defp merge_recent_unique(values, additions, limit) do
-    Enum.reduce(List.wrap(additions), values || [], fn value, acc ->
-      if is_nil(value) or (is_binary(value) and not Elektrine.Strings.present?(value)) do
-        acc
-      else
-        (Enum.reject(acc, &(&1 == value)) ++ [value])
-        |> trim_recent(limit)
-      end
-    end)
-  end
-
-  defp trim_recent(values, limit) when is_list(values) and length(values) > limit do
-    Enum.take(values, -limit)
-  end
-
-  defp trim_recent(values, _limit), do: values
-
-  defp default_if_nil(nil, default), do: default
-  defp default_if_nil(value, _default), do: value
 
   defp close_quote_modal(socket) do
     socket

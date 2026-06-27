@@ -29,10 +29,10 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   import Elektrine.Components.User.UsernameEffects
   import ElektrineSocialWeb.Components.User.HoverCard
 
-  alias Elektrine.Messaging
-  alias Elektrine.Repo
-  alias Elektrine.Social.Message
   alias ElektrineSocialWeb.Components.Social.PostUtilities
+  alias ElektrineSocialWeb.Components.Social.TimelinePostAncestors
+  alias ElektrineSocialWeb.Components.Social.TimelinePostCard
+  alias ElektrineSocialWeb.Components.Social.TimelinePostCompact
   alias ElektrineWeb.Platform.Integrations
 
   @doc """
@@ -118,7 +118,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
     # Dispatch based on layout variant
     case assigns.layout do
       :lemmy -> render_lemmy_layout(assigns)
-      :compact -> render_compact_layout(assigns)
+      :compact -> TimelinePostCompact.render_compact_layout(assigns)
       _ -> render_timeline_layout(assigns)
     end
   end
@@ -221,7 +221,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
     # Resolve ancestor context (root -> parent) only for replies.
     reply_ancestors =
       if is_reply do
-        resolve_reply_ancestors_for_post(
+        TimelinePostAncestors.resolve_for_post(
           post,
           assigns.source,
           assigns.resolve_reply_refs
@@ -246,7 +246,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         do: current_post_flag(assigns.user_saves, post),
         else: assigns.saved_override
 
-    card_post_path = card_post_path(post, assigns.source)
+    card_post_path = TimelinePostCard.card_post_path(post, assigns.source)
 
     assigns =
       assigns
@@ -263,7 +263,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       |> assign(:is_boosted, is_boosted)
       |> assign(:is_saved, is_saved)
       |> assign(:card_post_path, card_post_path)
-      |> assign(:card_post_external?, external_url?(card_post_path))
+      |> assign(:card_post_external?, TimelinePostCard.external_url?(card_post_path))
 
     ~H"""
     <div
@@ -854,8 +854,8 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   defp inline_reply_target(assigns) do
     ~H"""
     <%= if is_map(@target) do %>
-      <% clickable = ancestor_clickable?(@target)
-      subtitle = ancestor_author_subtitle(@target) %>
+      <% clickable = TimelinePostAncestors.clickable?(@target)
+      subtitle = TimelinePostAncestors.author_subtitle(@target) %>
       <div class="timeline-inline-reply-target mb-3">
         <div class="mb-1 text-[11px] font-medium uppercase tracking-[0.18em] text-base-content/45">
           In reply to
@@ -865,7 +865,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
           <button
             type="button"
             class="thread-context-card timeline-inline-reply-target__card w-full text-left"
-            {ancestor_click_attrs(@target)}
+            {TimelinePostAncestors.click_attrs(@target)}
           >
             <.inline_reply_target_content target={@target} subtitle={subtitle} />
           </button>
@@ -888,13 +888,16 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       <.ancestor_avatar ancestor={@target} />
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-2 min-w-0 text-sm">
-          <span class={["truncate font-medium", ancestor_author_class(@target.author_info.type)]}>
+          <span class={[
+            "truncate font-medium",
+            TimelinePostAncestors.author_class(@target.author_info.type)
+          ]}>
             {@target.author_info.name}
           </span>
           <%= if @subtitle do %>
             <span class="truncate text-xs text-base-content/55">{@subtitle}</span>
           <% end %>
-          <%= if ancestor_clickable?(@target) do %>
+          <%= if TimelinePostAncestors.clickable?(@target) do %>
             <span class="ml-auto flex-shrink-0 text-xs text-base-content/45">Open parent</span>
           <% end %>
         </div>
@@ -915,457 +918,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
     </div>
     """
   end
-
-  defp ancestor_author_subtitle(ancestor) when is_map(ancestor) do
-    cond do
-      is_map(ancestor.local_sender) ->
-        "@#{ancestor.local_sender.handle || ancestor.local_sender.username}@#{Elektrine.Domains.default_user_handle_domain()}"
-
-      is_map(ancestor.remote_actor) ->
-        "@#{ancestor.remote_actor.username}@#{ancestor.remote_actor.domain}"
-
-      is_binary(ancestor.activitypub_ref) ->
-        case URI.parse(ancestor.activitypub_ref) do
-          %{host: host} when is_binary(host) and host != "" -> "on #{host}"
-          _ -> nil
-        end
-
-      true ->
-        nil
-    end
-  end
-
-  defp resolve_reply_ancestors_for_post(post, source, resolve_reply_refs) when is_map(post) do
-    max_depth = reply_ancestor_max_depth(source)
-    should_resolve_refs = should_resolve_reply_refs?(source, resolve_reply_refs)
-    allow_db_lookups = allow_ancestor_db_lookups?(source)
-
-    cache_key =
-      {
-        source || "timeline",
-        max_depth,
-        should_resolve_refs,
-        allow_db_lookups,
-        Map.get(post, :id),
-        Map.get(post, :reply_to_id),
-        Map.get(post, :activitypub_id),
-        Map.get(post, :activitypub_url),
-        metadata_in_reply_to(post),
-        Map.get(post, :updated_at),
-        Map.get(post, :edited_at)
-      }
-
-    cache = Process.get(:timeline_post_reply_ancestor_cache, %{})
-
-    case Map.fetch(cache, cache_key) do
-      {:ok, ancestors} ->
-        ancestors
-
-      :error ->
-        ancestors =
-          resolve_reply_ancestors(post, should_resolve_refs, max_depth, allow_db_lookups)
-
-        next_cache =
-          cache
-          |> maybe_reset_reply_ancestor_cache()
-          |> Map.put(cache_key, ancestors)
-
-        Process.put(:timeline_post_reply_ancestor_cache, next_cache)
-        ancestors
-    end
-  end
-
-  # Keep reply ancestor lookups cheap on high-volume feeds.
-  defp reply_ancestor_max_depth(source)
-       when source in ["timeline", "portal", "hashtag", "remote_profile"],
-       do: 3
-
-  defp reply_ancestor_max_depth(_), do: 8
-
-  # External reference resolution can be expensive and is not required for feed readability.
-  defp should_resolve_reply_refs?(source, _resolve_reply_refs)
-       when source in ["timeline", "portal", "hashtag", "remote_profile"] do
-    false
-  end
-
-  defp should_resolve_reply_refs?(_source, resolve_reply_refs), do: resolve_reply_refs
-
-  # Keep feed rendering free of synchronous database lookups.
-  defp allow_ancestor_db_lookups?(_source), do: false
-
-  defp maybe_reset_reply_ancestor_cache(cache) when is_map(cache) do
-    if map_size(cache) >= 256 do
-      %{}
-    else
-      cache
-    end
-  end
-
-  defp resolve_reply_ancestors(post, resolve_reply_refs, max_depth, allow_db_lookups)
-
-  defp resolve_reply_ancestors(post, resolve_reply_refs, max_depth, allow_db_lookups)
-       when is_map(post) and max_depth > 0 do
-    {initial_message, initial_ref, initial_author, initial_content} =
-      ancestor_seed(post, resolve_reply_refs, allow_db_lookups)
-
-    do_resolve_reply_ancestors(
-      initial_message,
-      initial_ref,
-      initial_author,
-      initial_content,
-      [],
-      MapSet.new(),
-      max_depth,
-      resolve_reply_refs,
-      allow_db_lookups
-    )
-  end
-
-  defp resolve_reply_ancestors(_, _, _, _), do: []
-
-  defp do_resolve_reply_ancestors(
-         _,
-         _,
-         _,
-         _,
-         acc,
-         _seen,
-         depth,
-         _resolve_reply_refs,
-         _allow_db_lookups
-       )
-       when depth <= 0,
-       do: acc
-
-  defp do_resolve_reply_ancestors(
-         nil,
-         nil,
-         _fallback_author,
-         _fallback_content,
-         acc,
-         _seen,
-         _depth,
-         _resolve_reply_refs,
-         _allow_db_lookups
-       ),
-       do: acc
-
-  defp do_resolve_reply_ancestors(
-         message,
-         ref,
-         fallback_author,
-         fallback_content,
-         acc,
-         seen,
-         depth,
-         resolve_reply_refs,
-         allow_db_lookups
-       ) do
-    message =
-      preload_or_resolve_ancestor_message(
-        message,
-        ref,
-        resolve_reply_refs,
-        allow_db_lookups
-      )
-
-    seen_key = ancestor_seen_key(message, ref)
-
-    cond do
-      is_nil(seen_key) ->
-        acc
-
-      MapSet.member?(seen, seen_key) ->
-        acc
-
-      true ->
-        entry =
-          build_reply_ancestor_entry(
-            message,
-            ref,
-            fallback_author,
-            fallback_content,
-            allow_db_lookups
-          )
-
-        {next_message, next_ref, next_author, next_content} =
-          next_ancestor_state(message, resolve_reply_refs, allow_db_lookups)
-
-        next_acc =
-          if entry do
-            [entry | acc]
-          else
-            acc
-          end
-
-        do_resolve_reply_ancestors(
-          next_message,
-          next_ref,
-          next_author,
-          next_content,
-          next_acc,
-          MapSet.put(seen, seen_key),
-          depth - 1,
-          resolve_reply_refs,
-          allow_db_lookups
-        )
-    end
-  end
-
-  defp ancestor_seed(post, resolve_reply_refs, allow_db_lookups) do
-    metadata_ref = metadata_in_reply_to(post)
-    metadata_author = metadata_in_reply_to_author(post)
-    metadata_content = metadata_in_reply_to_content(post)
-
-    loaded_reply =
-      if Map.has_key?(post, :reply_to) && assoc_loaded_map?(post.reply_to),
-        do: post.reply_to,
-        else: nil
-
-    local_parent_id = normalize_local_id(Map.get(post, :reply_to_id))
-
-    cond do
-      is_map(loaded_reply) ->
-        {preload_ancestor_message(loaded_reply, allow_db_lookups), metadata_ref, metadata_author,
-         metadata_content}
-
-      allow_db_lookups && is_integer(local_parent_id) ->
-        {fetch_local_ancestor(local_parent_id), metadata_ref, metadata_author, metadata_content}
-
-      allow_db_lookups && resolve_reply_refs && is_binary(metadata_ref) ->
-        {resolve_ancestor_ref(metadata_ref), metadata_ref, metadata_author, metadata_content}
-
-      is_binary(metadata_ref) ->
-        {nil, metadata_ref, metadata_author, metadata_content}
-
-      true ->
-        {nil, nil, nil, nil}
-    end
-  end
-
-  defp preload_or_resolve_ancestor_message(message, _ref, _resolve_reply_refs, allow_db_lookups)
-       when is_map(message),
-       do: preload_ancestor_message(message, allow_db_lookups)
-
-  defp preload_or_resolve_ancestor_message(nil, ref, true, true) when is_binary(ref),
-    do: resolve_ancestor_ref(ref)
-
-  defp preload_or_resolve_ancestor_message(_, _, _, _), do: nil
-
-  defp next_ancestor_state(message, resolve_reply_refs, allow_db_lookups) when is_map(message) do
-    metadata_ref = metadata_in_reply_to(message)
-    metadata_author = metadata_in_reply_to_author(message)
-    metadata_content = metadata_in_reply_to_content(message)
-
-    loaded_parent =
-      if Map.has_key?(message, :reply_to) && assoc_loaded_map?(message.reply_to) do
-        preload_ancestor_message(message.reply_to, allow_db_lookups)
-      else
-        nil
-      end
-
-    local_parent_id = normalize_local_id(Map.get(message, :reply_to_id))
-
-    local_parent =
-      if allow_db_lookups && is_nil(loaded_parent) && is_integer(local_parent_id) do
-        fetch_local_ancestor(local_parent_id)
-      else
-        nil
-      end
-
-    resolved_parent =
-      if allow_db_lookups && is_nil(loaded_parent) && is_nil(local_parent) && resolve_reply_refs &&
-           is_binary(metadata_ref) do
-        resolve_ancestor_ref(metadata_ref)
-      else
-        nil
-      end
-
-    {loaded_parent || local_parent || resolved_parent, metadata_ref, metadata_author,
-     metadata_content}
-  end
-
-  defp next_ancestor_state(_, _, _), do: {nil, nil, nil, nil}
-
-  defp build_reply_ancestor_entry(
-         message,
-         ref,
-         fallback_author,
-         fallback_content,
-         allow_db_lookups
-       ) do
-    local_id =
-      if is_map(message) do
-        normalize_local_id(Map.get(message, :id))
-      else
-        nil
-      end
-
-    activitypub_ref =
-      if is_map(message) do
-        normalize_in_reply_to_ref(Map.get(message, :activitypub_id)) ||
-          normalize_in_reply_to_ref(Map.get(message, :activitypub_url)) ||
-          normalize_in_reply_to_ref(ref)
-      else
-        normalize_in_reply_to_ref(ref)
-      end
-
-    {click_event, click_url, click_id} =
-      cond do
-        is_integer(local_id) ->
-          {"navigate_to_post", nil, local_id}
-
-        is_binary(activitypub_ref) ->
-          {"navigate_to_remote_post", activitypub_ref, nil}
-
-        true ->
-          {nil, nil, nil}
-      end
-
-    author_info = ancestor_author_info(message, fallback_author, activitypub_ref)
-
-    preview_content =
-      ancestor_preview_content(message, fallback_content) ||
-        local_ancestor_preview_content(activitypub_ref, allow_db_lookups)
-
-    instance_domain = ancestor_instance_domain(message, activitypub_ref)
-
-    local_sender =
-      if(is_map(message) && assoc_loaded_map?(Map.get(message, :sender)),
-        do: message.sender,
-        else: nil
-      )
-
-    remote_actor =
-      if(is_map(message) && assoc_loaded_map?(Map.get(message, :remote_actor)),
-        do: message.remote_actor,
-        else: nil
-      )
-
-    interaction_keys =
-      [
-        normalize_in_reply_to_ref(
-          if(is_map(message), do: Map.get(message, :activitypub_id), else: nil)
-        ),
-        if(is_integer(local_id), do: to_string(local_id), else: nil)
-      ]
-      |> Enum.reject(&is_nil/1)
-      |> Enum.uniq()
-
-    has_payload =
-      is_integer(local_id) ||
-        is_binary(activitypub_ref) ||
-        is_binary(preview_content) ||
-        author_info.name != "a post"
-
-    if has_payload do
-      %{
-        local_id: local_id,
-        click_event: click_event,
-        click_url: click_url,
-        click_id: click_id,
-        author_info: author_info,
-        activitypub_ref: activitypub_ref,
-        preview_content: preview_content,
-        instance_domain: instance_domain,
-        local_sender: local_sender,
-        remote_actor: remote_actor,
-        like_count: if(is_map(message), do: Map.get(message, :like_count, 0) || 0, else: 0),
-        boost_count: if(is_map(message), do: Map.get(message, :share_count, 0) || 0, else: 0),
-        reply_count: if(is_map(message), do: Map.get(message, :reply_count, 0) || 0, else: 0),
-        interaction_keys: interaction_keys
-      }
-    else
-      nil
-    end
-  end
-
-  defp ancestor_author_info(message, fallback_author, activitypub_ref) when is_map(message) do
-    cond do
-      assoc_loaded_map?(Map.get(message, :remote_actor)) ->
-        remote_actor = message.remote_actor
-        %{name: "@#{remote_actor.username}@#{remote_actor.domain}", type: :federated}
-
-      assoc_loaded_map?(Map.get(message, :sender)) ->
-        sender = message.sender
-
-        %{
-          name:
-            "@#{sender.handle || sender.username}@#{Elektrine.Domains.default_user_handle_domain()}",
-          type: :local
-        }
-
-      is_binary(fallback_author) ->
-        normalize_reply_author_info(fallback_author, activitypub_ref)
-
-      is_binary(activitypub_ref) ->
-        %{name: infer_reply_label_from_url(activitypub_ref) || "a post", type: :external}
-
-      true ->
-        %{name: "a post", type: :unknown}
-    end
-  end
-
-  defp ancestor_author_info(_message, fallback_author, activitypub_ref)
-       when is_binary(fallback_author) do
-    normalize_reply_author_info(fallback_author, activitypub_ref)
-  end
-
-  defp ancestor_author_info(_message, _fallback_author, activitypub_ref)
-       when is_binary(activitypub_ref) do
-    %{name: infer_reply_label_from_url(activitypub_ref) || "a post", type: :external}
-  end
-
-  defp ancestor_author_info(_, _, _), do: %{name: "a post", type: :unknown}
-
-  defp ancestor_preview_content(message, fallback_content) when is_map(message) do
-    message_content = Map.get(message, :content)
-
-    cond do
-      Elektrine.Strings.present?(message_content) ->
-        message_content
-
-      Elektrine.Strings.present?(fallback_content) ->
-        fallback_content
-
-      true ->
-        nil
-    end
-  end
-
-  defp ancestor_preview_content(_, fallback_content)
-       when is_binary(fallback_content),
-       do:
-         if(Elektrine.Strings.present?(fallback_content),
-           do: fallback_content,
-           else: nil
-         )
-
-  defp ancestor_preview_content(_, _), do: nil
-
-  defp local_ancestor_preview_content(activitypub_ref, true) when is_binary(activitypub_ref) do
-    case Messaging.get_message_by_activitypub_ref(activitypub_ref) do
-      %Message{} = message ->
-        ancestor_preview_content(message, nil)
-
-      _ ->
-        nil
-    end
-  end
-
-  defp local_ancestor_preview_content(_, _), do: nil
-
-  defp ancestor_instance_domain(message, _activitypub_ref) when is_map(message),
-    do: PostUtilities.get_instance_domain(message)
-
-  defp ancestor_instance_domain(_, activitypub_ref) when is_binary(activitypub_ref) do
-    case URI.parse(activitypub_ref) do
-      %{host: host} when is_binary(host) and host != "" -> host
-      _ -> nil
-    end
-  end
-
-  defp ancestor_instance_domain(_, _), do: nil
 
   defp reply_reaction_surface(reply, post_reactions_map) when is_map(post_reactions_map) do
     case reply_reaction_target(reply) do
@@ -1465,200 +1017,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
   defp reactions_for_keys(_, _), do: []
 
-  defp ancestor_clickable?(%{click_event: event, click_url: url})
-       when is_binary(event) and event != "" and is_binary(url) and url != "",
-       do: true
-
-  defp ancestor_clickable?(%{click_event: event, click_id: id})
-       when is_binary(event) and event != "" and not is_nil(id),
-       do: true
-
-  defp ancestor_clickable?(_), do: false
-
-  defp ancestor_click_attrs(%{click_event: event} = ancestor)
-       when is_binary(event) and event != "" do
-    [{"phx-click", event}]
-    |> Kernel.++(ancestor_optional_click_attr("phx-value-id", Map.get(ancestor, :click_id)))
-    |> Kernel.++(ancestor_optional_click_attr("phx-value-url", Map.get(ancestor, :click_url)))
-  end
-
-  defp ancestor_click_attrs(_), do: []
-
-  defp ancestor_optional_click_attr(name, value) when is_binary(value) and value != "",
-    do: [{name, value}]
-
-  defp ancestor_optional_click_attr(name, value) when is_integer(value),
-    do: [{name, value}]
-
-  defp ancestor_optional_click_attr(_name, _value), do: []
-
-  defp ancestor_author_class(:federated), do: "text-primary"
-  defp ancestor_author_class(:local), do: "text-error"
-  defp ancestor_author_class(:external), do: "text-secondary"
-  defp ancestor_author_class(_), do: ""
-
-  defp ancestor_seen_key(message, _ref) when is_map(message) do
-    cond do
-      is_integer(Map.get(message, :id)) ->
-        {:id, message.id}
-
-      is_binary(Map.get(message, :activitypub_id)) ->
-        {:ap, message.activitypub_id}
-
-      true ->
-        nil
-    end
-  end
-
-  defp ancestor_seen_key(_, ref) when is_binary(ref), do: {:ref, ref}
-  defp ancestor_seen_key(_, _), do: nil
-
-  defp resolve_ancestor_ref(ref) when is_binary(ref) do
-    cached_ancestor_message({:ref, ref}, fn ->
-      ref
-      |> Messaging.get_message_by_activitypub_ref()
-      |> preload_ancestor_message()
-    end)
-  end
-
-  defp fetch_local_ancestor(id) when is_integer(id) do
-    cached_ancestor_message({:id, id}, fn ->
-      Message
-      |> Repo.get(id)
-      |> preload_ancestor_message()
-    end)
-  end
-
-  defp preload_ancestor_message(%Message{} = message), do: preload_ancestor_message(message, true)
-  defp preload_ancestor_message(message) when is_map(message), do: message
-
-  defp preload_ancestor_message(%Message{} = message, allow_db_lookups)
-       when is_boolean(allow_db_lookups) do
-    if ancestor_associations_loaded?(message) do
-      message
-    else
-      if allow_db_lookups do
-        Repo.preload(message, [:sender, :remote_actor, :reply_to], force: false)
-      else
-        message
-      end
-    end
-  end
-
-  defp preload_ancestor_message(message, _allow_db_lookups) when is_map(message), do: message
-
-  defp ancestor_associations_loaded?(%Message{} = message) do
-    Ecto.assoc_loaded?(Map.get(message, :sender)) &&
-      Ecto.assoc_loaded?(Map.get(message, :remote_actor)) &&
-      Ecto.assoc_loaded?(Map.get(message, :reply_to))
-  end
-
-  defp cached_ancestor_message(cache_key, loader) when is_function(loader, 0) do
-    cache = Process.get(:timeline_post_ancestor_message_cache, %{})
-
-    case Map.fetch(cache, cache_key) do
-      {:ok, message} ->
-        message
-
-      :error ->
-        message = loader.()
-
-        next_cache =
-          cache
-          |> maybe_reset_ancestor_message_cache()
-          |> Map.put(cache_key, message)
-
-        Process.put(:timeline_post_ancestor_message_cache, next_cache)
-        message
-    end
-  end
-
-  defp maybe_reset_ancestor_message_cache(cache) when is_map(cache) do
-    if map_size(cache) >= 512 do
-      %{}
-    else
-      cache
-    end
-  end
-
-  defp assoc_loaded_map?(%Ecto.Association.NotLoaded{}), do: false
-  defp assoc_loaded_map?(value) when is_map(value), do: true
-  defp assoc_loaded_map?(_), do: false
-
-  defp metadata_in_reply_to(post) when is_map(post) do
-    metadata = Map.get(post, :media_metadata) || Map.get(post, "media_metadata")
-
-    if is_map(metadata) do
-      [
-        Map.get(metadata, "inReplyTo"),
-        Map.get(metadata, "in_reply_to"),
-        Map.get(metadata, :inReplyTo),
-        Map.get(metadata, :in_reply_to)
-      ]
-      |> Enum.find_value(&normalize_in_reply_to_ref/1)
-    else
-      nil
-    end
-  end
-
-  defp metadata_in_reply_to(_), do: nil
-
-  defp metadata_in_reply_to_author(post) when is_map(post) do
-    metadata = Map.get(post, :media_metadata) || Map.get(post, "media_metadata")
-
-    if is_map(metadata) do
-      Map.get(metadata, "inReplyToAuthor") ||
-        Map.get(metadata, "in_reply_to_author") ||
-        Map.get(metadata, :inReplyToAuthor) ||
-        Map.get(metadata, :in_reply_to_author)
-    else
-      nil
-    end
-  end
-
-  defp metadata_in_reply_to_author(_), do: nil
-
-  defp metadata_in_reply_to_content(post) when is_map(post) do
-    metadata = Map.get(post, :media_metadata) || Map.get(post, "media_metadata")
-
-    if is_map(metadata) do
-      Map.get(metadata, "inReplyToContent") ||
-        Map.get(metadata, "in_reply_to_content") ||
-        Map.get(metadata, :inReplyToContent) ||
-        Map.get(metadata, :in_reply_to_content)
-    else
-      nil
-    end
-  end
-
-  defp metadata_in_reply_to_content(_), do: nil
-
-  defp normalize_in_reply_to_ref(%{"id" => id}), do: normalize_in_reply_to_ref(id)
-  defp normalize_in_reply_to_ref(%{"href" => href}), do: normalize_in_reply_to_ref(href)
-  defp normalize_in_reply_to_ref(%{id: id}), do: normalize_in_reply_to_ref(id)
-  defp normalize_in_reply_to_ref(%{href: href}), do: normalize_in_reply_to_ref(href)
-  defp normalize_in_reply_to_ref([first | _]), do: normalize_in_reply_to_ref(first)
-
-  defp normalize_in_reply_to_ref(value) when is_binary(value) do
-    case String.trim(value) do
-      "" -> nil
-      trimmed -> trimmed
-    end
-  end
-
-  defp normalize_in_reply_to_ref(_), do: nil
-
-  defp normalize_local_id(value) when is_integer(value), do: value
-
-  defp normalize_local_id(value) when is_binary(value) do
-    case Integer.parse(value) do
-      {parsed, ""} -> parsed
-      _ -> nil
-    end
-  end
-
-  defp normalize_local_id(_), do: nil
-
   # Post content component
   attr :post, :map, required: true
   attr :current_user, :map, default: nil
@@ -1669,15 +1027,15 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   attr :source, :string, default: "timeline"
 
   defp post_content(assigns) do
-    title = resolve_federated_title(assigns.post)
-    post_path = card_post_path(assigns.post, assigns.source)
+    title = TimelinePostCard.resolve_federated_title(assigns.post)
+    post_path = TimelinePostCard.card_post_path(assigns.post, assigns.source)
 
     assigns =
       assigns
       |> assign_new(:remote_poll_vote, fn -> nil end)
       |> assign(:title, title)
       |> assign(:post_path, post_path)
-      |> assign(:post_path_external?, external_url?(post_path))
+      |> assign(:post_path_external?, TimelinePostCard.external_url?(post_path))
 
     ~H"""
     <!-- Title -->
@@ -2124,7 +1482,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
     # Resolve title with stable fallbacks. Some federated community posts persist title on
     # the message while others only expose it via metadata.
-    title = resolve_federated_title(post)
+    title = TimelinePostCard.resolve_federated_title(post)
     community_uri = PostUtilities.community_actor_uri(post)
 
     # Reply count
@@ -2160,7 +1518,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
     # Format reactions
     current_user_id = if assigns.current_user, do: assigns.current_user.id, else: nil
     formatted_reactions = PostUtilities.format_reactions(reactions, current_user_id)
-    card_post_path = card_post_path(post, assigns.source)
+    card_post_path = TimelinePostCard.card_post_path(post, assigns.source)
 
     assigns =
       assigns
@@ -2183,7 +1541,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       |> assign(:external_link, external_link)
       |> assign(:resolved_link_preview, resolved_link_preview)
       |> assign(:card_post_path, card_post_path)
-      |> assign(:card_post_external?, external_url?(card_post_path))
+      |> assign(:card_post_external?, TimelinePostCard.external_url?(card_post_path))
       |> assign(:reply_count, reply_count)
       |> assign(:reactions, reactions)
       |> assign(:formatted_reactions, formatted_reactions)
@@ -2658,147 +2016,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
     """
   end
 
-  # Compact layout for dense feeds
-  defp render_compact_layout(assigns) do
-    post = assigns.post
-    is_reply = PostUtilities.reply?(post)
-    is_gallery_post = PostUtilities.gallery_post?(post)
-
-    {display_like_count, display_comment_count} =
-      PostUtilities.get_display_counts(post, assigns.lemmy_counts, assigns.post_replies)
-
-    # Compact cards should use the same title fallback chain as Lemmy cards.
-    title = resolve_federated_title(post)
-
-    # Get thumbnail if available
-    image_urls = PostUtilities.filter_image_urls(post.media_urls || [])
-    has_image = !Enum.empty?(image_urls)
-    thumbnail = if has_image, do: thumbnail_url(hd(image_urls), 64), else: nil
-
-    card_post_path = card_post_path(post, assigns.source)
-
-    assigns =
-      assigns
-      |> assign(:is_reply, is_reply)
-      |> assign(:is_gallery_post, is_gallery_post)
-      |> assign(:display_like_count, display_like_count)
-      |> assign(:display_comment_count, display_comment_count)
-      |> assign(:title, title)
-      |> assign(:has_image, has_image)
-      |> assign(:thumbnail, thumbnail)
-      |> assign(:card_post_path, card_post_path)
-      |> assign(:card_post_external?, external_url?(card_post_path))
-
-    ~H"""
-    <div
-      id={"#{@id_prefix}-compact-post-#{@post.id}"}
-      class={[
-        "flex items-start gap-3 p-3 border-b border-base-200 hover:bg-base-100 transition-colors",
-        if(@clickable, do: "cursor-pointer"),
-        if(@is_reply, do: "border-l-2 border-l-error/40", else: "")
-      ]}
-      data-post-id={@post.id}
-      data-source={@source}
-      phx-hook={if @clickable, do: "PostClick", else: nil}
-    >
-      <%= if @clickable do %>
-        <%= if @card_post_external? do %>
-          <.link
-            href={@card_post_path}
-            class="hidden"
-            data-post-nav-link
-            tabindex="-1"
-            aria-hidden="true"
-          >
-            Open post
-          </.link>
-        <% else %>
-          <.link
-            navigate={@card_post_path}
-            class="hidden"
-            data-post-nav-link
-            tabindex="-1"
-            aria-hidden="true"
-          >
-            Open post
-          </.link>
-        <% end %>
-      <% end %>
-      
-    <!-- Thumbnail -->
-      <%= if @has_image do %>
-        <div class="w-16 h-16 flex-shrink-0 rounded overflow-hidden">
-          <img src={@thumbnail} alt="" class="w-full h-full object-cover" loading="lazy" />
-        </div>
-      <% end %>
-
-      <div class="flex-1 min-w-0">
-        <!-- Title or content preview -->
-        <%= if @title do %>
-          <.link
-            href={if @card_post_external?, do: @card_post_path, else: nil}
-            navigate={if @card_post_external?, do: nil, else: @card_post_path}
-            class="block"
-          >
-            <h3 class="font-medium text-sm line-clamp-2 mb-1">{@title}</h3>
-          </.link>
-        <% else %>
-          <%= if @post.content do %>
-            <div class="text-sm line-clamp-2 opacity-80 mb-1">
-              {raw(
-                PostUtilities.render_content_preview(
-                  @post.content,
-                  PostUtilities.get_instance_domain(@post)
-                )
-              )}
-            </div>
-          <% end %>
-        <% end %>
-        
-    <!-- Meta line -->
-        <div class="flex items-center gap-2 text-xs text-base-content/50">
-          <%= if @post.federated && Ecto.assoc_loaded?(@post.remote_actor) && @post.remote_actor do %>
-            <span>@{@post.remote_actor.username}</span>
-          <% else %>
-            <%= if @post.sender do %>
-              <span>@{@post.sender.handle || @post.sender.username}</span>
-            <% end %>
-          <% end %>
-          <span>·</span>
-          <.local_time datetime={@post.inserted_at} format="relative" timezone={@timezone} />
-          <span>·</span>
-          <span class="flex items-center gap-1">
-            <.icon name="hero-heart" class="w-3 h-3" />
-            <span
-              id={"#{@id_prefix}-compact-post-#{@post.id}-like-count"}
-              phx-hook="AnimatedCount"
-              phx-update="ignore"
-              data-count={@display_like_count || 0}
-            >
-              {@display_like_count || 0}
-            </span>
-          </span>
-          <span class="flex items-center gap-1">
-            <.icon name="hero-chat-bubble-left" class="w-3 h-3" />
-            <span
-              id={"#{@id_prefix}-compact-post-#{@post.id}-comment-count"}
-              phx-hook="AnimatedCount"
-              phx-update="ignore"
-              data-count={@display_comment_count || 0}
-            >
-              {@display_comment_count || 0}
-            </span>
-          </span>
-          <span>·</span>
-          <.link navigate={@card_post_path} class="hover:text-primary">
-            Open
-          </.link>
-        </div>
-      </div>
-    </div>
-    """
-  end
-
   # Helper functions - delegate to PostUtilities where possible
   defp extract_community_name(uri), do: PostUtilities.extract_community_name_simple(uri)
 
@@ -2825,43 +2042,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   end
 
   defp community_path(_, _), do: nil
-
-  defp card_post_path(%{id: id}, "remote_profile") when is_integer(id),
-    do: Elektrine.Paths.remote_post_path(id)
-
-  defp card_post_path(post, _source), do: card_post_path(post)
-
-  defp card_post_path(%{id: id, reply_to_id: reply_to_id, conversation: %{type: "timeline"}})
-       when is_integer(id) and not is_nil(reply_to_id),
-       do: Elektrine.Paths.remote_post_path(id)
-
-  defp card_post_path(%{id: id} = post) when is_integer(id), do: Elektrine.Paths.post_path(post)
-
-  defp card_post_path(%{activitypub_url: url}) when is_binary(url) do
-    external_post_url(url)
-  end
-
-  defp card_post_path(%{activitypub_id: url}) when is_binary(url) do
-    external_post_url(url)
-  end
-
-  defp card_post_path(post), do: Elektrine.Paths.post_path(post)
-
-  defp external_post_url(url) when is_binary(url) do
-    Elektrine.Paths.post_path_or_external(url)
-  end
-
-  defp external_url?(url) when is_binary(url) do
-    case URI.parse(url) do
-      %URI{scheme: scheme, host: host} when scheme in ["http", "https"] and is_binary(host) ->
-        true
-
-      _ ->
-        false
-    end
-  end
-
-  defp external_url?(_), do: false
 
   defp quoted_post_url(%{federated: true, activitypub_id: activitypub_id} = post)
        when is_binary(activitypub_id) do
@@ -2908,140 +2088,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
   defp quoted_post_url(%{id: message_id}), do: Elektrine.Paths.post_path(message_id)
   defp quoted_post_url(_), do: "#"
-
-  defp normalize_post_title(title) when is_binary(title) do
-    title = String.trim(title)
-    Elektrine.Strings.present(title)
-  end
-
-  defp normalize_post_title(_), do: nil
-
-  defp resolve_federated_title(post) when is_map(post) do
-    metadata = Map.get(post, :media_metadata) || %{}
-
-    [
-      Map.get(post, :title),
-      Map.get(post, "title"),
-      Map.get(metadata, "name"),
-      Map.get(metadata, :name),
-      Map.get(metadata, "title"),
-      Map.get(metadata, :title)
-    ]
-    |> Enum.find_value(&normalize_post_title/1)
-  end
-
-  defp resolve_federated_title(_), do: nil
-
-  defp normalize_reply_author_info(author, in_reply_to_url) when is_binary(author) do
-    author = String.trim(author)
-    inferred_label = infer_reply_label_from_url(in_reply_to_url)
-
-    cond do
-      not Elektrine.Strings.present?(author) ->
-        %{name: "a post", type: :unknown}
-
-      String.starts_with?(author, "@") ->
-        %{name: author, type: :federated}
-
-      String.starts_with?(author, "someone on ") ->
-        %{
-          name:
-            inferred_label || "a post on " <> String.replace_prefix(author, "someone on ", ""),
-          type: :external
-        }
-
-      String.starts_with?(author, "a post on ") ->
-        %{name: inferred_label || author, type: :external}
-
-      String.starts_with?(author, "post ") && String.contains?(author, " on ") ->
-        %{name: author, type: :external}
-
-      String.starts_with?(author, "http://") || String.starts_with?(author, "https://") ->
-        %{name: infer_reply_label_from_url(author) || "a post", type: :external}
-
-      true ->
-        %{name: author, type: :federated}
-    end
-  end
-
-  defp infer_reply_label_from_url(url) when is_binary(url) do
-    case URI.parse(url) do
-      %{host: host, path: path} when is_binary(host) and is_binary(path) ->
-        case infer_username_from_reply_path(path) do
-          username when is_binary(username) ->
-            "@#{username}@#{host}"
-
-          _ ->
-            case infer_post_id_from_reply_path(path) do
-              post_id when is_binary(post_id) -> "post #{post_id} on #{host}"
-              _ -> "a post on #{host}"
-            end
-        end
-
-      %{host: host} when is_binary(host) and host != "" ->
-        "a post on #{host}"
-
-      _ ->
-        nil
-    end
-  end
-
-  defp infer_reply_label_from_url(_), do: nil
-
-  defp infer_username_from_reply_path(path) when is_binary(path) do
-    case reply_path_segments(path) do
-      ["users", username | _] ->
-        trim_reply_identifier(username)
-
-      ["u", username | _] ->
-        trim_reply_identifier(username)
-
-      [segment | _] ->
-        if String.starts_with?(segment, "@"), do: trim_reply_identifier(segment), else: nil
-
-      _ ->
-        nil
-    end
-  end
-
-  defp infer_post_id_from_reply_path(path) when is_binary(path) do
-    candidate =
-      case reply_path_segments(path) do
-        ["users", _username, "statuses", post_id | _] -> post_id
-        ["notice", post_id | _] -> post_id
-        ["objects", post_id | _] -> post_id
-        ["posts", post_id | _] -> post_id
-        ["post", post_id | _] -> post_id
-        ["comments", post_id | _] -> post_id
-        ["comment", post_id | _] -> post_id
-        [first, post_id | _] -> if String.starts_with?(first, "@"), do: post_id, else: nil
-        _ -> nil
-      end
-
-    trim_reply_identifier(candidate)
-  end
-
-  defp reply_path_segments(path) when is_binary(path) do
-    path
-    |> String.split("/", trim: true)
-    |> Enum.map(&String.trim/1)
-    |> Enum.reject(&(&1 == ""))
-  end
-
-  defp trim_reply_identifier(value) when is_binary(value) do
-    value
-    |> URI.decode()
-    |> String.trim()
-    |> String.trim_leading("@")
-    |> String.split(["?", "#"], parts: 2)
-    |> List.first()
-    |> case do
-      "" -> nil
-      trimmed -> trimmed
-    end
-  end
-
-  defp trim_reply_identifier(_), do: nil
 
   defp render_reaction_emoji(emoji) when is_binary(emoji) do
     emoji
