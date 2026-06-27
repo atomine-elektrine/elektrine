@@ -8,12 +8,14 @@ import {
   AutoExpandTextarea,
   SimpleChatInput,
   MessageList,
-  ContextMenu,
-  MessageContextMenu,
   ChatKeyboardShortcuts,
-  CopyChatMessage,
   ChatE2EE,
 } from "./chat_hooks";
+import {
+  ContextMenu,
+  MessageContextMenu,
+  CopyChatMessage,
+} from "./chat_context_menu_hooks";
 import { VoiceRecorder } from "./chat_voice_recorder_hook";
 
 // Email hooks
