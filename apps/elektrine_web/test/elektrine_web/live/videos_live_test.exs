@@ -104,6 +104,62 @@ defmodule ElektrineSocialWeb.VideosLiveTest do
     assert html =~ ~s(src="https://cdn.example/media/video.mp4")
   end
 
+  test "videos load more posts through the infinite scroll event", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+
+    base_time = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+
+    for index <- 1..60 do
+      timestamp =
+        base_time
+        |> NaiveDateTime.add(-index, :second)
+
+      remote_video_post_fixture(
+        title: "Paged Video #{index}",
+        inserted_at: timestamp,
+        updated_at: timestamp
+      )
+    end
+
+    for index <- 1..240 do
+      timestamp =
+        base_time
+        |> NaiveDateTime.add(-(60 + index), :second)
+
+      remote_image_post_fixture(
+        title: "Interleaved Image #{index}",
+        inserted_at: timestamp,
+        updated_at: timestamp
+      )
+    end
+
+    for index <- 61..65 do
+      timestamp =
+        base_time
+        |> NaiveDateTime.add(-(240 + index), :second)
+
+      remote_video_post_fixture(
+        title: "Paged Video #{index}",
+        inserted_at: timestamp,
+        updated_at: timestamp
+      )
+    end
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/videos")
+
+    initial_html = render_async(view)
+
+    assert initial_html =~ "Paged Video 1"
+    refute initial_html =~ "Paged Video 65"
+
+    load_more_html = render_hook(view, "load-more", %{})
+
+    assert load_more_html =~ "Paged Video 65"
+  end
+
   test "video actions reject malformed ids" do
     user = AccountsFixtures.user_fixture()
     socket = videos_socket(user)
@@ -142,6 +198,8 @@ defmodule ElektrineSocialWeb.VideosLiveTest do
         activitypub_url: attrs[:activitypub_url] || activitypub_id,
         remote_actor_id: remote_actor.id,
         media_urls: [media_url],
+        inserted_at: attrs[:inserted_at],
+        updated_at: attrs[:updated_at],
         media_metadata:
           attrs[:media_metadata] ||
             %{
@@ -180,7 +238,9 @@ defmodule ElektrineSocialWeb.VideosLiveTest do
         activitypub_id: activitypub_id,
         activitypub_url: attrs[:activitypub_url] || activitypub_id,
         remote_actor_id: remote_actor.id,
-        media_urls: attrs[:media_urls] || ["https://#{domain}/media/#{unique}.jpg"]
+        media_urls: attrs[:media_urls] || ["https://#{domain}/media/#{unique}.jpg"],
+        inserted_at: attrs[:inserted_at],
+        updated_at: attrs[:updated_at]
       })
 
     Repo.preload(message, remote_actor: [])

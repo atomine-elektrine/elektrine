@@ -17,6 +17,8 @@ defmodule ElektrineSocialWeb.VideosLive.Index do
   alias ElektrineSocialWeb.Components.Social.PostUtilities
 
   @videos_page_size 60
+  @video_metadata_pattern ~S<"(type|mediaType|media_type)"\s*:\s*"(video|video/[^"]+)">
+  @video_url_pattern "\\.(mp4|webm|ogv|mov)(\\?.*)?$"
 
   @impl true
   def mount(_params, session, socket) do
@@ -431,7 +433,14 @@ defmodule ElektrineSocialWeb.VideosLive.Index do
     from(m in queryable,
       where:
         m.visibility in ^visibilities and is_nil(m.deleted_at) and is_nil(m.reply_to_id) and
-          fragment("array_length(?, 1)", m.media_urls) > 0
+          fragment("array_length(?, 1)", m.media_urls) > 0 and
+          (fragment("coalesce(?->>'type', '') ILIKE 'video'", m.media_metadata) or
+             fragment("?::text ~* ?", m.media_metadata, ^@video_metadata_pattern) or
+             fragment(
+               "EXISTS (SELECT 1 FROM unnest(?) AS media_url WHERE media_url ~* ?)",
+               m.media_urls,
+               ^@video_url_pattern
+             ))
     )
   end
 
