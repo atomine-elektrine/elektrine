@@ -29,7 +29,8 @@ const relativeImportPattern =
   /(?:import|export)\s+(?:[\s\S]*?\s+from\s+)?["'](\.{1,2}\/[^"']+)["']/g;
 
 const lineBudgets = new Map([
-  ["js/hooks/chat_hooks.js", 2600],
+  ["js/hooks/chat_hooks.js", 2425],
+  ["js/hooks/chat_context_menu_hooks.js", 200],
   ["js/hooks/chat_voice_recorder_hook.js", 200],
   ["js/hooks/mailbox_private_storage_hooks.js", 1500],
   ["js/hooks/timeline_hooks.js", 1500],

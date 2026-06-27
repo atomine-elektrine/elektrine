@@ -74,7 +74,8 @@ check_max_lines apps/elektrine/test/elektrine/messaging/federation_test.exs 4350
 check_max_lines apps/elektrine/test/elektrine/messaging/federation_peer_discovery_test.exs 600
 check_max_lines apps/elektrine/test/elektrine/messaging/federation_peer_policy_test.exs 200
 check_max_lines apps/elektrine/test/elektrine/messaging/federation_remote_join_test.exs 200
-check_max_lines apps/elektrine/assets/js/hooks/chat_hooks.js 2600
+check_max_lines apps/elektrine/assets/js/hooks/chat_hooks.js 2425
+check_max_lines apps/elektrine/assets/js/hooks/chat_context_menu_hooks.js 200
 check_max_lines apps/elektrine/assets/js/hooks/chat_voice_recorder_hook.js 200
 check_max_lines apps/elektrine/assets/js/hooks/mailbox_private_storage_hooks.js 1500
 check_max_lines apps/elektrine/assets/js/hooks/timeline_hooks.js 1500
