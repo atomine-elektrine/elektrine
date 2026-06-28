@@ -1,12 +1,12 @@
 defmodule Elektrine.Profiles.PerSiteIdentity do
   @moduledoc """
-  A per-site domain identity derived from a user's portable domain account.
+  A per-site domain identity derived from a user's OwnRoot.
   """
 
   use Ecto.Schema
   import Ecto.Changeset
 
-  alias Elektrine.DomainAccount
+  alias Elektrine.OwnRoot
 
   @site_key_regex ~r/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/
   @domain_regex ~r/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/
@@ -94,8 +94,8 @@ defmodule Elektrine.Profiles.PerSiteIdentity do
 
       changeset
       |> put_change(:domain, domain)
-      |> put_change(:subject, DomainAccount.subject(domain))
-      |> put_change(:did, DomainAccount.did_for_domain(domain))
+      |> put_change(:subject, OwnRoot.subject(domain))
+      |> put_change(:did, OwnRoot.did_for_domain(domain))
       |> put_change(:email_alias, "#{site_key}@#{base_domain}")
     else
       changeset

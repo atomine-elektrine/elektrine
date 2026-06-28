@@ -13,9 +13,9 @@ defmodule Elektrine.Developer.Exports.AccountExporter do
 
   import Ecto.Query
   alias Elektrine.Accounts.User
-  alias Elektrine.DomainAccount
   alias Elektrine.Domains
   alias Elektrine.EmailAddresses
+  alias Elektrine.OwnRoot
   alias Elektrine.Profiles
   alias Elektrine.Repo
 
@@ -31,7 +31,7 @@ defmodule Elektrine.Developer.Exports.AccountExporter do
 
     data = %{
       profile: format_profile(user),
-      domain_account: format_domain_account(user),
+      own_root: format_own_root(user),
       settings: format_settings(user),
       privacy: format_privacy(user),
       notifications: format_notifications(user),
@@ -190,7 +190,7 @@ defmodule Elektrine.Developer.Exports.AccountExporter do
     }
   end
 
-  defp format_domain_account(user) do
+  defp format_own_root(user) do
     built_in_domain = "#{user.handle || user.username}.#{Domains.default_profile_domain()}"
     verified_profile_domains = Profiles.verified_domains_for_user(user)
     per_site_identities = Profiles.list_user_per_site_identities(user)
@@ -216,23 +216,22 @@ defmodule Elektrine.Developer.Exports.AccountExporter do
           %{
             domain: domain,
             status: status,
-            subject: DomainAccount.subject(domain),
-            did: DomainAccount.did_for_domain(domain),
-            domain_account:
-              DomainAccount.document(user, domain,
+            subject: OwnRoot.subject(domain),
+            did: OwnRoot.did_for_domain(domain),
+            own_root:
+              OwnRoot.document(user, domain,
                 provider_base_url: provider_base_url,
                 per_site_identities: per_site_identities
               ),
             did_document:
-              DomainAccount.did_document(user, domain, provider_base_url: provider_base_url),
+              OwnRoot.did_document(user, domain, provider_base_url: provider_base_url),
             activitypub_actor: "https://#{domain}/users/#{user.handle || user.username}",
             email_address: "#{user.username}@#{domain}",
             dns_records: dns_records,
             migration: %{
               own_root: "Serve this JSON at https://#{domain}/.well-known/own-root",
-              domain_account: "Serve this JSON at https://#{domain}/.well-known/domain-account",
               did: "Serve this JSON at https://#{domain}/.well-known/did.json",
-              oidc: "Update the domain account document's OIDC issuer to the new provider.",
+              oidc: "Update the OwnRoot document's OIDC issuer to the new provider.",
               activitypub:
                 "Keep the ActivityPub actor URL stable or publish a Move activity from the old actor."
             }

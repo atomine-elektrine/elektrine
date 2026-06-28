@@ -5,7 +5,7 @@ defmodule Elektrine.AtomineProofGraph do
 
   import Ecto.Query, warn: false
 
-  alias Elektrine.{Accounts, DomainAccount, Domains, Profiles, Repo, Uploads}
+  alias Elektrine.{Accounts, Domains, OwnRoot, Profiles, Repo, Uploads}
   alias Elektrine.Accounts.{InviteCode, InviteCodeUse, TrustLevel, User}
 
   @sample_limit 4
@@ -204,7 +204,7 @@ defmodule Elektrine.AtomineProofGraph do
         domain_subject: proof_identity.subject,
         did: proof_identity.did,
         atomine_url: proof_identity.atomine_url,
-        domain_account_url: proof_identity.domain_account_url
+        own_root_url: proof_identity.own_root_url
       },
       stats: [
         %{label: "Trust", value: "TL#{user.trust_level}", note: trust_info.name},
@@ -247,10 +247,10 @@ defmodule Elektrine.AtomineProofGraph do
 
     %{
       domain: domain,
-      subject: DomainAccount.subject(domain),
-      did: DomainAccount.did_for_domain(domain),
+      subject: OwnRoot.subject(domain),
+      did: OwnRoot.did_for_domain(domain),
       atomine_url: "https://#{domain}/.well-known/atomine",
-      domain_account_url: "https://#{domain}/.well-known/own-root"
+      own_root_url: "https://#{domain}/.well-known/own-root"
     }
   end
 

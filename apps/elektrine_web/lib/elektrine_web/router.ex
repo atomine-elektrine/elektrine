@@ -470,11 +470,10 @@ defmodule ElektrineWeb.Router do
   scope "/.well-known", ElektrineWeb do
     pipe_through(:api)
 
-    get("/own-root", DomainAccountController, :show)
-    get("/domain-account", DomainAccountController, :show)
-    get("/did.json", DomainAccountController, :did)
-    get("/elektrine", DomainAccountController, :show)
-    get("/atomine", DomainAccountController, :atomine)
+    get("/own-root", OwnRootController, :show)
+    get("/did.json", OwnRootController, :did)
+    get("/elektrine", OwnRootController, :show)
+    get("/atomine", OwnRootController, :atomine)
   end
 
   ElektrineWeb.Routes.Social.discovery_routes()
