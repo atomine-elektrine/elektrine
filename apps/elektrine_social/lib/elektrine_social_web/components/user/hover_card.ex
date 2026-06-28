@@ -37,6 +37,11 @@ defmodule ElektrineSocialWeb.Components.User.HoverCard do
   attr :user, :map, default: nil, doc: "Local user struct"
   attr :remote_actor, :map, default: nil, doc: "Remote actor struct"
   attr :class, :string, default: "", doc: "Additional CSS classes for wrapper"
+
+  attr :trigger_class, :string,
+    default: "inline-flex max-w-full",
+    doc: "CSS classes for the actual hover trigger"
+
   attr :card_position, :string, default: "bottom", doc: "Card position: top, bottom"
   attr :user_statuses, :map, default: %{}, doc: "User online statuses"
   attr :user_follows, :map, default: %{}, doc: "Map of followed users"
@@ -54,7 +59,7 @@ defmodule ElektrineSocialWeb.Components.User.HoverCard do
       phx-hook="UserHoverCard"
       id={@hover_id}
     >
-      <div data-hover-trigger class={@class}>
+      <div data-hover-trigger class={@trigger_class}>
         {render_slot(@inner_block)}
       </div>
       <div
