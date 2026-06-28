@@ -72,6 +72,7 @@ defmodule ElektrineWeb.PortalLive.Index do
         |> assign(:remote_follow_overrides, %{})
         |> assign(:post_reactions, %{})
         |> assign(:post_replies, %{})
+        |> assign(:remote_reply_errors, %{})
         |> assign(:filter, @default_filter)
         |> assign(:attention_filter, @default_attention_filter)
         |> assign(:online_users, [])
@@ -301,23 +302,28 @@ defmodule ElektrineWeb.PortalLive.Index do
         else
           user_id = socket.assigns[:current_user] && socket.assigns.current_user.id
 
-          replies =
-            if user_id do
-              Integrations.social_direct_replies_for_posts(
-                [post_id],
-                user_id: user_id,
-                limit_per_post: 20
-              )
-              |> Map.get(post_id, [])
-            else
-              Integrations.social_direct_replies_for_posts([post_id], limit_per_post: 20)
-              |> Map.get(post_id, [])
+          loading_set = MapSet.put(loading_set, post_id)
+          remote_reply_errors = Map.delete(socket.assigns.remote_reply_errors, post_id)
+
+          {post_replies, remote_reply_errors} =
+            case fetch_portal_remote_replies(post_id, user_id) do
+              {:ok, replies} when replies != [] ->
+                {Map.put(socket.assigns.post_replies, post_id, replies), remote_reply_errors}
+
+              {:ok, []} ->
+                {socket.assigns.post_replies,
+                 Map.put(remote_reply_errors, post_id, "Could not load replies.")}
+
+              {:error, _reason} ->
+                {socket.assigns.post_replies,
+                 Map.put(remote_reply_errors, post_id, "Could not load replies.")}
             end
 
           {:noreply,
            socket
-           |> assign(:loading_remote_replies, MapSet.put(loading_set, post_id))
-           |> assign(:post_replies, Map.put(socket.assigns.post_replies, post_id, replies))
+           |> assign(:loading_remote_replies, loading_set)
+           |> assign(:post_replies, post_replies)
+           |> assign(:remote_reply_errors, remote_reply_errors)
            |> assign(:loading_remote_replies, MapSet.delete(loading_set, post_id))
            |> sync_portal_posts_stream()}
         end
@@ -1293,6 +1299,26 @@ defmodule ElektrineWeb.PortalLive.Index do
 
   def handle_event(_event, _params, socket) do
     {:noreply, socket}
+  end
+
+  defp fetch_portal_remote_replies(post_id, user_id) do
+    opts =
+      if user_id do
+        [user_id: user_id, limit_per_post: 20]
+      else
+        [limit_per_post: 20]
+      end
+
+    replies =
+      [post_id]
+      |> Integrations.social_direct_replies_for_posts(opts)
+      |> Map.get(post_id, [])
+
+    {:ok, replies}
+  rescue
+    reason -> {:error, reason}
+  catch
+    kind, reason -> {:error, {kind, reason}}
   end
 
   defp navigate_to_media_post(socket, direction) do

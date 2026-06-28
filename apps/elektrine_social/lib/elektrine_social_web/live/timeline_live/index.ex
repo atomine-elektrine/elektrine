@@ -51,6 +51,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
       |> assign(:post_replies, %{})
       |> assign(:loading_remote_replies, MapSet.new())
       |> assign(:manual_loading_remote_replies, MapSet.new())
+      |> assign(:remote_reply_errors, %{})
       |> assign(
         :current_filter,
         default_source_filter(user)
@@ -1077,6 +1078,10 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
          socket
          |> assign(:loading_remote_replies, loading_set)
          |> assign(:manual_loading_remote_replies, manual_loading_set)
+         |> assign(
+           :remote_reply_errors,
+           Map.put(socket.assigns.remote_reply_errors, post_id, "Could not load replies.")
+         )
          |> TimelineHelpers.refresh_filtered_post(post_id)}
     end
   end
@@ -1208,6 +1213,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
      |> assign(:post_replies, updated_post_replies)
      |> assign(:loading_remote_replies, loading_set)
      |> assign(:manual_loading_remote_replies, manual_loading_set)
+     |> assign(:remote_reply_errors, Map.delete(socket.assigns.remote_reply_errors, post_id))
      |> TimelineHelpers.refresh_filtered_post(post_id)}
   end
 
@@ -1255,6 +1261,13 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
      |> assign(:reply_to_post_recent_replies, updated_recent_replies)
      |> assign(:loading_remote_replies, loading_set)
      |> assign(:manual_loading_remote_replies, manual_loading_set)
+     |> assign(
+       :remote_reply_errors,
+       if(merged_replies == [],
+         do: socket.assigns.remote_reply_errors,
+         else: Map.delete(socket.assigns.remote_reply_errors, post_id)
+       )
+     )
      |> TimelineHelpers.refresh_filtered_post(post_id)}
   end
 

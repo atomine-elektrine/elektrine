@@ -487,6 +487,55 @@ defmodule ElektrineWeb.PortalLiveTest do
     assert has_element?(view, ~s(#portal-posts-list))
   end
 
+  test "portal load replies shows a retry state when no replies are retrieved", %{conn: conn} do
+    previous = Application.get_env(:elektrine, :recommendations_enabled, true)
+    Application.put_env(:elektrine, :recommendations_enabled, false)
+    on_exit(fn -> Application.put_env(:elektrine, :recommendations_enabled, previous) end)
+
+    viewer = AccountsFixtures.user_fixture()
+    author = AccountsFixtures.user_fixture()
+
+    {:ok, post} =
+      Social.create_timeline_post(author.id, "Portal remote replies failure target",
+        visibility: "public"
+      )
+
+    post =
+      post
+      |> Ecto.Changeset.change(%{
+        reply_count: 2
+      })
+      |> Repo.update!()
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/portal?filter=timeline")
+
+    html =
+      Enum.reduce_while(1..20, "", fn _, _acc ->
+        send(view.pid, :load_feed_data)
+        rendered = render(view)
+
+        if rendered =~ "Portal remote replies failure target" do
+          {:halt, rendered}
+        else
+          Process.sleep(50)
+          {:cont, rendered}
+        end
+      end)
+
+    assert html =~ "Portal remote replies failure target"
+
+    html =
+      view
+      |> element(~s(button[phx-click="load_remote_replies"][phx-value-post_id="#{post.id}"]))
+      |> render_click()
+
+    assert html =~ "Could not load replies."
+    assert html =~ "Try again"
+  end
+
   test "portal feed loads older posts when infinite scroll requests more", %{conn: conn} do
     previous = Application.get_env(:elektrine, :recommendations_enabled, true)
     Application.put_env(:elektrine, :recommendations_enabled, false)

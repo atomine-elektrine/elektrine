@@ -27,6 +27,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelineStreamPost do
       pending_remote_poll_votes: %{},
       post_interactions: %{},
       post_replies: %{},
+      remote_reply_errors: %{},
       reply_to_post: nil,
       reply_to_post_recent_replies: [],
       reply_content: "",
@@ -359,6 +360,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelineStreamPost do
           </div>
         <% else %>
           <%= if (@post.reply_count || 0) > 0 do %>
+            <% reply_error = Map.get(@remote_reply_errors, @post.id) %>
             <div class="timeline-thread-replies timeline-thread-replies--stub mt-3">
               <%= if MapSet.member?(@loading_remote_replies, @post.id) do %>
                 <div class="flex items-center gap-2 text-sm text-base-content/70">
@@ -366,15 +368,30 @@ defmodule ElektrineSocialWeb.Components.Social.TimelineStreamPost do
                   <span>Loading replies...</span>
                 </div>
               <% else %>
-                <button
-                  phx-click="load_remote_replies"
-                  phx-value-post_id={@post.id}
-                  phx-value-activitypub_id={@post.activitypub_id || ""}
-                  class="text-sm text-primary hover:underline font-medium"
-                  type="button"
-                >
-                  Load replies
-                </button>
+                <%= if reply_error do %>
+                  <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-base-content/70">
+                    <span>{reply_error}</span>
+                    <button
+                      phx-click="load_remote_replies"
+                      phx-value-post_id={@post.id}
+                      phx-value-activitypub_id={@post.activitypub_id || ""}
+                      class="font-medium text-primary hover:underline"
+                      type="button"
+                    >
+                      Try again
+                    </button>
+                  </div>
+                <% else %>
+                  <button
+                    phx-click="load_remote_replies"
+                    phx-value-post_id={@post.id}
+                    phx-value-activitypub_id={@post.activitypub_id || ""}
+                    class="text-sm text-primary hover:underline font-medium"
+                    type="button"
+                  >
+                    Load replies
+                  </button>
+                <% end %>
               <% end %>
             </div>
           <% end %>
