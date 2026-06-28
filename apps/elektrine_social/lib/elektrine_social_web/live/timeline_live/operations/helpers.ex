@@ -541,6 +541,10 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.Helpers do
       :loading_remote_replies,
       MapSet.delete(socket.assigns[:loading_remote_replies] || MapSet.new(), normalized_post_id)
     )
+    |> assign(
+      :remote_reply_errors,
+      Map.delete(socket.assigns[:remote_reply_errors] || %{}, normalized_post_id)
+    )
     |> assign(:recently_loaded_post_ids, updated_recent_ids)
     |> assign(:recently_loaded_count, length(updated_recent_ids))
     |> maybe_clear_reply_targets(normalized_post_id)

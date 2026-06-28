@@ -204,6 +204,10 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.ReplyOperations do
              :manual_loading_remote_replies,
              MapSet.put(manual_loading_set, normalized_post_id)
            )
+           |> assign(
+             :remote_reply_errors,
+             Map.delete(socket.assigns[:remote_reply_errors] || %{}, normalized_post_id)
+           )
            |> Helpers.touch_filtered_posts(normalized_post_id)}
         end
 

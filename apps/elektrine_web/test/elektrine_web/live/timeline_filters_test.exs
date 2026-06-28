@@ -1401,7 +1401,8 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
     send(view.pid, {:refresh_remote_replies, post.id, 6})
 
     html = render(view)
-    assert html =~ "Load replies"
+    assert html =~ "Could not load replies."
+    assert html =~ "Try again"
     refute html =~ "Loading replies..."
   end
 
