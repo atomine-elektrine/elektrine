@@ -134,6 +134,31 @@ defmodule ElektrineWeb.Components.Social.TimelinePostTest do
     refute html =~ "Unsafe preview"
   end
 
+  test "timeline layout suppresses self-referential remote post link previews" do
+    post =
+      remote_post(%{
+        activitypub_id: "https://federate.social/users/mattblaze/statuses/116825697706046218",
+        activitypub_url: "https://federate.social/@mattblaze/116825697706046218",
+        primary_url: "https://federate.social/@mattblaze/116825697706046218",
+        content: "Remote post content without a submitted link",
+        remote_actor: %Actor{
+          username: "mattblaze",
+          domain: "federate.social"
+        },
+        link_preview: %LinkPreview{
+          url: "https://federate.social/@mattblaze/116825697706046218",
+          status: "success",
+          title: "Matt Blaze remote status preview",
+          site_name: "federate.social"
+        }
+      })
+
+    html = render_timeline_post(post, "self-link-remote")
+
+    refute html =~ "Matt Blaze remote status preview"
+    refute html =~ ~s(class="mt-3 border border-base-300 rounded-lg overflow-hidden)
+  end
+
   test "timeline actions prefer cached federated likes over stale local likes" do
     post = %Message{
       id: 789,

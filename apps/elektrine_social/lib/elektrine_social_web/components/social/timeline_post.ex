@@ -1162,19 +1162,18 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
               <% end %>
             </div>
           <% end %>
-          <%= if Ecto.assoc_loaded?(@post.quoted_message.link_preview) &&
-                   link_preview_success?(@post.quoted_message.link_preview) &&
-                   PostUtilities.safe_external_href(@post.quoted_message.link_preview.url) do %>
+          <% quoted_link_preview = PostUtilities.visible_link_preview(@post.quoted_message) %>
+          <%= if quoted_link_preview && PostUtilities.safe_external_href(quoted_link_preview.url) do %>
             <div class="mt-2 border border-base-300 rounded overflow-hidden">
               <a
-                href={PostUtilities.safe_external_href(@post.quoted_message.link_preview.url)}
+                href={PostUtilities.safe_external_href(quoted_link_preview.url)}
                 target="_blank"
                 rel="noopener noreferrer"
                 class="flex items-center gap-2 p-2 hover:bg-base-200/50 transition-colors"
               >
-                <%= if image_url = PostUtilities.safe_image_url(@post.quoted_message.link_preview.image_url) do %>
+                <%= if image_url = PostUtilities.safe_image_url(quoted_link_preview.image_url) do %>
                   <img
-                    id={"#{@id_prefix}-quoted-preview-image-#{@post.id || :erlang.phash2(@post.quoted_message.link_preview.image_url)}"}
+                    id={"#{@id_prefix}-quoted-preview-image-#{@post.id || :erlang.phash2(quoted_link_preview.image_url)}"}
                     src={image_url}
                     alt=""
                     class="w-12 h-12 rounded object-cover flex-shrink-0"
@@ -1182,13 +1181,13 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
                   />
                 <% end %>
                 <div class="min-w-0 flex-1">
-                  <%= if @post.quoted_message.link_preview.title do %>
+                  <%= if quoted_link_preview.title do %>
                     <div class="text-xs font-medium truncate">
-                      {String.slice(@post.quoted_message.link_preview.title, 0, 60)}
+                      {String.slice(quoted_link_preview.title, 0, 60)}
                     </div>
                   <% end %>
                   <div class="text-xs opacity-60 truncate">
-                    {safe_preview_host(@post.quoted_message.link_preview)}
+                    {safe_preview_host(quoted_link_preview)}
                   </div>
                 </div>
               </a>
@@ -1469,7 +1468,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
     image_url = if has_image, do: thumbnail_url(hd(image_urls), 96), else: nil
 
     external_link = PostUtilities.detect_external_link(post)
-    resolved_link_preview = Map.get(post, :link_preview)
+    resolved_link_preview = PostUtilities.visible_link_preview(post)
 
     preview_image_url =
       if link_preview_success?(resolved_link_preview) and

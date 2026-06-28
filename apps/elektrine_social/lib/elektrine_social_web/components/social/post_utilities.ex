@@ -129,36 +129,50 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
   def extract_community_name_simple(_), do: "Community"
 
   @doc """
-  Detects an external link for Lemmy posts that don't have external_link in metadata.
-  Checks activitypub_url vs activitypub_id domain, then falls back to extracting from content.
+  Detects a submitted external link for a federated post.
+
+  Remote status permalinks often appear in `url`, `primary_url`, or stale preview
+  metadata. Those are the post itself, not a submitted article link, so they are
+  filtered out before render-time link previews are considered.
   """
   @spec detect_external_link(map()) :: String.t() | nil
   def detect_external_link(post) do
-    primary_url = Map.get(post, :primary_url)
+    [
+      Map.get(post, :primary_url),
+      media_metadata_external_link(post),
+      Map.get(post, :activitypub_url),
+      extract_url_from_content(Map.get(post, :content))
+    ]
+    |> Enum.find_value(&submitted_external_link(post, &1))
+  end
 
-    cond do
-      is_binary(primary_url) and String.trim(primary_url) != "" ->
-        String.trim(primary_url)
+  @doc """
+  Returns the loaded link preview only when it points at a real submitted link.
+  """
+  @spec visible_link_preview(map()) :: map() | nil
+  def visible_link_preview(post) when is_map(post) do
+    preview = Map.get(post, :link_preview)
 
-      # Check metadata first
-      is_map(post.media_metadata) && post.media_metadata["external_link"] ->
-        post.media_metadata["external_link"]
+    if visible_link_preview?(post, preview), do: preview
+  end
 
-      # Check activitypub_url vs activitypub_id domain
-      is_binary(post.activitypub_url) && is_binary(post.activitypub_id) ->
-        url_host = URI.parse(post.activitypub_url).host
-        id_host = URI.parse(post.activitypub_id).host
+  def visible_link_preview(_), do: nil
 
-        if url_host && id_host && url_host != id_host do
-          post.activitypub_url
-        else
-          extract_url_from_content(post.content)
-        end
-
-      true ->
-        extract_url_from_content(post.content)
+  @doc """
+  Returns true when a URL points back to the same ActivityPub object as the post.
+  """
+  @spec self_referential_link?(map(), String.t() | nil) :: boolean()
+  def self_referential_link?(post, url) when is_map(post) and is_binary(url) do
+    with %URI{host: candidate_host} = candidate_uri when is_binary(candidate_host) <-
+           parse_http_uri(url) do
+      post_identity_uris(post)
+      |> Enum.any?(&same_activitypub_resource?(candidate_uri, &1))
+    else
+      _ -> false
     end
   end
+
+  def self_referential_link?(_, _), do: false
 
   @doc """
   Extracts the first HTTP URL from HTML content.
@@ -177,6 +191,119 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
   end
 
   def extract_url_from_content(_), do: nil
+
+  defp media_metadata_external_link(post) do
+    case Map.get(post, :media_metadata) do
+      %{} = metadata -> Map.get(metadata, "external_link")
+      _ -> nil
+    end
+  end
+
+  defp submitted_external_link(post, url) when is_binary(url) do
+    with trimmed when trimmed != "" <- String.trim(url),
+         {:ok, safe_url} <- SafeExternalURL.normalize_href(trimmed),
+         false <- self_referential_link?(post, safe_url) do
+      safe_url
+    else
+      _ -> nil
+    end
+  end
+
+  defp submitted_external_link(_, _), do: nil
+
+  defp visible_link_preview?(post, %LinkPreview{status: "success", url: url})
+       when is_binary(url) do
+    submitted_external_link(post, url) != nil
+  end
+
+  defp visible_link_preview?(_, _), do: false
+
+  defp post_identity_uris(post) do
+    id_uri = parse_http_uri(Map.get(post, :activitypub_id))
+    url_uri = parse_http_uri(Map.get(post, :activitypub_url))
+
+    [id_uri]
+    |> maybe_add_same_instance_permalink(id_uri, url_uri)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp maybe_add_same_instance_permalink(uris, %URI{} = id_uri, %URI{} = url_uri) do
+    if same_host?(id_uri.host, url_uri.host), do: [url_uri | uris], else: uris
+  end
+
+  defp maybe_add_same_instance_permalink(uris, _, _), do: uris
+
+  defp parse_http_uri(url) when is_binary(url) do
+    case URI.parse(String.trim(url)) do
+      %URI{scheme: scheme, host: host} = uri
+      when scheme in ["http", "https"] and is_binary(host) ->
+        uri
+
+      _ ->
+        nil
+    end
+  rescue
+    URI.Error -> nil
+  end
+
+  defp parse_http_uri(_), do: nil
+
+  defp same_activitypub_resource?(%URI{} = candidate_uri, %URI{} = identity_uri) do
+    same_host?(candidate_uri.host, identity_uri.host) &&
+      (same_normalized_path?(candidate_uri, identity_uri) ||
+         same_activitypub_object_token?(candidate_uri, identity_uri))
+  end
+
+  defp same_host?(left, right) when is_binary(left) and is_binary(right),
+    do: String.downcase(left) == String.downcase(right)
+
+  defp same_host?(_, _), do: false
+
+  defp same_normalized_path?(left_uri, right_uri) do
+    normalize_uri_path(left_uri.path) == normalize_uri_path(right_uri.path)
+  end
+
+  defp normalize_uri_path(path) when is_binary(path) do
+    path
+    |> String.trim()
+    |> String.trim_trailing("/")
+  end
+
+  defp normalize_uri_path(_), do: nil
+
+  defp same_activitypub_object_token?(left_uri, right_uri) do
+    case {activitypub_object_token(left_uri), activitypub_object_token(right_uri)} do
+      {left, right} when is_binary(left) and left != "" and left == right -> true
+      _ -> false
+    end
+  end
+
+  defp activitypub_object_token(%URI{path: path}) when is_binary(path) do
+    segments = String.split(path, "/", trim: true)
+
+    cond do
+      token = token_after_marker(segments) ->
+        token
+
+      match?(["@" <> _, _ | _], segments) ->
+        Enum.at(segments, 1)
+
+      true ->
+        nil
+    end
+  end
+
+  defp activitypub_object_token(_), do: nil
+
+  defp token_after_marker(segments) do
+    markers = ~w(status statuses post posts note notes object objects activity activities)
+
+    segments
+    |> Enum.with_index()
+    |> Enum.find_value(fn {segment, index} ->
+      if segment in markers, do: Enum.at(segments, index + 1)
+    end)
+  end
 
   @doc """
   Attaches cached link previews by external URL for posts that do not already have
