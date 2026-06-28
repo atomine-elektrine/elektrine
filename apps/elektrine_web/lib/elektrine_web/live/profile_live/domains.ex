@@ -369,8 +369,8 @@ defmodule ElektrineWeb.ProfileLive.Domains do
         <div class="card panel-card">
           <div class="card-body space-y-4">
             <.section_header
-              title="Domain Account"
-              description="Your domain account ties profile, sign-in, federation, mail, DID, and recovery discovery to one portable name."
+              title="Internet ID"
+              description="Your Internet ID ties profile, sign-in, federation, mail, DID, and recovery discovery to one portable name."
               align="start"
             />
 
@@ -404,7 +404,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
             <div class="grid gap-3 lg:grid-cols-2">
               <.identity_endpoint
                 id="domain-account-built-in-endpoint"
-                label="Domain Account"
+                label="Internet ID"
                 url={"https://#{@domain_account_domain}/.well-known/domain-account"}
               />
               <.identity_endpoint
@@ -710,7 +710,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
                           <div class="grid gap-3 lg:grid-cols-2">
                             <.identity_endpoint
                               id={"domain-account-endpoint-#{custom_domain.id}"}
-                              label="Domain Account"
+                              label="Internet ID"
                               url={"https://#{custom_domain.domain}/.well-known/domain-account"}
                             />
                             <.identity_endpoint
