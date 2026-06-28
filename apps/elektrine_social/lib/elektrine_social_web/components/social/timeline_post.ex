@@ -552,6 +552,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       pending_follows={@pending_follows}
       remote_follow_overrides={@remote_follow_overrides}
       class="!flex min-w-0 flex-1 items-center gap-3"
+      trigger_class="inline-flex max-w-full min-w-0 items-center gap-3"
     >
       <.link
         navigate={"/remote/#{@post.remote_actor.username}@#{@post.remote_actor.domain}"}
@@ -636,6 +637,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       user_follows={@user_follows}
       current_user={@current_user}
       class="!flex min-w-0 flex-1 items-center gap-3"
+      trigger_class="inline-flex max-w-full min-w-0 items-center gap-3"
     >
       <button
         phx-click={@on_navigate_profile}
