@@ -189,7 +189,6 @@ defmodule ElektrineWeb.AdminLive.Relays do
     ~H"""
     <div class="admin-page">
       <.section_header
-        eyebrow="Network Controls"
         title="ActivityPub Relays"
         description="Subscribe to relays, monitor subscription state, and seed discovery across the broader fediverse."
       >

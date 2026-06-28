@@ -209,7 +209,6 @@ defmodule ElektrineWeb.AdminLive.BlueskyBridge do
     ~H"""
     <div class="admin-page">
       <.section_header
-        eyebrow="Bridge Status"
         title="Bluesky Bridge"
         description="Monitor ATProto cross-posting, inbound sync health, and outbound mirror queue pressure."
       >

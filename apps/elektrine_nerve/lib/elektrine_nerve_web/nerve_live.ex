@@ -284,9 +284,6 @@ defmodule ElektrineNerveWeb.NerveLive do
               <div class="card-body p-4 sm:p-6">
                 <div class="mb-4 flex items-start justify-between gap-3">
                   <div>
-                    <p class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/45">
-                      Browser Extension
-                    </p>
                     <h2 class="card-title mt-1 text-lg">Install Browser Extension</h2>
                   </div>
                   <span class="badge badge-primary badge-outline">Extension</span>
@@ -323,9 +320,6 @@ defmodule ElektrineNerveWeb.NerveLive do
               <div class="card-body p-4 sm:p-6">
                 <div class="mb-4 flex items-start justify-between gap-3">
                   <div>
-                    <p class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/45">
-                      Connected Devices
-                    </p>
                     <h2 class="card-title mt-1 text-lg">This Browser</h2>
                   </div>
                   <span class={[
@@ -363,9 +357,6 @@ defmodule ElektrineNerveWeb.NerveLive do
               <div class="card-body p-4 sm:p-6">
                 <div class="mb-4 flex items-start justify-between gap-3">
                   <div>
-                    <p class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/45">
-                      Site Connections
-                    </p>
                     <h2 class="card-title mt-1 text-lg">Known Sites</h2>
                   </div>
                   <span class="badge badge-outline">{length(site_connection_rows(@entries))}</span>

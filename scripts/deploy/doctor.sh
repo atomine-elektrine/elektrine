@@ -160,7 +160,7 @@ check_legacy_generated_files() {
     paths+=("$legacy_path")
   done < <(
     find "$ROOT_DIR/deploy/docker" "$ROOT_DIR/deploy/caddy" \
-      \( -name 'generated*.yml' -o -name 'generated.Caddyfile' -o -name 'generated.mongooseim.toml' -o -name 'compose.override.yml' \) \
+      \( -name 'generated*.yml' -o -name 'generated.Caddyfile' -o -name 'compose.override.yml' \) \
       -print 2>/dev/null || true
   )
 
@@ -182,7 +182,7 @@ check_root_owned_generated_files() {
     paths+=("$generated_path")
   done < <(
     find "$ROOT_DIR/deploy/generated" "$ROOT_DIR/deploy/docker" \
-      \( -path "$ROOT_DIR/deploy/generated/.gitkeep" -o -name 'generated*.yml' -o -name 'generated.Caddyfile' -o -name 'generated.mongooseim.toml' \) \
+      \( -path "$ROOT_DIR/deploy/generated/.gitkeep" -o -name 'generated*.yml' -o -name 'generated.Caddyfile' \) \
       -user 0 -print 2>/dev/null || true
   )
 

@@ -83,6 +83,42 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
     refute html =~ "Community timeline post"
   end
 
+  test "hide replies remains applied after timeline refreshes", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    author = AccountsFixtures.user_fixture()
+
+    {:ok, reply_post} =
+      Social.create_timeline_post(author.id, "Reply display toggle target", visibility: "public")
+
+    parent_ref = "https://example.social/notes/parent-#{reply_post.id}"
+
+    Repo.update_all(
+      from(m in Message, where: m.id == ^reply_post.id),
+      set: [media_metadata: %{"inReplyTo" => parent_ref}]
+    )
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=all&view=replies")
+
+    assert render(view) =~ "Reply display toggle target"
+
+    view
+    |> element(~s(button[phx-click="toggle_hide_replies"]))
+    |> render_click()
+
+    refute render(view) =~ "Reply display toggle target"
+
+    send(
+      view.pid,
+      {:reply_context_previews_loaded,
+       %{parent_ref => %{"inReplyToContent" => "Reply parent preview"}}}
+    )
+
+    refute render(view) =~ "Reply display toggle target"
+  end
+
   test "software filters keep local posts and communities visible", %{conn: conn} do
     viewer = AccountsFixtures.user_fixture()
     author = AccountsFixtures.user_fixture()
@@ -1461,6 +1497,73 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
 
     render_hook(view, "filter_timeline", %{"filter" => "replies"})
     assert_patch(view, ~p"/timeline?filter=explore&view=replies")
+
+    refute render(view) =~ "Show 1 new post"
+  end
+
+  test "new posts banner ignores replies hidden by display toggles", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    author = AccountsFixtures.user_fixture()
+
+    {:ok, parent_post} =
+      Social.create_timeline_post(author.id, "Queued reply parent", visibility: "public")
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=all&view=replies")
+
+    view
+    |> element(~s(button[phx-click="toggle_hide_replies"]))
+    |> render_click()
+
+    {:ok, queued_reply} =
+      Social.create_timeline_post(author.id, "Queued reply display toggle target",
+        visibility: "public",
+        reply_to_id: parent_post.id
+      )
+
+    queued_reply =
+      Repo.preload(queued_reply, [:sender, :remote_actor, :link_preview, poll: [options: []]])
+
+    send(view.pid, {:new_post_preloaded, :timeline, queued_reply})
+
+    refute render(view) =~ "Show 1 new post"
+    refute render(view) =~ "Queued reply display toggle target"
+  end
+
+  test "new posts banner ignores boosts hidden by display toggles", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    author = AccountsFixtures.user_fixture()
+    booster = AccountsFixtures.user_fixture()
+
+    {:ok, original_post} =
+      Social.create_timeline_post(author.id, "Queued boost display toggle source",
+        visibility: "public"
+      )
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=all&view=all")
+
+    view
+    |> element(~s(button[phx-click="toggle_hide_boosts"]))
+    |> render_click()
+
+    assert {:ok, _boost} = Social.boost_post(booster.id, original_post.id)
+
+    boost_post =
+      Repo.get_by!(Message, sender_id: booster.id, shared_message_id: original_post.id)
+      |> Repo.preload([
+        :sender,
+        :remote_actor,
+        :link_preview,
+        :shared_message,
+        poll: [options: []]
+      ])
+
+    send(view.pid, {:new_post_preloaded, :timeline, boost_post})
 
     refute render(view) =~ "Show 1 new post"
   end

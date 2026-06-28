@@ -10,8 +10,7 @@ mapfile -t tracked_generated < <(
     'apps/*/assets/node_modules/*' \
     'deploy/generated/*' \
     'deploy/docker/generated*.yml' \
-    'deploy/docker/generated.Caddyfile' \
-    'deploy/docker/generated.mongooseim.toml' |
+    'deploy/docker/generated.Caddyfile' |
     grep -v '^deploy/generated/\.gitkeep$' || true
 )
 

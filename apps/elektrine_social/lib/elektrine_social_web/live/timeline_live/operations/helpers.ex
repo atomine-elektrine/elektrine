@@ -121,6 +121,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.Helpers do
     filtered_posts = filter_posts_by_search_query(filtered_posts, socket.assigns[:search_query])
     filtered_posts = apply_feed_display_toggles(filtered_posts, socket)
     filtered_posts = maybe_prioritize_non_community_posts(filtered_posts, socket)
+    filtered_posts = maybe_group_reply_chains(filtered_posts, socket)
     filtered_posts = dedupe_posts(filtered_posts)
     filtered_posts = sort_timeline_posts(filtered_posts, socket.assigns[:timeline_sort])
     assign_filtered_posts(socket, filtered_posts, force_reset?)
@@ -143,23 +144,26 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.Helpers do
   def sort_timeline_posts(posts, _sort), do: posts
 
   defp apply_feed_display_toggles(posts, socket) when is_list(posts) do
-    posts
-    |> maybe_hide_boosts(socket.assigns[:hide_boosts])
-    |> maybe_hide_replies(socket.assigns[:hide_replies])
+    filter_posts_by_feed_display_toggles(
+      posts,
+      socket.assigns[:hide_boosts],
+      socket.assigns[:hide_replies]
+    )
   end
 
   defp apply_feed_display_toggles(posts, _socket), do: posts
 
-  defp maybe_hide_boosts(posts, true), do: Enum.reject(posts, &pure_boost_post?/1)
-  defp maybe_hide_boosts(posts, _), do: posts
-
-  defp maybe_hide_replies(posts, true) do
-    Enum.reject(posts, fn post ->
-      !is_nil(Map.get(post, :reply_to_id)) || !is_nil(get_in(post.media_metadata, ["inReplyTo"]))
-    end)
+  def filter_posts_by_feed_display_toggles(posts, hide_boosts?, hide_replies?)
+      when is_list(posts) do
+    Enum.filter(posts, &post_matches_feed_display_toggles?(&1, hide_boosts?, hide_replies?))
   end
 
-  defp maybe_hide_replies(posts, _), do: posts
+  def filter_posts_by_feed_display_toggles(_posts, _hide_boosts?, _hide_replies?), do: []
+
+  def post_matches_feed_display_toggles?(post, hide_boosts?, hide_replies?) do
+    (hide_boosts? != true || !pure_boost_post?(post)) &&
+      (hide_replies? != true || !reply_post?(post))
+  end
 
   defp pure_boost_post?(post) when is_map(post) do
     not is_nil(Map.get(post, :shared_message_id)) &&
@@ -167,6 +171,13 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.Helpers do
   end
 
   defp pure_boost_post?(_), do: false
+
+  defp reply_post?(post) when is_map(post) do
+    !is_nil(Map.get(post, :reply_to_id)) ||
+      !is_nil(get_in(Map.get(post, :media_metadata, %{}), ["inReplyTo"]))
+  end
+
+  defp reply_post?(_), do: false
 
   def assign_filtered_posts(socket, filtered_posts),
     do: assign_filtered_posts(socket, filtered_posts, false)
@@ -585,6 +596,97 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.Helpers do
       posts
     end
   end
+
+  defp maybe_group_reply_chains(posts, socket) when is_list(posts) do
+    if socket.assigns.timeline_filter in [nil, "all", "posts", "local", "federated", "friends"] do
+      group_reply_chains(posts)
+    else
+      posts
+    end
+  end
+
+  defp maybe_group_reply_chains(posts, _socket), do: posts
+
+  defp group_reply_chains(posts) when is_list(posts) do
+    ids_in_feed = MapSet.new(Enum.map(posts, & &1.id))
+
+    local_parent_ids =
+      posts
+      |> Enum.map(&Map.get(&1, :reply_to_id))
+      |> Enum.filter(&is_integer/1)
+      |> MapSet.new()
+
+    remote_parent_refs =
+      posts
+      |> Enum.map(&normalized_in_reply_to/1)
+      |> Enum.reject(&is_nil/1)
+      |> MapSet.new()
+
+    thread_keys_by_id =
+      posts
+      |> Enum.reduce(%{}, fn post, acc ->
+        Map.put(
+          acc,
+          post.id,
+          thread_group_key(post, ids_in_feed, local_parent_ids, remote_parent_refs)
+        )
+      end)
+
+    posts
+    |> Enum.group_by(fn post -> Map.get(thread_keys_by_id, post.id, {:post, post.id}) end)
+    |> Enum.map(fn {_group_key, grouped_posts} -> choose_thread_representative(grouped_posts) end)
+    |> Enum.sort_by(&timeline_sort_key/1, :desc)
+  end
+
+  defp choose_thread_representative([post]), do: post
+
+  defp choose_thread_representative(grouped_posts) do
+    Enum.max_by(grouped_posts, &timeline_sort_key/1, fn -> List.first(grouped_posts) end)
+  end
+
+  defp timeline_sort_key(post) do
+    {Map.get(post, :inserted_at), Map.get(post, :id, 0)}
+  end
+
+  defp thread_group_key(post, ids_in_feed, local_parent_ids, remote_parent_refs) do
+    cond do
+      is_integer(Map.get(post, :reply_to_id)) and MapSet.member?(ids_in_feed, post.reply_to_id) ->
+        {:local_thread, post.reply_to_id}
+
+      is_binary(normalized_in_reply_to(post)) ->
+        {:remote_thread, normalized_in_reply_to(post)}
+
+      MapSet.member?(local_parent_ids, post.id) ->
+        {:local_thread, post.id}
+
+      matched_ref = Enum.find(thread_self_refs(post), &MapSet.member?(remote_parent_refs, &1)) ->
+        {:remote_thread, matched_ref}
+
+      true ->
+        {:post, post.id}
+    end
+  end
+
+  defp thread_self_refs(post) do
+    [Map.get(post, :activitypub_id), Map.get(post, :activitypub_url)]
+    |> Enum.map(&normalize_thread_ref/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+  end
+
+  defp normalized_in_reply_to(post) do
+    post
+    |> Map.get(:media_metadata, %{})
+    |> get_in(["inReplyTo"])
+    |> normalize_thread_ref()
+  end
+
+  defp normalize_thread_ref(value) when is_binary(value) do
+    value = String.trim(value)
+    Elektrine.Strings.present(value)
+  end
+
+  defp normalize_thread_ref(_), do: nil
 
   def get_user_likes(user_id, messages) do
     message_ids = Enum.map(messages, & &1.id)

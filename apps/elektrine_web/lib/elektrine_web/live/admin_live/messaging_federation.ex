@@ -190,7 +190,6 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
     ~H"""
     <div class="admin-page">
       <.section_header
-        eyebrow="Network Controls"
         title="Chat Federation"
         description="Manage signed chat federation, including configured peers, discovery metadata, and per-direction runtime overrides. Powered by Arblarg."
       >

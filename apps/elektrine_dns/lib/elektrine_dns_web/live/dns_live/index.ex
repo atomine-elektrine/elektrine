@@ -462,7 +462,6 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
             <div class="card-body gap-0 p-0">
               <div class="border-b border-base-content/10 px-5 py-4">
                 <ElektrineWeb.Components.Platform.ENav.product_header
-                  eyebrow="DNS"
                   title="Zones"
                   description="Authoritative zones and records."
                 >
@@ -799,6 +798,7 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                     <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                       <.input
                         field={@zone_settings_form[:default_ttl]}
+                        id="zone_settings_default_ttl"
                         type="number"
                         label="Default TTL"
                       />

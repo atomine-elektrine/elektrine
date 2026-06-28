@@ -8,7 +8,12 @@ defmodule ElektrineWeb.PageLive.Home do
   on_mount({ElektrineWeb.Live.AuthHooks, :maybe_authenticated_user})
 
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, page_title: "Home"), layout: false}
+    {:ok,
+     assign(socket,
+       page_title: "Home",
+       sidebar_image: home_random_image(),
+       sidebar_buttons: home_button_images()
+     ), layout: false}
   end
 
   def render(assigns) do
@@ -186,29 +191,43 @@ defmodule ElektrineWeb.PageLive.Home do
               </div>
             </section>
 
-            <section class="space-y-6">
-              <div class="card border border-base-300 bg-base-200/80">
-                <div class="card-body gap-4 p-4 sm:p-5">
-                  <p class="text-xs uppercase tracking-[0.22em] opacity-60">Modules</p>
-
-                  <div class="space-y-3">
-                    <%= for module <- home_modules() do %>
-                      <div class="flex items-center rounded-lg border border-base-300 bg-base-200/45 px-3 py-3">
-                        <div class="flex items-center gap-3">
-                          <div class="rounded-lg border border-base-300 bg-base-200 p-2">
-                            <.icon name={module.icon} class="h-4 w-4 opacity-80" />
-                          </div>
-                          <div>
-                            <p class="text-sm font-medium text-base-content">{module.name}</p>
-                            <p class="text-xs uppercase tracking-[0.18em] opacity-50">
-                              {module.detail}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    <% end %>
-                  </div>
+            <section class="space-y-4 lg:sticky lg:top-10">
+              <%!-- Main image: one at random per refresh, from images/home/. --%>
+              <%= if @sidebar_image do %>
+                <div
+                  id="home-sidebar-image"
+                  phx-update="ignore"
+                  class="overflow-hidden rounded-xl border border-base-300 bg-base-200/45"
+                >
+                  <img
+                    src={~p"/images/home/#{@sidebar_image}"}
+                    alt=""
+                    class="aspect-[4/3] w-full object-cover"
+                    loading="lazy"
+                  />
                 </div>
+              <% else %>
+                <div class="flex aspect-[4/3] items-center justify-center rounded-xl border border-dashed border-base-300 bg-base-200/45 text-sm text-base-content/40">
+                  Image
+                </div>
+              <% end %>
+
+              <%!-- Separate 88x31 button wall, always shown (images/home/buttons/). --%>
+              <div class="rounded-xl border border-base-300 bg-base-200/45 p-3">
+                <div :if={@sidebar_buttons != []} class="flex flex-wrap justify-center gap-1.5">
+                  <img
+                    :for={button <- @sidebar_buttons}
+                    src={~p"/images/home/buttons/#{button}"}
+                    alt=""
+                    width="88"
+                    height="31"
+                    class="h-[31px] w-[88px] shrink-0 [image-rendering:pixelated]"
+                    loading="lazy"
+                  />
+                </div>
+                <p :if={@sidebar_buttons == []} class="text-sm text-base-content/40">
+                  88×31 buttons
+                </p>
               </div>
             </section>
           </div>
@@ -277,11 +296,6 @@ defmodule ElektrineWeb.PageLive.Home do
             detail: "Sign up and use Elektrine privately"
           },
           %{
-            tag: "Canary",
-            title: "Warrant canary",
-            detail: "A public canary you can check any time"
-          },
-          %{
             tag: "Passkeys",
             title: "Passwordless sign-in",
             detail:
@@ -342,42 +356,44 @@ defmodule ElektrineWeb.PageLive.Home do
             tag: "Portability",
             title: "No lock-in",
             detail: "Export all your data over an open API, any time"
-          },
-          %{
-            tag: "Suite",
-            title: "One account, many tools",
-            detail: "Turn on email, messaging, VPN, social, and DNS as you need them"
           }
         ]
       }
     ]
   end
 
-  defp home_modules do
-    [
-      %{icon: "hero-envelope-mini", name: "Email", detail: "IMAP / POP3 / SMTP / JMAP"},
-      %{
-        icon: "hero-finger-print-mini",
-        name: "Accounts",
-        detail: "Domains / identity / auth"
-      },
-      %{icon: "hero-globe-alt-mini", name: "DNS", detail: "Authoritative / recursive"},
-      %{icon: "hero-chat-bubble-left-right-mini", name: "Chat", detail: "Arblarg engine"},
-      %{icon: "hero-sparkles-mini", name: "Social", detail: "ActivityPub / ATProto"},
-      %{icon: "hero-shield-check-mini", name: "VPN", detail: "WireGuard"},
-      %{icon: "hero-key-mini", name: "Nerve", detail: "Browser extension / site actions"}
-    ]
-    |> Enum.filter(fn module ->
-      case module.name do
-        "Email" -> Modules.enabled?(:email)
-        "DNS" -> Modules.enabled?(:dns)
-        "Chat" -> Modules.enabled?(:chat)
-        "Social" -> Modules.enabled?(:social)
-        "VPN" -> Modules.enabled?(:vpn)
-        "Nerve" -> Modules.enabled?(:nerve)
-        _ -> true
-      end
-    end)
+  # Sidebar images live in priv/static/images/home/ (served at /images/home/...).
+  # Top-level files are full-size images (one shown at random per page load);
+  # 88x31 retro buttons go in the buttons/ subfolder and are all shown together.
+  defp home_images_dir, do: Path.join(:code.priv_dir(:elektrine), "static/images/home")
+
+  defp home_random_image do
+    case home_sidebar_images() do
+      [] -> nil
+      images -> Enum.random(images)
+    end
+  end
+
+  defp home_sidebar_images, do: list_images(home_images_dir())
+
+  defp home_button_images, do: list_images(Path.join(home_images_dir(), "buttons"))
+
+  # Format-agnostic listing: skips dotfiles, subdirectories, and the gzipped /
+  # content-hashed copies that `mix phx.digest` produces, so any real image the
+  # user drops in is included as-is.
+  defp list_images(dir) do
+    case File.ls(dir) do
+      {:ok, entries} ->
+        entries
+        |> Enum.reject(&String.starts_with?(&1, "."))
+        |> Enum.reject(&String.ends_with?(&1, ".gz"))
+        |> Enum.reject(&Regex.match?(~r/-[a-f0-9]{32}\.[^.]+$/, &1))
+        |> Enum.reject(&File.dir?(Path.join(dir, &1)))
+        |> Enum.sort()
+
+      _ ->
+        []
+    end
   end
 
   defp github_repo_url, do: "https://github.com/atomine-elektrine/elektrine"
