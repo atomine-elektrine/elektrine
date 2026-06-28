@@ -73,6 +73,11 @@ defmodule Elektrine.DomainAccount do
         |> Enum.reject(&is_nil/1),
       "service" => [
         %{
+          "id" => did <> "#own-root",
+          "type" => "OwnRoot",
+          "serviceEndpoint" => account_base_url <> "/.well-known/own-root"
+        },
+        %{
           "id" => did <> "#domain-account",
           "type" => "DomainAccount",
           "serviceEndpoint" => account_base_url <> "/.well-known/domain-account"

@@ -229,6 +229,7 @@ defmodule Elektrine.Developer.Exports.AccountExporter do
             email_address: "#{user.username}@#{domain}",
             dns_records: dns_records,
             migration: %{
+              own_root: "Serve this JSON at https://#{domain}/.well-known/own-root",
               domain_account: "Serve this JSON at https://#{domain}/.well-known/domain-account",
               did: "Serve this JSON at https://#{domain}/.well-known/did.json",
               oidc: "Update the domain account document's OIDC issuer to the new provider.",
