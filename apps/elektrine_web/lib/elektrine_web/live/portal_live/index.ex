@@ -84,6 +84,7 @@ defmodule ElektrineWeb.PortalLive.Index do
         |> assign(:loading_feed, true)
         |> assign(:loading_stats, true)
         |> assign(:loading_dashboard, true)
+        |> assign(:portal_credits, atomine_credit_balance(user.id))
         |> assign(:dashboard, DashboardData.default())
         |> assign(:reader_params, %{})
         |> assign(:dashboard_last_refreshed_at, nil)
@@ -1853,7 +1854,6 @@ defmodule ElektrineWeb.PortalLive.Index do
       pending_friend_requests_count: pending_friend_requests_count,
       pending_follow_requests_count: pending_follow_requests_count,
       vpn_config_count: vpn_config_count,
-      credits: atomine_credit_balance(user.id),
       tasks: tasks,
       alerts: alerts,
       attention_queue: attention_queue,

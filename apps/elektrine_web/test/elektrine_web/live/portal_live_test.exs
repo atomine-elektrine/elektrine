@@ -475,6 +475,24 @@ defmodule ElektrineWeb.PortalLiveTest do
     assert html =~ "data-feed-loading-skeleton"
   end
 
+  test "portal overview cards render before dashboard numbers load", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+
+    html =
+      conn
+      |> log_in_user(user)
+      |> get(~p"/portal")
+      |> html_response(200)
+
+    assert html =~ ~s(aria-label="Overview")
+    assert html =~ "Unread email"
+    assert html =~ "Unread chat"
+    assert html =~ "Notifications"
+    assert html =~ "Requests"
+    assert html =~ "Credits"
+    assert count_occurrences(html, ~s(class="h-5 w-8 animate-pulse rounded bg-base-300")) == 5
+  end
+
   test "portal uses the infinite scroll feed container", %{conn: conn} do
     user = AccountsFixtures.user_fixture()
 
