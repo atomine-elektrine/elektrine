@@ -163,12 +163,13 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
   """
   @spec self_referential_link?(map(), String.t() | nil) :: boolean()
   def self_referential_link?(post, url) when is_map(post) and is_binary(url) do
-    with %URI{host: candidate_host} = candidate_uri when is_binary(candidate_host) <-
-           parse_http_uri(url) do
-      post_identity_uris(post)
-      |> Enum.any?(&same_activitypub_resource?(candidate_uri, &1))
-    else
-      _ -> false
+    case parse_http_uri(url) do
+      %URI{host: candidate_host} = candidate_uri when is_binary(candidate_host) ->
+        post_identity_uris(post)
+        |> Enum.any?(&same_activitypub_resource?(candidate_uri, &1))
+
+      _ ->
+        false
     end
   end
 
