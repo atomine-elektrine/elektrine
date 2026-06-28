@@ -28,7 +28,6 @@ defmodule ElektrineWeb.Plugs.ProfileCustomDomain do
   ]
   @bypass_paths [
     "/.well-known/own-root",
-    "/.well-known/domain-account",
     "/.well-known/did.json",
     "/.well-known/elektrine",
     "/.well-known/atomine",

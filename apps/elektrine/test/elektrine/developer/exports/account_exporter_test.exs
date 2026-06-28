@@ -7,7 +7,7 @@ defmodule Elektrine.Developer.Exports.AccountExporterTest do
   alias Elektrine.Domains
   alias Elektrine.Profiles
 
-  test "account export includes domain account recovery metadata" do
+  test "account export includes OwnRoot recovery metadata" do
     user = user_fixture(%{username: "exportdomain", handle: "exportdomain"})
     built_in_domain = "exportdomain.#{Domains.default_profile_domain()}"
 
@@ -33,7 +33,7 @@ defmodule Elektrine.Developer.Exports.AccountExporterTest do
              "provider" => provider,
              "portable_root" => "dns",
              "domains" => domains
-           } = data["domain_account"]
+           } = data["own_root"]
 
     assert provider == Domains.public_base_url()
 
@@ -41,12 +41,10 @@ defmodule Elektrine.Developer.Exports.AccountExporterTest do
 
     assert exported_domain["subject"] == "domain:#{built_in_domain}"
     assert exported_domain["did"] == "did:web:#{built_in_domain}"
-    assert exported_domain["domain_account"]["subject"] == "domain:#{built_in_domain}"
+    assert exported_domain["own_root"]["subject"] == "domain:#{built_in_domain}"
     assert exported_domain["did_document"]["id"] == "did:web:#{built_in_domain}"
     assert exported_domain["migration"]["own_root"] =~ "/.well-known/own-root"
-    assert is_binary(exported_domain["migration"]["domain_account"])
-
-    assert [identity] = exported_domain["domain_account"]["per_site_identities"]["identities"]
+    assert [identity] = exported_domain["own_root"]["per_site_identities"]["identities"]
     assert identity["site_key"] == "hn"
     assert identity["domain"] == "hn.#{built_in_domain}"
     assert identity["subject"] == "domain:hn.#{built_in_domain}"

@@ -1,4 +1,4 @@
-defmodule ElektrineWeb.CustomDomainIdentityControllerTest do
+defmodule ElektrineWeb.OwnRootControllerTest do
   use ElektrineWeb.ConnCase, async: false
 
   import Ecto.Query
@@ -68,9 +68,9 @@ defmodule ElektrineWeb.CustomDomainIdentityControllerTest do
     } do
       user =
         user_fixture(%{
-          username: "domainaccount",
-          handle: "domainaccount",
-          display_name: "Domain Account"
+          username: "ownroot",
+          handle: "ownroot",
+          display_name: "OwnRoot"
         })
 
       custom_domain = verified_profile_custom_domain_fixture(user, "portable.example")
@@ -109,15 +109,15 @@ defmodule ElektrineWeb.CustomDomainIdentityControllerTest do
       assert response["atomine"]["jwks_uri"] =~ "/oauth/jwks"
 
       assert response["federation"]["activitypub_actor"] ==
-               "https://portable.example/users/domainaccount"
+               "https://portable.example/users/ownroot"
 
       assert response["federation"]["activitypub_webfinger"] ==
-               "acct:domainaccount@portable.example"
+               "acct:ownroot@portable.example"
 
       assert response["federation"]["arblarg"] ==
                "https://portable.example/.well-known/_arblarg"
 
-      assert response["email"]["primary_address"] == "domainaccount@portable.example"
+      assert response["email"]["primary_address"] == "ownroot@portable.example"
 
       assert response["per_site_identities"]["subject_template"] ==
                "domain:{site}.portable.example"
@@ -135,21 +135,6 @@ defmodule ElektrineWeb.CustomDomainIdentityControllerTest do
 
       assert response["recovery"]["export_available"] == true
       assert response["recovery"]["portable_root"] == "dns"
-    end
-
-    test "keeps the legacy domain account endpoint as an alias", %{conn: conn} do
-      user = user_fixture(%{username: "legacyaccount", handle: "legacyaccount"})
-      custom_domain = verified_profile_custom_domain_fixture(user, "legacyportable.example")
-
-      conn =
-        conn
-        |> Map.put(:host, custom_domain.domain)
-        |> put_req_header("accept", "application/json")
-        |> get("/.well-known/domain-account")
-
-      response = json_response(conn, 200)
-
-      assert response["subject"] == "domain:legacyportable.example"
     end
 
     test "publishes the Atomine proof bundle on a verified custom profile domain", %{
@@ -196,7 +181,7 @@ defmodule ElektrineWeb.CustomDomainIdentityControllerTest do
     end
 
     test "also publishes the Elektrine-namespaced discovery alias", %{conn: conn} do
-      user = user_fixture(%{username: "elektrinedomainaccount"})
+      user = user_fixture(%{username: "elektrineownroot"})
       custom_domain = verified_profile_custom_domain_fixture(user, "elektrineportable.example")
 
       conn =
@@ -251,7 +236,7 @@ defmodule ElektrineWeb.CustomDomainIdentityControllerTest do
         |> put_req_header("accept", "application/json")
         |> get("/.well-known/own-root")
 
-      assert json_response(conn, 404) == %{"error" => "domain_account_not_found"}
+      assert json_response(conn, 404) == %{"error" => "own_root_not_found"}
     end
   end
 
@@ -279,12 +264,6 @@ defmodule ElektrineWeb.CustomDomainIdentityControllerTest do
                "id" => "did:web:didportable.example#own-root",
                "type" => "OwnRoot",
                "serviceEndpoint" => "https://didportable.example/.well-known/own-root"
-             } in response["service"]
-
-      assert %{
-               "id" => "did:web:didportable.example#domain-account",
-               "type" => "DomainAccount",
-               "serviceEndpoint" => "https://didportable.example/.well-known/domain-account"
              } in response["service"]
 
       assert %{

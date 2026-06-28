@@ -1,18 +1,18 @@
-defmodule ElektrineWeb.DomainAccountController do
+defmodule ElektrineWeb.OwnRootController do
   use ElektrineWeb, :controller
 
   alias Elektrine.Accounts
   alias Elektrine.AtomineProofBundle
-  alias Elektrine.DomainAccount
   alias Elektrine.Domains
+  alias Elektrine.OwnRoot
   alias Elektrine.Profiles
 
   def show(conn, _params) do
-    case domain_account_for_host(conn.host) do
+    case own_root_for_host(conn.host) do
       {:ok, domain, user} ->
         json(
           conn,
-          DomainAccount.document(user, domain,
+          OwnRoot.document(user, domain,
             provider_base_url: Domains.public_base_url(),
             per_site_identities: Profiles.list_user_per_site_identities(user)
           )
@@ -21,16 +21,16 @@ defmodule ElektrineWeb.DomainAccountController do
       _ ->
         conn
         |> put_status(:not_found)
-        |> json(%{error: "domain_account_not_found"})
+        |> json(%{error: "own_root_not_found"})
     end
   end
 
   def did(conn, _params) do
-    case domain_account_for_host(conn.host) do
+    case own_root_for_host(conn.host) do
       {:ok, domain, user} ->
         json(
           conn,
-          DomainAccount.did_document(user, domain, provider_base_url: Domains.public_base_url())
+          OwnRoot.did_document(user, domain, provider_base_url: Domains.public_base_url())
         )
 
       _ ->
@@ -41,7 +41,7 @@ defmodule ElektrineWeb.DomainAccountController do
   end
 
   def atomine(conn, _params) do
-    case domain_account_for_host(conn.host) do
+    case own_root_for_host(conn.host) do
       {:ok, domain, user} ->
         json(
           conn,
@@ -55,7 +55,7 @@ defmodule ElektrineWeb.DomainAccountController do
     end
   end
 
-  defp domain_account_for_host(host) when is_binary(host) do
+  defp own_root_for_host(host) when is_binary(host) do
     normalized_host = normalize_host(host)
 
     case Profiles.get_verified_custom_domain_for_host(normalized_host) do
@@ -63,13 +63,13 @@ defmodule ElektrineWeb.DomainAccountController do
         {:ok, domain, user}
 
       _ ->
-        built_in_domain_account_for_host(normalized_host)
+        built_in_own_root_for_host(normalized_host)
     end
   end
 
-  defp domain_account_for_host(_), do: :error
+  defp own_root_for_host(_), do: :error
 
-  defp built_in_domain_account_for_host(host) do
+  defp built_in_own_root_for_host(host) do
     case Domains.profile_base_domain_for_host(host) do
       nil ->
         :error

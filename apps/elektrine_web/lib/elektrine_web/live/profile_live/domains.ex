@@ -2,7 +2,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
   use ElektrineWeb, :live_view
 
   alias Elektrine.Accounts.User
-  alias Elektrine.{DNS, DomainAccount, Domains, Profiles}
+  alias Elektrine.{DNS, Domains, OwnRoot, Profiles}
   alias Elektrine.Utils.SafeConvert
   alias ElektrineWeb.Platform.Integrations
 
@@ -15,7 +15,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
      |> assign(:page_title, "Profile Domains")
      |> assign(:user, user)
      |> assign_builtin_profile_url()
-     |> assign_domain_account_summary()
+     |> assign_own_root_summary()
      |> refresh_per_site_identities()
      |> assign(:custom_domains, Profiles.list_user_custom_domains(user.id))
      |> assign(:email_custom_domains, Integrations.email_custom_domains(user.id))}
@@ -37,7 +37,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
          |> assign(:user, user)
          |> assign(:current_user, user)
          |> assign_builtin_profile_url()
-         |> assign_domain_account_summary()
+         |> assign_own_root_summary()
          |> refresh_per_site_identities()
          |> put_flash(:info, message)}
 
@@ -380,7 +380,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
                   Current Identity
                 </div>
                 <div class="mt-2 font-mono text-sm break-all text-base-content/85">
-                  {@domain_account_domain}
+                  {@own_root_domain}
                 </div>
               </div>
               <div class="rounded-2xl border border-base-content/10 bg-base-200/30 px-4 py-3">
@@ -388,7 +388,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
                   OIDC Subject
                 </div>
                 <div class="mt-2 font-mono text-sm break-all text-base-content/85">
-                  {DomainAccount.subject(@domain_account_domain)}
+                  {OwnRoot.subject(@own_root_domain)}
                 </div>
               </div>
               <div class="rounded-2xl border border-base-content/10 bg-base-200/30 px-4 py-3">
@@ -396,21 +396,21 @@ defmodule ElektrineWeb.ProfileLive.Domains do
                   DID
                 </div>
                 <div class="mt-2 font-mono text-sm break-all text-base-content/85">
-                  {DomainAccount.did_for_domain(@domain_account_domain)}
+                  {OwnRoot.did_for_domain(@own_root_domain)}
                 </div>
               </div>
             </div>
 
             <div class="grid gap-3 lg:grid-cols-2">
               <.identity_endpoint
-                id="domain-account-built-in-endpoint"
+                id="own-root-built-in-endpoint"
                 label="OwnRoot"
-                url={"https://#{@domain_account_domain}/.well-known/own-root"}
+                url={"https://#{@own_root_domain}/.well-known/own-root"}
               />
               <.identity_endpoint
                 id="did-built-in-endpoint"
                 label="DID Document"
-                url={"https://#{@domain_account_domain}/.well-known/did.json"}
+                url={"https://#{@own_root_domain}/.well-known/did.json"}
               />
             </div>
 
@@ -421,8 +421,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
                     Per-site Identities
                   </div>
                   <p class="mt-1 text-sm text-base-content/65">
-                    Create scoped domains like
-                    <span class="font-mono">hn.{@domain_account_domain}</span>
+                    Create scoped domains like <span class="font-mono">hn.{@own_root_domain}</span>
                     for apps that should not share the same subject.
                   </p>
                 </div>
@@ -536,10 +535,10 @@ defmodule ElektrineWeb.ProfileLive.Domains do
                 <%= for site <- ["hn", "spotify", "banking"] do %>
                   <div class="rounded-xl border border-base-content/10 bg-base-200/30 px-3 py-3">
                     <div class="font-mono text-xs break-all text-base-content/85">
-                      {site}.{@domain_account_domain}
+                      {site}.{@own_root_domain}
                     </div>
                     <div class="mt-2 font-mono text-xs break-all text-base-content/65">
-                      {"domain:#{site}.#{@domain_account_domain}"}
+                      {"domain:#{site}.#{@own_root_domain}"}
                     </div>
                   </div>
                 <% end %>
@@ -709,7 +708,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
                         <%= if custom_domain.status == "verified" do %>
                           <div class="grid gap-3 lg:grid-cols-2">
                             <.identity_endpoint
-                              id={"domain-account-endpoint-#{custom_domain.id}"}
+                              id={"own-root-endpoint-#{custom_domain.id}"}
                               label="OwnRoot"
                               url={"https://#{custom_domain.domain}/.well-known/own-root"}
                             />
@@ -724,9 +723,9 @@ defmodule ElektrineWeb.ProfileLive.Domains do
                               url={"https://#{custom_domain.domain}/users/#{user_handle(@user)}"}
                             />
                             <.identity_endpoint
-                              id={"domain-account-subject-#{custom_domain.id}"}
+                              id={"own-root-subject-#{custom_domain.id}"}
                               label="OIDC Subject"
-                              url={DomainAccount.subject(custom_domain.domain)}
+                              url={OwnRoot.subject(custom_domain.domain)}
                             />
                           </div>
                         <% end %>
@@ -1060,12 +1059,12 @@ defmodule ElektrineWeb.ProfileLive.Domains do
     |> assign(:built_in_subdomain_mode, User.built_in_subdomain_mode(user))
   end
 
-  defp assign_domain_account_summary(socket) do
+  defp assign_own_root_summary(socket) do
     user = socket.assigns.user
     handle = user_handle(user)
     domain = "#{handle}.#{Domains.default_profile_domain()}"
 
-    assign(socket, :domain_account_domain, domain)
+    assign(socket, :own_root_domain, domain)
   end
 
   defp refresh_per_site_identities(socket) do

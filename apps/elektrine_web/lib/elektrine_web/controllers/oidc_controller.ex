@@ -2,12 +2,12 @@ defmodule ElektrineWeb.OIDCController do
   use ElektrineWeb, :controller
 
   alias Elektrine.Accounts.Authentication
-  alias Elektrine.DomainAccount
   alias Elektrine.Domains
   alias Elektrine.OAuth
   alias Elektrine.OAuth.App
   alias Elektrine.OAuth.Scopes
   alias Elektrine.OIDC
+  alias Elektrine.OwnRoot
   alias Elektrine.Profiles
   alias ElektrineWeb.UserAuth
 
@@ -384,9 +384,9 @@ defmodule ElektrineWeb.OIDCController do
     case Profiles.get_verified_custom_domain(identity_domain) do
       %{domain: domain, user_id: ^user_id} ->
         %{
-          identity_subject: DomainAccount.subject(domain),
+          identity_subject: OwnRoot.subject(domain),
           identity_domain: domain,
-          identity_did: DomainAccount.did_for_domain(domain)
+          identity_did: OwnRoot.did_for_domain(domain)
         }
 
       _ ->
@@ -408,9 +408,9 @@ defmodule ElektrineWeb.OIDCController do
         with true <- handle != "" and not String.contains?(handle, "."),
              %{id: ^user_id} <- Elektrine.Accounts.get_user_by_handle(handle) do
           %{
-            identity_subject: DomainAccount.subject(identity_domain),
+            identity_subject: OwnRoot.subject(identity_domain),
             identity_domain: identity_domain,
-            identity_did: DomainAccount.did_for_domain(identity_domain)
+            identity_did: OwnRoot.did_for_domain(identity_domain)
           }
         else
           _ -> %{}

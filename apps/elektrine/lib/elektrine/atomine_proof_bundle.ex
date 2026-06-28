@@ -11,9 +11,9 @@ defmodule Elektrine.AtomineProofBundle do
   alias Elektrine.Accounts.TrustLevel
   alias Elektrine.Accounts.User
   alias Elektrine.ActivityPub
-  alias Elektrine.DomainAccount
   alias Elektrine.Domains
   alias Elektrine.OIDC
+  alias Elektrine.OwnRoot
   alias Elektrine.Uploads
 
   @version 1
@@ -33,9 +33,9 @@ defmodule Elektrine.AtomineProofBundle do
         "type" => @bundle_type,
         "version" => @version,
         "issuer" => provider_base_url,
-        "subject" => DomainAccount.subject(domain),
+        "subject" => OwnRoot.subject(domain),
         "domain" => domain,
-        "did" => DomainAccount.did_for_domain(domain),
+        "did" => OwnRoot.did_for_domain(domain),
         "profile" => profile_document(user, domain, account_base_url),
         "federation" => federation_document(user, domain, account_base_url),
         "claims" => claims(user, domain, account_base_url),
@@ -63,7 +63,6 @@ defmodule Elektrine.AtomineProofBundle do
       "avatar_url" => public_avatar_url(user),
       "domain_verified" => true,
       "own_root" => account_base_url <> "/.well-known/own-root",
-      "domain_account" => account_base_url <> "/.well-known/domain-account",
       "atomine" => account_base_url <> "/.well-known/atomine",
       "webfinger" => "acct:#{ActivityPub.actor_identifier(user)}@#{domain}"
     }
@@ -90,12 +89,12 @@ defmodule Elektrine.AtomineProofBundle do
         "evidence" => "profile_domain_discovery"
       },
       %{
-        "type" => "domain_account.subject",
-        "value" => DomainAccount.subject(domain)
+        "type" => "own_root.subject",
+        "value" => OwnRoot.subject(domain)
       },
       %{
         "type" => "did.web",
-        "value" => DomainAccount.did_for_domain(domain)
+        "value" => OwnRoot.did_for_domain(domain)
       },
       %{
         "type" => "profile.public_url",

@@ -1,8 +1,8 @@
-defmodule Elektrine.DomainAccount do
+defmodule Elektrine.OwnRoot do
   @moduledoc """
   Public, domain-rooted identity document for portable user accounts.
 
-  A domain account document says "this domain is the user's durable identity;
+  An OwnRoot document says "this domain is the user's durable identity;
   this Elektrine deployment is only the current provider for auth, profile,
   federation, and recovery surfaces."
   """
@@ -15,7 +15,7 @@ defmodule Elektrine.DomainAccount do
   @did_context "https://www.w3.org/ns/did/v1"
 
   @doc """
-  Builds the public domain account document for a verified user domain.
+  Builds the public OwnRoot document for a verified user domain.
   """
   def document(user, domain, opts \\ [])
 
@@ -76,11 +76,6 @@ defmodule Elektrine.DomainAccount do
           "id" => did <> "#own-root",
           "type" => "OwnRoot",
           "serviceEndpoint" => account_base_url <> "/.well-known/own-root"
-        },
-        %{
-          "id" => did <> "#domain-account",
-          "type" => "DomainAccount",
-          "serviceEndpoint" => account_base_url <> "/.well-known/domain-account"
         },
         %{
           "id" => did <> "#openid-connect",
