@@ -6,12 +6,70 @@
   <!-- Z Platform Navigation -->
   <.e_nav active_tab="portal" current_user={@current_user} />
   <div class="space-y-4 sm:space-y-6">
-    <% attention_count =
-      if @attention_filter == "all" do
-        length(@dashboard.attention_queue)
-      else
-        Map.get(@dashboard.attention_counts || %{}, @attention_filter, 0)
-      end %>
+    <% overview_stats =
+      [
+        %{
+          label: "Unread email",
+          count: @dashboard.inbox_unread_count,
+          icon: "hero-envelope",
+          href: Elektrine.Paths.email_index_path(tab: "inbox", filter: "unread")
+        },
+        %{
+          label: "Unread chat",
+          count: @dashboard.chat_unread_count,
+          icon: "hero-chat-bubble-left-right",
+          href: Elektrine.Paths.chat_root_path()
+        },
+        %{
+          label: "Notifications",
+          count: @dashboard.notifications_unread_count,
+          icon: "hero-bell-alert",
+          href: Elektrine.Paths.notifications_path()
+        },
+        %{
+          label: "Requests",
+          count:
+            @dashboard.pending_friend_requests_count + @dashboard.pending_follow_requests_count,
+          icon: "hero-user-plus",
+          href: Elektrine.Paths.friends_path(tab: "requests")
+        }
+      ] ++
+        if @dashboard.credits do
+          [
+            %{
+              label: "Credits",
+              count: @dashboard.credits,
+              icon: "hero-sparkles",
+              href: "/account/proofs"
+            }
+          ]
+        else
+          []
+        end %>
+
+    <section aria-label="Overview" class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <.link
+        :for={stat <- overview_stats}
+        navigate={stat.href}
+        class="card panel-card transition hover:bg-base-200/40 focus-visible:bg-base-200/40"
+      >
+        <div class="card-body flex-row items-center gap-3 p-3 sm:p-4">
+          <span class={[
+            "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
+            if(stat.count > 0,
+              do: "bg-primary/10 text-primary",
+              else: "bg-base-200 text-base-content/45"
+            )
+          ]}>
+            <.icon name={stat.icon} class="h-4 w-4" />
+          </span>
+          <div class="min-w-0">
+            <p class="text-lg font-semibold leading-none tabular-nums">{stat.count}</p>
+            <p class="mt-1 truncate text-xs text-base-content/60">{stat.label}</p>
+          </div>
+        </div>
+      </.link>
+    </section>
 
     <section class="space-y-4 sm:space-y-6">
       <.live_component
@@ -24,79 +82,6 @@
         attention_filter={@attention_filter}
         reader_params={@reader_params}
       />
-
-      <div class="grid gap-4 sm:gap-6">
-        <div class="card panel-card">
-          <div class="card-body p-4">
-            <div class="mb-3 flex items-center justify-between gap-3">
-              <h2 class="font-semibold flex items-center gap-2">
-                <.icon name="hero-bell-alert" class="h-4 w-4" /> Attention Queue
-              </h2>
-              <span class="badge badge-ghost badge-sm">{attention_count}</span>
-            </div>
-
-            <div class="-mx-1 mb-3 flex gap-2 overflow-x-auto px-1 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
-              <%= for filter <- ["all", "email", "chat", "requests"] do %>
-                <button
-                  phx-click="set_attention_filter"
-                  phx-value-filter={filter}
-                  class={attention_filter_pill_class(@attention_filter, filter)}
-                  aria-pressed={@attention_filter == filter}
-                >
-                  {attention_filter_label(filter)}
-                </button>
-              <% end %>
-            </div>
-
-            <%= if @loading_dashboard do %>
-              <div
-                data-role="attention-queue-list"
-                class="space-y-2 max-h-[18rem] overflow-y-auto pr-1 sm:max-h-[20rem] lg:max-h-[22rem]"
-              >
-                <div class="space-y-2 animate-pulse">
-                  <%= for _i <- 1..3 do %>
-                    <div class="h-16 rounded-lg bg-base-300"></div>
-                  <% end %>
-                </div>
-              </div>
-            <% else %>
-              <% attention_items =
-                filtered_attention_queue(@dashboard.attention_queue, @attention_filter) %>
-              <div
-                data-role="attention-queue-list"
-                class="space-y-2 max-h-[18rem] overflow-y-auto pr-1 sm:max-h-[20rem] lg:max-h-[22rem]"
-              >
-                <%= if Enum.empty?(attention_items) do %>
-                  <p class="rounded-lg border border-dashed border-base-300 p-4 text-sm text-base-content/65">
-                    Queue clear.
-                  </p>
-                <% else %>
-                  <%= for item <- attention_items do %>
-                    <.link navigate={item.href} class="surface-interactive block rounded-lg p-3">
-                      <div class="mb-1 flex items-center gap-2">
-                        <span class={attention_source_badge_class(item.source)}>
-                          {attention_filter_label(item.source)}
-                        </span>
-                        <%= if item.at do %>
-                          <.local_time
-                            datetime={item.at}
-                            format="relative"
-                            timezone={@timezone}
-                            time_format={@time_format}
-                            class="text-xs opacity-60"
-                          />
-                        <% end %>
-                      </div>
-                      <p class="text-sm font-medium">{item.title}</p>
-                      <p class="mt-1 line-clamp-2 text-xs text-base-content/70">{item.detail}</p>
-                    </.link>
-                  <% end %>
-                <% end %>
-              </div>
-            <% end %>
-          </div>
-        </div>
-      </div>
     </section>
   </div>
 

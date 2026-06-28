@@ -63,6 +63,102 @@ defmodule Elektrine.Profiles.CustomDomains do
   def list_user_custom_domains(_), do: []
 
   @doc """
+  Lists profile custom domains for the admin console, across all users.
+
+  Mirrors `Elektrine.Email.CustomDomains.list_custom_domains_admin/4`: supports a
+  domain/owner search, a status filter (all/verified/pending/attention), and
+  pagination. Returns `{domains, total_count}` with the owning user preloaded.
+  """
+  def list_custom_domains_admin(
+        search_query \\ "",
+        status_filter \\ "all",
+        page \\ 1,
+        per_page \\ 20
+      ) do
+    normalized_search = normalize_admin_search(search_query)
+    normalized_status = normalize_admin_status_filter(status_filter)
+    safe_page = max(page, 1)
+    safe_per_page = max(per_page, 1)
+
+    base_query =
+      CustomDomain
+      |> join(:left, [d], u in assoc(d, :user))
+      |> maybe_filter_admin_status(normalized_status)
+      |> maybe_search_admin(normalized_search)
+
+    total_count = Repo.aggregate(base_query, :count, :id)
+
+    domains =
+      base_query
+      |> order_by([d, _u], desc: d.inserted_at, asc: d.domain)
+      |> preload([_d, u], user: u)
+      |> limit(^safe_per_page)
+      |> offset(^((safe_page - 1) * safe_per_page))
+      |> Repo.all()
+
+    {domains, total_count}
+  end
+
+  @doc """
+  Aggregate counts of profile custom domains for the admin overview.
+  """
+  def custom_domain_admin_stats do
+    total = Repo.aggregate(CustomDomain, :count, :id)
+
+    verified =
+      Repo.aggregate(from(d in CustomDomain, where: d.status == ^@verified_status), :count, :id)
+
+    pending =
+      Repo.aggregate(from(d in CustomDomain, where: d.status == ^@pending_status), :count, :id)
+
+    attention =
+      Repo.aggregate(
+        from(d in CustomDomain,
+          where: (not is_nil(d.last_error) and d.last_error != "") or not is_nil(d.failing_since)
+        ),
+        :count,
+        :id
+      )
+
+    %{total: total, verified: verified, pending: pending, attention: attention}
+  end
+
+  defp maybe_search_admin(query, ""), do: query
+
+  defp maybe_search_admin(query, search_query) do
+    search_pattern = "%#{search_query}%"
+
+    from([d, u] in query,
+      where:
+        ilike(d.domain, ^search_pattern) or
+          ilike(fragment("coalesce(?, '')", u.username), ^search_pattern)
+    )
+  end
+
+  defp maybe_filter_admin_status(query, "all"), do: query
+
+  defp maybe_filter_admin_status(query, "attention") do
+    from([d, _u] in query,
+      where: (not is_nil(d.last_error) and d.last_error != "") or not is_nil(d.failing_since)
+    )
+  end
+
+  defp maybe_filter_admin_status(query, status) do
+    from([d, _u] in query, where: d.status == ^status)
+  end
+
+  defp normalize_admin_search(search_query) when is_binary(search_query),
+    do: String.trim(search_query)
+
+  defp normalize_admin_search(_), do: ""
+
+  defp normalize_admin_status_filter(status_filter)
+       when status_filter in ["all", "pending", "verified", "attention"],
+       do: status_filter
+
+  defp normalize_admin_status_filter(_), do: "all"
+
+  @doc """
   Returns custom domains due for a periodic DNS re-verification, oldest check
   first so the stalest records are revisited before newer ones.
   """

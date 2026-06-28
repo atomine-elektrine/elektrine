@@ -505,4 +505,148 @@
       <% end %>
     </div>
   </section>
+
+  <section class="card panel-card">
+    <div class="card-body gap-5">
+      <div class="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 class="text-lg sm:text-xl font-bold">Profile Custom Domains</h2>
+          <p class="mt-1 text-sm text-base-content/60">
+            Domains users have connected to their public profile (TXT-verified).
+          </p>
+        </div>
+
+        <div class="text-sm text-base-content/60">
+          {@profile_overview.total} total • {@profile_overview.verified} verified • {@profile_overview.pending} pending • {@profile_overview.attention} needs attention
+        </div>
+      </div>
+
+      <%= if @profile_total_count == 0 do %>
+        <div class="rounded-box border border-dashed border-base-300 px-6 py-10 text-center">
+          <h3 class="text-base font-semibold">No profile custom domains found</h3>
+          <p class="mt-1 text-sm text-base-content/60">
+            Nothing matches the current search and filter.
+          </p>
+        </div>
+      <% else %>
+        <div class="overflow-x-auto">
+          <table class="table w-full">
+            <thead>
+              <tr>
+                <th>Domain</th>
+                <th>Owner</th>
+                <th>Status</th>
+                <th>Verification</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              <%= for domain <- @profile_domains do %>
+                <tr>
+                  <td class="font-semibold tracking-tight break-all">{domain.domain}</td>
+
+                  <td>
+                    <%= if domain.user do %>
+                      <.link
+                        href={~p"/pripyat/users/#{domain.user.id}/edit"}
+                        class="font-medium text-primary hover:underline"
+                      >
+                        {domain.user.username}
+                      </.link>
+                    <% else %>
+                      <span class="text-base-content/45">Unknown owner</span>
+                    <% end %>
+                  </td>
+
+                  <td>
+                    <span class={[
+                      "badge badge-sm border-0",
+                      custom_domain_status_badge_class(domain.status)
+                    ]}>
+                      {String.capitalize(domain.status)}
+                    </span>
+
+                    <%= if Elektrine.Strings.present?(domain.last_error) do %>
+                      <div class="mt-1 text-xs text-warning break-all">{domain.last_error}</div>
+                    <% end %>
+                  </td>
+
+                  <td class="font-mono text-xs text-base-content/70 break-all">
+                    <%= for record <- Elektrine.Profiles.CustomDomains.dns_records_for_custom_domain(domain) do %>
+                      <div class="mb-1">
+                        <span class="badge badge-outline badge-xs mr-1">{record.type}</span>
+                        {record.host}
+                      </div>
+                    <% end %>
+                  </td>
+
+                  <td class="text-sm text-base-content/60">
+                    <.local_time
+                      datetime={domain.inserted_at}
+                      format="date"
+                      timezone={@timezone}
+                      time_format={@time_format}
+                    />
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+
+        <%= if @profile_total_pages > 1 do %>
+          <div class="mt-6 flex flex-col gap-4 border-t border-base-content/10 pt-5">
+            <div class="text-sm text-base-content/60">
+              Page {@profile_current_page} of {@profile_total_pages} • {@profile_total_count} total profile domains
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2">
+              <%= if @profile_current_page > 1 do %>
+                <.link
+                  href={
+                    build_profile_domains_url(
+                      @search_query,
+                      @status_filter,
+                      @profile_current_page - 1
+                    )
+                  }
+                  class="btn btn-sm"
+                >
+                  <.icon name="hero-chevron-left" class="h-4 w-4" />
+                </.link>
+              <% end %>
+
+              <%= for page_num <- @profile_page_range do %>
+                <.link
+                  href={build_profile_domains_url(@search_query, @status_filter, page_num)}
+                  class={
+                    if page_num == @profile_current_page,
+                      do: "btn btn-sm btn-primary",
+                      else: "btn btn-sm btn-ghost"
+                  }
+                >
+                  {page_num}
+                </.link>
+              <% end %>
+
+              <%= if @profile_current_page < @profile_total_pages do %>
+                <.link
+                  href={
+                    build_profile_domains_url(
+                      @search_query,
+                      @status_filter,
+                      @profile_current_page + 1
+                    )
+                  }
+                  class="btn btn-sm"
+                >
+                  <.icon name="hero-chevron-right" class="h-4 w-4" />
+                </.link>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+      <% end %>
+    </div>
+  </section>
 </div>

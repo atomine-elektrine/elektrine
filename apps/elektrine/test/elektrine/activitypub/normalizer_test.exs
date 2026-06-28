@@ -124,6 +124,26 @@ defmodule Elektrine.ActivityPub.NormalizerTest do
 
       refute Map.has_key?(payload.attrs.media_metadata, "external_link")
     end
+
+    test "does not treat a microblog post's own permalink as a submitted link" do
+      actor_uri = "https://mastodon.example/users/dansup"
+
+      object = %{
+        "type" => "Note",
+        "id" => "https://mastodon.example/users/dansup/statuses/123",
+        # Mastodon exposes the same post under a different path on the same host.
+        "url" => "https://mastodon.example/@dansup/123",
+        "attributedTo" => actor_uri,
+        "content" => "<p>just a reply, no links here</p>",
+        "published" => DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601(),
+        "to" => ["https://www.w3.org/ns/activitystreams#Public"]
+      }
+
+      payload = Normalizer.message_payload(object, actor_uri)
+
+      assert payload.attrs.primary_url == nil
+      refute Map.has_key?(payload.attrs.media_metadata, "external_link")
+    end
   end
 
   describe "question_payload/3" do

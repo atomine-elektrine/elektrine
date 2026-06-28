@@ -19,10 +19,6 @@ defmodule Elektrine.Platform.ENavComponent do
           <div class="card-body px-2 py-2 sm:px-3 space-y-1">
             <div class="pt-1 pb-0.5">
               <div class="flex flex-wrap items-center gap-1 sm:gap-2">
-                <div class="hidden pr-2 text-[11px] font-medium uppercase tracking-[0.18em] text-base-content/45 lg:block">
-                  Modes
-                </div>
-
                 <%= for item <- @items do %>
                   <.link
                     href={item.href}
@@ -44,10 +40,6 @@ defmodule Elektrine.Platform.ENavComponent do
             <%= if @secondary_items != [] do %>
               <div class="border-t border-base-300/80 pt-2 pb-0.5">
                 <div class="flex flex-wrap items-center gap-1 sm:gap-2">
-                  <div class="hidden pr-2 text-[11px] font-medium uppercase tracking-[0.18em] text-base-content/45 lg:block">
-                    Account
-                  </div>
-
                   <%= for item <- @secondary_items do %>
                     <.link
                       href={item.href}

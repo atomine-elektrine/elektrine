@@ -589,20 +589,40 @@ defmodule Elektrine.ActivityPub.Normalizer do
   defp extract_url_field_link(url_field, activity_id) do
     url_field
     |> expand_external_link_candidates()
-    |> Enum.find(fn candidate ->
-      is_binary(candidate) and candidate != activity_id
-    end)
+    |> Enum.find(&external_link_candidate?(&1, activity_id))
   end
 
   defp extract_source_field_link(%{} = source, activity_id) do
     [source["url"], source["href"], source["content"]]
     |> expand_external_link_candidates()
-    |> Enum.find(fn candidate ->
-      is_binary(candidate) and candidate != activity_id
-    end)
+    |> Enum.find(&external_link_candidate?(&1, activity_id))
   end
 
   defp extract_source_field_link(_, _), do: nil
+
+  # A `url`/`source` candidate counts as a submitted external link only when it
+  # points off the post's own instance. Microblog software (Mastodon, Pleroma,
+  # GoToSocial, …) exposes a post `url` (e.g. /@user/123) that is a different
+  # representation of the same object as its `id` (/users/user/statuses/123) on
+  # the same host — not an external link. Treating it as one produced a
+  # self-referential link preview on every such post. Genuine link-aggregator
+  # posts (Lemmy/Mbin) put the article on a different host, so a host comparison
+  # keeps those working.
+  defp external_link_candidate?(candidate, activity_id) when is_binary(candidate) do
+    candidate != activity_id and not same_host?(candidate, activity_id)
+  end
+
+  defp external_link_candidate?(_candidate, _activity_id), do: false
+
+  defp same_host?(a, b) when is_binary(a) and is_binary(b) do
+    host_a = a |> URI.parse() |> Map.get(:host)
+    host_b = b |> URI.parse() |> Map.get(:host)
+
+    is_binary(host_a) and is_binary(host_b) and
+      String.downcase(host_a) == String.downcase(host_b)
+  end
+
+  defp same_host?(_a, _b), do: false
 
   defp expand_external_link_candidates(value) when is_list(value) do
     Enum.flat_map(value, &expand_external_link_candidates/1)

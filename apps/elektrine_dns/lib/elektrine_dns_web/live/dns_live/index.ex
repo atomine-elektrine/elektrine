@@ -459,7 +459,7 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
       <div class="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
         <aside class="space-y-6">
           <section class="card panel-card">
-            <div class="card-body p-0">
+            <div class="card-body gap-0 p-0">
               <div class="border-b border-base-content/10 px-5 py-4">
                 <ElektrineWeb.Components.Platform.ENav.product_header
                   eyebrow="DNS"
@@ -685,6 +685,9 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                     <div class="flex flex-wrap items-center gap-2">
                       <span class={zone_status_badge_class(@active_zone.status)}>
                         {@active_zone.status}
+                        <%= if @active_zone.verified_at do %>
+                          · {Calendar.strftime(@active_zone.verified_at, "%Y-%m-%d")}
+                        <% end %>
                       </span>
                       <%= if builtin_zone?(@active_zone, @current_user) do %>
                         <span class="badge badge-info badge-outline">built-in</span>
@@ -693,11 +696,6 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                         </span>
                       <% end %>
                       <span class="badge badge-ghost">TTL {@active_zone.default_ttl}</span>
-                      <%= if @active_zone.verified_at do %>
-                        <span class="badge badge-outline">
-                          Verified {Calendar.strftime(@active_zone.verified_at, "%Y-%m-%d")}
-                        </span>
-                      <% end %>
                     </div>
                   </div>
 
@@ -1295,10 +1293,20 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                     <div
                       class="radial-progress text-primary"
                       style={"--value:#{@domain_health.score}; --size:4rem; --thickness:0.4rem;"}
+                      role="meter"
+                      aria-valuenow={@domain_health.score}
+                      aria-valuemin="0"
+                      aria-valuemax="100"
+                      title={"DNS health score: #{@domain_health.score} of 100"}
                     >
-                      <span class="text-sm font-semibold">{@domain_health.score}</span>
+                      <span class="text-sm font-semibold">
+                        {@domain_health.score}<span class="text-[9px] font-normal align-top">%</span>
+                      </span>
                     </div>
                     <div class="text-sm">
+                      <p class="text-[11px] font-semibold uppercase tracking-wide text-base-content/50">
+                        Health score
+                      </p>
                       <span class={domain_health_badge_class(@domain_health.status)}>
                         {@domain_health.status}
                       </span>
@@ -1893,11 +1901,11 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
   end
 
   defp service_health(nil),
-    do: Enum.map(["mail", "web", "turn", "vpn", "bluesky"], &blank_service_health/1)
+    do: Enum.map(["mail", "web", "bluesky"], &blank_service_health/1)
 
   defp service_health(%Zone{} = zone) do
     health = DNS.zone_service_health(zone)
-    Enum.map(["mail", "web", "turn", "vpn", "bluesky"], &service_entry(health, &1))
+    Enum.map(["mail", "web", "bluesky"], &service_entry(health, &1))
   end
 
   defp save_record(zone, nil, params), do: DNS.create_record(zone, params)
@@ -1916,7 +1924,7 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
     active? = active_zone && zone.id == active_zone.id
 
     [
-      "block border-b border-base-300 px-5 py-3 transition",
+      "block border-b border-base-300 last:border-b-0 px-5 py-3 transition",
       if(active?,
         do: "bg-primary/8",
         else: "hover:bg-base-200/40"

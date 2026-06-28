@@ -221,35 +221,6 @@ defmodule ElektrineWeb.ProofsLive do
         message="Identity proofs are experimental. Verification rules and credit rewards may change as the trust system is tuned."
       />
 
-      <div class="rounded-2xl border border-base-300 bg-base-100/80 p-4 text-sm shadow-sm sm:p-5">
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <p class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/50">
-              How this works
-            </p>
-            <h2 class="mt-1 text-lg font-semibold">Verify something you control</h2>
-            <p class="mt-2 max-w-3xl text-base-content/70">
-              Add a DNS record, publish a signed line on a page, or connect GitHub. Verified proofs can raise your account score and award Identity Credits.
-            </p>
-          </div>
-          <span class="badge badge-outline shrink-0">Atomine engine</span>
-        </div>
-        <div class="mt-4 grid gap-3 text-xs text-base-content/70 sm:grid-cols-3">
-          <div class="rounded-xl bg-base-200/60 p-3">
-            <p class="font-medium text-base-content">1. Create a proof</p>
-            <p class="mt-1">We generate a signed line for your account.</p>
-          </div>
-          <div class="rounded-xl bg-base-200/60 p-3">
-            <p class="font-medium text-base-content">2. Publish it</p>
-            <p class="mt-1">Put that exact line in DNS or on the page.</p>
-          </div>
-          <div class="rounded-xl bg-base-200/60 p-3">
-            <p class="font-medium text-base-content">3. Verify it</p>
-            <p class="mt-1">Check it here. The same domain or profile only pays once.</p>
-          </div>
-        </div>
-      </div>
-
       <div :if={!@atomine_available} class="alert alert-warning">
         <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
         <span>
