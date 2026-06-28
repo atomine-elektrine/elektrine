@@ -6,6 +6,7 @@ defmodule ElektrineEmailWeb.Admin.CustomDomainsController do
   use ElektrineEmailWeb, :controller
 
   alias Elektrine.Email
+  alias Elektrine.Profiles.CustomDomains, as: ProfileCustomDomains
 
   @status_filters ~w(all verified pending attention)
 
@@ -24,6 +25,21 @@ defmodule ElektrineEmailWeb.Admin.CustomDomainsController do
     total_pages = ceil(total_count / per_page)
     page_range = pagination_range(page, total_pages)
 
+    # Profile custom domains live in a separate table; list them alongside the
+    # email domains so the admin sees every domain users have added.
+    profile_page = SafeConvert.parse_page(params, "profile_page")
+
+    {profile_domains, profile_total_count} =
+      ProfileCustomDomains.list_custom_domains_admin(
+        search_query,
+        status_filter,
+        profile_page,
+        per_page
+      )
+
+    profile_total_pages = ceil(profile_total_count / per_page)
+    profile_page_range = pagination_range(profile_page, profile_total_pages)
+
     render(conn, :custom_domains,
       custom_domains: custom_domains,
       search_query: search_query,
@@ -33,7 +49,13 @@ defmodule ElektrineEmailWeb.Admin.CustomDomainsController do
       current_page: page,
       total_pages: total_pages,
       total_count: total_count,
-      page_range: page_range
+      page_range: page_range,
+      profile_domains: profile_domains,
+      profile_overview: ProfileCustomDomains.custom_domain_admin_stats(),
+      profile_current_page: profile_page,
+      profile_total_pages: profile_total_pages,
+      profile_total_count: profile_total_count,
+      profile_page_range: profile_page_range
     )
   end
 

@@ -94,6 +94,7 @@ defmodule Elektrine.MixProject do
        depth: 1},
       {:swoosh, "~> 1.26"},
       {:finch, "== 0.22.0"},
+      {:req, "== 0.5.18"},
       {:mail, "~> 0.5.1"},
       {:telemetry_metrics, "== 1.1.0"},
       {:telemetry_poller, "== 1.3.0"},

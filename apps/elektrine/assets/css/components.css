@@ -9,6 +9,27 @@
 } .btn-error { --btn-color: color-mix(in srgb, var(--color-base-300) 72%, var(--color-error) 28%); --btn-fg: var(--color-error-content);
 } .btn-ghost { --btn-color: var(--theme-btn-ghost-bg); --btn-fg: var(--theme-btn-ghost-text);
 } .btn-outline { --btn-color: var(--theme-btn-outline-border); --btn-fg: var(--color-base-content);
+}
+/* Outline + color variants: understated at rest (normal base-content text + a
+   subtle dark themed border, mixed from base-300 so it stays muted on the dark
+   theme), then on hover fill with the same muted accent the solid buttons use,
+   text in the accent's content color. This keeps them at the same low saturation
+   as the rest of the buttons. The accent only reads strongly on hover.
+   Plain .btn-outline stays neutral; two-class selectors win regardless of order. */
+.btn-outline.btn-primary { --btn-color: color-mix(in srgb, var(--color-base-300) 70%, var(--color-primary) 30%); --btn-fg: var(--color-primary-content); color: var(--color-base-content);
+} .btn-outline.btn-primary:hover, .btn-outline.btn-primary:focus-visible { color: var(--color-primary-content);
+} .btn-outline.btn-secondary { --btn-color: color-mix(in srgb, var(--color-base-300) 70%, var(--color-secondary) 30%); --btn-fg: var(--color-secondary-content); color: var(--color-base-content);
+} .btn-outline.btn-secondary:hover, .btn-outline.btn-secondary:focus-visible { color: var(--color-secondary-content);
+} .btn-outline.btn-accent { --btn-color: color-mix(in srgb, var(--color-base-300) 70%, var(--color-accent) 30%); --btn-fg: var(--color-accent-content); color: var(--color-base-content);
+} .btn-outline.btn-accent:hover, .btn-outline.btn-accent:focus-visible { color: var(--color-accent-content);
+} .btn-outline.btn-info { --btn-color: color-mix(in srgb, var(--color-base-300) 70%, var(--color-info) 30%); --btn-fg: var(--color-info-content); color: var(--color-base-content);
+} .btn-outline.btn-info:hover, .btn-outline.btn-info:focus-visible { color: var(--color-info-content);
+} .btn-outline.btn-success { --btn-color: color-mix(in srgb, var(--color-base-300) 70%, var(--color-success) 30%); --btn-fg: var(--color-success-content); color: var(--color-base-content);
+} .btn-outline.btn-success:hover, .btn-outline.btn-success:focus-visible { color: var(--color-success-content);
+} .btn-outline.btn-warning { --btn-color: color-mix(in srgb, var(--color-base-300) 70%, var(--color-warning) 30%); --btn-fg: var(--color-warning-content); color: var(--color-base-content);
+} .btn-outline.btn-warning:hover, .btn-outline.btn-warning:focus-visible { color: var(--color-warning-content);
+} .btn-outline.btn-error { --btn-color: color-mix(in srgb, var(--color-base-300) 70%, var(--color-error) 30%); --btn-fg: var(--color-error-content); color: var(--color-base-content);
+} .btn-outline.btn-error:hover, .btn-outline.btn-error:focus-visible { color: var(--color-error-content);
 } .btn-soft,
 .btn-neutral { --btn-color: var(--theme-btn-neutral-bg); --btn-fg: var(--color-base-content);
 } .btn-surface { border-color: var(--surface-panel-border); background-color: var(--surface-panel-bg-fallback) !important; color: var(--color-base-content);

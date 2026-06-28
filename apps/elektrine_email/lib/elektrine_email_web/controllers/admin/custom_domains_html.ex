@@ -23,6 +23,22 @@ defmodule ElektrineEmailWeb.Admin.CustomDomainsHTML do
     "/pripyat/custom-domains?" <> Enum.join(params, "&")
   end
 
+  def build_profile_domains_url(search, status, profile_page) do
+    params = []
+
+    params =
+      if Elektrine.Strings.present?(search) do
+        params ++ ["search=#{URI.encode_www_form(search)}"]
+      else
+        params
+      end
+
+    params = if status != "all", do: params ++ ["status=#{status}"], else: params
+    params = params ++ ["profile_page=#{profile_page}"]
+
+    "/pripyat/custom-domains?" <> Enum.join(params, "&")
+  end
+
   def custom_domain_filter_label("all"), do: "All Domains"
   def custom_domain_filter_label("verified"), do: "Verified"
   def custom_domain_filter_label("pending"), do: "Pending"

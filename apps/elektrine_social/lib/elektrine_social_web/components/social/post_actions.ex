@@ -147,7 +147,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
               @is_liked &&
                 "bg-primary/10 text-primary phx-click-loading:bg-transparent phx-click-loading:text-base-content/70",
               !@is_liked &&
-                "text-base-content hover:text-primary phx-click-loading:bg-primary/10 phx-click-loading:text-primary"
+                "hover:text-primary phx-click-loading:bg-primary/10 phx-click-loading:text-primary"
             ]}
             type="button"
           >
@@ -346,7 +346,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
               "flex items-center gap-1.5 transition-all duration-150 cursor-pointer phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
               if(@is_liked,
                 do: "text-primary phx-click-loading:text-base-content/60",
-                else: "text-base-content hover:text-primary phx-click-loading:text-primary"
+                else: "text-base-content/60 hover:text-primary phx-click-loading:text-primary"
               )
             ]}
             type="button"

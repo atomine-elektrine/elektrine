@@ -1747,6 +1747,20 @@ defmodule ElektrineWeb.PortalLive.Index do
     get_user_boosts(user_id, posts)
   end
 
+  # Identity Credits live in the optional Atomine engine. Fetch defensively so the
+  # portal still renders if Atomine is disabled or unmigrated; nil hides the card.
+  defp atomine_credit_balance(user_id) do
+    if Code.ensure_loaded?(Atomine.Credits) do
+      try do
+        Atomine.Credits.balance(user_id, "atomine_credit")
+      rescue
+        _ -> nil
+      end
+    else
+      nil
+    end
+  end
+
   defp build_dashboard_data(user) do
     mailbox = Integrations.email_mailbox(user.id)
 
@@ -1813,6 +1827,7 @@ defmodule ElektrineWeb.PortalLive.Index do
       pending_friend_requests_count: pending_friend_requests_count,
       pending_follow_requests_count: pending_follow_requests_count,
       vpn_config_count: vpn_config_count,
+      credits: atomine_credit_balance(user.id),
       tasks: tasks,
       alerts: alerts,
       attention_queue: attention_queue,
@@ -1911,16 +1926,6 @@ defmodule ElektrineWeb.PortalLive.Index do
   defp portal_filter_pill_class(current_filter, filter) do
     [
       "btn btn-sm rounded-full whitespace-nowrap border border-base-300",
-      if(current_filter == filter,
-        do: "btn-secondary text-secondary-content border-secondary shadow-sm",
-        else: "bg-base-200 text-base-content hover:bg-base-300"
-      )
-    ]
-  end
-
-  defp attention_filter_pill_class(current_filter, filter) do
-    [
-      "btn btn-xs rounded-full whitespace-nowrap border border-base-300",
       if(current_filter == filter,
         do: "btn-secondary text-secondary-content border-secondary shadow-sm",
         else: "bg-base-200 text-base-content hover:bg-base-300"

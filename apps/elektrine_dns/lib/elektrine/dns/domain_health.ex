@@ -49,8 +49,7 @@ defmodule Elektrine.DNS.DomainHealth do
       dnssec_check(records),
       mta_sts_check(records),
       tls_rpt_check(records),
-      tls_certificate_check(zone, records),
-      blacklist_check(records)
+      tls_certificate_check(zone, records)
     ]
   end
 
@@ -280,26 +279,6 @@ defmodule Elektrine.DNS.DomainHealth do
         :review,
         "No apex or `www` web records were found.",
         "Add web records before expecting a browser TLS certificate."
-      )
-    end
-  end
-
-  defp blacklist_check(records) do
-    if records_of(records, "MX", "@") == [] do
-      check(
-        :deliverability,
-        "Blacklist monitor",
-        :review,
-        "Blacklist checks need a sending mail host or IP.",
-        "Add MX/mail host records, then check sender IPs against reputation providers."
-      )
-    else
-      check(
-        :deliverability,
-        "Blacklist monitor",
-        :review,
-        "External blacklist providers are not queried by this local dashboard.",
-        "Check outbound mail server IPs against common RBLs before production sending."
       )
     end
   end

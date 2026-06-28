@@ -46,8 +46,6 @@ defmodule ElektrineWeb.PortalLiveTest do
       |> log_in_user(user)
       |> live(~p"/portal?filter=not-real")
 
-    assert html =~ "Attention Queue"
-
     assert has_element?(
              view,
              ~s(button[phx-click="set_filter"][phx-value-filter="all"].btn-secondary)
@@ -388,38 +386,6 @@ defmodule ElektrineWeb.PortalLiveTest do
 
     refute has_element?(view, ~s([data-role="recent-activity-list"]))
     refute render(view) =~ "Recent Activity"
-  end
-
-  test "attention queue is rendered as a scroll container", %{conn: conn} do
-    user = AccountsFixtures.user_fixture()
-
-    {:ok, view, _html} =
-      conn
-      |> log_in_user(user)
-      |> live(~p"/portal")
-
-    assert has_element?(view, ~s([data-role="attention-queue-list"].overflow-y-auto.pr-1))
-  end
-
-  test "attention queue can be filtered to requests", %{conn: conn} do
-    viewer = AccountsFixtures.user_fixture()
-    requester = AccountsFixtures.user_fixture()
-
-    {:ok, _request} = Friends.send_friend_request(requester.id, viewer.id)
-
-    {:ok, view, _html} =
-      conn
-      |> log_in_user(viewer)
-      |> live(~p"/portal")
-
-    assert render(view) =~ "Respond to friend requests"
-
-    view
-    |> element(~s(button[phx-click="set_attention_filter"][phx-value-filter="requests"]))
-    |> render_click()
-
-    assert_patch(view, ~p"/portal?filter=all&attention=requests")
-    assert render(view) =~ "Respond to friend requests"
   end
 
   test "invalid like_post id does not crash and shows an error", %{conn: conn} do

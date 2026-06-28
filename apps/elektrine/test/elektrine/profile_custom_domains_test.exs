@@ -200,4 +200,44 @@ defmodule Elektrine.ProfileCustomDomainsTest do
                record.value == Domains.profile_custom_domain_routing_target()
            end)
   end
+
+  test "list_custom_domains_admin returns every user's profile domains with the owner" do
+    owner_a = user_fixture(%{username: "adminlistowner1"})
+    owner_b = user_fixture(%{username: "adminlistowner2"})
+
+    {:ok, _} = Profiles.create_custom_domain(owner_a, %{"domain" => "adminlist-one.test"})
+    {:ok, _} = Profiles.create_custom_domain(owner_b, %{"domain" => "adminlist-two.test"})
+
+    {domains, total} = Profiles.CustomDomains.list_custom_domains_admin()
+
+    assert total == 2
+    listed = Enum.map(domains, & &1.domain)
+    assert "adminlist-one.test" in listed
+    assert "adminlist-two.test" in listed
+    # Owner is preloaded so the admin view can link to the user.
+    assert Enum.all?(domains, &is_struct(&1.user, Elektrine.Accounts.User))
+  end
+
+  test "list_custom_domains_admin filters by status and searches by domain/owner" do
+    owner = user_fixture(%{username: "adminsearchowner"})
+    {:ok, _} = Profiles.create_custom_domain(owner, %{"domain" => "adminsearch.test"})
+
+    assert {[], 0} = Profiles.CustomDomains.list_custom_domains_admin("", "verified")
+    assert {[domain], 1} = Profiles.CustomDomains.list_custom_domains_admin("adminsearch", "all")
+    assert domain.domain == "adminsearch.test"
+    assert {[_], 1} = Profiles.CustomDomains.list_custom_domains_admin("adminsearchowner", "all")
+    assert {[], 0} = Profiles.CustomDomains.list_custom_domains_admin("no-such-domain", "all")
+  end
+
+  test "custom_domain_admin_stats counts totals and pending domains" do
+    owner = user_fixture(%{username: "adminstatsowner"})
+    {:ok, _} = Profiles.create_custom_domain(owner, %{"domain" => "adminstats.test"})
+
+    stats = Profiles.CustomDomains.custom_domain_admin_stats()
+
+    assert stats.total >= 1
+    assert stats.pending >= 1
+    assert Map.has_key?(stats, :verified)
+    assert Map.has_key?(stats, :attention)
+  end
 end
