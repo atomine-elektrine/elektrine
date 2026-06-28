@@ -160,22 +160,23 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePostMedia do
   attr :id_prefix, :string, default: "post"
 
   def link_preview(assigns) do
+    assigns = assign(assigns, :link_preview, PostUtilities.visible_link_preview(assigns.post))
+
     ~H"""
-    <%= if link_preview_success?(@post.link_preview) &&
-             PostUtilities.safe_external_href(@post.link_preview.url) do %>
+    <%= if @link_preview && PostUtilities.safe_external_href(@link_preview.url) do %>
       <div class="mt-3 border border-base-300 rounded-lg overflow-hidden hover:border-base-300 transition-colors max-w-full">
         <a
-          href={PostUtilities.safe_external_href(@post.link_preview.url)}
+          href={PostUtilities.safe_external_href(@link_preview.url)}
           target="_blank"
           rel="noopener noreferrer"
           class="block min-w-0"
         >
-          <%= if image_url = PostUtilities.safe_image_url(@post.link_preview.image_url) do %>
+          <%= if image_url = PostUtilities.safe_image_url(@link_preview.image_url) do %>
             <div class="aspect-video bg-base-50">
               <img
-                id={"#{@id_prefix}-link-preview-image-#{@post.id || :erlang.phash2(@post.link_preview.image_url)}"}
+                id={"#{@id_prefix}-link-preview-image-#{@post.id || :erlang.phash2(@link_preview.image_url)}"}
                 src={image_url}
-                alt={@post.link_preview.title || ""}
+                alt={@link_preview.title || ""}
                 class="w-full h-full object-cover"
                 phx-hook="ImageFallback"
                 data-hide-target="parent"
@@ -184,9 +185,9 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePostMedia do
           <% end %>
           <div class="p-3 min-w-0">
             <div class="flex items-center gap-2 mb-2">
-              <%= if favicon_url = PostUtilities.safe_image_url(@post.link_preview.favicon_url) do %>
+              <%= if favicon_url = PostUtilities.safe_image_url(@link_preview.favicon_url) do %>
                 <img
-                  id={"#{@id_prefix}-link-preview-favicon-#{@post.id || :erlang.phash2(@post.link_preview.favicon_url)}"}
+                  id={"#{@id_prefix}-link-preview-favicon-#{@post.id || :erlang.phash2(@link_preview.favicon_url)}"}
                   src={favicon_url}
                   alt=""
                   class="w-4 h-4 flex-shrink-0"
@@ -194,17 +195,17 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePostMedia do
                 />
               <% end %>
               <span class="text-xs text-base-content/60 truncate">
-                {@post.link_preview.site_name || safe_preview_host(@post.link_preview)}
+                {@link_preview.site_name || safe_preview_host(@link_preview)}
               </span>
             </div>
-            <%= if @post.link_preview.title do %>
+            <%= if @link_preview.title do %>
               <h4 class="font-medium text-sm mb-1 break-words">
-                {preview_display_text(@post.link_preview.title, 100)}
+                {preview_display_text(@link_preview.title, 100)}
               </h4>
             <% end %>
-            <%= if @post.link_preview.description do %>
+            <%= if @link_preview.description do %>
               <p class="text-xs text-base-content/70 break-words">
-                {preview_display_text(@post.link_preview.description, 200)}
+                {preview_display_text(@link_preview.description, 200)}
               </p>
             <% end %>
           </div>

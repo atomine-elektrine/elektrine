@@ -123,6 +123,33 @@ defmodule ElektrineWeb.Components.Social.PostUtilitiesTest do
            ]) == ["https://example.com/media/photo.jpg?size=large"]
   end
 
+  test "detect_external_link/1 ignores alternate URLs for the same federated post" do
+    post = %{
+      activitypub_id: "https://federate.social/users/mattblaze/statuses/116825697706046218",
+      activitypub_url: "https://federate.social/@mattblaze/116825697706046218",
+      primary_url: "https://federate.social/@mattblaze/116825697706046218",
+      media_metadata: %{
+        "external_link" => "https://federate.social/@mattblaze/116825697706046218"
+      },
+      content: ~s(<p>No submitted link here</p>)
+    }
+
+    assert PostUtilities.detect_external_link(post) == nil
+    assert PostUtilities.self_referential_link?(post, post.primary_url)
+  end
+
+  test "detect_external_link/1 preserves real off-site submitted links" do
+    post = %{
+      activitypub_id: "https://lemmy.world/post/123",
+      activitypub_url: "https://example.com/story",
+      primary_url: "https://example.com/story",
+      media_metadata: %{},
+      content: nil
+    }
+
+    assert PostUtilities.detect_external_link(post) == "https://example.com/story"
+  end
+
   test "get_instance_domain/1 prefers remote actor domain" do
     post = %{remote_actor: %{domain: "lemmy.world"}}
 

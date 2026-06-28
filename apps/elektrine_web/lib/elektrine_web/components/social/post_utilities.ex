@@ -33,6 +33,19 @@ defmodule ElektrineWeb.Components.Social.PostUtilities do
   def detect_external_link(post),
     do: OptionalModule.call(:social, @component_module, :detect_external_link, [post], nil)
 
+  def visible_link_preview(post),
+    do: OptionalModule.call(:social, @component_module, :visible_link_preview, [post], nil)
+
+  def self_referential_link?(post, url),
+    do:
+      OptionalModule.call(
+        :social,
+        @component_module,
+        :self_referential_link?,
+        [post, url],
+        false
+      )
+
   def extract_url_from_content(content),
     do: OptionalModule.call(:social, @component_module, :extract_url_from_content, [content], nil)
 
