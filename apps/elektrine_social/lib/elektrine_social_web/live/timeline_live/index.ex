@@ -1014,9 +1014,16 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
         updated_socket.assigns[:search_query]
       ) != []
 
+    matches_display_toggles =
+      TimelineHelpers.post_matches_feed_display_toggles?(
+        post_with_associations,
+        updated_socket.assigns[:hide_boosts],
+        updated_socket.assigns[:hide_replies]
+      )
+
     matches_filter =
       matches_url_filter && matches_timeline_filter && matches_software_filter &&
-        matches_search_query
+        matches_search_query && matches_display_toggles
 
     updated_socket =
       if already_queued || already_in_timeline || !matches_filter do
@@ -1103,8 +1110,15 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
         socket.assigns[:search_query]
       ) != []
 
+    matches_display_toggles =
+      TimelineHelpers.post_matches_feed_display_toggles?(
+        post_with_associations,
+        socket.assigns[:hide_boosts],
+        socket.assigns[:hide_replies]
+      )
+
     if !matches_url_filter || !matches_timeline_filter || !matches_software_filter ||
-         !matches_search_query do
+         !matches_search_query || !matches_display_toggles do
       {:noreply, socket}
     else
       updated_socket =
@@ -1587,175 +1601,10 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
     |> Enum.sort_by(& &1.inserted_at, {:desc, NaiveDateTime})
   end
 
-  defp apply_timeline_filter(socket), do: apply_timeline_filter(socket, false)
+  defp apply_timeline_filter(socket), do: TimelineHelpers.apply_timeline_filter(socket)
 
-  defp apply_timeline_filter(socket, force_reset?) do
-    filtered_posts =
-      case socket.assigns.timeline_filter do
-        "posts" ->
-          Enum.filter(socket.assigns.timeline_posts, fn post ->
-            is_nil(Map.get(post, :reply_to_id)) && !PostUtilities.community_post?(post)
-          end)
-
-        "replies" ->
-          Enum.filter(socket.assigns.timeline_posts, fn post ->
-            !is_nil(Map.get(post, :reply_to_id)) ||
-              !is_nil(get_in(post.media_metadata, ["inReplyTo"]))
-          end)
-
-        "media" ->
-          Enum.filter(socket.assigns.timeline_posts, fn post ->
-            media_urls = Map.get(post, :media_urls, [])
-            has_media_urls = !Enum.empty?(media_urls)
-            link_preview = Map.get(post, :link_preview)
-
-            has_link_preview =
-              match?(%Elektrine.Social.LinkPreview{}, link_preview) &&
-                link_preview.status == "success" && link_preview.image_url != nil
-
-            has_media_urls || has_link_preview
-          end)
-
-        "friends" ->
-          Enum.filter(socket.assigns.timeline_posts, fn post ->
-            post.sender_id && post.sender_id in socket.assigns.friend_ids
-          end)
-
-        "my_posts" ->
-          if socket.assigns.current_user do
-            Enum.filter(socket.assigns.timeline_posts, fn post ->
-              post.sender_id == socket.assigns.current_user.id
-            end)
-          else
-            []
-          end
-
-        "trusted" ->
-          Enum.filter(socket.assigns.timeline_posts, fn post ->
-            post.federated != true && (post.sender || %{}) |> Map.get(:trust_level, 0) >= 2
-          end)
-
-        "communities" ->
-          Enum.filter(socket.assigns.timeline_posts, fn post ->
-            PostUtilities.community_post?(post)
-          end)
-
-        "federated" ->
-          Enum.filter(socket.assigns.timeline_posts, fn post -> post.federated == true end)
-
-        "local" ->
-          Enum.filter(socket.assigns.timeline_posts, fn post ->
-            !is_nil(post.sender_id) && is_nil(post.remote_actor_id)
-          end)
-
-        _ ->
-          socket.assigns.timeline_posts
-      end
-
-    filtered_posts = filter_posts_by_software(filtered_posts, socket.assigns.software_filter)
-
-    filtered_posts =
-      TimelineHelpers.filter_posts_by_search_query(filtered_posts, socket.assigns[:search_query])
-
-    filtered_posts = maybe_prioritize_non_community_posts(filtered_posts, socket)
-    filtered_posts = maybe_group_reply_chains(filtered_posts, socket)
-
-    filtered_posts =
-      TimelineHelpers.sort_timeline_posts(filtered_posts, socket.assigns[:timeline_sort])
-
-    TimelineHelpers.assign_filtered_posts(socket, filtered_posts, force_reset?)
-  end
-
-  defp maybe_group_reply_chains(posts, socket) when is_list(posts) do
-    if socket.assigns.timeline_filter in [nil, "all", "posts", "local", "federated", "friends"] do
-      group_reply_chains(posts)
-    else
-      posts
-    end
-  end
-
-  defp maybe_group_reply_chains(posts, _socket), do: posts
-
-  defp group_reply_chains(posts) when is_list(posts) do
-    ids_in_feed = MapSet.new(Enum.map(posts, & &1.id))
-
-    local_parent_ids =
-      posts
-      |> Enum.map(&Map.get(&1, :reply_to_id))
-      |> Enum.filter(&is_integer/1)
-      |> MapSet.new()
-
-    remote_parent_refs =
-      posts
-      |> Enum.map(&normalized_in_reply_to/1)
-      |> Enum.reject(&is_nil/1)
-      |> MapSet.new()
-
-    thread_keys_by_id =
-      posts
-      |> Enum.reduce(%{}, fn post, acc ->
-        Map.put(
-          acc,
-          post.id,
-          thread_group_key(post, ids_in_feed, local_parent_ids, remote_parent_refs)
-        )
-      end)
-
-    posts
-    |> Enum.group_by(fn post -> Map.get(thread_keys_by_id, post.id, {:post, post.id}) end)
-    |> Enum.map(fn {_group_key, grouped_posts} -> choose_thread_representative(grouped_posts) end)
-    |> Enum.sort_by(&timeline_sort_key/1, :desc)
-  end
-
-  defp choose_thread_representative([post]), do: post
-
-  defp choose_thread_representative(grouped_posts) do
-    Enum.max_by(grouped_posts, &timeline_sort_key/1, fn -> List.first(grouped_posts) end)
-  end
-
-  defp timeline_sort_key(post) do
-    {Map.get(post, :inserted_at), Map.get(post, :id, 0)}
-  end
-
-  defp thread_group_key(post, ids_in_feed, local_parent_ids, remote_parent_refs) do
-    cond do
-      is_integer(Map.get(post, :reply_to_id)) and MapSet.member?(ids_in_feed, post.reply_to_id) ->
-        {:local_thread, post.reply_to_id}
-
-      is_binary(normalized_in_reply_to(post)) ->
-        {:remote_thread, normalized_in_reply_to(post)}
-
-      MapSet.member?(local_parent_ids, post.id) ->
-        {:local_thread, post.id}
-
-      matched_ref = Enum.find(thread_self_refs(post), &MapSet.member?(remote_parent_refs, &1)) ->
-        {:remote_thread, matched_ref}
-
-      true ->
-        {:post, post.id}
-    end
-  end
-
-  defp thread_self_refs(post) do
-    [Map.get(post, :activitypub_id), Map.get(post, :activitypub_url)]
-    |> Enum.map(&normalize_thread_ref/1)
-    |> Enum.reject(&is_nil/1)
-    |> Enum.uniq()
-  end
-
-  defp normalized_in_reply_to(post) do
-    post
-    |> Map.get(:media_metadata, %{})
-    |> get_in(["inReplyTo"])
-    |> normalize_thread_ref()
-  end
-
-  defp normalize_thread_ref(value) when is_binary(value) do
-    value = String.trim(value)
-    Elektrine.Strings.present(value)
-  end
-
-  defp normalize_thread_ref(_), do: nil
+  defp apply_timeline_filter(socket, force_reset?),
+    do: TimelineHelpers.apply_timeline_filter(socket, force_reset?)
 
   defp viewer_follows_post_author?(post, socket) do
     case socket.assigns[:current_user] do
@@ -1867,7 +1716,12 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
       post_matches_url_filter?(post, socket.assigns.current_filter, socket) &&
         post_matches_filter?(post, socket.assigns.timeline_filter, socket) &&
         post_matches_software_filter?(post, socket.assigns.software_filter) &&
-        TimelineHelpers.filter_posts_by_search_query([post], socket.assigns[:search_query]) != []
+        TimelineHelpers.filter_posts_by_search_query([post], socket.assigns[:search_query]) != [] &&
+        TimelineHelpers.post_matches_feed_display_toggles?(
+          post,
+          socket.assigns[:hide_boosts],
+          socket.assigns[:hide_replies]
+        )
     end)
   end
 
@@ -1934,25 +1788,6 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
       "misskey" -> instance_sw in ["misskey", "calckey", "firefish", "iceshrimp", "sharkey"]
       "mastodon" -> instance_sw in ["mastodon", "hometown", "glitch"]
       _ -> instance_sw == filter
-    end
-  end
-
-  defp maybe_prioritize_non_community_posts(posts, socket) do
-    if socket.assigns.current_filter in [
-         "all",
-         "explore",
-         "following",
-         "home",
-         "federated",
-         "public"
-       ] &&
-         socket.assigns.timeline_filter == "all" && socket.assigns.software_filter == "all" do
-      {non_community, community} =
-        Enum.split_with(posts, fn post -> !PostUtilities.community_post?(post) end)
-
-      non_community ++ community
-    else
-      posts
     end
   end
 

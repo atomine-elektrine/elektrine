@@ -49,7 +49,6 @@ defmodule ElektrineWeb.Components.Platform.ENav do
     ENavComponent.render(assigns)
   end
 
-  attr :eyebrow, :string, default: nil
   attr :title, :string, required: true
   attr :description, :string, default: nil
   attr :header_class, :string, default: nil
@@ -62,12 +61,6 @@ defmodule ElektrineWeb.Components.Platform.ENav do
       @header_class
     ]}>
       <div class="min-w-0">
-        <p
-          :if={@eyebrow}
-          class="text-[11px] font-semibold uppercase tracking-[0.16em] text-base-content/45"
-        >
-          {@eyebrow}
-        </p>
         <h1 class="mt-0.5 text-xl font-semibold tracking-tight text-base-content sm:text-2xl">
           {@title}
         </h1>

@@ -143,7 +143,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       <div class="flex min-w-0 items-center gap-2 px-4 text-sm leading-none text-base-content/65">
         <.icon name="hero-arrow-path" class="h-4 w-4 shrink-0 text-success" />
         <%= if @booster do %>
-          <.user_hover_card user={@booster} current_user={@current_user}>
+          <.user_hover_card user={@booster} current_user={@current_user} user_follows={@user_follows}>
             <.link
               navigate={"/#{@booster.handle || @booster.username}"}
               class="inline-flex min-w-0 shrink items-center gap-1.5 font-medium leading-none text-success hover:underline"
@@ -1088,7 +1088,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
           </div>
           <div class="flex items-center gap-2 mb-2">
             <%= if @post.quoted_message.sender do %>
-              <.user_hover_card user={@post.quoted_message.sender}>
+              <.user_hover_card user={@post.quoted_message.sender} user_follows={@user_follows}>
                 <.link
                   navigate={"/#{@post.quoted_message.sender.handle || @post.quoted_message.sender.username}"}
                   class="w-6 h-6"
@@ -1096,7 +1096,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
                   <.user_avatar user={@post.quoted_message.sender} size="xs" />
                 </.link>
               </.user_hover_card>
-              <.user_hover_card user={@post.quoted_message.sender}>
+              <.user_hover_card user={@post.quoted_message.sender} user_follows={@user_follows}>
                 <.link
                   navigate={"/#{@post.quoted_message.sender.handle || @post.quoted_message.sender.username}"}
                   class="font-medium text-sm hover:text-error transition-colors"

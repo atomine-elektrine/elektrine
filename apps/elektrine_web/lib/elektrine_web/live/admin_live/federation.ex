@@ -493,7 +493,6 @@ defmodule ElektrineWeb.AdminLive.Federation do
     ~H"""
     <div class="admin-page">
       <.section_header
-        eyebrow="Federation Policy"
         title="ActivityPub Federation"
         description="Moderate remote ActivityPub instances, actors, and activity flow without touching chat peering or Bluesky bridge credentials."
       >

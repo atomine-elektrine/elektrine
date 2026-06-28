@@ -202,10 +202,15 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
   end
 
   def handle_event("load_queued_posts", _params, socket) do
-    queued = socket.assigns.queued_posts
+    queued =
+      Helpers.filter_posts_by_feed_display_toggles(
+        socket.assigns.queued_posts,
+        socket.assigns[:hide_boosts],
+        socket.assigns[:hide_replies]
+      )
 
     if Enum.empty?(queued) do
-      {:noreply, socket}
+      {:noreply, assign(socket, :queued_posts, [])}
     else
       unique_queued = Enum.uniq_by(queued, & &1.id)
       existing_ids = socket.assigns.timeline_posts |> Enum.map(& &1.id) |> MapSet.new()
@@ -488,6 +493,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
     {:noreply,
      socket
      |> update(:hide_boosts, &(!&1))
+     |> prune_queued_posts_for_display_toggles()
      |> Helpers.apply_timeline_filter(true)}
   end
 
@@ -495,6 +501,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
     {:noreply,
      socket
      |> update(:hide_replies, &(!&1))
+     |> prune_queued_posts_for_display_toggles()
      |> Helpers.apply_timeline_filter(true)}
   end
 
@@ -1290,6 +1297,18 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
     datetime
     |> DateTime.truncate(:second)
     |> DateTime.to_iso8601()
+  end
+
+  defp prune_queued_posts_for_display_toggles(socket) do
+    assign(
+      socket,
+      :queued_posts,
+      Helpers.filter_posts_by_feed_display_toggles(
+        socket.assigns[:queued_posts],
+        socket.assigns[:hide_boosts],
+        socket.assigns[:hide_replies]
+      )
+    )
   end
 
   defp pending_media_metadata(socket) do

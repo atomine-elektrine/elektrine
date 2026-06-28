@@ -73,7 +73,6 @@ defmodule ElektrineWeb.PortalLive.Reader do
 
         <div class="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div class="min-w-0">
-            <p class="text-xs uppercase tracking-[0.18em] text-base-content/50">Reading</p>
             <h1 class="truncate text-lg font-semibold tracking-tight sm:text-2xl">Feed Reader</h1>
           </div>
 

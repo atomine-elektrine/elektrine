@@ -37,7 +37,6 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
     ~H"""
     <div class="admin-page">
       <.section_header
-        eyebrow="Moderation"
         title="Reports"
         description="Review, triage, and resolve user reports across messages, users, and conversations."
       >
