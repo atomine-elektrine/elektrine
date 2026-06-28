@@ -12,7 +12,6 @@ defmodule ElektrineWeb.PortalLive.DashboardData do
       pending_friend_requests_count: 0,
       pending_follow_requests_count: 0,
       vpn_config_count: 0,
-      credits: nil,
       tasks: [],
       alerts: [],
       attention_queue: [],
