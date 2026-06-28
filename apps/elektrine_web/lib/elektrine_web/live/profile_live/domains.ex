@@ -369,8 +369,8 @@ defmodule ElektrineWeb.ProfileLive.Domains do
         <div class="card panel-card">
           <div class="card-body space-y-4">
             <.section_header
-              title="Internet ID"
-              description="Your Internet ID ties profile, sign-in, federation, mail, DID, and recovery discovery to one portable name."
+              title="OwnRoot"
+              description="A portable web root for profile, sign-in, federation, mail, DID, proofs, and recovery."
               align="start"
             />
 
@@ -404,8 +404,8 @@ defmodule ElektrineWeb.ProfileLive.Domains do
             <div class="grid gap-3 lg:grid-cols-2">
               <.identity_endpoint
                 id="domain-account-built-in-endpoint"
-                label="Internet ID"
-                url={"https://#{@domain_account_domain}/.well-known/domain-account"}
+                label="OwnRoot"
+                url={"https://#{@domain_account_domain}/.well-known/own-root"}
               />
               <.identity_endpoint
                 id="did-built-in-endpoint"
@@ -710,8 +710,8 @@ defmodule ElektrineWeb.ProfileLive.Domains do
                           <div class="grid gap-3 lg:grid-cols-2">
                             <.identity_endpoint
                               id={"domain-account-endpoint-#{custom_domain.id}"}
-                              label="Internet ID"
-                              url={"https://#{custom_domain.domain}/.well-known/domain-account"}
+                              label="OwnRoot"
+                              url={"https://#{custom_domain.domain}/.well-known/own-root"}
                             />
                             <.identity_endpoint
                               id={"did-endpoint-#{custom_domain.id}"}

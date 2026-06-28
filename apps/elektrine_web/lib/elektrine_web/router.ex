@@ -470,6 +470,7 @@ defmodule ElektrineWeb.Router do
   scope "/.well-known", ElektrineWeb do
     pipe_through(:api)
 
+    get("/own-root", DomainAccountController, :show)
     get("/domain-account", DomainAccountController, :show)
     get("/did.json", DomainAccountController, :did)
     get("/elektrine", DomainAccountController, :show)

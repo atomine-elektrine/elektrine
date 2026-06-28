@@ -62,7 +62,7 @@ defmodule ElektrineWeb.CustomDomainIdentityControllerTest do
     end
   end
 
-  describe "GET /.well-known/domain-account" do
+  describe "GET /.well-known/own-root" do
     test "publishes the portable identity document on a verified custom profile domain", %{
       conn: conn
     } do
@@ -85,7 +85,7 @@ defmodule ElektrineWeb.CustomDomainIdentityControllerTest do
         conn
         |> Map.put(:host, custom_domain.domain)
         |> put_req_header("accept", "application/json")
-        |> get("/.well-known/domain-account")
+        |> get("/.well-known/own-root")
 
       response = json_response(conn, 200)
 
@@ -135,6 +135,21 @@ defmodule ElektrineWeb.CustomDomainIdentityControllerTest do
 
       assert response["recovery"]["export_available"] == true
       assert response["recovery"]["portable_root"] == "dns"
+    end
+
+    test "keeps the legacy domain account endpoint as an alias", %{conn: conn} do
+      user = user_fixture(%{username: "legacyaccount", handle: "legacyaccount"})
+      custom_domain = verified_profile_custom_domain_fixture(user, "legacyportable.example")
+
+      conn =
+        conn
+        |> Map.put(:host, custom_domain.domain)
+        |> put_req_header("accept", "application/json")
+        |> get("/.well-known/domain-account")
+
+      response = json_response(conn, 200)
+
+      assert response["subject"] == "domain:legacyportable.example"
     end
 
     test "publishes the Atomine proof bundle on a verified custom profile domain", %{
@@ -201,7 +216,7 @@ defmodule ElektrineWeb.CustomDomainIdentityControllerTest do
         conn
         |> Map.put(:host, domain)
         |> put_req_header("accept", "application/json")
-        |> get("/.well-known/domain-account")
+        |> get("/.well-known/own-root")
 
       response = json_response(conn, 200)
 
@@ -234,7 +249,7 @@ defmodule ElektrineWeb.CustomDomainIdentityControllerTest do
         conn
         |> Map.put(:host, "unknown.example")
         |> put_req_header("accept", "application/json")
-        |> get("/.well-known/domain-account")
+        |> get("/.well-known/own-root")
 
       assert json_response(conn, 404) == %{"error" => "domain_account_not_found"}
     end
@@ -259,6 +274,12 @@ defmodule ElektrineWeb.CustomDomainIdentityControllerTest do
       assert "https://didportable.example/" in response["alsoKnownAs"]
       assert "acct:didaccount@didportable.example" in response["alsoKnownAs"]
       assert "https://didportable.example/users/didaccount" in response["alsoKnownAs"]
+
+      assert %{
+               "id" => "did:web:didportable.example#own-root",
+               "type" => "OwnRoot",
+               "serviceEndpoint" => "https://didportable.example/.well-known/own-root"
+             } in response["service"]
 
       assert %{
                "id" => "did:web:didportable.example#domain-account",

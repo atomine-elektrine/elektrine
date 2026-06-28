@@ -43,6 +43,7 @@ defmodule Elektrine.Developer.Exports.AccountExporterTest do
     assert exported_domain["did"] == "did:web:#{built_in_domain}"
     assert exported_domain["domain_account"]["subject"] == "domain:#{built_in_domain}"
     assert exported_domain["did_document"]["id"] == "did:web:#{built_in_domain}"
+    assert exported_domain["migration"]["own_root"] =~ "/.well-known/own-root"
     assert is_binary(exported_domain["migration"]["domain_account"])
 
     assert [identity] = exported_domain["domain_account"]["per_site_identities"]["identities"]

@@ -250,7 +250,7 @@ defmodule Elektrine.AtomineProofGraph do
       subject: DomainAccount.subject(domain),
       did: DomainAccount.did_for_domain(domain),
       atomine_url: "https://#{domain}/.well-known/atomine",
-      domain_account_url: "https://#{domain}/.well-known/domain-account"
+      domain_account_url: "https://#{domain}/.well-known/own-root"
     }
   end
 

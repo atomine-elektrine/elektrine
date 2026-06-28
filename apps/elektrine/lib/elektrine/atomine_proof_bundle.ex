@@ -62,6 +62,7 @@ defmodule Elektrine.AtomineProofBundle do
       "display_name" => blank_to_nil(user.display_name || user.handle || user.username),
       "avatar_url" => public_avatar_url(user),
       "domain_verified" => true,
+      "own_root" => account_base_url <> "/.well-known/own-root",
       "domain_account" => account_base_url <> "/.well-known/domain-account",
       "atomine" => account_base_url <> "/.well-known/atomine",
       "webfinger" => "acct:#{ActivityPub.actor_identifier(user)}@#{domain}"
