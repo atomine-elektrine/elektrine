@@ -108,11 +108,11 @@ defmodule Elektrine.Uptime do
   `{:ok, %{check: ..., monitor: ..., transition: transition}}` where `transition`
   is one of:
 
-    * `:none`      — up→up, or down below the failure threshold (no alert yet)
-    * `:went_down` — `consecutive_failures` just crossed `failure_threshold`
+    * `:none`      - up→up, or down below the failure threshold (no alert yet)
+    * `:went_down` - `consecutive_failures` just crossed `failure_threshold`
       (alert once); opens an incident
-    * `:still_down`— another failure while already past the threshold
-    * `:recovered` — down→up; resolves the open incident
+    * `:still_down`- another failure while already past the threshold
+    * `:recovered` - down→up; resolves the open incident
   """
   def record_check(%Monitor{} = monitor, result) do
     now = DateTime.truncate(DateTime.utc_now(), :second)

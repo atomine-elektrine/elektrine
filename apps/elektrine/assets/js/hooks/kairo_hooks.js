@@ -1,5 +1,5 @@
 /**
- * KairoVault — zero-knowledge decryption for Kairo sources.
+ * KairoVault - zero-knowledge decryption for Kairo sources.
  * Sources are ingested via the API (encrypted client-side there); this page only
  * reads them. Encrypted rows decrypt on demand under the Kairo subkey of the
  * unlocked master key, which can be unlocked inline for the tab.

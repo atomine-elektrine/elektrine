@@ -443,8 +443,8 @@ defmodule Elektrine.Messaging.Federation.Builders do
   end
 
   # NOTE: unlike build_invite/remote_invite/ban events, this intentionally has
-  # no `is_federated_mirror` reject guard. Membership is multi-origin — each
-  # instance is authoritative for its own users' membership — so a mirror
+  # no `is_federated_mirror` reject guard. Membership is multi-origin - each
+  # instance is authoritative for its own users' membership - so a mirror
   # legitimately emits membership events, which Visibility routes back to the
   # conversation's origin_domain. The asymmetry with the guarded sibling
   # builders is by design, not an oversight.

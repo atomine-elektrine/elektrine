@@ -139,7 +139,7 @@ defmodule Elektrine.Nerve.NerveEntry do
   end
 
   # Entries are encrypted under the Nerve subkey of the master key (HKDF), so the
-  # envelope is keyed AES-256-GCM — {algorithm, iv, ciphertext} — with no
+  # envelope is keyed AES-256-GCM - {algorithm, iv, ciphertext} - with no
   # per-item KDF params.
   defp valid_client_payload?(payload) do
     algorithm = payload_value(payload, "algorithm", :algorithm)

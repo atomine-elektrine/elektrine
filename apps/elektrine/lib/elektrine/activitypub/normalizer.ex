@@ -604,7 +604,7 @@ defmodule Elektrine.ActivityPub.Normalizer do
   # points off the post's own instance. Microblog software (Mastodon, Pleroma,
   # GoToSocial, …) exposes a post `url` (e.g. /@user/123) that is a different
   # representation of the same object as its `id` (/users/user/statuses/123) on
-  # the same host — not an external link. Treating it as one produced a
+  # the same host - not an external link. Treating it as one produced a
   # self-referential link preview on every such post. Genuine link-aggregator
   # posts (Lemmy/Mbin) put the article on a different host, so a host comparison
   # keeps those working.

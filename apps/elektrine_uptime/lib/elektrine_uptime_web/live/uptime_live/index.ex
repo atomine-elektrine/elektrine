@@ -297,11 +297,11 @@ defmodule ElektrineUptimeWeb.UptimeLive.Index do
   defp latency_label(%Monitor{} = monitor) do
     case List.last(Uptime.latency_series(monitor.id, 1)) do
       %{response_time_ms: ms} when is_integer(ms) -> "#{ms} ms"
-      _ -> "—"
+      _ -> "-"
     end
   end
 
-  defp uptime_label(nil), do: "—"
+  defp uptime_label(nil), do: "-"
   defp uptime_label(percentage), do: "#{:erlang.float_to_binary(percentage, decimals: 2)}%"
 
   defp target_label("http"), do: "URL"
@@ -318,7 +318,7 @@ defmodule ElektrineUptimeWeb.UptimeLive.Index do
     end
   end
 
-  defp format_at(nil), do: "—"
+  defp format_at(nil), do: "-"
   defp format_at(%DateTime{} = dt), do: Calendar.strftime(dt, "%Y-%m-%d %H:%M:%S")
   defp format_at(%NaiveDateTime{} = dt), do: Calendar.strftime(dt, "%Y-%m-%d %H:%M:%S")
 end

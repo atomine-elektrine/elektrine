@@ -3,7 +3,7 @@ defmodule Elektrine.Uptime.CheckWorker do
   Probes a single monitor: runs the configured `Checker`, records the result
   (driving incident transitions), and broadcasts the result over PubSub.
 
-  `max_attempts: 1` — the next scheduler tick is the retry, so a transient
+  `max_attempts: 1` - the next scheduler tick is the retry, so a transient
   failure doesn't block the queue.
   """
   use Oban.Worker, queue: :uptime, max_attempts: 1

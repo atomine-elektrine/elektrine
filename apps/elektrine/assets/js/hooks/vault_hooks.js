@@ -1,5 +1,5 @@
 /**
- * VaultManager — browser side of the master-password page.
+ * VaultManager - browser side of the master-password page.
  * Generates/wraps the Master Data Key on setup, unwraps it on unlock, and
  * shares the unlocked key via vault_session so every feature unlocks at once.
  */

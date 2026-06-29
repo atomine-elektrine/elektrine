@@ -637,8 +637,8 @@ defmodule Elektrine.Messaging.ChatConversations do
       |> Repo.one()
 
     # Owners are implicitly admins. (Note: the "owner" role is currently
-    # vestigial on the chat side — creators are stored as "admin" and creator
-    # protection keys off conversation.creator_id — but federated/imported
+    # vestigial on the chat side - creators are stored as "admin" and creator
+    # protection keys off conversation.creator_id - but federated/imported
     # members can carry it, so treat it as admin-or-higher here.)
     case member do
       %ChatConversationMember{role: role} when role in ["owner", "admin"] -> true
@@ -755,7 +755,7 @@ defmodule Elektrine.Messaging.ChatConversations do
          # channel membership, because these are SERVER channels whose authority
          # is server-level (the owner has no per-channel ChatConversationMember
          # row). A context-level check belongs against server role, not channel
-         # membership — see federation_test.exs "remote join moderation workflow".
+         # membership - see federation_test.exs "remote join moderation workflow".
          %FederationMembershipState{} = membership_state <-
            pending_remote_join_membership_state(conversation_id, remote_actor_id),
          %ActivityPubActor{} = remote_actor <- Repo.get(ActivityPubActor, remote_actor_id) do

@@ -120,7 +120,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.DomainSettings do
   end
 
   # Domain verification and DKIM sync hit DNS and the Haraka API, which can
-  # take seconds — run them off the LiveView process so the UI stays responsive.
+  # take seconds - run them off the LiveView process so the UI stays responsive.
   def handle_event("verify_custom_domain", %{"id" => id}, socket) do
     user_id = socket.assigns.current_user.id
 

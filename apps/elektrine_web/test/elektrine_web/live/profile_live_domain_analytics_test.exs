@@ -64,7 +64,7 @@ defmodule ElektrineWeb.ProfileLiveDomainAnalyticsTest do
 
     host_two = zone_two.domain
 
-    # First zone: 2 sessions, second zone: 3 sessions — distinct so we can tell them apart.
+    # First zone: 2 sessions, second zone: 3 sessions - distinct so we can tell them apart.
     for i <- 1..2 do
       Profiles.track_site_page_visit(
         visitor_id: "one-#{i}",

@@ -295,9 +295,9 @@
                           <td class="font-mono text-xs">
                             {if check.response_time_ms,
                               do: "#{check.response_time_ms} ms",
-                              else: "—"}
+                              else: "-"}
                           </td>
-                          <td class="font-mono text-xs">{check.status_code || "—"}</td>
+                          <td class="font-mono text-xs">{check.status_code || "-"}</td>
                           <td class="text-xs break-all text-base-content/70">
                             {check.error || ""}
                           </td>

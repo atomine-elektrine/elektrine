@@ -5,7 +5,7 @@ defmodule Elektrine.Vault do
   A user's master password derives a key that wraps a single Master Data Key
   (MDK); per-feature keys (Nerve, Kairo, email private storage) are derived from
   the MDK in the browser via HKDF. The server only ever stores and returns the
-  wrapped MDK blobs — it never sees the passphrase, the recovery code, or the
+  wrapped MDK blobs - it never sees the passphrase, the recovery code, or the
   MDK. Unlock, rotation, and recovery all happen client-side.
   """
   import Ecto.Query, warn: false
@@ -31,7 +31,7 @@ defmodule Elektrine.Vault do
   @doc """
   Creates the user's master key for the first time.
 
-  Fails if one already exists — replacing it would orphan everything encrypted
+  Fails if one already exists - replacing it would orphan everything encrypted
   under the old MDK. Use `rotate/2` to change the passphrase or `reset/1` to
   deliberately discard all encrypted data.
   """
@@ -51,7 +51,7 @@ defmodule Elektrine.Vault do
   Re-wraps the MDK after a passphrase change or recovery.
 
   The client unwraps the MDK (with the old passphrase or the recovery code),
-  re-wraps it under the new passphrase, and sends the new blobs — the underlying
+  re-wraps it under the new passphrase, and sends the new blobs - the underlying
   MDK is unchanged, so no encrypted data needs to be touched.
   """
   def rotate(%User{id: user_id}, attrs), do: rotate(user_id, attrs)

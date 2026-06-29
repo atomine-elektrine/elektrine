@@ -131,7 +131,7 @@ defmodule ElektrineEmailWeb.EmailControllerTest do
     refute html =~ "srcset="
     assert html =~ "data:image/gif;base64"
 
-    # Inline cid attachments still render — they are local data, not trackers.
+    # Inline cid attachments still render - they are local data, not trackers.
     assert html =~ ~s(src="/email/message/#{message.id}/attachment/attachment_0/download")
   end
 

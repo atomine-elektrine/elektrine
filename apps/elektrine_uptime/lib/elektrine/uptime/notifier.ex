@@ -5,9 +5,9 @@ defmodule Elektrine.Uptime.Notifier do
   Driven from `Elektrine.Uptime.CheckWorker` with the `transition` returned by
   `Elektrine.Uptime.record_check/2`:
 
-    * `:went_down`  — alert once (in-app and/or email per monitor preferences)
-    * `:recovered`  — recovery alert
-    * `:still_down` / `:none` — no-op, so we never spam per check
+    * `:went_down`  - alert once (in-app and/or email per monitor preferences)
+    * `:recovered`  - recovery alert
+    * `:still_down` / `:none` - no-op, so we never spam per check
 
   All sends are wrapped so a notification/email failure never crashes the worker.
   """
@@ -62,7 +62,7 @@ defmodule Elektrine.Uptime.Notifier do
     :ok
   end
 
-  # :still_down / :none — no alert, no spam.
+  # :still_down / :none - no alert, no spam.
   def notify(%Monitor{}, _check, _transition), do: :ok
 
   defp maybe_in_app(%Monitor{notify_in_app: true} = monitor, fun)
