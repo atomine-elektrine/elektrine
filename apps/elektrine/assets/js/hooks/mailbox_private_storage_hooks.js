@@ -1,4 +1,5 @@
 import { scryptAsync } from "@noble/hashes/scrypt.js"
+import { unwrapWithSecret } from "./vault_crypto"
 import * as vaultSession from "./vault_session"
 
 const MASTER_MODE = "master"
@@ -479,7 +480,9 @@ export const MailboxPrivateStorage = {
     this.setupAccountPasswordInput = this.el.querySelector("[data-private-mailbox-account-password]")
     this.accountPasswordFields = this.el.querySelector("[data-private-mailbox-account-password-fields]")
     this.masterFields = this.el.querySelector("[data-private-mailbox-master-fields]")
-    this.masterLockedNote = this.el.querySelector("[data-private-mailbox-master-locked-note]")
+    this.masterUnlockFields = this.el.querySelector("[data-private-mailbox-master-unlock-fields]")
+    this.masterConfigured = this.el.dataset.privateMailboxMasterConfigured === "true"
+    this.masterWrappedDek = parsePayload(this.el.dataset.privateMailboxMasterWrappedDek)
     this.customPassphraseFields = this.el.querySelector(
       "[data-private-mailbox-custom-passphrase-fields]"
     )
@@ -534,6 +537,13 @@ export const MailboxPrivateStorage = {
       if (setupButton) {
         event.preventDefault()
         await this.handleSetup()
+        return
+      }
+
+      const masterUnlockButton = event.target.closest("[data-private-mailbox-master-unlock]")
+      if (masterUnlockButton) {
+        event.preventDefault()
+        await this.handleMasterVaultUnlock()
       }
     }
 
@@ -587,10 +597,45 @@ export const MailboxPrivateStorage = {
       this.masterFields.classList.toggle("hidden", mode !== MASTER_MODE)
     }
 
-    if (this.masterLockedNote) {
-      const showLockedNote = mode === MASTER_MODE && !vaultSession.isUnlocked()
-      this.masterLockedNote.classList.toggle("hidden", !showLockedNote)
+    if (this.masterUnlockFields) {
+      // Show the inline unlock only when the master password exists but the
+      // vault is locked for this tab; once unlocked, setup can proceed.
+      const showUnlock = mode === MASTER_MODE && this.masterConfigured && !vaultSession.isUnlocked()
+      this.masterUnlockFields.classList.toggle("hidden", !showUnlock)
     }
+  },
+
+  async handleMasterVaultUnlock() {
+    const input = this.el.querySelector("[data-private-mailbox-master-unlock-input]")
+    const passphrase = input?.value || ""
+
+    if (!this.masterWrappedDek) {
+      this.setMasterError("Set up your master password first at /account/master-password.")
+      return
+    }
+
+    if (passphrase.trim() === "") {
+      this.setMasterError("Enter your master passphrase.")
+      return
+    }
+
+    try {
+      const mdk = await unwrapWithSecret(this.masterWrappedDek, passphrase)
+      vaultSession.unlock(mdk)
+      if (input) input.value = ""
+      this.setMasterError("")
+      // The vault-change subscription re-renders setup state and auto-unlocks a
+      // configured master mailbox.
+    } catch (_error) {
+      this.setMasterError("Incorrect master passphrase.")
+    }
+  },
+
+  setMasterError(message) {
+    this.el.querySelectorAll("[data-private-mailbox-master-error]").forEach((el) => {
+      el.textContent = message || ""
+      el.classList.toggle("hidden", !message)
+    })
   },
 
   renderLockState() {
@@ -674,9 +719,30 @@ export const MailboxPrivateStorage = {
     }
 
     if (this.unlockMode === MASTER_MODE) {
+      // If the shared vault is locked for this tab, unlock it inline with the
+      // master passphrase before unwrapping the mailbox key.
       if (!vaultSession.isUnlocked()) {
-        notify("Unlock your master password at /account/master-password first.")
-        return
+        const masterInput = this.el.querySelector("[data-private-mailbox-master-unlock-input]")
+        const masterPassphrase = masterInput?.value || ""
+
+        if (!this.masterWrappedDek) {
+          notify("Set up your master password first at /account/master-password.")
+          return
+        }
+
+        if (masterPassphrase.trim() === "") {
+          notify("Enter your master passphrase to unlock this mailbox.")
+          return
+        }
+
+        try {
+          const mdk = await unwrapWithSecret(this.masterWrappedDek, masterPassphrase)
+          vaultSession.unlock(mdk)
+          if (masterInput) masterInput.value = ""
+        } catch (_error) {
+          notify("Incorrect master passphrase.")
+          return
+        }
       }
 
       try {
@@ -738,7 +804,11 @@ export const MailboxPrivateStorage = {
 
     if (unlockMode === MASTER_MODE) {
       if (!vaultSession.isUnlocked()) {
-        notify("Set up and unlock your master password at /account/master-password first.")
+        notify(
+          this.masterConfigured
+            ? "Unlock your master password above first, then enable private storage."
+            : "Set up your master password first at /account/master-password."
+        )
         return
       }
 
