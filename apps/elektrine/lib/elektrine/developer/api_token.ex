@@ -29,6 +29,8 @@ defmodule Elektrine.Developer.ApiToken do
   - `write:account` - Update settings (not password)
   - `read:nerve` - Read encrypted Nerve entries
   - `write:nerve` - Create/update/delete encrypted Nerve entries
+  - `read:kairo` - Read Kairo projects and sources
+  - `write:kairo` - Ingest Kairo sources and manage projects
   - `read:proofs` - Read identity proofs and score
   - `write:proofs` - Create, check, and delete identity proofs
   - `read:static_site` - Read static site deployment status
@@ -47,6 +49,7 @@ defmodule Elektrine.Developer.ApiToken do
     read:calendar write:calendar
     read:account write:account
     read:nerve write:nerve
+    read:kairo write:kairo
     read:dns write:dns
     read:proofs write:proofs
     read:static_site write:static_site
@@ -89,6 +92,12 @@ defmodule Elektrine.Developer.ApiToken do
       name: "Nerve access",
       description: "Read and write encrypted Nerve entries.",
       scopes: ["read:nerve", "write:nerve"]
+    },
+    %{
+      id: "kairo_ingest",
+      name: "Kairo ingest",
+      description: "Ingest and inspect sources in Kairo.",
+      scopes: ["read:kairo", "write:kairo"]
     },
     %{
       id: "dns_admin",
@@ -200,6 +209,10 @@ defmodule Elektrine.Developer.ApiToken do
       "Nerve" => [
         {"read:nerve", "Read encrypted Nerve entries"},
         {"write:nerve", "Create, update, and delete Nerve entries"}
+      ],
+      "Kairo" => [
+        {"read:kairo", "Read Kairo projects and sources"},
+        {"write:kairo", "Ingest Kairo sources and manage projects"}
       ],
       "DNS" => [
         {"read:dns", "Read managed DNS zones and records"},

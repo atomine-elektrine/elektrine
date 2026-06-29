@@ -67,7 +67,8 @@ defmodule ElektrineWeb.PlatformAccess do
     nerve: ["/account/nerve", "/api/ext/v1/nerve", "/api/ext/nerve"],
     vpn: ["/vpn", "/api/vpn", "/pripyat/vpn"],
     dns: ["/dns", "/api/dns", "/api/ext/v1/dns", "/api/ext/dns", "/pripyat/dns"],
-    uptime: ["/uptime"]
+    uptime: ["/uptime"],
+    kairo: ["/kairo", "/api/ext/v1/kairo"]
   ]
 
   @view_modules %{
@@ -100,7 +101,8 @@ defmodule ElektrineWeb.PlatformAccess do
     nerve: [:"Elixir.ElektrineNerveWeb.NerveLive"],
     vpn: [:"Elixir.ElektrineVPNWeb.PageLive.VPNPolicy", :"Elixir.ElektrineVPNWeb.VPNLive.Index"],
     dns: [:"Elixir.ElektrineDNSWeb.DNSLive.Index"],
-    uptime: [:"Elixir.ElektrineUptimeWeb.UptimeLive.Index"]
+    uptime: [:"Elixir.ElektrineUptimeWeb.UptimeLive.Index"],
+    kairo: [:"Elixir.ElektrineWeb.KairoLive.Index"]
   }
 
   @portal_views [:"Elixir.ElektrineWeb.PortalLive.Index"]
@@ -244,6 +246,9 @@ defmodule ElektrineWeb.PlatformAccess do
       path_matches?(path, "/uptime") ->
         :uptime
 
+      path_matches?(path, "/kairo") or path_matches?(path, "/api/ext/v1/kairo") ->
+        :kairo
+
       path_matches?(path, "/account/storage") ->
         :storage
 
@@ -297,6 +302,9 @@ defmodule ElektrineWeb.PlatformAccess do
 
       view == :"Elixir.ElektrineUptimeWeb.UptimeLive.Index" ->
         :uptime
+
+      view == :"Elixir.ElektrineWeb.KairoLive.Index" ->
+        :kairo
 
       view == :"Elixir.ElektrineWeb.StorageLive" ->
         :storage

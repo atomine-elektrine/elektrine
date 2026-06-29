@@ -385,10 +385,12 @@ defmodule ElektrineWeb.PageLive.Home do
     case File.ls(dir) do
       {:ok, entries} ->
         entries
-        |> Enum.reject(&String.starts_with?(&1, "."))
-        |> Enum.reject(&String.ends_with?(&1, ".gz"))
-        |> Enum.reject(&Regex.match?(~r/-[a-f0-9]{32}\.[^.]+$/, &1))
-        |> Enum.reject(&File.dir?(Path.join(dir, &1)))
+        |> Enum.reject(fn name ->
+          String.starts_with?(name, ".") or
+            String.ends_with?(name, ".gz") or
+            Regex.match?(~r/-[a-f0-9]{32}\.[^.]+$/, name) or
+            File.dir?(Path.join(dir, name))
+        end)
         |> Enum.sort()
 
       _ ->

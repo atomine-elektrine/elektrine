@@ -8,7 +8,7 @@ defmodule Elektrine.Platform.Modules do
   """
 
   @type module_id ::
-          :chat | :social | :email | :nerve | :vpn | :dns | :uptime | :atomine
+          :chat | :social | :email | :nerve | :vpn | :dns | :uptime | :atomine | :kairo
 
   @modules [
     %{
@@ -61,6 +61,12 @@ defmodule Elektrine.Platform.Modules do
       label: "Identity",
       app: :atomine,
       description: "Proofs, account trust, and credit-based capability gates."
+    },
+    %{
+      id: :kairo,
+      label: "Kairo",
+      app: :kairo,
+      description: "Personal data OS for ingesting, compiling, and querying durable knowledge."
     }
   ]
 
@@ -73,7 +79,8 @@ defmodule Elektrine.Platform.Modules do
     vpn: Elektrine.VPN,
     dns: Elektrine.DNS,
     uptime: Elektrine.Uptime,
-    atomine: Atomine.Personhood
+    atomine: Atomine.Personhood,
+    kairo: Kairo
   }
 
   @spec all() :: [module_id()]
@@ -197,6 +204,7 @@ defmodule Elektrine.Platform.Modules do
       "atomine" -> :atomine
       "proofs" -> :atomine
       "personhood" -> :atomine
+      "kairo" -> :kairo
       _ -> nil
     end
   end

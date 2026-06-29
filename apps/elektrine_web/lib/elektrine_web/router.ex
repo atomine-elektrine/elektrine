@@ -229,6 +229,17 @@ defmodule ElektrineWeb.Router do
     plug(ElektrineWeb.Plugs.PATAuth, scopes: ["write:nerve"])
   end
 
+  pipeline :api_pat_kairo_read_scope do
+    plug(ElektrineWeb.Plugs.PATAuth,
+      scopes: ["read:kairo", "write:kairo"],
+      any: true
+    )
+  end
+
+  pipeline :api_pat_kairo_write_scope do
+    plug(ElektrineWeb.Plugs.PATAuth, scopes: ["write:kairo"])
+  end
+
   pipeline :api_pat_export_scope do
     plug(ElektrineWeb.Plugs.PATAuth, scopes: ["export"])
   end
@@ -1060,6 +1071,21 @@ defmodule ElektrineWeb.Router do
     ElektrineWeb.Routes.Nerve.api_write_routes()
   end
 
+  scope "/api/ext/v1/kairo", ElektrineWeb.API do
+    pipe_through([:api_pat_authenticated, :api_pat_kairo_read_scope])
+
+    get("/projects", KairoController, :projects)
+    get("/sources", KairoController, :sources)
+    get("/sources/:id", KairoController, :source)
+  end
+
+  scope "/api/ext/v1/kairo", ElektrineWeb.API do
+    pipe_through([:api_pat_authenticated, :api_pat_kairo_write_scope])
+
+    post("/projects", KairoController, :create_project)
+    post("/sources", KairoController, :create_source)
+  end
+
   scope "/api/ext/v1/exports", ElektrineWeb.API do
     pipe_through([:api_pat_authenticated, :api_pat_export_scope])
 
@@ -1259,6 +1285,7 @@ defmodule ElektrineWeb.Router do
       # Portal
       live("/portal", PortalLive.Index, :index)
       live("/maid", SearchLive, :index)
+      live("/kairo", KairoLive.Index, :index)
       live("/proofs", AtomineProofsLive.Show, :index)
       live("/proofs/:handle", AtomineProofsLive.Show, :show)
 

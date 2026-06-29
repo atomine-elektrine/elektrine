@@ -55,6 +55,7 @@ defmodule Elektrine.MixProject do
       Atomine.Credits,
       Atomine.Personhood,
       Atomine.CreditPolicy,
+      Kairo,
       Elektrine.Social,
       Elektrine.Social.FetchLinkPreviewWorker,
       Elektrine.Social.Hashtag,
