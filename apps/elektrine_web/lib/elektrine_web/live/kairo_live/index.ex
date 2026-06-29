@@ -1,8 +1,6 @@
 defmodule ElektrineWeb.KairoLive.Index do
   use ElektrineWeb, :live_view
 
-  alias Kairo.Source
-
   @impl true
   def mount(_params, _session, socket) do
     case socket.assigns.current_user do
@@ -30,24 +28,6 @@ defmodule ElektrineWeb.KairoLive.Index do
     end
   end
 
-  def handle_event("create_source", %{"source" => params}, socket) do
-    user = socket.assigns.current_user
-
-    case Kairo.create_source(user, params) do
-      {:ok, _source} ->
-        {:noreply,
-         socket
-         |> put_flash(:info, "Source ingested")
-         |> load_kairo(user)}
-
-      {:error, :project_not_found} ->
-        {:noreply, put_flash(socket, :error, "Project not found")}
-
-      {:error, _reason} ->
-        {:noreply, put_flash(socket, :error, "Source could not be ingested")}
-    end
-  end
-
   defp load_kairo(socket, user) do
     projects = Kairo.list_projects(user)
     sources = Kairo.list_sources(user, limit: 25)
@@ -59,21 +39,7 @@ defmodule ElektrineWeb.KairoLive.Index do
     |> assign(:sources, sources)
     |> assign(:master_vault_configured, not is_nil(master))
     |> assign(:master_vault_wrapped_dek, master && master.wrapped_dek)
-    |> assign(:source_types, Source.source_types())
     |> assign(:project_form, to_form(%{"name" => "", "description" => ""}, as: :project))
-    |> assign(:source_form, to_form(default_source_params(projects), as: :source))
-  end
-
-  defp default_source_params(projects) do
-    %{
-      "project_id" => projects |> List.first() |> then(&if &1, do: &1.id, else: ""),
-      "source_type" => "url",
-      "title" => "",
-      "url" => "",
-      "content" => "",
-      "content_format" => "markdown",
-      "tags" => ""
-    }
   end
 
   @impl true
@@ -103,6 +69,26 @@ defmodule ElektrineWeb.KairoLive.Index do
 
       <div class="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-8">
         <main class="space-y-6">
+          <section class="card panel-card border border-base-300">
+            <div class="card-body p-4 sm:p-6">
+              <h2 class="card-title mb-2 text-base sm:text-lg">Ingest via API</h2>
+              <p class="text-sm text-base-content/70">
+                Sources are ingested through the Kairo API, not this page. Send a
+                <code class="rounded bg-base-300 px-1 py-0.5 text-xs">POST</code>
+                to
+                <code class="rounded bg-base-300 px-1 py-0.5 text-xs">/api/ext/v1/kairo/sources</code>
+                with a personal access token that has the
+                <code class="rounded bg-base-300 px-1 py-0.5 text-xs">write:kairo</code>
+                scope. Encrypt the content client-side before sending to keep it zero-knowledge.
+              </p>
+              <div class="mt-3">
+                <.link navigate={~p"/account?tab=developer"} class="btn btn-outline btn-sm">
+                  Manage API tokens
+                </.link>
+              </div>
+            </div>
+          </section>
+
           <div
             id="kairo-vault"
             phx-hook="KairoVault"
@@ -112,99 +98,31 @@ defmodule ElektrineWeb.KairoLive.Index do
               @master_vault_wrapped_dek && Jason.encode!(@master_vault_wrapped_dek)
             }
           >
-            <section class="card panel-card border border-base-300">
-              <div class="card-body p-4 sm:p-6">
-                <h2 class="card-title mb-4 text-base sm:text-lg">Ingest</h2>
-                <.form
-                  for={@source_form}
-                  phx-submit="create_source"
-                  id="kairo-source-form"
-                  class="space-y-4"
-                >
-                  <div class="grid gap-4 md:grid-cols-2">
-                    <.input
-                      field={@source_form[:source_type]}
-                      type="select"
-                      label="Type"
-                      options={Enum.map(@source_types, &{String.replace(&1, "_", " "), &1})}
-                    />
-                    <.input
-                      field={@source_form[:project_id]}
-                      type="select"
-                      label="Project"
-                      prompt="Inbox"
-                      options={Enum.map(@projects, &{&1.name, &1.id})}
-                    />
-                  </div>
-
-                  <div class="grid gap-4 md:grid-cols-2">
-                    <.input field={@source_form[:title]} label="Title" />
-                    <.input field={@source_form[:url]} type="url" label="URL" />
-                  </div>
-
-                  <.input field={@source_form[:content]} type="textarea" label="Content" rows="8" />
-
-                  <div class="grid gap-4 md:grid-cols-2">
-                    <.input field={@source_form[:content_format]} label="Format" />
-                    <.input field={@source_form[:tags]} label="Tags" />
-                  </div>
-
-                  <label class="flex items-center gap-2 text-sm">
-                    <input type="checkbox" class="checkbox checkbox-sm" data-kairo-encrypt-toggle />
-                    <span>
-                      🔒 Encrypt (zero-knowledge) — store the content so only you can read it
-                    </span>
-                  </label>
-                  <div
-                    class="hidden space-y-2 rounded border border-warning/40 bg-warning/5 p-3"
-                    data-kairo-locked-hint
-                  >
-                    <%= if @master_vault_configured do %>
-                      <p class="text-xs text-base-content/70">
-                        Enter your master passphrase once to encrypt in this tab.
-                      </p>
-                      <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-                        <input
-                          type="password"
-                          class="input input-bordered input-sm w-full sm:w-64"
-                          placeholder="Master passphrase"
-                          autocomplete="current-password"
-                          data-kairo-master-unlock-input
-                        />
-                        <button type="button" class="btn btn-outline btn-sm" data-kairo-master-unlock>
-                          Unlock
-                        </button>
-                      </div>
-                      <p class="hidden text-xs text-error" data-kairo-master-error></p>
-                    <% else %>
-                      <p class="text-xs text-warning">
-                        Set up your
-                        <.link navigate={~p"/account/master-password"} class="link">
-                          master password
-                        </.link>
-                        to encrypt.
-                      </p>
-                    <% end %>
-                  </div>
-
-                  <input
-                    type="hidden"
-                    name="source[encrypted]"
-                    value="false"
-                    data-kairo-encrypted-flag
-                  />
-                  <input type="hidden" name="source[encrypted_content]" data-kairo-encrypted-content />
-
-                  <div class="flex justify-end">
-                    <button type="button" class="btn btn-primary" data-kairo-submit>Ingest</button>
-                  </div>
-                </.form>
-              </div>
-            </section>
-
             <section class="card panel-card overflow-hidden border border-base-300">
-              <div class="border-b border-base-300 px-4 py-3 sm:px-6">
+              <div class="flex flex-col gap-3 border-b border-base-300 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                 <h2 class="card-title text-base sm:text-lg">Recent sources</h2>
+                <div class="hidden items-center gap-2" data-kairo-locked-hint>
+                  <%= if @master_vault_configured do %>
+                    <input
+                      type="password"
+                      class="input input-bordered input-xs w-40"
+                      placeholder="Master passphrase"
+                      autocomplete="current-password"
+                      data-kairo-master-unlock-input
+                    />
+                    <button type="button" class="btn btn-outline btn-xs" data-kairo-master-unlock>
+                      Unlock to decrypt
+                    </button>
+                    <span class="hidden text-xs text-error" data-kairo-master-error></span>
+                  <% else %>
+                    <span class="text-xs text-warning">
+                      <.link navigate={~p"/account/master-password"} class="link">
+                        Set up master password
+                      </.link>
+                      to decrypt
+                    </span>
+                  <% end %>
+                </div>
               </div>
               <div class="divide-y divide-base-300">
                 <div :if={@sources == []} class="px-4 py-8 text-sm text-base-content/60">
