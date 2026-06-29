@@ -707,6 +707,39 @@
             </div>
           </div>
 
+          <div class="card panel-card">
+            <div class="card-body p-4 sm:p-6">
+              <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
+                <.icon name="hero-shield-check" class="w-5 h-5" /> {gettext("Master Password")}
+                <span
+                  :if={@master_password_configured}
+                  class="badge badge-success badge-sm"
+                >
+                  {gettext("Active")}
+                </span>
+              </h3>
+
+              <p class="text-xs sm:text-sm text-base-content/70 mb-3 sm:mb-4">
+                {gettext(
+                  "One zero-knowledge passphrase that unlocks Nerve, Kairo, and private email. The server never sees it."
+                )}
+              </p>
+
+              <div class="card-actions">
+                <.link
+                  navigate={~p"/account/master-password"}
+                  class="btn btn-outline btn-primary btn-sm w-full text-xs sm:text-sm"
+                >
+                  <%= if @master_password_configured do %>
+                    {gettext("Manage Master Password")}
+                  <% else %>
+                    {gettext("Set Up Master Password")}
+                  <% end %>
+                </.link>
+              </div>
+            </div>
+          </div>
+
           <%= if tab_enabled?("email", @current_user) do %>
             <!-- App Passwords Section -->
             <div class="card panel-card">

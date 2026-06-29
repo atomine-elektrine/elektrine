@@ -142,7 +142,9 @@ defmodule ElektrineWeb.KairoLive.Index do
                   </label>
                   <p class="hidden text-xs text-warning" data-kairo-locked-hint>
                     Set up / unlock your
-                    <.link navigate={~p"/account/security"} class="link">master password</.link>
+                    <.link navigate={~p"/account/master-password"} class="link">
+                      master password
+                    </.link>
                     to encrypt.
                   </p>
 

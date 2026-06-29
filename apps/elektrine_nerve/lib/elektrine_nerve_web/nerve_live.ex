@@ -168,7 +168,7 @@ defmodule ElektrineNerveWeb.NerveLive do
                     Nerve uses your account master password to encrypt entries. Set it up once and it
                     unlocks Nerve, Kairo, and private email.
                   </p>
-                  <.link href="/account/security" class="btn btn-primary btn-sm">
+                  <.link href="/account/master-password" class="btn btn-primary btn-sm">
                     Set up master password
                   </.link>
                 <% end %>

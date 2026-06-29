@@ -1,4 +1,4 @@
-defmodule ElektrineWeb.SettingsLive.Security do
+defmodule ElektrineWeb.SettingsLive.MasterPassword do
   @moduledoc """
   Master password setup / unlock / recovery.
 

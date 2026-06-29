@@ -675,7 +675,7 @@ export const MailboxPrivateStorage = {
 
     if (this.unlockMode === MASTER_MODE) {
       if (!vaultSession.isUnlocked()) {
-        notify("Unlock your master password at /account/security first.")
+        notify("Unlock your master password at /account/master-password first.")
         return
       }
 
@@ -738,7 +738,7 @@ export const MailboxPrivateStorage = {
 
     if (unlockMode === MASTER_MODE) {
       if (!vaultSession.isUnlocked()) {
-        notify("Set up and unlock your master password at /account/security first.")
+        notify("Set up and unlock your master password at /account/master-password first.")
         return
       }
 
