@@ -475,17 +475,27 @@ defmodule ElektrineEmailWeb.UserSettingsEmail do
                 </div>
 
                 <div class="space-y-3" data-private-mailbox-locked-content>
-                  <input
-                    type="password"
-                    class="input input-bordered w-full"
-                    placeholder={
-                      if @private_mailbox_unlock_mode == "account_password",
-                        do: gettext("Enter account password"),
-                        else: gettext("Enter mailbox passphrase")
-                    }
-                    autocomplete="current-password"
-                    data-private-mailbox-passphrase
-                  />
+                  <%= if @private_mailbox_unlock_mode == "master" do %>
+                    <p class="text-xs text-base-content/70">
+                      {gettext(
+                        "This mailbox unlocks with your account master password. Unlock it once at"
+                      )}
+                      <a href="/account/security" class="link link-primary">/account/security</a>
+                      {gettext("and it unlocks here automatically.")}
+                    </p>
+                  <% else %>
+                    <input
+                      type="password"
+                      class="input input-bordered w-full"
+                      placeholder={
+                        if @private_mailbox_unlock_mode == "account_password",
+                          do: gettext("Enter account password"),
+                          else: gettext("Enter mailbox passphrase")
+                      }
+                      autocomplete="current-password"
+                      data-private-mailbox-passphrase
+                    />
+                  <% end %>
 
                   <div class="flex flex-col sm:flex-row gap-2">
                     <button
@@ -564,6 +574,9 @@ defmodule ElektrineEmailWeb.UserSettingsEmail do
                           name="private_mailbox[unlock_mode]"
                           data-private-mailbox-setup-mode
                         >
+                          <option value="master">
+                            {gettext("Use master password (recommended)")}
+                          </option>
                           <option value="account_password" selected>
                             {gettext("Use account password")}
                           </option>
@@ -572,6 +585,24 @@ defmodule ElektrineEmailWeb.UserSettingsEmail do
                           </option>
                         </select>
                       </div>
+                    </div>
+
+                    <div
+                      class="space-y-2 hidden rounded-lg border border-base-300 bg-base-200/40 p-3"
+                      data-private-mailbox-master-fields
+                    >
+                      <p class="text-xs text-base-content/70">
+                        {gettext(
+                          "Wraps the mailbox key with your account master password, so one unlock covers Nerve, Kairo, and this mailbox. No extra passphrase to remember."
+                        )}
+                      </p>
+                      <p
+                        class="text-xs text-warning hidden"
+                        data-private-mailbox-master-locked-note
+                      >
+                        {gettext("Set up and unlock your master password first at")}
+                        <a href="/account/security" class="link link-primary">/account/security</a>.
+                      </p>
                     </div>
 
                     <div class="space-y-3" data-private-mailbox-account-password-fields>
@@ -949,7 +980,7 @@ defmodule ElektrineEmailWeb.UserSettingsEmail do
          public_key when is_binary(public_key) <- Map.get(decoded, "public_key"),
          true <- Elektrine.Strings.present?(public_key),
          unlock_mode <- Map.get(decoded, "unlock_mode", "account_password"),
-         true <- unlock_mode in ["account_password", "separate_passphrase"] do
+         true <- unlock_mode in ["account_password", "separate_passphrase", "master"] do
       {:ok, decoded}
     else
       _ -> {:error, :invalid_payload}
