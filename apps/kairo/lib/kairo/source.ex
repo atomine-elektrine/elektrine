@@ -14,10 +14,16 @@ defmodule Kairo.Source do
     field :url, :string
     field :content, :string
     field :content_format, :string
+    # Server-side at-rest encryption (Elektrine.Encryption, server-held per-user
+    # key) of plaintext `content`. Applied automatically on ingest for non
+    # zero-knowledge sources, mirroring how email/chat bodies are stored. The
+    # plaintext `content` column is cleared once this is populated. Distinct from
+    # `encrypted_content` below, which is the client zero-knowledge payload.
+    field :content_encrypted, :map
     # Zero-knowledge: when `encrypted`, the body is client-encrypted into
     # `encrypted_content` (a `{version,algorithm,iv,ciphertext}` AES-256-GCM
     # payload under the user's Kairo subkey) and plaintext `content` is never
-    # stored. Encrypted sources skip server processing.
+    # stored. The server cannot read it. Encrypted sources skip server processing.
     field :encrypted, :boolean, default: false
     field :encrypted_content, :map
     field :status, :string, default: "received"
@@ -61,8 +67,26 @@ defmodule Kairo.Source do
     |> validate_inclusion(:source_type, @source_types)
     |> validate_inclusion(:status, @statuses)
     |> validate_source_payload()
+    |> encrypt_content_at_rest()
     |> foreign_key_constraint(:user_id)
     |> foreign_key_constraint(:project_id)
+  end
+
+  # Non zero-knowledge sources get their plaintext body encrypted at rest with
+  # the server-held per-user key, the same treatment email and chat bodies get.
+  # Runs after validation so content presence is still enforced on the plaintext.
+  defp encrypt_content_at_rest(changeset) do
+    user_id = get_field(changeset, :user_id)
+    content = get_field(changeset, :content)
+
+    if changeset.valid? and not get_field(changeset, :encrypted) and is_integer(user_id) and
+         is_binary(content) and content != "" do
+      changeset
+      |> put_change(:content_encrypted, Elektrine.Encryption.encrypt(content, user_id))
+      |> put_change(:content, nil)
+    else
+      changeset
+    end
   end
 
   # For an encrypted source the server must never hold the plaintext body, and

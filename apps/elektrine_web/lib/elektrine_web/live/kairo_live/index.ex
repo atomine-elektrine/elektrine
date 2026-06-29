@@ -202,10 +202,16 @@ defmodule ElektrineWeb.KairoLive.Index do
         <div>
           <h1 class="text-2xl font-bold text-base-content sm:text-3xl">Kairo</h1>
           <p class="mt-1 text-base-content/70">
-            Browse your durable knowledge. Sources are ingested via the <.link
+            Browse your durable knowledge. Sources are ingested via the
+            <.link
               navigate={~p"/account?tab=developer"}
               class="link"
-            >API</.link>.
+            >
+              API
+            </.link>
+            and encrypted at rest; flag a source <code>encrypted</code>
+            for
+            zero-knowledge.
           </p>
         </div>
         <div class="stats stats-horizontal border border-base-300 bg-base-200 shadow-none">
