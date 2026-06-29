@@ -125,8 +125,8 @@ defmodule ElektrineNerveWeb.NerveLive do
           <div>
             <h1 class="text-2xl font-bold text-base-content sm:text-3xl">Nerve</h1>
             <p class="mt-1 text-base-content/70">
-              Your external access layer: the browser extension and external API that let the web
-              and your other tools reach your Elektrine data, encrypted with your master password.
+              The browser extension and external API that let the web and your other tools reach
+              your Elektrine data, encrypted with your master password.
             </p>
           </div>
 
