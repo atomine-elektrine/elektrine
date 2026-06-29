@@ -82,6 +82,29 @@ defmodule KairoTest do
       assert source.raw_hash == nil
     end
 
+    test "create_source/2 encrypts plaintext content at rest" do
+      user = user_fixture()
+
+      assert {:ok, source} =
+               Kairo.create_source(user, %{
+                 "source_type" => "markdown",
+                 "title" => "Server note",
+                 "content" => "at-rest secret body"
+               })
+
+      # Reads transparently return the plaintext content...
+      assert source.content == "at-rest secret body"
+      assert Kairo.get_source(user, source.id).content == "at-rest secret body"
+
+      # ...but the stored row holds a ciphertext map, not plaintext, and is not
+      # flagged as a zero-knowledge source.
+      row = Elektrine.Repo.get!(Kairo.Source, source.id)
+      assert is_nil(row.content)
+      assert is_map(row.content_encrypted)
+      refute row.encrypted
+      assert is_nil(row.encrypted_content)
+    end
+
     test "create_source/2 rejects an encrypted source without a ciphertext payload" do
       user = user_fixture()
 

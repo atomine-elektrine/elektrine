@@ -73,6 +73,7 @@ defmodule Kairo do
     |> limit(^limit)
     |> preload(:project)
     |> Repo.all()
+    |> Enum.map(&decrypt_at_rest_content/1)
   end
 
   def get_source(%User{id: user_id}, id), do: get_source(user_id, id)
@@ -84,11 +85,27 @@ defmodule Kairo do
         |> where([source], source.user_id == ^user_id and source.id == ^source_id)
         |> preload(:project)
         |> Repo.one()
+        |> decrypt_at_rest_content()
 
       :error ->
         nil
     end
   end
+
+  # Restores plaintext `content` from the server-side at-rest ciphertext for
+  # reads. Zero-knowledge sources have no `content_encrypted` and stay untouched
+  # (their `encrypted_content` is decrypted client-side).
+  defp decrypt_at_rest_content(nil), do: nil
+
+  defp decrypt_at_rest_content(%Source{content_encrypted: enc, user_id: user_id} = source)
+       when is_map(enc) and is_integer(user_id) do
+    case Elektrine.Encryption.decrypt(enc, user_id) do
+      {:ok, plaintext} -> %{source | content: plaintext}
+      _error -> source
+    end
+  end
+
+  defp decrypt_at_rest_content(source), do: source
 
   def ingest_source(user_or_id, attrs), do: create_source(user_or_id, attrs)
 
@@ -104,9 +121,10 @@ defmodule Kairo do
         |> Map.put_new("status", "received")
         |> maybe_put_raw_hash()
 
-      %Source{}
-      |> Source.changeset(attrs)
-      |> Repo.insert()
+      case %Source{} |> Source.changeset(attrs) |> Repo.insert() do
+        {:ok, source} -> {:ok, decrypt_at_rest_content(source)}
+        other -> other
+      end
     end
   end
 
