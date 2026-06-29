@@ -122,6 +122,7 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
       |> assign(:page_title, page_title)
       |> assign(:templates, templates)
       |> assign(:mailbox, mailbox)
+      |> assign(:master_vault, Elektrine.Vault.get(fresh_user.id))
       |> assign(:mailbox_addresses, mailbox_addresses(mailbox, fresh_user))
       |> assign(:from_address, from_address)
       |> assign(:available_from_addresses, available_from_addresses)

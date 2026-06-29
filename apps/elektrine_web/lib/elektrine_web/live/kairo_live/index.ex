@@ -51,11 +51,14 @@ defmodule ElektrineWeb.KairoLive.Index do
   defp load_kairo(socket, user) do
     projects = Kairo.list_projects(user)
     sources = Kairo.list_sources(user, limit: 25)
+    master = Elektrine.Vault.get(user.id)
 
     socket
     |> assign(:page_title, "Kairo")
     |> assign(:projects, projects)
     |> assign(:sources, sources)
+    |> assign(:master_vault_configured, not is_nil(master))
+    |> assign(:master_vault_wrapped_dek, master && master.wrapped_dek)
     |> assign(:source_types, Source.source_types())
     |> assign(:project_form, to_form(%{"name" => "", "description" => ""}, as: :project))
     |> assign(:source_form, to_form(default_source_params(projects), as: :source))
@@ -97,7 +100,15 @@ defmodule ElektrineWeb.KairoLive.Index do
 
         <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
           <main class="space-y-6">
-            <div id="kairo-vault" phx-hook="KairoVault" class="contents">
+            <div
+              id="kairo-vault"
+              phx-hook="KairoVault"
+              class="contents"
+              data-kairo-master-configured={to_string(@master_vault_configured)}
+              data-kairo-master-wrapped-dek={
+                @master_vault_wrapped_dek && Jason.encode!(@master_vault_wrapped_dek)
+              }
+            >
               <section class="rounded border border-base-300 bg-base-100 p-4">
                 <h2 class="mb-4 text-lg font-semibold">Ingest</h2>
                 <.form
@@ -140,13 +151,37 @@ defmodule ElektrineWeb.KairoLive.Index do
                       🔒 Encrypt (zero-knowledge) — store the content so only you can read it
                     </span>
                   </label>
-                  <p class="hidden text-xs text-warning" data-kairo-locked-hint>
-                    Set up / unlock your
-                    <.link navigate={~p"/account/master-password"} class="link">
-                      master password
-                    </.link>
-                    to encrypt.
-                  </p>
+                  <div
+                    class="hidden space-y-2 rounded border border-warning/40 bg-warning/5 p-3"
+                    data-kairo-locked-hint
+                  >
+                    <%= if @master_vault_configured do %>
+                      <p class="text-xs text-base-content/70">
+                        Enter your master passphrase once to encrypt in this tab.
+                      </p>
+                      <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <input
+                          type="password"
+                          class="input input-bordered input-sm w-full sm:w-64"
+                          placeholder="Master passphrase"
+                          autocomplete="current-password"
+                          data-kairo-master-unlock-input
+                        />
+                        <button type="button" class="btn btn-outline btn-sm" data-kairo-master-unlock>
+                          Unlock
+                        </button>
+                      </div>
+                      <p class="hidden text-xs text-error" data-kairo-master-error></p>
+                    <% else %>
+                      <p class="text-xs text-warning">
+                        Set up your
+                        <.link navigate={~p"/account/master-password"} class="link">
+                          master password
+                        </.link>
+                        to encrypt.
+                      </p>
+                    <% end %>
+                  </div>
 
                   <input
                     type="hidden"

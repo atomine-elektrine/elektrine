@@ -114,6 +114,10 @@
                   Jason.encode!(@mailbox.private_storage_wrapped_private_key)
                 }
                 data-private-mailbox-verifier={Jason.encode!(@mailbox.private_storage_verifier)}
+                data-private-mailbox-master-configured={to_string(not is_nil(@master_vault))}
+                data-private-mailbox-master-wrapped-dek={
+                  @master_vault && Jason.encode!(@master_vault.wrapped_dek)
+                }
               >
                 <div class="space-y-1">
                   <div class="flex items-center gap-2 font-semibold">
@@ -140,10 +144,11 @@
                     type="password"
                     class="input input-bordered input-sm w-full sm:w-64"
                     placeholder={
-                      if Elektrine.Email.Mailbox.private_storage_unlock_mode(@mailbox) ==
-                           "account_password",
-                         do: gettext("Account password"),
-                         else: gettext("Mailbox passphrase")
+                      case Elektrine.Email.Mailbox.private_storage_unlock_mode(@mailbox) do
+                        "account_password" -> gettext("Account password")
+                        "master" -> gettext("Master passphrase")
+                        _ -> gettext("Mailbox passphrase")
+                      end
                     }
                     data-private-mailbox-passphrase
                   />

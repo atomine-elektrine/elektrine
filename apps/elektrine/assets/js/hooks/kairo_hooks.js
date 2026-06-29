@@ -5,7 +5,7 @@
  * the server only ever stores the ciphertext. Encrypted rows decrypt on demand.
  */
 
-import { encryptValue, decryptValue } from "./vault_crypto"
+import { encryptValue, decryptValue, unwrapWithSecret } from "./vault_crypto"
 import * as vaultSession from "./vault_session"
 
 const FEATURE = "kairo"
@@ -40,10 +40,56 @@ export const KairoVault = {
       return
     }
 
+    const unlock = event.target.closest("[data-kairo-master-unlock]")
+    if (unlock) {
+      event.preventDefault()
+      this.unlockMaster()
+      return
+    }
+
     const decrypt = event.target.closest("[data-kairo-decrypt]")
     if (decrypt) {
       event.preventDefault()
       this.decryptRow(decrypt)
+    }
+  },
+
+  async unlockMaster() {
+    const input = this.el.querySelector("[data-kairo-master-unlock-input]")
+    const error = this.el.querySelector("[data-kairo-master-error]")
+    const wrapped = this.wrappedDek()
+    const setError = (message) => {
+      if (!error) return
+      error.textContent = message || ""
+      error.classList.toggle("hidden", !message)
+    }
+
+    if (!wrapped) {
+      return setError("Set up your master password first at /account/master-password.")
+    }
+
+    if (!input || input.value.trim() === "") {
+      return setError("Enter your master passphrase.")
+    }
+
+    try {
+      const mdk = await unwrapWithSecret(wrapped, input.value)
+      vaultSession.unlock(mdk)
+      input.value = ""
+      setError("")
+      // The vault-change subscription re-renders the lock state.
+    } catch (_error) {
+      setError("Incorrect master passphrase.")
+    }
+  },
+
+  wrappedDek() {
+    const raw = this.el.dataset.kairoMasterWrappedDek
+    if (!raw) return null
+    try {
+      return JSON.parse(raw)
+    } catch (_error) {
+      return null
     }
   },
 
