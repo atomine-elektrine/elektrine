@@ -122,7 +122,15 @@ defmodule ElektrineNerveWeb.NerveLive do
             current_user={@current_user}
           />
 
-          <Elektrine.Components.ExperimentalNotice.experimental_notice message="Nerve is experimental. Keep separate backups of important passwords and recovery codes while this feature is being tested." />
+          <div>
+            <h1 class="text-2xl font-bold text-base-content sm:text-3xl">Nerve</h1>
+            <p class="mt-1 text-base-content/70">
+              Your external access layer — the browser extension and external API that let the web
+              and your other tools reach your Elektrine data, encrypted with your master password.
+            </p>
+          </div>
+
+          <Elektrine.Components.ExperimentalNotice.experimental_notice message="Nerve is experimental. Keep separate backups of anything important you store here while it's being tested." />
 
           <div class="grid gap-6 lg:grid-cols-2">
             <div class="card panel-card border border-base-300 shadow-lg">
@@ -177,13 +185,34 @@ defmodule ElektrineNerveWeb.NerveLive do
 
             <div class="card panel-card border border-base-300 shadow-lg">
               <div class="card-body p-4 sm:p-6">
-                <h2 class="card-title mb-4 text-lg">Security Notes</h2>
-                <ul class="list-disc space-y-3 pl-5 text-sm text-base-content/70">
-                  <li>Only encrypted Nerve payloads are stored server-side.</li>
-                  <li>Secrets are revealed only in this browser after local decryption.</li>
-                  <li>If you lose your Nerve passphrase, saved secrets cannot be recovered.</li>
-                  <li>Use unique passwords for every service.</li>
+                <h2 class="card-title mb-4 text-lg">What Nerve does</h2>
+                <ul class="space-y-3 text-sm text-base-content/70">
+                  <li class="flex gap-2">
+                    <span class="hero-key h-5 w-5 shrink-0 text-base-content/50"></span>
+                    <span>
+                      <span class="font-medium text-base-content">Passwords &amp; autofill</span>
+                      — store logins encrypted and fill them on matching sites from the extension.
+                    </span>
+                  </li>
+                  <li class="flex gap-2">
+                    <span class="hero-inbox-arrow-down h-5 w-5 shrink-0 text-base-content/50"></span>
+                    <span>
+                      <span class="font-medium text-base-content">Kairo capture</span>
+                      — clip pages and content straight into <.link href="/kairo" class="link">Kairo</.link>.
+                    </span>
+                  </li>
+                  <li class="flex gap-2">
+                    <span class="hero-puzzle-piece h-5 w-5 shrink-0 text-base-content/50"></span>
+                    <span>
+                      <span class="font-medium text-base-content">More integrations</span>
+                      — anything Elektrine needs to reach from outside the app.
+                    </span>
+                  </li>
                 </ul>
+                <p class="mt-4 text-xs text-base-content/60">
+                  Everything is encrypted with your master password and decrypted only in your
+                  browser. Lose the passphrase and saved secrets can't be recovered.
+                </p>
 
                 <%= if @vault_configured do %>
                   <div class="mt-5 rounded-lg border border-error/30 bg-error/5 p-4">
@@ -205,6 +234,10 @@ defmodule ElektrineNerveWeb.NerveLive do
               </div>
             </div>
           </div>
+
+          <h2 class="text-lg font-semibold text-base-content">
+            Browser extension &amp; integrations
+          </h2>
 
           <div class="grid gap-6 xl:grid-cols-3">
             <div class="card panel-card border border-base-300 shadow-lg">
@@ -239,6 +272,38 @@ defmodule ElektrineNerveWeb.NerveLive do
                   <li>Install the browser extension.</li>
                   <li>Open the browser extension and unlock Nerve in this browser.</li>
                   <li>Use saved entries on matching sites.</li>
+                </ol>
+              </div>
+            </div>
+
+            <div class="card panel-card border border-base-300 shadow-lg">
+              <div class="card-body p-4 sm:p-6">
+                <div class="mb-4 flex items-start justify-between gap-3">
+                  <div>
+                    <h2 class="card-title mt-1 text-lg">Kairo Capture</h2>
+                  </div>
+                  <span class="badge badge-outline">Beta</span>
+                </div>
+
+                <p class="text-sm text-base-content/70">
+                  Clip the page you're on — or selected text — straight into your Kairo knowledge
+                  base. The extension posts to your Kairo sources over the external API.
+                </p>
+
+                <div class="mt-5 grid gap-2">
+                  <.link href="/kairo" class="btn btn-primary btn-sm">Open Kairo</.link>
+                  <.link href="/account?tab=developer" class="btn btn-outline btn-sm">
+                    Manage API tokens
+                  </.link>
+                </div>
+
+                <ol class="mt-5 list-decimal space-y-2 pl-5 text-xs text-base-content/60">
+                  <li>Install the browser extension and unlock Nerve.</li>
+                  <li>
+                    Create a token with the <code class="rounded bg-base-300 px-1">write:kairo</code>
+                    scope.
+                  </li>
+                  <li>Capture pages into Kairo from any site.</li>
                 </ol>
               </div>
             </div>
@@ -317,6 +382,8 @@ defmodule ElektrineNerveWeb.NerveLive do
               </div>
             </div>
           </div>
+
+          <h2 class="text-lg font-semibold text-base-content">Passwords</h2>
 
           <div class="card panel-card border border-base-300 shadow-lg">
             <div class="card-body p-4 sm:p-6">
