@@ -31,6 +31,8 @@ defmodule ElektrineEmailWeb.UserSettingsEmail do
     |> assign(:private_mailbox_wrapped_private_key, nil)
     |> assign(:private_mailbox_verifier, nil)
     |> assign(:private_mailbox_unlock_mode, "account_password")
+    |> assign(:master_vault_configured, false)
+    |> assign(:master_vault_wrapped_dek, nil)
   end
 
   def load_profile_data(socket) do
@@ -428,6 +430,8 @@ defmodule ElektrineEmailWeb.UserSettingsEmail do
       data-private-mailbox-id={@primary_mailbox && @primary_mailbox.id}
       data-private-mailbox-wrapped-key={encode_payload(@private_mailbox_wrapped_private_key)}
       data-private-mailbox-verifier={encode_payload(@private_mailbox_verifier)}
+      data-private-mailbox-master-configured={to_string(@master_vault_configured)}
+      data-private-mailbox-master-wrapped-dek={encode_payload(@master_vault_wrapped_dek)}
     >
       <div class="card-body p-4 sm:p-6">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -478,13 +482,17 @@ defmodule ElektrineEmailWeb.UserSettingsEmail do
                   <%= if @private_mailbox_unlock_mode == "master" do %>
                     <p class="text-xs text-base-content/70">
                       {gettext(
-                        "This mailbox unlocks with your account master password. Unlock it once at"
+                        "This mailbox unlocks with your account master password. Enter it once below to unlock it for this tab."
                       )}
-                      <a href="/account/master-password" class="link link-primary">
-                        /account/master-password
-                      </a>
-                      {gettext("and it unlocks here automatically.")}
                     </p>
+                    <input
+                      type="password"
+                      class="input input-bordered w-full"
+                      placeholder={gettext("Master passphrase")}
+                      autocomplete="current-password"
+                      data-private-mailbox-master-unlock-input
+                    />
+                    <p class="text-xs text-error hidden" data-private-mailbox-master-error></p>
                   <% else %>
                     <input
                       type="password"
@@ -598,13 +606,38 @@ defmodule ElektrineEmailWeb.UserSettingsEmail do
                           "Wraps the mailbox key with your account master password, so one unlock covers Nerve, Kairo, and this mailbox. No extra passphrase to remember."
                         )}
                       </p>
-                      <p
-                        class="text-xs text-warning hidden"
-                        data-private-mailbox-master-locked-note
-                      >
-                        {gettext("Set up and unlock your master password first at")}
-                        <a href="/account/master-password" class="link link-primary">/account/master-password</a>.
-                      </p>
+                      <%= if @master_vault_configured do %>
+                        <div
+                          class="space-y-2 hidden"
+                          data-private-mailbox-master-unlock-fields
+                        >
+                          <p class="text-xs text-base-content/70">
+                            {gettext("Enter your master passphrase once to unlock it for this tab.")}
+                          </p>
+                          <input
+                            type="password"
+                            class="input input-bordered input-sm w-full"
+                            placeholder={gettext("Master passphrase")}
+                            autocomplete="current-password"
+                            data-private-mailbox-master-unlock-input
+                          />
+                          <button
+                            type="button"
+                            class="btn btn-outline btn-sm"
+                            data-private-mailbox-master-unlock
+                          >
+                            {gettext("Unlock master password")}
+                          </button>
+                          <p class="text-xs text-error hidden" data-private-mailbox-master-error></p>
+                        </div>
+                      <% else %>
+                        <p class="text-xs text-warning">
+                          {gettext("Set up your master password first at")}
+                          <a href="/account/master-password" class="link link-primary">
+                            /account/master-password
+                          </a>.
+                        </p>
+                      <% end %>
                     </div>
 
                     <div class="space-y-3" data-private-mailbox-account-password-fields>
@@ -964,6 +997,7 @@ defmodule ElektrineEmailWeb.UserSettingsEmail do
     |> assign(:private_mailbox_wrapped_private_key, mailbox.private_storage_wrapped_private_key)
     |> assign(:private_mailbox_verifier, mailbox.private_storage_verifier)
     |> assign(:private_mailbox_unlock_mode, Mailbox.private_storage_unlock_mode(mailbox))
+    |> assign_master_vault_state()
   end
 
   defp assign_private_mailbox_state(socket, _mailbox) do
@@ -974,6 +1008,19 @@ defmodule ElektrineEmailWeb.UserSettingsEmail do
     |> assign(:private_mailbox_wrapped_private_key, nil)
     |> assign(:private_mailbox_verifier, nil)
     |> assign(:private_mailbox_unlock_mode, "account_password")
+    |> assign_master_vault_state()
+  end
+
+  # The wrapped Master Data Key lets the mailbox card unlock the shared vault
+  # inline (unwrap with the master passphrase in the browser), so the user does
+  # not have to bounce to /account/master-password and navigate back.
+  defp assign_master_vault_state(socket) do
+    user = socket.assigns[:current_user] || socket.assigns[:user]
+    master = user && Elektrine.Vault.get(user.id)
+
+    socket
+    |> assign(:master_vault_configured, not is_nil(master))
+    |> assign(:master_vault_wrapped_dek, master && master.wrapped_dek)
   end
 
   defp decode_private_mailbox_setup_params(params) when is_map(params) do
