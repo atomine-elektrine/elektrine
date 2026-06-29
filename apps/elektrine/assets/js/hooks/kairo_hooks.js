@@ -18,6 +18,12 @@ export const KairoVault = {
     this.renderLockState()
   },
 
+  updated() {
+    // LiveView re-rendered the contents (e.g. selecting a source), which resets
+    // the locked-hint to its server default; re-apply the lock state.
+    this.renderLockState()
+  },
+
   destroyed() {
     this.unsubscribe && this.unsubscribe()
   },
