@@ -115,6 +115,15 @@ defmodule Elektrine.Platform.ENav do
         access_module: :uptime,
         icon: "hero-chart-bar",
         active_icon: "hero-chart-bar-solid"
+      },
+      %{
+        id: "kairo",
+        label: "Kairo",
+        href: "/kairo",
+        platform_module: :kairo,
+        access_module: :kairo,
+        icon: "hero-circle-stack",
+        active_icon: "hero-circle-stack-solid"
       }
     ]
   end
