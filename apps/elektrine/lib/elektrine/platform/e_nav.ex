@@ -155,7 +155,7 @@ defmodule Elektrine.Platform.ENav do
       },
       %{
         id: "nerve",
-        label: "Browser Extension",
+        label: "Nerve",
         href: "/account/nerve",
         platform_module: :nerve,
         access_module: :nerve,
@@ -191,14 +191,6 @@ defmodule Elektrine.Platform.ENav do
         access_module: :drive,
         icon: "hero-folder",
         active_icon: "hero-folder-solid"
-      },
-      %{
-        id: "notes",
-        label: "Notes",
-        href: "/account/notes",
-        access_module: :notes,
-        icon: "hero-document-text",
-        active_icon: "hero-document-text-solid"
       },
       %{
         id: "proofs",
