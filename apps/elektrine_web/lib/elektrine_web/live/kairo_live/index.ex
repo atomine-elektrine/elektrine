@@ -14,6 +14,7 @@ defmodule ElektrineWeb.KairoLive.Index do
          socket
          |> assign(:query, "")
          |> assign(:active_tag, nil)
+         |> assign(:active_project, nil)
          |> assign(:selected_id, nil)
          |> load_kairo(user)}
     end
@@ -44,13 +45,27 @@ defmodule ElektrineWeb.KairoLive.Index do
     {:noreply, socket |> assign(:active_tag, active) |> assign_view()}
   end
 
+  def handle_event("filter_project", %{"project" => project}, socket) do
+    value = parse_project_filter(project)
+    active = if socket.assigns.active_project == value, do: nil, else: value
+    {:noreply, socket |> assign(:active_project, active) |> assign_view()}
+  end
+
   def handle_event("clear_filters", _params, socket) do
-    {:noreply, socket |> assign(:query, "") |> assign(:active_tag, nil) |> assign_view()}
+    {:noreply,
+     socket
+     |> assign(:query, "")
+     |> assign(:active_tag, nil)
+     |> assign(:active_project, nil)
+     |> assign_view()}
   end
 
   def handle_event("select_source", %{"id" => id}, socket) do
     {:noreply, socket |> assign(:selected_id, parse_id(id)) |> assign_view()}
   end
+
+  defp parse_project_filter("inbox"), do: :inbox
+  defp parse_project_filter(id), do: parse_id(id)
 
   defp parse_id(id) when is_integer(id), do: id
 
@@ -73,10 +88,15 @@ defmodule ElektrineWeb.KairoLive.Index do
 
   # Derives the filtered explorer view from the current sources/query/tag/selection.
   defp assign_view(socket) do
-    %{sources: sources, query: query, active_tag: active_tag, selected_id: selected_id} =
-      socket.assigns
+    %{
+      sources: sources,
+      query: query,
+      active_tag: active_tag,
+      active_project: active_project,
+      selected_id: selected_id
+    } = socket.assigns
 
-    visible = visible_sources(sources, query, active_tag)
+    visible = visible_sources(sources, query, active_tag, active_project)
     selected = Enum.find(sources, &(&1.id == selected_id))
 
     socket
@@ -87,9 +107,17 @@ defmodule ElektrineWeb.KairoLive.Index do
     |> assign(:related, related_sources(sources, selected))
   end
 
-  defp visible_sources(sources, query, active_tag) do
-    Enum.filter(sources, &(tag_match?(&1, active_tag) and query_match?(&1, query)))
+  defp visible_sources(sources, query, active_tag, active_project) do
+    Enum.filter(
+      sources,
+      &(project_match?(&1, active_project) and tag_match?(&1, active_tag) and
+          query_match?(&1, query))
+    )
   end
+
+  defp project_match?(_source, nil), do: true
+  defp project_match?(source, :inbox), do: is_nil(source.project_id)
+  defp project_match?(source, project_id), do: source.project_id == project_id
 
   defp tag_match?(_source, nil), do: true
   defp tag_match?(source, tag), do: tag in (source.tags || [])
@@ -210,7 +238,10 @@ defmodule ElektrineWeb.KairoLive.Index do
                 />
               </form>
 
-              <div class="hidden items-center gap-2" data-kairo-locked-hint>
+              <div
+                class="hidden flex-col gap-2 rounded-lg border border-warning/30 bg-warning/5 p-2"
+                data-kairo-locked-hint
+              >
                 <%= if @master_vault do %>
                   <input
                     type="password"
@@ -219,8 +250,12 @@ defmodule ElektrineWeb.KairoLive.Index do
                     autocomplete="current-password"
                     data-kairo-master-unlock-input
                   />
-                  <button type="button" class="btn btn-outline btn-xs" data-kairo-master-unlock>
-                    Unlock
+                  <button
+                    type="button"
+                    class="btn btn-outline btn-xs w-full"
+                    data-kairo-master-unlock
+                  >
+                    Unlock to decrypt
                   </button>
                 <% else %>
                   <span class="text-xs text-warning">
@@ -233,19 +268,56 @@ defmodule ElektrineWeb.KairoLive.Index do
               </div>
               <p class="hidden text-xs text-error" data-kairo-master-error></p>
 
-              <div :if={@all_tags != []} class="flex flex-wrap gap-1">
-                <button
-                  :for={tag <- @all_tags}
-                  type="button"
-                  phx-click="filter_tag"
-                  phx-value-tag={tag}
-                  class={[
-                    "badge badge-sm cursor-pointer",
-                    if(@active_tag == tag, do: "badge-primary", else: "badge-ghost")
-                  ]}
-                >
-                  #{tag}
-                </button>
+              <div :if={@projects != []} class="space-y-1">
+                <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-base-content/50">
+                  Projects
+                </p>
+                <div class="flex flex-wrap gap-1">
+                  <button
+                    :for={project <- @projects}
+                    type="button"
+                    phx-click="filter_project"
+                    phx-value-project={project.id}
+                    class={[
+                      "badge badge-sm cursor-pointer gap-1",
+                      if(@active_project == project.id, do: "badge-primary", else: "badge-outline")
+                    ]}
+                  >
+                    <.icon name="hero-folder" class="h-3 w-3" /> {project.name}
+                  </button>
+                  <button
+                    :if={Enum.any?(@sources, &is_nil(&1.project_id))}
+                    type="button"
+                    phx-click="filter_project"
+                    phx-value-project="inbox"
+                    class={[
+                      "badge badge-sm cursor-pointer gap-1",
+                      if(@active_project == :inbox, do: "badge-primary", else: "badge-outline")
+                    ]}
+                  >
+                    <.icon name="hero-inbox" class="h-3 w-3" /> Inbox
+                  </button>
+                </div>
+              </div>
+
+              <div :if={@all_tags != []} class="space-y-1">
+                <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-base-content/50">
+                  Tags
+                </p>
+                <div class="flex flex-wrap gap-1">
+                  <button
+                    :for={tag <- @all_tags}
+                    type="button"
+                    phx-click="filter_tag"
+                    phx-value-tag={tag}
+                    class={[
+                      "badge badge-sm cursor-pointer",
+                      if(@active_tag == tag, do: "badge-primary", else: "badge-ghost")
+                    ]}
+                  >
+                    #{tag}
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -356,7 +428,14 @@ defmodule ElektrineWeb.KairoLive.Index do
                 </div>
               </header>
 
-              <div :if={@selected.encrypted} class="space-y-2" data-kairo-reader>
+              <div
+                :if={@selected.encrypted}
+                class="space-y-3 rounded-lg border border-base-300 bg-base-200/40 p-4"
+                data-kairo-reader
+              >
+                <p class="text-sm text-base-content/70">
+                  This source is encrypted. Decrypt it in this tab to read the content.
+                </p>
                 <button
                   type="button"
                   class="btn btn-outline btn-sm"
@@ -366,7 +445,7 @@ defmodule ElektrineWeb.KairoLive.Index do
                   🔒 Decrypt content
                 </button>
                 <pre
-                  class="hidden max-w-none whitespace-pre-wrap break-words rounded bg-base-200 p-3 text-sm"
+                  class="mt-1 hidden max-w-none whitespace-pre-wrap break-words rounded bg-base-100 p-3 text-sm"
                   data-kairo-output
                 ></pre>
               </div>
