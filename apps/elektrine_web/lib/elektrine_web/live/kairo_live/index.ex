@@ -226,8 +226,9 @@ defmodule ElektrineWeb.KairoLive.Index do
           <%!-- Explorer --%>
           <aside class="card panel-card flex flex-col overflow-hidden border border-base-300 lg:max-h-[calc(100vh-11rem)]">
             <div class="space-y-2 border-b border-base-300 p-3">
-              <form phx-change="search" phx-submit="search">
+              <form id="kairo-search-form" phx-change="search" phx-submit="search">
                 <input
+                  id="kairo-search"
                   type="text"
                   name="query"
                   value={@query}
