@@ -114,6 +114,7 @@ defmodule ElektrineWeb.MixProject do
       internal_dep(:elektrine),
       internal_dep(:atomine, runtime: false),
       internal_dep(:maid),
+      internal_dep(:kairo),
       internal_dep(:elektrine_nerve),
       {:posthog, "~> 2.5"}
     ]

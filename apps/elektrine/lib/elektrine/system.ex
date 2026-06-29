@@ -20,7 +20,8 @@ defmodule Elektrine.System do
     drive: 0,
     maid: 0,
     vpn: 0,
-    uptime: 0
+    uptime: 0,
+    kairo: 0
   }
 
   import Ecto.Query, warn: false
@@ -169,6 +170,7 @@ defmodule Elektrine.System do
   defp module_access_label(:uptime), do: "Uptime"
   defp module_access_label(:email), do: "Email"
   defp module_access_label(:nerve), do: "Nerve"
+  defp module_access_label(:kairo), do: "Kairo"
   defp module_access_label(:drive), do: "Drive"
   defp module_access_label(:maid), do: "Maid Web Search"
   defp module_access_label(:notes), do: "Notes"

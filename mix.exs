@@ -29,6 +29,7 @@ defmodule ElektrineUmbrella.MixProject do
           elektrine_dns: :permanent,
           elektrine_web: :permanent,
           elektrine_email: :permanent,
+          kairo: :permanent,
           atomine: :permanent,
           elektrine_social: :permanent,
           elektrine_vpn: :permanent,

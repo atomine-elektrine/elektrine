@@ -223,6 +223,41 @@ defmodule ElektrineWeb.API.MetaController do
       },
       %{
         method: "GET",
+        path: "/api/ext/v1/kairo/projects",
+        summary: "List Kairo projects",
+        required_scopes: ["read:kairo", "write:kairo"],
+        platform_module: :kairo
+      },
+      %{
+        method: "POST",
+        path: "/api/ext/v1/kairo/projects",
+        summary: "Create a Kairo project",
+        required_scopes: ["write:kairo"],
+        platform_module: :kairo
+      },
+      %{
+        method: "GET",
+        path: "/api/ext/v1/kairo/sources",
+        summary: "List Kairo sources",
+        required_scopes: ["read:kairo", "write:kairo"],
+        platform_module: :kairo
+      },
+      %{
+        method: "GET",
+        path: "/api/ext/v1/kairo/sources/:id",
+        summary: "Get a Kairo source",
+        required_scopes: ["read:kairo", "write:kairo"],
+        platform_module: :kairo
+      },
+      %{
+        method: "POST",
+        path: "/api/ext/v1/kairo/sources",
+        summary: "Ingest a Kairo source",
+        required_scopes: ["write:kairo"],
+        platform_module: :kairo
+      },
+      %{
+        method: "GET",
         path: "/api/ext/v1/email/messages",
         summary: "List email messages across the user's mailboxes",
         required_scopes: ["read:email", "write:email"],
