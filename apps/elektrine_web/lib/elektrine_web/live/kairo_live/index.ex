@@ -40,6 +40,10 @@ defmodule ElektrineWeb.KairoLive.Index do
     {:noreply, socket |> assign(:query, query) |> assign_view()}
   end
 
+  def handle_event("clear_search", _params, socket) do
+    {:noreply, socket |> assign(:query, "") |> assign_view()}
+  end
+
   def handle_event("filter_tag", %{"tag" => tag}, socket) do
     active = if socket.assigns.active_tag == tag, do: nil, else: tag
     {:noreply, socket |> assign(:active_tag, active) |> assign_view()}
@@ -226,7 +230,7 @@ defmodule ElektrineWeb.KairoLive.Index do
           <%!-- Explorer --%>
           <aside class="card panel-card flex flex-col overflow-hidden border border-base-300 lg:max-h-[calc(100vh-11rem)]">
             <div class="space-y-2 border-b border-base-300 p-3">
-              <form id="kairo-search-form" phx-change="search" phx-submit="search">
+              <form id="kairo-search-form" phx-change="search" phx-submit="search" class="relative">
                 <input
                   id="kairo-search"
                   type="text"
@@ -235,8 +239,17 @@ defmodule ElektrineWeb.KairoLive.Index do
                   placeholder="Search sources…"
                   autocomplete="off"
                   phx-debounce="150"
-                  class="input input-bordered input-sm w-full"
+                  class="input input-bordered input-sm w-full pr-8"
                 />
+                <button
+                  :if={@query != ""}
+                  type="button"
+                  phx-click="clear_search"
+                  aria-label="Clear search"
+                  class="absolute right-2 top-1/2 -translate-y-1/2 text-base-content/50 hover:text-base-content"
+                >
+                  <.icon name="hero-x-mark" class="h-4 w-4" />
+                </button>
               </form>
 
               <div
