@@ -46,7 +46,7 @@ defmodule ElektrineNerveWeb.API.NerveController do
       conn,
       :bad_request,
       "master_password_required",
-      "Nerve now uses your account master password. Set it up at /account/security."
+      "Nerve now uses your account master password. Set it up at /account/master-password."
     )
   end
 

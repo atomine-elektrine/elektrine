@@ -480,7 +480,9 @@ defmodule ElektrineEmailWeb.UserSettingsEmail do
                       {gettext(
                         "This mailbox unlocks with your account master password. Unlock it once at"
                       )}
-                      <a href="/account/security" class="link link-primary">/account/security</a>
+                      <a href="/account/master-password" class="link link-primary">
+                        /account/master-password
+                      </a>
                       {gettext("and it unlocks here automatically.")}
                     </p>
                   <% else %>
@@ -601,7 +603,7 @@ defmodule ElektrineEmailWeb.UserSettingsEmail do
                         data-private-mailbox-master-locked-note
                       >
                         {gettext("Set up and unlock your master password first at")}
-                        <a href="/account/security" class="link link-primary">/account/security</a>.
+                        <a href="/account/master-password" class="link link-primary">/account/master-password</a>.
                       </p>
                     </div>
 

@@ -96,6 +96,7 @@ defmodule ElektrineWeb.UserSettingsLive do
      |> assign(:loading_danger, true)
      |> assign(:pending_deletion, nil)
      |> assign(:email_restriction_status, %{restricted: false})
+     |> assign(:master_password_configured, false)
      |> assign(:rss_subscriptions, [])
      |> assign(:new_feed_url, "")
      |> assign(:adding_feed, false)
@@ -180,6 +181,7 @@ defmodule ElektrineWeb.UserSettingsLive do
 
       socket
       |> assign(:email_restriction_status, email_restriction_status)
+      |> assign(:master_password_configured, Elektrine.Vault.configured?(user.id))
       |> assign(:loading_security, false)
     else
       socket
