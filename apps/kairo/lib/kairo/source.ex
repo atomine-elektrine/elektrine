@@ -14,6 +14,12 @@ defmodule Kairo.Source do
     field :url, :string
     field :content, :string
     field :content_format, :string
+    # Zero-knowledge: when `encrypted`, the body is client-encrypted into
+    # `encrypted_content` (a `{version,algorithm,iv,ciphertext}` AES-256-GCM
+    # payload under the user's Kairo subkey) and plaintext `content` is never
+    # stored. Encrypted sources skip server processing.
+    field :encrypted, :boolean, default: false
+    field :encrypted_content, :map
     field :status, :string, default: "received"
     field :tags, {:array, :string}, default: []
     field :metadata, :map, default: %{}
@@ -38,6 +44,8 @@ defmodule Kairo.Source do
       :url,
       :content,
       :content_format,
+      :encrypted,
+      :encrypted_content,
       :status,
       :tags,
       :metadata,
@@ -48,6 +56,7 @@ defmodule Kairo.Source do
     ])
     |> normalize_tags()
     |> put_default_ingested_at()
+    |> maybe_apply_encryption()
     |> validate_required([:user_id, :source_type, :status, :tags, :metadata, :ingested_at])
     |> validate_inclusion(:source_type, @source_types)
     |> validate_inclusion(:status, @statuses)
@@ -55,6 +64,58 @@ defmodule Kairo.Source do
     |> foreign_key_constraint(:user_id)
     |> foreign_key_constraint(:project_id)
   end
+
+  # For an encrypted source the server must never hold the plaintext body, and
+  # the row must not enter the processing pipeline.
+  defp maybe_apply_encryption(changeset) do
+    if get_field(changeset, :encrypted) do
+      changeset
+      |> put_change(:content, nil)
+      |> put_change(:status, "stored")
+      |> validate_required([:encrypted_content])
+      |> validate_encrypted_payload(:encrypted_content)
+    else
+      put_change(changeset, :encrypted_content, nil)
+    end
+  end
+
+  defp validate_encrypted_payload(changeset, field) do
+    case get_field(changeset, field) do
+      %{} = payload ->
+        if valid_encrypted_payload?(payload) do
+          changeset
+        else
+          add_error(changeset, field, "must be a valid client-encrypted payload")
+        end
+
+      _ ->
+        add_error(changeset, field, "must be a valid client-encrypted payload")
+    end
+  end
+
+  defp valid_encrypted_payload?(payload) do
+    algorithm = payload["algorithm"] || payload[:algorithm]
+    iv = payload["iv"] || payload[:iv]
+    ciphertext = payload["ciphertext"] || payload[:ciphertext]
+
+    algorithm == "AES-GCM" and valid_base64_bytes?(iv, exact_size: 12) and
+      valid_base64_bytes?(ciphertext, min_size: 1)
+  end
+
+  defp valid_base64_bytes?(value, opts) when is_binary(value) do
+    case Base.decode64(value) do
+      {:ok, bytes} ->
+        size = byte_size(bytes)
+
+        size >= Keyword.get(opts, :min_size, 0) and
+          (is_nil(Keyword.get(opts, :exact_size)) or size == Keyword.get(opts, :exact_size))
+
+      :error ->
+        false
+    end
+  end
+
+  defp valid_base64_bytes?(_value, _opts), do: false
 
   defp normalize_tags(changeset) do
     tags =
@@ -80,10 +141,11 @@ defmodule Kairo.Source do
   end
 
   defp validate_source_payload(changeset) do
-    if [:title, :url, :content] |> Enum.any?(&(get_field(changeset, &1) |> present?())) do
+    if [:title, :url, :content, :encrypted_content]
+       |> Enum.any?(&(get_field(changeset, &1) |> present?())) do
       changeset
     else
-      add_error(changeset, :content, "must include title, url, or content")
+      add_error(changeset, :content, "must include title, url, content, or encrypted_content")
     end
   end
 

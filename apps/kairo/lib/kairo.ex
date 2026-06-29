@@ -102,7 +102,7 @@ defmodule Kairo do
         attrs
         |> Map.put("user_id", user_id)
         |> Map.put_new("status", "received")
-        |> Map.put_new("raw_hash", raw_hash(attrs))
+        |> maybe_put_raw_hash()
 
       %Source{}
       |> Source.changeset(attrs)
@@ -177,6 +177,21 @@ defmodule Kairo do
   end
 
   defp parse_id(_id), do: :error
+
+  # Plaintext sources get a server-computed content hash for dedup. Encrypted
+  # sources keep whatever blind HMAC the client supplied (or none) — the server
+  # never sees the plaintext, so it cannot and must not hash it.
+  defp maybe_put_raw_hash(attrs) do
+    if encrypted?(attrs["encrypted"]) do
+      attrs
+    else
+      Map.put_new(attrs, "raw_hash", raw_hash(attrs))
+    end
+  end
+
+  defp encrypted?(true), do: true
+  defp encrypted?("true"), do: true
+  defp encrypted?(_), do: false
 
   defp raw_hash(attrs) do
     attrs

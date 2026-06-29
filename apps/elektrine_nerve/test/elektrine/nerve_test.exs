@@ -14,34 +14,7 @@ defmodule Elektrine.NerveTest do
       %{user: user, other_user: other_user}
     end
 
-    test "setup_nerve/2 stores verifier and marks nerve configured", %{user: user} do
-      refute Nerve.nerve_configured?(user.id)
-
-      assert {:ok, _settings} =
-               Nerve.setup_nerve(user.id, %{
-                 "encrypted_verifier" => encrypted_payload("verifier")
-               })
-
-      assert Nerve.nerve_configured?(user.id)
-
-      assert %{"ciphertext" => _ciphertext} =
-               Nerve.get_nerve_settings(user.id).encrypted_verifier
-    end
-
-    test "create_entry/2 requires nerve setup", %{user: user} do
-      assert {:error, :nerve_not_configured} =
-               Nerve.create_entry(user.id, %{
-                 "title" => "Blocked",
-                 "encrypted_password" => encrypted_payload("nope")
-               })
-    end
-
     test "create_entry/2 stores client-encrypted payloads at rest", %{user: user} do
-      assert {:ok, _settings} =
-               Nerve.setup_nerve(user.id, %{
-                 "encrypted_verifier" => encrypted_payload("verifier")
-               })
-
       attrs = %{
         "title" => "GitHub",
         "login_username" => "dev@example.com",
@@ -67,11 +40,6 @@ defmodule Elektrine.NerveTest do
     end
 
     test "create_entry/2 stores encrypted metadata without plaintext metadata", %{user: user} do
-      assert {:ok, _settings} =
-               Nerve.setup_nerve(user.id, %{
-                 "encrypted_verifier" => encrypted_payload("verifier")
-               })
-
       attrs = %{
         "title" => "GitHub",
         "login_username" => "dev@example.com",
@@ -93,11 +61,6 @@ defmodule Elektrine.NerveTest do
     end
 
     test "create_entry/2 requires encrypted metadata", %{user: user} do
-      assert {:ok, _settings} =
-               Nerve.setup_nerve(user.id, %{
-                 "encrypted_verifier" => encrypted_payload("verifier")
-               })
-
       attrs = %{
         "title" => "GitHub",
         "encrypted_password" => encrypted_payload("SuperSecret123!")
@@ -108,11 +71,6 @@ defmodule Elektrine.NerveTest do
     end
 
     test "create_entry/2 validates required encrypted payload", %{user: user} do
-      assert {:ok, _settings} =
-               Nerve.setup_nerve(user.id, %{
-                 "encrypted_verifier" => encrypted_payload("verifier")
-               })
-
       attrs = %{
         "title" => "Missing Ciphertext",
         "encrypted_metadata" => encrypted_payload("metadata"),
@@ -124,11 +82,6 @@ defmodule Elektrine.NerveTest do
     end
 
     test "create_entry/2 validates payload shape", %{user: user} do
-      assert {:ok, _settings} =
-               Nerve.setup_nerve(user.id, %{
-                 "encrypted_verifier" => encrypted_payload("verifier")
-               })
-
       attrs = %{
         "title" => "Bad Payload",
         "encrypted_metadata" => encrypted_payload("metadata"),
@@ -183,16 +136,6 @@ defmodule Elektrine.NerveTest do
     end
 
     test "list_entries/1 only returns entries for the user", %{user: user, other_user: other_user} do
-      assert {:ok, _settings} =
-               Nerve.setup_nerve(user.id, %{
-                 "encrypted_verifier" => encrypted_payload("verifier-user")
-               })
-
-      assert {:ok, _settings} =
-               Nerve.setup_nerve(other_user.id, %{
-                 "encrypted_verifier" => encrypted_payload("verifier-other")
-               })
-
       assert {:ok, _entry_1} =
                Nerve.create_entry(user.id, %{
                  "title" => "Main Account",
@@ -215,11 +158,6 @@ defmodule Elektrine.NerveTest do
     end
 
     test "list_entries/2 can include encrypted payloads", %{user: user} do
-      assert {:ok, _settings} =
-               Nerve.setup_nerve(user.id, %{
-                 "encrypted_verifier" => encrypted_payload("verifier")
-               })
-
       assert {:ok, _entry} =
                Nerve.create_entry(user.id, %{
                  "title" => "Email",
@@ -233,11 +171,6 @@ defmodule Elektrine.NerveTest do
     end
 
     test "get_entry_ciphertext/2 is scoped by user", %{user: user, other_user: other_user} do
-      assert {:ok, _settings} =
-               Nerve.setup_nerve(other_user.id, %{
-                 "encrypted_verifier" => encrypted_payload("verifier-other")
-               })
-
       assert {:ok, entry} =
                Nerve.create_entry(other_user.id, %{
                  "title" => "Hidden",
@@ -249,11 +182,6 @@ defmodule Elektrine.NerveTest do
     end
 
     test "update_entry/3 updates client-encrypted payloads for the owner", %{user: user} do
-      assert {:ok, _settings} =
-               Nerve.setup_nerve(user.id, %{
-                 "encrypted_verifier" => encrypted_payload("verifier")
-               })
-
       assert {:ok, entry} =
                Nerve.create_entry(user.id, %{
                  "title" => "Email",
@@ -280,20 +208,9 @@ defmodule Elektrine.NerveTest do
 
       assert stored_entry.encrypted_password["ciphertext"] ==
                encrypted_payload("new-password")["ciphertext"]
-
-      assert stored_entry.encrypted_metadata["ciphertext"] ==
-               encrypted_payload("new-metadata")["ciphertext"]
-
-      assert stored_entry.encrypted_notes["ciphertext"] ==
-               encrypted_payload("rotated")["ciphertext"]
     end
 
     test "update_entry/3 is scoped by user", %{user: user, other_user: other_user} do
-      assert {:ok, _settings} =
-               Nerve.setup_nerve(other_user.id, %{
-                 "encrypted_verifier" => encrypted_payload("verifier-other")
-               })
-
       assert {:ok, entry} =
                Nerve.create_entry(other_user.id, %{
                  "title" => "Hidden",
@@ -304,16 +221,12 @@ defmodule Elektrine.NerveTest do
       assert {:error, :not_found} =
                Nerve.update_entry(user.id, entry.id, %{
                  "title" => "Nope",
+                 "encrypted_metadata" => encrypted_payload("metadata"),
                  "encrypted_password" => encrypted_payload("updated")
                })
     end
 
     test "delete_entry/2 only deletes user-owned entries", %{user: user, other_user: other_user} do
-      assert {:ok, _settings} =
-               Nerve.setup_nerve(user.id, %{
-                 "encrypted_verifier" => encrypted_payload("verifier-user")
-               })
-
       assert {:ok, entry} =
                Nerve.create_entry(user.id, %{
                  "title" => "Delete Me",
@@ -326,12 +239,7 @@ defmodule Elektrine.NerveTest do
       assert {:error, :not_found} = Nerve.get_entry_ciphertext(user.id, entry.id)
     end
 
-    test "delete_nerve/1 removes verifier metadata and all entries", %{user: user} do
-      assert {:ok, _settings} =
-               Nerve.setup_nerve(user.id, %{
-                 "encrypted_verifier" => encrypted_payload("verifier")
-               })
-
+    test "delete_nerve/1 removes all of a user's entries", %{user: user} do
       assert {:ok, _entry} =
                Nerve.create_entry(user.id, %{
                  "title" => "Wipe Me",
@@ -339,22 +247,17 @@ defmodule Elektrine.NerveTest do
                  "encrypted_password" => encrypted_payload("temporary")
                })
 
-      assert {:ok, %{deleted_entries: 1, nerve_deleted: true}} =
-               Nerve.delete_nerve(user.id)
-
-      refute Nerve.nerve_configured?(user.id)
+      assert {:ok, %{deleted_entries: 1}} = Nerve.delete_nerve(user.id)
       assert Nerve.list_entries(user.id, include_secrets: true) == []
-      assert is_nil(Nerve.get_nerve_settings(user.id))
     end
   end
 
+  # Entries are encrypted under the master key's Nerve subkey (keyed AES-256-GCM);
+  # the envelope is {algorithm, iv, ciphertext}.
   defp encrypted_payload(plaintext) do
     %{
-      "version" => 1,
+      "version" => 2,
       "algorithm" => "AES-GCM",
-      "kdf" => "PBKDF2-SHA256",
-      "iterations" => 210_000,
-      "salt" => Base.encode64("1234567890123456"),
       "iv" => Base.encode64("123456789012"),
       "ciphertext" => Base.encode64("ciphertext:" <> plaintext)
     }

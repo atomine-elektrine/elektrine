@@ -7,6 +7,7 @@ defmodule ElektrineNerveWeb.API.NerveController do
 
   alias Elektrine.Nerve
   alias Elektrine.Nerve.Payloads
+  alias Elektrine.Vault
   alias ElektrineNerveWeb.API.Response
 
   @doc """
@@ -19,15 +20,16 @@ defmodule ElektrineNerveWeb.API.NerveController do
 
     all_entries = Nerve.list_entries(user.id)
     entries = all_entries |> Enum.drop(offset) |> Enum.take(limit)
-    nerve_settings = Nerve.get_nerve_settings(user.id)
-    nerve_configured = not is_nil(nerve_settings)
+    master = Vault.get(user.id)
 
     Response.ok(
       conn,
       %{
         entries: entries,
-        nerve_configured: nerve_configured,
-        nerve_verifier: nerve_settings && nerve_settings.encrypted_verifier
+        # Nerve now unlocks with the account master password; the wrapped MDK is
+        # the verifier (unwrap with the passphrase to derive the Nerve subkey).
+        master_configured: not is_nil(master),
+        master_wrapped_dek: master && master.wrapped_dek
       },
       %{pagination: %{limit: limit, offset: offset, total_count: length(all_entries)}}
     )
@@ -35,23 +37,17 @@ defmodule ElektrineNerveWeb.API.NerveController do
 
   @doc """
   POST /api/ext/v1/nerve/setup
+
+  Deprecated: Nerve no longer has its own passphrase. The master password is set
+  up in account settings.
   """
-  def setup(conn, params) do
-    user = conn.assigns.current_user
-    attrs = Map.get(params, "nerve", params)
-
-    with {:ok, attrs} <- Payloads.decode_setup_params(attrs),
-         {:ok, _settings} <- Nerve.setup_nerve(user.id, attrs) do
-      Response.created(conn, %{message: "Nerve configured", nerve_configured: true})
-    else
-      {:error, :invalid_payload} ->
-        Response.error(conn, :bad_request, "invalid_payload", "Invalid nerve setup payload")
-
-      {:error, changeset} ->
-        Response.error(conn, :unprocessable_entity, "validation_failed", "Invalid nerve setup", %{
-          errors: errors_on(changeset)
-        })
-    end
+  def setup(conn, _params) do
+    Response.error(
+      conn,
+      :bad_request,
+      "master_password_required",
+      "Nerve now uses your account master password. Set it up at /account/security."
+    )
   end
 
   @doc """
@@ -60,17 +56,12 @@ defmodule ElektrineNerveWeb.API.NerveController do
   def delete_nerve(conn, _params) do
     user = conn.assigns.current_user
 
-    case Nerve.delete_nerve(user.id) do
-      {:ok, result} ->
-        Response.ok(conn, %{
-          message: "Nerve deleted",
-          deleted_entries: result.deleted_entries,
-          nerve_configured: false
-        })
+    {:ok, result} = Nerve.delete_nerve(user.id)
 
-      {:error, _reason} ->
-        Response.error(conn, :internal_server_error, "delete_failed", "Could not delete nerve")
-    end
+    Response.ok(conn, %{
+      message: "Nerve entries deleted",
+      deleted_entries: result.deleted_entries
+    })
   end
 
   @doc """

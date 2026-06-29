@@ -97,74 +97,118 @@ defmodule ElektrineWeb.KairoLive.Index do
 
         <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
           <main class="space-y-6">
-            <section class="rounded border border-base-300 bg-base-100 p-4">
-              <h2 class="mb-4 text-lg font-semibold">Ingest</h2>
-              <.form for={@source_form} phx-submit="create_source" class="space-y-4">
-                <div class="grid gap-4 md:grid-cols-2">
-                  <.input
-                    field={@source_form[:source_type]}
-                    type="select"
-                    label="Type"
-                    options={Enum.map(@source_types, &{String.replace(&1, "_", " "), &1})}
-                  />
-                  <.input
-                    field={@source_form[:project_id]}
-                    type="select"
-                    label="Project"
-                    prompt="Inbox"
-                    options={Enum.map(@projects, &{&1.name, &1.id})}
-                  />
-                </div>
-
-                <div class="grid gap-4 md:grid-cols-2">
-                  <.input field={@source_form[:title]} label="Title" />
-                  <.input field={@source_form[:url]} type="url" label="URL" />
-                </div>
-
-                <.input field={@source_form[:content]} type="textarea" label="Content" rows="8" />
-
-                <div class="grid gap-4 md:grid-cols-2">
-                  <.input field={@source_form[:content_format]} label="Format" />
-                  <.input field={@source_form[:tags]} label="Tags" />
-                </div>
-
-                <div class="flex justify-end">
-                  <button type="submit" class="btn btn-primary">Ingest</button>
-                </div>
-              </.form>
-            </section>
-
-            <section class="overflow-hidden rounded border border-base-300 bg-base-100">
-              <div class="border-b border-base-300 px-4 py-3">
-                <h2 class="text-lg font-semibold">Recent sources</h2>
-              </div>
-              <div class="divide-y divide-base-300">
-                <div :if={@sources == []} class="px-4 py-8 text-sm text-base-content/60">
-                  No sources yet.
-                </div>
-                <article :for={source <- @sources} class="px-4 py-4">
-                  <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                    <div class="min-w-0">
-                      <h3 class="truncate font-medium">
-                        {source.title || source.url || source.source_type}
-                      </h3>
-                      <p class="truncate text-sm text-base-content/60">{source.url}</p>
-                    </div>
-                    <div class="flex shrink-0 gap-2">
-                      <span class="badge badge-outline">{source.source_type}</span>
-                      <span class="badge">{source.status}</span>
-                    </div>
+            <div id="kairo-vault" phx-hook="KairoVault" class="contents">
+              <section class="rounded border border-base-300 bg-base-100 p-4">
+                <h2 class="mb-4 text-lg font-semibold">Ingest</h2>
+                <.form
+                  for={@source_form}
+                  phx-submit="create_source"
+                  id="kairo-source-form"
+                  class="space-y-4"
+                >
+                  <div class="grid gap-4 md:grid-cols-2">
+                    <.input
+                      field={@source_form[:source_type]}
+                      type="select"
+                      label="Type"
+                      options={Enum.map(@source_types, &{String.replace(&1, "_", " "), &1})}
+                    />
+                    <.input
+                      field={@source_form[:project_id]}
+                      type="select"
+                      label="Project"
+                      prompt="Inbox"
+                      options={Enum.map(@projects, &{&1.name, &1.id})}
+                    />
                   </div>
-                  <div class="mt-2 flex flex-wrap gap-2 text-xs text-base-content/60">
-                    <span>{format_datetime(source.ingested_at)}</span>
-                    <span :if={source.project}>{source.project.name}</span>
-                    <span :for={tag <- source.tags || []} class="badge badge-ghost badge-sm">
-                      {tag}
+
+                  <div class="grid gap-4 md:grid-cols-2">
+                    <.input field={@source_form[:title]} label="Title" />
+                    <.input field={@source_form[:url]} type="url" label="URL" />
+                  </div>
+
+                  <.input field={@source_form[:content]} type="textarea" label="Content" rows="8" />
+
+                  <div class="grid gap-4 md:grid-cols-2">
+                    <.input field={@source_form[:content_format]} label="Format" />
+                    <.input field={@source_form[:tags]} label="Tags" />
+                  </div>
+
+                  <label class="flex items-center gap-2 text-sm">
+                    <input type="checkbox" class="checkbox checkbox-sm" data-kairo-encrypt-toggle />
+                    <span>
+                      🔒 Encrypt (zero-knowledge) — store the content so only you can read it
                     </span>
+                  </label>
+                  <p class="hidden text-xs text-warning" data-kairo-locked-hint>
+                    Set up / unlock your
+                    <.link navigate={~p"/account/security"} class="link">master password</.link>
+                    to encrypt.
+                  </p>
+
+                  <input
+                    type="hidden"
+                    name="source[encrypted]"
+                    value="false"
+                    data-kairo-encrypted-flag
+                  />
+                  <input type="hidden" name="source[encrypted_content]" data-kairo-encrypted-content />
+
+                  <div class="flex justify-end">
+                    <button type="button" class="btn btn-primary" data-kairo-submit>Ingest</button>
                   </div>
-                </article>
-              </div>
-            </section>
+                </.form>
+              </section>
+
+              <section class="overflow-hidden rounded border border-base-300 bg-base-100">
+                <div class="border-b border-base-300 px-4 py-3">
+                  <h2 class="text-lg font-semibold">Recent sources</h2>
+                </div>
+                <div class="divide-y divide-base-300">
+                  <div :if={@sources == []} class="px-4 py-8 text-sm text-base-content/60">
+                    No sources yet.
+                  </div>
+                  <article :for={source <- @sources} class="px-4 py-4">
+                    <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div class="min-w-0">
+                        <h3 class="truncate font-medium">
+                          {source.title || source.url || source.source_type}
+                        </h3>
+                        <p class="truncate text-sm text-base-content/60">{source.url}</p>
+                      </div>
+                      <div class="flex shrink-0 gap-2">
+                        <span :if={source.encrypted} class="badge badge-warning badge-outline">
+                          🔒
+                        </span>
+                        <span class="badge badge-outline">{source.source_type}</span>
+                        <span class="badge">{source.status}</span>
+                      </div>
+                    </div>
+                    <div class="mt-2 flex flex-wrap gap-2 text-xs text-base-content/60">
+                      <span>{format_datetime(source.ingested_at)}</span>
+                      <span :if={source.project}>{source.project.name}</span>
+                      <span :for={tag <- source.tags || []} class="badge badge-ghost badge-sm">
+                        {tag}
+                      </span>
+                    </div>
+                    <div :if={source.encrypted} class="mt-2">
+                      <button
+                        type="button"
+                        class="btn btn-ghost btn-xs"
+                        data-kairo-decrypt
+                        data-kairo-payload={Jason.encode!(source.encrypted_content)}
+                      >
+                        🔒 Decrypt
+                      </button>
+                      <pre
+                        class="mt-1 hidden whitespace-pre-wrap break-words rounded bg-base-200 p-2 text-xs"
+                        data-kairo-output
+                      ></pre>
+                    </div>
+                  </article>
+                </div>
+              </section>
+            </div>
           </main>
 
           <aside class="space-y-6">

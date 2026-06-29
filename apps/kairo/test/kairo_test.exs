@@ -52,5 +52,46 @@ defmodule KairoTest do
                  "url" => "https://example.com"
                })
     end
+
+    test "create_source/2 stores an encrypted source zero-knowledge" do
+      user = user_fixture()
+
+      payload = %{
+        "version" => 2,
+        "algorithm" => "AES-GCM",
+        "iv" => Base.encode64(:crypto.strong_rand_bytes(12)),
+        "ciphertext" => Base.encode64(:crypto.strong_rand_bytes(64))
+      }
+
+      assert {:ok, source} =
+               Kairo.create_source(user, %{
+                 "source_type" => "text",
+                 "title" => "Private note",
+                 "content" => "this should never be stored",
+                 "encrypted" => true,
+                 "encrypted_content" => payload
+               })
+
+      # Plaintext is dropped; only the ciphertext envelope is kept.
+      assert source.encrypted
+      assert source.content == nil
+      assert source.encrypted_content["ciphertext"] == payload["ciphertext"]
+      # Encrypted rows are parked at "stored" (no server processing) and the
+      # server computes no content hash it could use to confirm the plaintext.
+      assert source.status == "stored"
+      assert source.raw_hash == nil
+    end
+
+    test "create_source/2 rejects an encrypted source without a ciphertext payload" do
+      user = user_fixture()
+
+      assert {:error, changeset} =
+               Kairo.create_source(user, %{
+                 "source_type" => "text",
+                 "encrypted" => true
+               })
+
+      assert %{encrypted_content: _} = errors_on(changeset)
+    end
   end
 end

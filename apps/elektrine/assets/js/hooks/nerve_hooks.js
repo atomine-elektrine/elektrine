@@ -1,184 +1,20 @@
 /**
- * Nerve Hooks
- * Client-side encryption/decryption for zero-knowledge nerve entries.
+ * Nerve — zero-knowledge password entries, now keyed by the account master
+ * password. Unlock is shared via vault_session; entries are encrypted/decrypted
+ * with the Nerve subkey of the master key. The server only ever stores ciphertext.
  */
 
-const ITERATIONS = 600000
-const VERSION = 2
-const ALGORITHM = "AES-GCM"
-const KDF = "PBKDF2-SHA256"
+import { encryptValue, decryptValue, unwrapWithSecret } from "./vault_crypto"
+import * as vaultSession from "./vault_session"
+
+const FEATURE = "nerve"
 const PASSWORD_LENGTH = 24
-const MIN_PASSPHRASE_LENGTH = 14
-const VERIFIER_TEXT = "elektrine-nerve-verifier-v1"
+const PASSWORD_ALPHABET =
+  "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%^&*-_"
 
-const encoder = new TextEncoder()
-const decoder = new TextDecoder()
+const metadataAad = () => ({ purpose: "elektrine-nerve-metadata" })
 
-function randomBytes(length) {
-  const bytes = new Uint8Array(length)
-  crypto.getRandomValues(bytes)
-  return bytes
-}
-
-function bytesToBase64(bytes) {
-  let binary = ""
-  bytes.forEach((byte) => {
-    binary += String.fromCharCode(byte)
-  })
-  return btoa(binary)
-}
-
-function base64ToBytes(value) {
-  const binary = atob(value)
-  const bytes = new Uint8Array(binary.length)
-
-  for (let i = 0; i < binary.length; i += 1) {
-    bytes[i] = binary.charCodeAt(i)
-  }
-
-  return bytes
-}
-
-async function deriveAesKey(passphrase, salt, iterations) {
-  const passphraseKey = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(passphrase),
-    { name: "PBKDF2" },
-    false,
-    ["deriveKey"]
-  )
-
-  return crypto.subtle.deriveKey(
-    { name: "PBKDF2", salt, iterations, hash: "SHA-256" },
-    passphraseKey,
-    { name: ALGORITHM, length: 256 },
-    false,
-    ["encrypt", "decrypt"]
-  )
-}
-
-function stableJson(value) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return JSON.stringify(value)
-
-  return JSON.stringify(
-    Object.keys(value)
-      .sort()
-      .reduce((acc, key) => {
-        acc[key] = value[key]
-        return acc
-      }, {})
-  )
-}
-
-function aesGcmParams(iv, associatedData) {
-  if (!associatedData) return { name: ALGORITHM, iv }
-
-  return {
-    name: ALGORITHM,
-    iv,
-    additionalData: encoder.encode(stableJson(associatedData))
-  }
-}
-
-async function encryptValue(plaintext, passphrase, associatedData = null) {
-  const salt = randomBytes(16)
-  const iv = randomBytes(12)
-  const key = await deriveAesKey(passphrase, salt, ITERATIONS)
-  const ciphertextBuffer = await crypto.subtle.encrypt(
-    aesGcmParams(iv, associatedData),
-    key,
-    encoder.encode(plaintext)
-  )
-
-  return {
-    version: VERSION,
-    algorithm: ALGORITHM,
-    kdf: KDF,
-    iterations: ITERATIONS,
-    salt: bytesToBase64(salt),
-    iv: bytesToBase64(iv),
-    ciphertext: bytesToBase64(new Uint8Array(ciphertextBuffer))
-  }
-}
-
-async function decryptValue(payload, passphrase, associatedData = null) {
-  const iv = base64ToBytes(payload.iv)
-  const salt = base64ToBytes(payload.salt)
-  const ciphertext = base64ToBytes(payload.ciphertext)
-  const key = await deriveAesKey(passphrase, salt, payload.iterations)
-  const plaintextBuffer = await crypto.subtle.decrypt(
-    Number(payload.version) >= 2 ? aesGcmParams(iv, associatedData) : { name: ALGORITHM, iv },
-    key,
-    ciphertext
-  )
-
-  return decoder.decode(plaintextBuffer)
-}
-
-function createPassword() {
-  const lowercase = "abcdefghijklmnopqrstuvwxyz"
-  const uppercase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-  const digits = "0123456789"
-  const symbols = "!@#$%^&*()-_=+"
-  const all = lowercase + uppercase + digits + symbols
-
-  const randomInt = (max) => {
-    const values = new Uint32Array(1)
-    const limit = Math.floor(0x100000000 / max) * max
-
-    do {
-      crypto.getRandomValues(values)
-    } while (values[0] >= limit)
-
-    return values[0] % max
-  }
-
-  const pick = (characters) => {
-    return characters[randomInt(characters.length)]
-  }
-
-  const required = [
-    pick(lowercase),
-    pick(uppercase),
-    pick(digits),
-    pick(symbols)
-  ]
-
-  while (required.length < PASSWORD_LENGTH) {
-    required.push(pick(all))
-  }
-
-  for (let i = required.length - 1; i > 0; i -= 1) {
-    const swapIndex = randomInt(i + 1)
-    ;[required[i], required[swapIndex]] = [required[swapIndex], required[i]]
-  }
-
-  return required.join("")
-}
-
-function parsePayload(raw) {
-  if (!raw) return null
-
-  try {
-    return JSON.parse(raw)
-  } catch (_error) {
-    return null
-  }
-}
-
-function isClientPayload(parsed) {
-  return (
-    parsed &&
-    parsed.algorithm === ALGORITHM &&
-    parsed.kdf === KDF &&
-    typeof parsed.iterations === "number" &&
-    typeof parsed.salt === "string" &&
-    typeof parsed.iv === "string" &&
-    typeof parsed.ciphertext === "string"
-  )
-}
-
-function nerveEntryAssociatedData(metadata, field) {
+function entryAad(metadata, field) {
   return {
     purpose: "elektrine-nerve-entry",
     field,
@@ -188,481 +24,231 @@ function nerveEntryAssociatedData(metadata, field) {
   }
 }
 
-function nerveMetadataAssociatedData() {
-  return { purpose: "elektrine-nerve-metadata" }
-}
-
-function notify(message, type = "error", title = "Bridge") {
-  if (typeof window.showNotification === "function") {
-    window.showNotification(message, type, title)
-  } else {
-    console.error(`[Bridge] ${message}`)
-  }
-}
-
-function setButtonState(button, revealed) {
-  if (!button) return
-
-  const revealLabel = button.dataset.revealLabel || "Reveal"
-  const hideLabel = button.dataset.hideLabel || "Hide"
-  button.textContent = revealed ? hideLabel : revealLabel
-  button.dataset.revealed = revealed ? "true" : "false"
-  button.classList.toggle("btn-outline", revealed)
-  button.classList.toggle("btn-primary", !revealed)
-}
-
 export const Nerve = {
   mounted() {
-    this.passphrase = null
-    this.captureElements()
-    this.bindEvents()
-    this.renderLockState()
-  },
-
-  updated() {
-    const wasConfigured = this.nerveConfigured
-    this.captureElements()
-
-    if (wasConfigured && !this.nerveConfigured) {
-      this.clearUnlockedState()
-    }
-
-    this.renderLockState()
-
-    if (this.passphrase) {
-      this.decryptEntryMetadataRows().catch(() => null)
-    }
+    this.unsubscribe = vaultSession.subscribe(() => this.onLockChange())
+    this.bind()
+    this.onLockChange()
   },
 
   destroyed() {
-    if (this.onClick) this.el.removeEventListener("click", this.onClick)
-    if (this.onKeydown) this.el.removeEventListener("keydown", this.onKeydown)
+    this.unsubscribe && this.unsubscribe()
   },
 
-  captureElements() {
-    this.nerveConfigured = this.el.dataset.nerveConfigured === "true"
-    this.nerveVerifierPayload = parsePayload(this.el.dataset.nerveVerifier)
-    this.form = this.el.querySelector("[data-nerve-form]")
-    this.setupForm = this.el.querySelector("[data-nerve-setup-form]")
-    this.setupPassphraseInput = this.el.querySelector("[data-nerve-setup-passphrase]")
-    this.setupPassphraseConfirmInput = this.el.querySelector("[data-nerve-setup-passphrase-confirm]")
-    this.setupEncryptedVerifierInput = this.el.querySelector("[data-nerve-setup-encrypted-verifier]")
-    this.passphraseInput = this.el.querySelector("[data-nerve-passphrase-input]")
-    this.status = this.el.querySelector("[data-nerve-status]")
-    this.titleInput = this.el.querySelector('[name="entry[title]"]')
-    this.loginUsernameInput = this.el.querySelector('[name="entry[login_username]"]')
-    this.websiteInput = this.el.querySelector('[name="entry[website]"]')
-    this.passwordInput = this.el.querySelector("[data-nerve-password-input]")
-    this.notesInput = this.el.querySelector("[data-nerve-notes-input]")
-    this.encryptedPasswordInput = this.el.querySelector("[data-nerve-encrypted-password]")
-    this.encryptedNotesInput = this.el.querySelector("[data-nerve-encrypted-notes]")
-    this.encryptedMetadataInput = this.el.querySelector("[data-nerve-encrypted-metadata]")
+  bind() {
+    this.el.addEventListener("click", (event) => {
+      if (event.target.closest("[data-vault-unlock]")) return this.unlock()
+      if (event.target.closest("[data-vault-lock]")) return vaultSession.lock()
+      if (event.target.closest("[data-nerve-generate]")) return this.generatePassword()
+      if (event.target.closest("[data-nerve-entry-submit]")) {
+        event.preventDefault()
+        return this.saveEntry()
+      }
+      const reveal = event.target.closest("[data-nerve-reveal]")
+      if (reveal) {
+        event.preventDefault()
+        return this.toggleReveal(reveal)
+      }
+    })
   },
 
-  entryFormMetadata() {
-    return {
-      title: this.titleInput?.value || "",
-      login_username: this.loginUsernameInput?.value || "",
-      website: this.websiteInput?.value || ""
+  // --- lock state ---
+
+  onLockChange() {
+    const unlocked = vaultSession.isUnlocked()
+    const status = this.el.querySelector("[data-vault-status]")
+    if (status) {
+      status.textContent = unlocked
+        ? status.dataset.unlockedLabel || "Unlocked."
+        : status.dataset.lockedLabel || "Locked."
+    }
+
+    if (unlocked) this.decryptVisibleMetadata()
+  },
+
+  setError(message) {
+    const el = this.el.querySelector("[data-vault-error]")
+    if (el) el.textContent = message || ""
+  },
+
+  wrappedDek() {
+    const raw = this.el.dataset.vaultWrappedDek
+    if (!raw) return null
+    try {
+      return JSON.parse(raw)
+    } catch (_error) {
+      return null
     }
   },
 
-  async entryRowMetadata(entryRow) {
-    const cached = parsePayload(entryRow.dataset.decryptedMetadata)
-    if (cached) return cached
+  async unlock() {
+    this.setError("")
+    const input = this.el.querySelector("[data-vault-unlock-input]")
+    const wrapped = this.wrappedDek()
+    if (!wrapped) return this.setError("No master key found.")
 
-    const encryptedMetadata = parsePayload(entryRow.dataset.encryptedMetadata)
-
-    if (isClientPayload(encryptedMetadata) && this.passphrase) {
-      const decrypted = await decryptValue(encryptedMetadata, this.passphrase, nerveMetadataAssociatedData())
-      const metadata = JSON.parse(decrypted)
-
-      this.applyEntryRowMetadata(entryRow, metadata)
-      return metadata
-    }
-
-    return {
-      title: entryRow.dataset.nerveTitle || "",
-      login_username: entryRow.dataset.nerveLoginUsername || "",
-      website: entryRow.dataset.nerveWebsite || ""
+    try {
+      const mdk = await unwrapWithSecret(wrapped, input ? input.value : "")
+      vaultSession.unlock(mdk)
+      if (input) input.value = ""
+    } catch (_error) {
+      this.setError("Incorrect master passphrase.")
     }
   },
 
-  applyEntryRowMetadata(entryRow, metadata) {
-    const normalized = {
-      title: metadata.title || "",
-      login_username: metadata.login_username || "",
-      website: metadata.website || ""
-    }
+  // --- entries ---
 
-    entryRow.dataset.decryptedMetadata = JSON.stringify(normalized)
-    entryRow.dataset.nerveTitle = normalized.title
-    entryRow.dataset.nerveLoginUsername = normalized.login_username
-    entryRow.dataset.nerveWebsite = normalized.website
-
-    const titleOutput = entryRow.querySelector("[data-nerve-title-output]")
-    const usernameOutput = entryRow.querySelector("[data-nerve-username-output]")
-    const websiteOutput = entryRow.querySelector("[data-nerve-website-output]")
-
-    if (titleOutput) titleOutput.textContent = normalized.title || "Encrypted entry"
-    if (usernameOutput) usernameOutput.textContent = normalized.login_username || "-"
-    if (websiteOutput) websiteOutput.textContent = normalized.website || "-"
+  async key() {
+    return vaultSession.featureKey(FEATURE)
   },
 
-  bindEvents() {
-    if (this.onClick) this.el.removeEventListener("click", this.onClick)
-    if (this.onKeydown) this.el.removeEventListener("keydown", this.onKeydown)
-
-    this.onClick = async (event) => {
-      const unlockButton = event.target.closest("[data-nerve-unlock]")
-      if (unlockButton) {
-        event.preventDefault()
-        await this.unlockNerve()
-        return
-      }
-
-      const lockButton = event.target.closest("[data-nerve-lock]")
-      if (lockButton) {
-        event.preventDefault()
-        this.lockNerve()
-        return
-      }
-
-      const generateButton = event.target.closest("[data-nerve-generate]")
-      if (generateButton) {
-        event.preventDefault()
-        this.generatePassword()
-        return
-      }
-
-      const revealButton = event.target.closest("[data-nerve-reveal]")
-      if (revealButton) {
-        event.preventDefault()
-        await this.toggleReveal(revealButton)
-        return
-      }
-
-      const setupSubmitButton = event.target.closest("[data-nerve-setup-submit]")
-      if (setupSubmitButton) {
-        event.preventDefault()
-        await this.submitSetupEncrypted()
-        return
-      }
-
-      const entrySubmitButton = event.target.closest("[data-nerve-entry-submit]")
-      if (entrySubmitButton) {
-        event.preventDefault()
-        await this.submitEncrypted()
-      }
-    }
-
-    this.onKeydown = async (event) => {
-      if (event.key !== "Enter") return
-      if (event.target?.tagName === "TEXTAREA") return
-
-      if (event.target.closest("[data-nerve-setup-form]")) {
-        event.preventDefault()
-        await this.submitSetupEncrypted()
-        return
-      }
-
-      if (event.target.closest("[data-nerve-form]")) {
-        event.preventDefault()
-        await this.submitEncrypted()
-      }
-    }
-
-    this.el.addEventListener("click", this.onClick)
-    this.el.addEventListener("keydown", this.onKeydown)
+  async decryptMetadata(row, key) {
+    const raw = row.dataset.encryptedMetadata
+    if (!raw) return {}
+    const payload = JSON.parse(raw)
+    return JSON.parse(await decryptValue(payload, key, metadataAad()))
   },
 
-  async unlockNerve() {
-    if (!this.nerveConfigured) {
-      notify("Set up Bridge before unlocking.", "warning")
+  async decryptVisibleMetadata() {
+    let key
+    try {
+      key = await this.key()
+    } catch (_error) {
       return
     }
 
-    const passphrase = this.passphraseInput?.value?.trim()
-
-    if (!passphrase) {
-      notify("Enter a Bridge passphrase first.", "warning")
-      return
-    }
-
-    if (isClientPayload(this.nerveVerifierPayload)) {
+    const rows = this.el.querySelectorAll("[data-encrypted-metadata]")
+    for (const row of rows) {
       try {
-        const verifier = await decryptValue(this.nerveVerifierPayload, passphrase)
-
-        if (verifier !== VERIFIER_TEXT) {
-          notify("Incorrect Bridge passphrase.", "error")
-          return
-        }
+        const metadata = await this.decryptMetadata(row, key)
+        this.setText(row, "[data-nerve-title-output]", metadata.title)
+        this.setText(row, "[data-nerve-username-output]", metadata.login_username)
+        this.setText(row, "[data-nerve-website-output]", metadata.website)
       } catch (_error) {
-        notify("Incorrect Bridge passphrase.", "error")
-        return
+        // leave the placeholder if a row fails to decrypt
       }
     }
-
-    this.passphrase = passphrase
-    if (this.passphraseInput) this.passphraseInput.value = ""
-    await this.decryptEntryMetadataRows()
-    this.renderLockState()
-    notify("Bridge unlocked in this browser session.", "success", "Bridge")
   },
 
-  lockNerve() {
-    this.clearUnlockedState()
-    this.renderLockState()
-    notify("Bridge locked.", "info", "Bridge")
-  },
+  async saveEntry() {
+    this.setError("")
+    if (!vaultSession.isUnlocked()) return this.setError("Unlock your master password first.")
 
-  clearUnlockedState() {
-    this.passphrase = null
-    if (this.passphraseInput) this.passphraseInput.value = ""
-    this.hideAllSecrets()
-  },
-
-  renderLockState() {
-    if (!this.status) return
-
-    if (!this.nerveConfigured) {
-      this.status.textContent = "Set up your Bridge passphrase to continue."
-      this.status.classList.remove("text-error")
-      return
+    const form = this.el.querySelector("#nerve-entry-form")
+    const metadata = {
+      title: this.fieldValue('[name="entry[title]"]'),
+      login_username: this.fieldValue('[name="entry[login_username]"]'),
+      website: this.fieldValue('[name="entry[website]"]')
     }
+    const password = this.value("[data-nerve-password-input]")
+    const notes = this.value("[data-nerve-notes-input]")
 
-    if (this.passphrase) {
-      this.status.textContent = "Bridge unlocked in this browser session."
-      this.status.classList.remove("text-error")
-    } else {
-      this.status.textContent = "Bridge locked."
-      this.status.classList.remove("text-error")
-    }
-  },
-
-  ensureUnlocked() {
-    if (!this.nerveConfigured) {
-      notify("Set up Bridge first.", "warning")
-      return false
-    }
-
-    if (this.passphrase) return true
-
-    notify("Unlock Bridge before encrypting or revealing entries.", "warning")
-
-    if (this.status) {
-      this.status.textContent = "Bridge is locked."
-      this.status.classList.add("text-error")
-    }
-
-    return false
-  },
-
-  generatePassword() {
-    if (!this.passwordInput) return
-    this.passwordInput.value = createPassword()
-  },
-
-  async submitSetupEncrypted() {
-    if (
-      !this.setupForm ||
-      !this.setupPassphraseInput ||
-      !this.setupPassphraseConfirmInput ||
-      !this.setupEncryptedVerifierInput
-    ) {
-      return
-    }
-
-    const passphrase = this.setupPassphraseInput.value.trim()
-    const confirmation = this.setupPassphraseConfirmInput.value.trim()
-
-    if (!passphrase || passphrase.length < MIN_PASSPHRASE_LENGTH) {
-      notify(`Use a Bridge passphrase with at least ${MIN_PASSPHRASE_LENGTH} characters.`, "warning")
-      return
-    }
-
-    if (passphrase !== confirmation) {
-      notify("Passphrase confirmation does not match.", "warning")
-      return
-    }
+    if (!password) return this.setError("A password is required.")
 
     try {
-      const encryptedVerifier = await encryptValue(VERIFIER_TEXT, passphrase)
-      this.setupEncryptedVerifierInput.value = JSON.stringify(encryptedVerifier)
+      const key = await this.key()
 
-      this.passphrase = passphrase
-      this.setupPassphraseInput.value = ""
-      this.setupPassphraseConfirmInput.value = ""
-      this.setupForm.requestSubmit()
-    } catch (_error) {
-      notify("Unable to create Bridge verifier in the browser.", "error")
-    }
-  },
-
-  async submitEncrypted() {
-    if (!this.ensureUnlocked()) return
-    if (
-      !this.passwordInput ||
-      !this.encryptedPasswordInput ||
-      !this.encryptedNotesInput ||
-      !this.encryptedMetadataInput
-    ) {
-      return
-    }
-
-    const password = this.passwordInput.value
-    const notes = this.notesInput?.value || ""
-
-    if (!password) {
-      notify("Password is required before saving an entry.", "warning")
-      return
-    }
-
-    try {
-      const metadata = this.entryFormMetadata()
-      const encryptedMetadata = await encryptValue(
-        JSON.stringify(metadata),
-        this.passphrase,
-        nerveMetadataAssociatedData()
+      this.setHidden(
+        "[data-nerve-encrypted-metadata]",
+        await encryptValue(JSON.stringify(metadata), key, metadataAad())
       )
-      const encryptedPassword = await encryptValue(
-        password,
-        this.passphrase,
-        nerveEntryAssociatedData(metadata, "password")
+      this.setHidden(
+        "[data-nerve-encrypted-password]",
+        await encryptValue(password, key, entryAad(metadata, "password"))
       )
-      const encryptedNotes = notes
-        ? await encryptValue(notes, this.passphrase, nerveEntryAssociatedData(metadata, "notes"))
-        : null
+      this.setHidden(
+        "[data-nerve-encrypted-notes]",
+        notes ? await encryptValue(notes, key, entryAad(metadata, "notes")) : null
+      )
 
-      this.encryptedMetadataInput.value = JSON.stringify(encryptedMetadata)
-      this.encryptedPasswordInput.value = JSON.stringify(encryptedPassword)
-      this.encryptedNotesInput.value = encryptedNotes ? JSON.stringify(encryptedNotes) : ""
-
-      // Minimize plaintext lifetime in the DOM before the LiveView submit.
-      if (this.titleInput) this.titleInput.value = "Encrypted entry"
-      if (this.loginUsernameInput) this.loginUsernameInput.value = ""
-      if (this.websiteInput) this.websiteInput.value = ""
-      this.passwordInput.value = ""
-      if (this.notesInput) this.notesInput.value = ""
-      this.form.requestSubmit()
+      // Never let the plaintext reach the server.
+      this.setValue("[data-nerve-password-input]", "")
+      this.setValue("[data-nerve-notes-input]", "")
+      form.requestSubmit()
     } catch (_error) {
-      notify("Unable to encrypt entry in the browser.", "error")
+      this.setError("Could not encrypt this entry.")
     }
   },
 
-  async toggleReveal(button) {
-    const entryId = button.dataset.nerveReveal
-    if (!entryId) return
+  toggleReveal(button) {
+    const id = button.dataset.nerveReveal
+    const secretRow = this.el.querySelector(`[data-nerve-secret-row="${id}"]`)
+    if (!secretRow) return
 
-    const entryRow = this.el.querySelector(`[data-nerve-entry-id="${entryId}"]`)
-    const secretRow = this.el.querySelector(`[data-nerve-secret-row="${entryId}"]`)
-    if (!entryRow || !secretRow) return
-
-    const alreadyRevealed = button.dataset.revealed === "true"
-
-    if (alreadyRevealed) {
-      this.hideSecret(secretRow, button)
+    if (!secretRow.classList.contains("hidden")) {
+      secretRow.classList.add("hidden")
       return
     }
 
-    if (!this.ensureUnlocked()) return
+    if (!vaultSession.isUnlocked()) return this.setError("Unlock your master password first.")
 
-    let parsedPasswordPayload = null
-    let parsedNotesPayload = null
+    this.pushEvent("load_secret", { id }, (reply) => this.showSecret(button, secretRow, reply))
+  },
+
+  async showSecret(button, secretRow, reply) {
+    if (!reply || reply.status !== "ok") return
 
     try {
-      const payloads = await this.loadEntrySecretPayloads(entryId)
-      parsedPasswordPayload = payloads.passwordPayload
-      parsedNotesPayload = payloads.notesPayload
-    } catch (_error) {
-      notify("Entry payload is unavailable.", "error")
-      return
-    }
+      const key = await this.key()
+      const row = button.closest("[data-encrypted-metadata]") || button
+      const metadata = await this.decryptMetadata(row, key)
 
-    const passwordPayload = isClientPayload(parsedPasswordPayload) ? parsedPasswordPayload : null
-    const notesPayload = isClientPayload(parsedNotesPayload) ? parsedNotesPayload : null
+      const passwordOut = secretRow.querySelector("[data-nerve-password-output]")
+      if (passwordOut && reply.encrypted_password) {
+        passwordOut.textContent = await decryptValue(
+          JSON.parse(reply.encrypted_password),
+          key,
+          entryAad(metadata, "password")
+        )
+      }
 
-    if (!passwordPayload) {
-      notify("Entry payload is not valid client-side ciphertext.", "error")
-      return
-    }
-
-    const passwordOutput = secretRow.querySelector("[data-nerve-password-output]")
-    const notesOutput = secretRow.querySelector("[data-nerve-notes-output]")
-    const notesWrapper = secretRow.querySelector("[data-nerve-notes-wrapper]")
-
-    try {
-      const metadata = await this.entryRowMetadata(entryRow)
-      const password = await decryptValue(
-        passwordPayload,
-        this.passphrase,
-        nerveEntryAssociatedData(metadata, "password")
-      )
-      const notes = notesPayload
-        ? await decryptValue(
-            notesPayload,
-            this.passphrase,
-            nerveEntryAssociatedData(metadata, "notes")
-          )
-        : null
-
-      if (passwordOutput) passwordOutput.textContent = password
-      if (notesOutput) notesOutput.textContent = notes || ""
-
-      if (notesWrapper) {
-        notesWrapper.classList.toggle("hidden", !notes)
+      const notesWrapper = secretRow.querySelector("[data-nerve-notes-wrapper]")
+      const notesOut = secretRow.querySelector("[data-nerve-notes-output]")
+      if (notesOut && reply.encrypted_notes) {
+        notesOut.textContent = await decryptValue(
+          JSON.parse(reply.encrypted_notes),
+          key,
+          entryAad(metadata, "notes")
+        )
+        notesWrapper && notesWrapper.classList.remove("hidden")
       }
 
       secretRow.classList.remove("hidden")
-      setButtonState(button, true)
     } catch (_error) {
-      notify("Decryption failed. Check your Bridge passphrase.", "error")
+      this.setError("Could not decrypt this entry.")
     }
   },
 
-  async loadEntrySecretPayloads(entryId) {
-    return new Promise((resolve, reject) => {
-      this.pushEvent("load_secret", { id: entryId }, (reply) => {
-        if (!reply || reply.status !== "ok") {
-          reject(new Error("Entry payload is unavailable."))
-          return
-        }
-
-        resolve({
-          passwordPayload: parsePayload(reply.encrypted_password),
-          notesPayload: parsePayload(reply.encrypted_notes)
-        })
-      })
-    })
+  generatePassword() {
+    const bytes = new Uint8Array(PASSWORD_LENGTH)
+    crypto.getRandomValues(bytes)
+    const password = Array.from(bytes, (b) => PASSWORD_ALPHABET[b % PASSWORD_ALPHABET.length]).join("")
+    this.setValue("[data-nerve-password-input]", password)
   },
 
-  async decryptEntryMetadataRows() {
-    if (!this.passphrase) return
+  // --- small DOM helpers ---
 
-    const rows = Array.from(this.el.querySelectorAll("[data-nerve-entry-id]"))
-    await Promise.all(rows.map((row) => this.entryRowMetadata(row).catch(() => null)))
+  value(selector) {
+    const el = this.el.querySelector(selector)
+    return el ? el.value : ""
   },
 
-  hideSecret(secretRow, button) {
-    const passwordOutput = secretRow.querySelector("[data-nerve-password-output]")
-    const notesOutput = secretRow.querySelector("[data-nerve-notes-output]")
-    const notesWrapper = secretRow.querySelector("[data-nerve-notes-wrapper]")
-
-    if (passwordOutput) passwordOutput.textContent = ""
-    if (notesOutput) notesOutput.textContent = ""
-    if (notesWrapper) notesWrapper.classList.add("hidden")
-
-    secretRow.classList.add("hidden")
-    setButtonState(button, false)
+  fieldValue(selector) {
+    const el = this.el.querySelector(`#nerve-entry-form ${selector}`)
+    return el ? el.value : ""
   },
 
-  hideAllSecrets() {
-    this.el.querySelectorAll("[data-nerve-secret-row]").forEach((row) => {
-      this.hideSecret(row, null)
-    })
+  setValue(selector, value) {
+    const el = this.el.querySelector(selector)
+    if (el) el.value = value
+  },
 
-    this.el.querySelectorAll("[data-nerve-reveal]").forEach((button) => {
-      setButtonState(button, false)
-    })
+  setHidden(selector, payload) {
+    this.setValue(selector, payload ? JSON.stringify(payload) : "")
+  },
+
+  setText(scope, selector, text) {
+    const target = scope.querySelector(selector)
+    if (target && typeof text === "string") target.textContent = text
   }
 }

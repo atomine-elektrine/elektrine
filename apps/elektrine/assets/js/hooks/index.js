@@ -97,6 +97,10 @@ import {
 // Password manager hooks
 import { Nerve } from "./nerve_hooks";
 
+// Master password (shared zero-knowledge vault)
+import { VaultManager } from "./vault_hooks";
+import { KairoVault } from "./kairo_hooks";
+
 // Mailbox private storage hooks
 import {
   MailboxPrivateStorage,
@@ -189,6 +193,8 @@ export const Hooks = {
   VPNDownload,
   AtominePow,
   Nerve,
+  VaultManager,
+  KairoVault,
   MailboxPrivateStorage,
   PrivateMailboxCompose,
   PrivateMailboxMessages,
