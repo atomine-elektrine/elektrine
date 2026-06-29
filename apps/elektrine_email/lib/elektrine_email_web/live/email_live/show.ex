@@ -88,6 +88,7 @@ defmodule ElektrineEmailWeb.EmailLive.Show do
      socket
      |> assign(:page_title, message.subject)
      |> assign(:mailbox, mailbox)
+     |> assign(:master_vault, Elektrine.Vault.get(user.id))
      |> assign(:mailbox_addresses, mailbox_addresses(mailbox, user))
      |> assign(:message, message)
      |> assign(:thread_messages, thread_messages)
