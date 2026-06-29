@@ -404,6 +404,40 @@ paths:
       responses:
         "201":
           description: Nerve configured
+  /api/ext/v1/kairo/projects:
+    get:
+      summary: List Kairo projects
+      responses:
+        "200":
+          description: Project list
+    post:
+      summary: Create a Kairo project
+      responses:
+        "201":
+          description: Project created
+  /api/ext/v1/kairo/sources:
+    get:
+      summary: List ingested Kairo sources
+      responses:
+        "200":
+          description: Source list
+    post:
+      summary: Ingest a Kairo source
+      responses:
+        "201":
+          description: Source ingested
+  /api/ext/v1/kairo/sources/{id}:
+    get:
+      summary: Get a single Kairo source
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Source
   /api/ext/v1/exports:
     get:
       summary: List exports

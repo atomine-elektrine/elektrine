@@ -699,7 +699,7 @@
               <div class="card-actions">
                 <.link
                   navigate={~p"/account/password"}
-                  class="btn btn-outline btn-sm w-full text-xs sm:text-sm"
+                  class="btn btn-outline btn-primary btn-sm w-full text-xs sm:text-sm"
                 >
                   {gettext("Change Password")}
                 </.link>
@@ -755,7 +755,7 @@
                 <div class="card-actions">
                   <.link
                     navigate={~p"/account/app-passwords"}
-                    class="btn btn-outline btn-sm w-full text-xs sm:text-sm"
+                    class="btn btn-outline btn-primary btn-sm w-full text-xs sm:text-sm"
                   >
                     {gettext("Manage App Passwords")}
                   </.link>
@@ -2788,7 +2788,7 @@
 
                   <p class="text-base-content/60">
                     {gettext(
-                      "Dedicated PAT endpoints are now available for email, chat, social, contacts, calendars, DNS, exports, nerve access, and webhook management."
+                      "Dedicated PAT endpoints are now available for email, chat, social, contacts, calendars, DNS, Kairo, exports, nerve access, and webhook management."
                     )}
                   </p>
 
@@ -2937,6 +2937,46 @@
                           <td><code>write:nerve</code></td>
 
                           <td>{gettext("Delete the encrypted nerve and all saved entries")}</td>
+                        </tr>
+
+                        <tr>
+                          <td><code>GET /api/ext/v1/kairo/projects</code></td>
+
+                          <td><code>read:kairo</code></td>
+
+                          <td>{gettext("List Kairo projects")}</td>
+                        </tr>
+
+                        <tr>
+                          <td><code>GET /api/ext/v1/kairo/sources</code></td>
+
+                          <td><code>read:kairo</code></td>
+
+                          <td>{gettext("List ingested Kairo sources")}</td>
+                        </tr>
+
+                        <tr>
+                          <td><code>GET /api/ext/v1/kairo/sources/:id</code></td>
+
+                          <td><code>read:kairo</code></td>
+
+                          <td>{gettext("Get a single Kairo source")}</td>
+                        </tr>
+
+                        <tr>
+                          <td><code>POST /api/ext/v1/kairo/projects</code></td>
+
+                          <td><code>write:kairo</code></td>
+
+                          <td>{gettext("Create a Kairo project")}</td>
+                        </tr>
+
+                        <tr>
+                          <td><code>POST /api/ext/v1/kairo/sources</code></td>
+
+                          <td><code>write:kairo</code></td>
+
+                          <td>{gettext("Ingest a Kairo source")}</td>
                         </tr>
 
                         <tr>
