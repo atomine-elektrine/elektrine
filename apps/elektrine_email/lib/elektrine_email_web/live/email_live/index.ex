@@ -89,6 +89,7 @@ defmodule ElektrineEmailWeb.EmailLive.Index do
      socket
      |> assign(:page_title, "Email")
      |> assign(:mailbox, mailbox)
+     |> assign(:master_vault, Elektrine.Vault.get(user.id))
      |> assign(:mailbox_addresses, mailbox_addresses(mailbox, user))
      |> assign(:digest_filter_enabled, Elektrine.Email.Mailbox.digest_filter_enabled?(mailbox))
      |> assign(:ledger_filter_enabled, Elektrine.Email.Mailbox.ledger_filter_enabled?(mailbox))
