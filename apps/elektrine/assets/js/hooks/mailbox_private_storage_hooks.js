@@ -605,8 +605,17 @@ export const MailboxPrivateStorage = {
     }
   },
 
+  // The dedicated master-unlock field (settings page) or, on pages that only
+  // render one unlock field (the inbox), the shared passphrase input.
+  masterPassphraseInput() {
+    return (
+      this.el.querySelector("[data-private-mailbox-master-unlock-input]") ||
+      this.el.querySelector("[data-private-mailbox-passphrase]")
+    )
+  },
+
   async handleMasterVaultUnlock() {
-    const input = this.el.querySelector("[data-private-mailbox-master-unlock-input]")
+    const input = this.masterPassphraseInput()
     const passphrase = input?.value || ""
 
     if (!this.masterWrappedDek) {
@@ -722,7 +731,7 @@ export const MailboxPrivateStorage = {
       // If the shared vault is locked for this tab, unlock it inline with the
       // master passphrase before unwrapping the mailbox key.
       if (!vaultSession.isUnlocked()) {
-        const masterInput = this.el.querySelector("[data-private-mailbox-master-unlock-input]")
+        const masterInput = this.masterPassphraseInput()
         const masterPassphrase = masterInput?.value || ""
 
         if (!this.masterWrappedDek) {
