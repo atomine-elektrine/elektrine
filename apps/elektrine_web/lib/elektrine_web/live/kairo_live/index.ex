@@ -16,6 +16,9 @@ defmodule ElektrineWeb.KairoLive.Index do
          |> assign(:active_tag, nil)
          |> assign(:active_project, nil)
          |> assign(:selected_id, nil)
+         |> assign(:composing, false)
+         |> assign(:compose, empty_compose())
+         |> assign(:compose_tab, "write")
          |> load_kairo(user)}
     end
   end
@@ -65,8 +68,62 @@ defmodule ElektrineWeb.KairoLive.Index do
   end
 
   def handle_event("select_source", %{"id" => id}, socket) do
-    {:noreply, socket |> assign(:selected_id, parse_id(id)) |> assign_view()}
+    {:noreply,
+     socket |> assign(:composing, false) |> assign(:selected_id, parse_id(id)) |> assign_view()}
   end
+
+  def handle_event("new_note", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:composing, true)
+     |> assign(:selected, nil)
+     |> assign(:selected_id, nil)
+     |> assign(:compose, empty_compose())
+     |> assign(:compose_tab, "write")}
+  end
+
+  def handle_event("cancel_note", _params, socket) do
+    {:noreply, assign(socket, :composing, false)}
+  end
+
+  def handle_event("set_compose_tab", %{"tab" => tab}, socket) when tab in ~w(write preview) do
+    {:noreply, assign(socket, :compose_tab, tab)}
+  end
+
+  def handle_event("compose_change", %{"note" => note}, socket) do
+    {:noreply, assign(socket, :compose, Map.merge(empty_compose(), note))}
+  end
+
+  def handle_event("save_note", %{"note" => note}, socket) do
+    user = socket.assigns.current_user
+
+    attrs = %{
+      "source_type" => "markdown",
+      "content_format" => "markdown",
+      "title" => note["title"],
+      "content" => note["content"],
+      "tags" => note["tags"],
+      "project_id" => blank_to_nil(note["project_id"])
+    }
+
+    case Kairo.create_source(user, attrs) do
+      {:ok, source} ->
+        {:noreply,
+         socket
+         |> assign(:composing, false)
+         |> assign(:selected_id, source.id)
+         |> put_flash(:info, "Note saved")
+         |> load_kairo(user)}
+
+      {:error, _changeset} ->
+        {:noreply, put_flash(socket, :error, "Add a title or some content first.")}
+    end
+  end
+
+  defp empty_compose, do: %{"title" => "", "content" => "", "project_id" => "", "tags" => ""}
+
+  defp blank_to_nil(value) when value in [nil, ""], do: nil
+  defp blank_to_nil(value), do: value
 
   defp parse_project_filter("inbox"), do: :inbox
   defp parse_project_filter(id), do: parse_id(id)
@@ -237,6 +294,10 @@ defmodule ElektrineWeb.KairoLive.Index do
           <%!-- Explorer --%>
           <aside class="card panel-card flex flex-col overflow-hidden border border-base-300 lg:max-h-[calc(100vh-11rem)]">
             <div class="space-y-2 border-b border-base-300 p-3">
+              <button type="button" phx-click="new_note" class="btn btn-primary btn-sm w-full">
+                <.icon name="hero-pencil-square" class="h-4 w-4" /> New note
+              </button>
+
               <form id="kairo-search-form" phx-change="search" phx-submit="search" class="relative">
                 <input
                   id="kairo-search"
@@ -346,7 +407,7 @@ defmodule ElektrineWeb.KairoLive.Index do
             <nav class="flex-1 space-y-1 overflow-y-auto p-2">
               <p :if={@visible_count == 0} class="px-2 py-4 text-sm text-base-content/60">
                 <%= if @sources == [] do %>
-                  No sources yet. Ingest via the API to get started.
+                  No sources yet. Start a new note or ingest via the API.
                 <% else %>
                   No matching sources.
                 <% end %>
@@ -405,14 +466,106 @@ defmodule ElektrineWeb.KairoLive.Index do
             </div>
           </aside>
 
-          <%!-- Reader --%>
+          <%!-- Reader / editor --%>
           <section class="card panel-card border border-base-300 lg:max-h-[calc(100vh-11rem)] lg:overflow-y-auto">
+            <form
+              :if={@composing}
+              id="kairo-note-form"
+              phx-submit="save_note"
+              phx-change="compose_change"
+              class="card-body space-y-3 p-4 sm:p-6"
+            >
+              <div class="flex items-center justify-between">
+                <h2 class="card-title text-base sm:text-lg">New note</h2>
+                <button type="button" phx-click="cancel_note" class="btn btn-ghost btn-sm">
+                  Cancel
+                </button>
+              </div>
+
+              <input
+                id="kairo-note-title"
+                type="text"
+                name="note[title]"
+                value={@compose["title"]}
+                placeholder="Title"
+                autocomplete="off"
+                class="input input-bordered w-full font-medium"
+              />
+
+              <div class="grid gap-2 sm:grid-cols-2">
+                <select name="note[project_id]" class="select select-bordered select-sm">
+                  <option value="" selected={@compose["project_id"] in [nil, ""]}>Inbox</option>
+                  <option
+                    :for={project <- @projects}
+                    value={project.id}
+                    selected={to_string(@compose["project_id"]) == to_string(project.id)}
+                  >
+                    {project.name}
+                  </option>
+                </select>
+                <input
+                  id="kairo-note-tags"
+                  type="text"
+                  name="note[tags]"
+                  value={@compose["tags"]}
+                  placeholder="tags, comma, separated"
+                  autocomplete="off"
+                  class="input input-bordered input-sm w-full"
+                />
+              </div>
+
+              <div role="tablist" class="tabs tabs-bordered">
+                <button
+                  type="button"
+                  phx-click="set_compose_tab"
+                  phx-value-tab="write"
+                  class={["tab", @compose_tab == "write" && "tab-active"]}
+                >
+                  Write
+                </button>
+                <button
+                  type="button"
+                  phx-click="set_compose_tab"
+                  phx-value-tab="preview"
+                  class={["tab", @compose_tab == "preview" && "tab-active"]}
+                >
+                  Preview
+                </button>
+              </div>
+
+              <textarea
+                :if={@compose_tab == "write"}
+                id="kairo-note-content"
+                name="note[content]"
+                rows="16"
+                phx-debounce="200"
+                placeholder="Write markdown…"
+                class="textarea textarea-bordered w-full font-mono text-sm"
+              >{@compose["content"]}</textarea>
+              <div
+                :if={@compose_tab == "preview"}
+                class="prose min-h-[16rem] max-w-none rounded border border-base-300 bg-base-100 p-3"
+              >
+                {Phoenix.HTML.raw(Elektrine.Markdown.to_html(@compose["content"] || ""))}
+              </div>
+
+              <div class="flex justify-end gap-2">
+                <button type="button" phx-click="cancel_note" class="btn btn-ghost btn-sm">
+                  Cancel
+                </button>
+                <button type="submit" class="btn btn-primary btn-sm">Save note</button>
+              </div>
+            </form>
+
             <div
-              :if={is_nil(@selected)}
-              class="flex flex-col items-center justify-center gap-2 p-12 text-center text-base-content/50"
+              :if={is_nil(@selected) and not @composing}
+              class="flex flex-col items-center justify-center gap-3 p-12 text-center text-base-content/50"
             >
               <.icon name="hero-document-magnifying-glass" class="h-10 w-10" />
-              <p class="text-sm">Select a source to read it here.</p>
+              <p class="text-sm">Select a source to read it, or start a new note.</p>
+              <button type="button" phx-click="new_note" class="btn btn-outline btn-sm">
+                <.icon name="hero-pencil-square" class="h-4 w-4" /> New note
+              </button>
             </div>
 
             <article :if={@selected} class="card-body space-y-4 p-4 sm:p-6">
