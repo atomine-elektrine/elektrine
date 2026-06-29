@@ -301,11 +301,12 @@ config :elektrine, :compiled_platform_modules, [
   :vpn,
   :dns,
   :uptime,
-  :atomine
+  :atomine,
+  :kairo
 ]
 
 config :elektrine, :platform_modules,
-  enabled: [:chat, :social, :email, :nerve, :vpn, :dns, :uptime, :atomine]
+  enabled: [:chat, :social, :email, :nerve, :vpn, :dns, :uptime, :atomine, :kairo]
 
 # Process Haraka inbound payloads asynchronously through Oban.
 # Can be overridden with HARAKA_ASYNC_INGEST at runtime.
