@@ -7,63 +7,20 @@ defmodule Elektrine.Nerve do
   """
   import Ecto.Query, warn: false
   alias Elektrine.Nerve.NerveEntry
-  alias Elektrine.Nerve.NerveSettings
   alias Elektrine.Repo
 
   @doc """
-  Returns whether a user has completed nerve setup.
-  """
-  def nerve_configured?(user_id) when is_integer(user_id) do
-    Repo.exists?(from(settings in NerveSettings, where: settings.user_id == ^user_id))
-  end
+  Deletes all of a user's encrypted Nerve entries.
 
-  @doc """
-  Creates or updates nerve setup metadata for a user.
-  """
-  def setup_nerve(user_id, attrs) when is_integer(user_id) and is_map(attrs) do
-    attrs = attrs |> normalize_params() |> Map.put("user_id", user_id)
-
-    case Repo.get_by(NerveSettings, user_id: user_id) do
-      nil ->
-        %NerveSettings{}
-        |> NerveSettings.setup_changeset(attrs)
-        |> Repo.insert()
-
-      settings ->
-        settings
-        |> NerveSettings.setup_changeset(attrs)
-        |> Repo.update()
-    end
-  end
-
-  @doc """
-  Gets a user's nerve setup metadata.
-  """
-  def get_nerve_settings(user_id) when is_integer(user_id) do
-    Repo.get_by(NerveSettings, user_id: user_id)
-  end
-
-  @doc """
-  Deletes a user's nerve metadata and all encrypted entries.
-
-  This is intended for recovery when a passphrase has been lost and the
-  encrypted contents are no longer usable.
+  Nerve entries are encrypted under the master key; this is the "start over"
+  path when that data is no longer wanted or recoverable.
   """
   def delete_nerve(user_id) when is_integer(user_id) do
-    Repo.transaction(fn ->
-      {deleted_entries, _} =
-        from(entry in NerveEntry, where: entry.user_id == ^user_id)
-        |> Repo.delete_all()
+    {deleted_entries, _} =
+      from(entry in NerveEntry, where: entry.user_id == ^user_id)
+      |> Repo.delete_all()
 
-      {deleted_settings, _} =
-        from(settings in NerveSettings, where: settings.user_id == ^user_id)
-        |> Repo.delete_all()
-
-      %{
-        deleted_entries: deleted_entries,
-        nerve_deleted: deleted_settings > 0
-      }
-    end)
+    {:ok, %{deleted_entries: deleted_entries}}
   end
 
   @doc """
@@ -85,13 +42,9 @@ defmodule Elektrine.Nerve do
   def create_entry(user_id, attrs) when is_integer(user_id) and is_map(attrs) do
     attrs = attrs |> normalize_params() |> Map.put("user_id", user_id)
 
-    if nerve_configured?(user_id) do
-      %NerveEntry{}
-      |> NerveEntry.create_changeset(attrs)
-      |> Repo.insert()
-    else
-      {:error, :nerve_not_configured}
-    end
+    %NerveEntry{}
+    |> NerveEntry.create_changeset(attrs)
+    |> Repo.insert()
   end
 
   @doc """

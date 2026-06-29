@@ -138,28 +138,21 @@ defmodule Elektrine.Nerve.NerveEntry do
     end
   end
 
+  # Entries are encrypted under the Nerve subkey of the master key (HKDF), so the
+  # envelope is keyed AES-256-GCM — {algorithm, iv, ciphertext} — with no
+  # per-item KDF params.
   defp valid_client_payload?(payload) do
-    version = payload_value(payload, "version", :version)
     algorithm = payload_value(payload, "algorithm", :algorithm)
-    kdf = payload_value(payload, "kdf", :kdf)
-    iterations = payload_value(payload, "iterations", :iterations)
-    salt = payload_value(payload, "salt", :salt)
     iv = payload_value(payload, "iv", :iv)
     ciphertext = payload_value(payload, "ciphertext", :ciphertext)
 
-    valid_version?(version) and algorithm == "AES-GCM" and kdf == "PBKDF2-SHA256" and
-      is_integer(iterations) and iterations >= 100_000 and iterations <= 1_000_000 and
-      valid_base64_bytes?(salt, min_size: 16) and valid_base64_bytes?(iv, exact_size: 12) and
+    algorithm == "AES-GCM" and valid_base64_bytes?(iv, exact_size: 12) and
       valid_base64_bytes?(ciphertext, min_size: 1)
   end
 
   defp payload_value(payload, string_key, atom_key) do
     Map.get(payload, string_key) || Map.get(payload, atom_key)
   end
-
-  defp valid_version?(version) when is_integer(version), do: version >= 1
-  defp valid_version?(version) when is_float(version), do: version >= 1
-  defp valid_version?(_version), do: false
 
   defp valid_base64_bytes?(value, opts) when is_binary(value) do
     case Base.decode64(value) do

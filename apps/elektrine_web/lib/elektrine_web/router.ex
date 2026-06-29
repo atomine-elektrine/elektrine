@@ -1300,6 +1300,7 @@ defmodule ElektrineWeb.Router do
       live("/account/two_factor/setup", SettingsLive.TwoFactorSetup, :setup)
       live("/account/two_factor", SettingsLive.TwoFactorManage, :manage)
       live("/account/passkeys", SettingsLive.PasskeyManage, :manage)
+      live("/account/security", SettingsLive.Security, :index)
       live("/account/delete", SettingsLive.DeleteAccount, :delete)
 
       # Profile editing
