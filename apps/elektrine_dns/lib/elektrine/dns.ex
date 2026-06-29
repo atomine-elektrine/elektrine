@@ -455,7 +455,9 @@ defmodule Elektrine.DNS do
     do: get_zone_service_config(zone_id, service)
 
   def get_zone_service_config(zone_id, service) when is_integer(zone_id) do
-    Repo.get_by(ZoneServiceConfig, zone_id: zone_id, service: normalize_service(service))
+    zone_id
+    |> list_zone_service_configs()
+    |> Enum.find(&(&1.service == normalize_service(service)))
   end
 
   def get_zone_service_config(_, _), do: nil

@@ -12,6 +12,7 @@ defmodule Elektrine.Social.Likes do
 
   import Ecto.Query, warn: false
   require Logger
+  alias Elektrine.AppCache
   alias Elektrine.Repo
   alias Elektrine.Social.Message
   alias Elektrine.Social.PostLike
@@ -29,7 +30,7 @@ defmodule Elektrine.Social.Likes do
   Returns `{:ok, like}` on success. Already-liked posts return the existing like.
   """
   def like_post(user_id, message_id) do
-    message = Repo.get!(Message, message_id)
+    message = get_message!(message_id)
 
     case Repo.get_by(PostLike, user_id: user_id, message_id: message_id) do
       %PostLike{} = like ->
@@ -60,7 +61,7 @@ defmodule Elektrine.Social.Likes do
         # Keep slower side effects async.
         Elektrine.Async.run(fn ->
           # Only notify for local posts with sender_id
-          message = Repo.get!(Message, message_id)
+          message = get_message!(message_id)
 
           if message.sender_id do
             notify_post_like(user_id, message_id)
@@ -88,7 +89,7 @@ defmodule Elektrine.Social.Likes do
   Returns `{:ok, deleted_like}` on success. Already-unliked posts return `{:ok, nil}`.
   """
   def unlike_post(user_id, message_id) do
-    message = Repo.get!(Message, message_id)
+    message = get_message!(message_id)
 
     case Repo.get_by(PostLike, user_id: user_id, message_id: message_id) do
       nil ->
@@ -160,11 +161,15 @@ defmodule Elektrine.Social.Likes do
 
     like_count = remote_baseline + current_local_like_count
 
-    from(m in Message,
-      where: m.id == ^message.id,
-      update: [set: [like_count: ^like_count]]
-    )
-    |> Repo.update_all([])
+    result =
+      from(m in Message,
+        where: m.id == ^message.id,
+        update: [set: [like_count: ^like_count]]
+      )
+      |> Repo.update_all([])
+
+    AppCache.invalidate_social_message(message.id)
+    result
   end
 
   defp remote_like_count_baseline(%Message{} = message) do
@@ -207,7 +212,7 @@ defmodule Elektrine.Social.Likes do
     )
 
     message =
-      Repo.get!(Message, like.message_id)
+      get_message!(like.message_id)
       |> Repo.preload([:conversation, :hashtags])
 
     payload = %{
@@ -250,7 +255,7 @@ defmodule Elektrine.Social.Likes do
   # Notifies post owner when their post is liked
   defp notify_post_like(liker_id, message_id) do
     # Get the post and users
-    message = Repo.get!(Message, message_id)
+    message = get_message!(message_id)
 
     # Don't notify if user liked their own post
     # Only notify for local posts (federated posts don't have sender_id)
@@ -272,6 +277,13 @@ defmodule Elektrine.Social.Likes do
           priority: "low"
         })
       end
+    end
+  end
+
+  defp get_message!(message_id) do
+    case AppCache.get_social_message(message_id, fn -> Repo.get(Message, message_id) end) do
+      %Message{} = message -> message
+      _ -> Repo.get!(Message, message_id)
     end
   end
 end

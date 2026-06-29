@@ -782,41 +782,47 @@ defmodule Elektrine.Profiles do
   def get_public_site_domain_breakdown(_hosts), do: []
 
   defp upsert_site_session(attrs, now) do
-    case Repo.get_by(SiteSession, session_id: attrs.session_id) do
-      nil ->
-        %SiteSession{}
-        |> SiteSession.changeset(%{
-          session_id: attrs.session_id,
-          viewer_user_id: attrs.viewer_user_id,
-          visitor_id: attrs.visitor_id,
-          ip_address: attrs.ip_address,
-          user_agent: attrs.user_agent,
-          referer: attrs.referer,
-          entry_host: attrs.request_host,
-          entry_path: attrs.request_path,
-          exit_host: attrs.request_host,
-          exit_path: attrs.request_path,
-          page_views: 1,
-          started_at: now,
-          last_seen_at: now,
-          duration_seconds: 0
-        })
-        |> Repo.insert()
+    %SiteSession{}
+    |> SiteSession.changeset(%{
+      session_id: attrs.session_id,
+      viewer_user_id: attrs.viewer_user_id,
+      visitor_id: attrs.visitor_id,
+      ip_address: attrs.ip_address,
+      user_agent: attrs.user_agent,
+      referer: attrs.referer,
+      entry_host: attrs.request_host,
+      entry_path: attrs.request_path,
+      exit_host: attrs.request_host,
+      exit_path: attrs.request_path,
+      page_views: 1,
+      started_at: now,
+      last_seen_at: now,
+      duration_seconds: 0
+    })
+    |> Repo.insert(
+      on_conflict: site_session_conflict_query(),
+      conflict_target: :session_id
+    )
+  end
 
-      session ->
-        duration_seconds = max(DateTime.diff(now, session.started_at), 0)
-
-        session
-        |> SiteSession.changeset(%{
-          viewer_user_id: attrs.viewer_user_id || session.viewer_user_id,
-          exit_host: attrs.request_host,
-          exit_path: attrs.request_path,
-          page_views: session.page_views + 1,
-          last_seen_at: now,
-          duration_seconds: duration_seconds
-        })
-        |> Repo.update()
-    end
+  defp site_session_conflict_query do
+    from(ss in SiteSession,
+      update: [
+        set: [
+          viewer_user_id: fragment("COALESCE(EXCLUDED.viewer_user_id, ?)", ss.viewer_user_id),
+          exit_host: fragment("EXCLUDED.exit_host"),
+          exit_path: fragment("EXCLUDED.exit_path"),
+          last_seen_at: fragment("EXCLUDED.last_seen_at"),
+          duration_seconds:
+            fragment(
+              "GREATEST(EXTRACT(EPOCH FROM (EXCLUDED.last_seen_at - ?))::integer, 0)",
+              ss.started_at
+            ),
+          updated_at: fragment("EXCLUDED.updated_at")
+        ],
+        inc: [page_views: 1]
+      ]
+    )
   end
 
   defp site_page_visits_query(request_hosts) when is_list(request_hosts) do

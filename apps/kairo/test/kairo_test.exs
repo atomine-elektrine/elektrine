@@ -139,5 +139,62 @@ defmodule KairoTest do
       assert Elektrine.Accounts.Storage.calculate_kairo_storage(user.id) > 0
       assert Elektrine.Accounts.Storage.get_storage_info(user.id).used_bytes > 0
     end
+
+    test "update_source/3 edits an owned source" do
+      user = user_fixture()
+
+      {:ok, source} =
+        Kairo.create_source(user, %{
+          "source_type" => "markdown",
+          "title" => "Draft",
+          "content" => "first body",
+          "tags" => "old"
+        })
+
+      assert {:ok, updated} =
+               Kairo.update_source(user, source.id, %{
+                 "title" => "Edited",
+                 "content" => "second body",
+                 "tags" => "new, edited"
+               })
+
+      assert updated.title == "Edited"
+      assert updated.content == "second body"
+      assert updated.tags == ["new", "edited"]
+      assert updated.raw_hash != source.raw_hash
+      assert Kairo.get_source(user, source.id).content == "second body"
+    end
+
+    test "update_source/3 and delete_source/2 enforce ownership" do
+      owner = user_fixture()
+      other_user = user_fixture()
+
+      {:ok, source} =
+        Kairo.create_source(owner, %{
+          "source_type" => "markdown",
+          "title" => "Private",
+          "content" => "owner only"
+        })
+
+      assert {:error, :not_found} =
+               Kairo.update_source(other_user, source.id, %{"title" => "stolen"})
+
+      assert {:error, :not_found} = Kairo.delete_source(other_user, source.id)
+      assert Kairo.get_source(owner, source.id)
+    end
+
+    test "delete_source/2 deletes an owned source" do
+      user = user_fixture()
+
+      {:ok, source} =
+        Kairo.create_source(user, %{
+          "source_type" => "markdown",
+          "title" => "Delete me",
+          "content" => "gone soon"
+        })
+
+      assert {:ok, _deleted} = Kairo.delete_source(user, source.id)
+      assert Kairo.get_source(user, source.id) == nil
+    end
   end
 end

@@ -191,9 +191,12 @@ defmodule ElektrineEmailWeb.EmailLive.Operations.TabContent do
           |> assign(:pagination, empty_pagination(per_page))
       end
 
+    # The inbox/unread/read loaders already group by thread in SQL and carry the
+    # whole-thread state, so re-grouping here would recompute that state from the
+    # single head message and get it wrong. Other tabs still group in Elixir.
     grouped_messages =
       (socket.assigns[:messages] || [])
-      |> group_messages_for_list(tab)
+      |> maybe_group_messages(tab, socket.assigns[:current_filter])
       |> attach_preview_text()
 
     Events.db_hot_path(
@@ -280,6 +283,14 @@ defmodule ElektrineEmailWeb.EmailLive.Operations.TabContent do
         Cached.list_inbox_messages_paginated(mailbox_id, page, per_page)
     end
   end
+
+  # Inbox/unread/read are already thread-grouped by the SQL loader; everything
+  # else still groups in Elixir from a flat message list.
+  defp maybe_group_messages(messages, "inbox", filter)
+       when filter in ["inbox", "unread", "read"],
+       do: messages
+
+  defp maybe_group_messages(messages, tab, _filter), do: group_messages_for_list(messages, tab)
 
   defp group_messages_for_list(messages, tab)
        when tab in ["contacts", "calendar", "drafts", "aliases"] do

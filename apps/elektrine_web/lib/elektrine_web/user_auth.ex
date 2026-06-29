@@ -8,6 +8,7 @@ defmodule ElektrineWeb.UserAuth do
   import Phoenix.Controller
 
   alias Elektrine.Accounts
+  alias Elektrine.Accounts.Cached, as: CachedAccounts
   alias Elektrine.Constants
   alias ElektrineWeb.AdminSecurity
   alias ElektrineWeb.ClientIP
@@ -296,13 +297,29 @@ defmodule ElektrineWeb.UserAuth do
   defp fetch_user_for_claims(nil, _claims), do: nil
 
   defp fetch_user_for_claims(user_id, claims) do
-    user = Accounts.get_user!(user_id)
+    case Accounts.get_user_session_stamp(user_id) do
+      nil ->
+        nil
 
-    if session_claims_valid?(user, claims) do
-      user
-    else
-      nil
+      stamp ->
+        if session_claims_valid?(stamp, claims) do
+          user_id
+          |> CachedAccounts.get_user!()
+          |> apply_session_stamp(stamp)
+        else
+          nil
+        end
     end
+  end
+
+  defp apply_session_stamp(user, stamp) do
+    %{
+      user
+      | is_admin: stamp.is_admin,
+        banned: stamp.banned,
+        suspended: stamp.suspended,
+        suspended_until: stamp.suspended_until
+    }
   end
 
   defp session_user_id(%{"user_id" => user_id}) when is_integer(user_id), do: user_id

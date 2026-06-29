@@ -961,6 +961,21 @@ if config_env() == :prod do
       nil
     end
 
+  # The Tor onion mirror is reached over http:// (and https:// when ONION_TLS is
+  # on). Its origin must be allow-listed for the LiveView WebSocket; without it
+  # the socket handshake is rejected and the client falls back to longpoll. We
+  # only trust the operator's own ONION_HOST, never every .onion, so a hostile
+  # onion site can't hijack the socket (CSWSH).
+  onion_origins =
+    case System.get_env("ONION_HOST") do
+      value when is_binary(value) and value != "" ->
+        host = normalize_domain.(value)
+        ["http://#{host}", "https://#{host}"]
+
+      _ ->
+        []
+    end
+
   # Allowed origins for WebSocket connections. Keep defaults to exact app hosts;
   # add any required profile/onion/custom origins through EXTRA_CHECK_ORIGINS.
   allowed_origins =
@@ -971,6 +986,7 @@ if config_env() == :prod do
         "https://www.#{domain}"
       ]
     end)
+    |> Kernel.++(onion_origins)
     |> Kernel.++(parse_origin_list.(System.get_env("EXTRA_CHECK_ORIGINS")))
     |> Enum.uniq()
 

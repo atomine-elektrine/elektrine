@@ -18,6 +18,7 @@ defmodule ElektrineWeb.KairoLive.Index do
          |> assign(:selected_id, nil)
          |> assign(:view_mode, "reader")
          |> assign(:composing, false)
+         |> assign(:editing_source_id, nil)
          |> assign(:compose, empty_compose())
          |> assign(:compose_tab, "write")
          |> load_kairo(user)}
@@ -86,6 +87,7 @@ defmodule ElektrineWeb.KairoLive.Index do
      socket
      |> assign(:view_mode, "reader")
      |> assign(:composing, true)
+     |> assign(:editing_source_id, nil)
      |> assign(:selected, nil)
      |> assign(:selected_id, nil)
      |> assign(:compose, empty_compose())
@@ -93,7 +95,7 @@ defmodule ElektrineWeb.KairoLive.Index do
   end
 
   def handle_event("cancel_note", _params, socket) do
-    {:noreply, assign(socket, :composing, false)}
+    {:noreply, socket |> assign(:composing, false) |> assign(:editing_source_id, nil)}
   end
 
   def handle_event("set_compose_tab", %{"tab" => tab}, socket) when tab in ~w(write preview) do
@@ -107,30 +109,135 @@ defmodule ElektrineWeb.KairoLive.Index do
   def handle_event("save_note", %{"note" => note}, socket) do
     user = socket.assigns.current_user
 
-    attrs = %{
-      "source_type" => "markdown",
-      "content_format" => "markdown",
-      "title" => note["title"],
-      "content" => note["content"],
-      "tags" => note["tags"],
-      "project_id" => blank_to_nil(note["project_id"])
-    }
+    case socket.assigns.editing_source do
+      nil ->
+        attrs = %{
+          "source_type" => "markdown",
+          "content_format" => "markdown",
+          "title" => note["title"],
+          "content" => note["content"],
+          "tags" => note["tags"],
+          "project_id" => blank_to_nil(note["project_id"])
+        }
 
-    case Kairo.create_source(user, attrs) do
-      {:ok, source} ->
+        case Kairo.create_source(user, attrs) do
+          {:ok, source} ->
+            {:noreply,
+             socket
+             |> assign(:composing, false)
+             |> assign(:selected_id, source.id)
+             |> put_flash(:info, "Note saved")
+             |> load_kairo(user)}
+
+          {:error, _changeset} ->
+            {:noreply, put_flash(socket, :error, "Add a title or some content first.")}
+        end
+
+      source ->
+        attrs = source_update_attrs(source, note)
+
+        case Kairo.update_source(user, source.id, attrs) do
+          {:ok, updated_source} ->
+            {:noreply,
+             socket
+             |> assign(:composing, false)
+             |> assign(:editing_source_id, nil)
+             |> assign(:selected_id, updated_source.id)
+             |> put_flash(:info, "Source updated")
+             |> load_kairo(user)}
+
+          {:error, :not_found} ->
+            {:noreply,
+             socket
+             |> assign(:composing, false)
+             |> assign(:editing_source_id, nil)
+             |> put_flash(:error, "Source not found")
+             |> load_kairo(user)}
+
+          {:error, _changeset} ->
+            {:noreply, put_flash(socket, :error, "Source could not be updated")}
+        end
+    end
+  end
+
+  def handle_event("edit_source", %{"id" => id}, socket) do
+    user = socket.assigns.current_user
+
+    case Kairo.get_source(user, id) do
+      nil ->
+        {:noreply, put_flash(socket, :error, "Source not found")}
+
+      source ->
         {:noreply,
          socket
-         |> assign(:composing, false)
+         |> assign(:view_mode, "reader")
+         |> assign(:composing, true)
+         |> assign(:editing_source_id, source.id)
          |> assign(:selected_id, source.id)
-         |> put_flash(:info, "Note saved")
-         |> load_kairo(user)}
+         |> assign(:compose, compose_from_source(source))
+         |> assign(:compose_tab, "write")
+         |> assign_view()}
+    end
+  end
+
+  def handle_event("delete_source", %{"id" => id}, socket) do
+    user = socket.assigns.current_user
+    source_id = parse_id(id)
+
+    case Kairo.delete_source(user, source_id) do
+      {:ok, _source} ->
+        socket =
+          socket
+          |> assign(:composing, false)
+          |> assign(:editing_source_id, nil)
+          |> maybe_clear_selected(source_id)
+          |> put_flash(:info, "Source deleted")
+          |> load_kairo(user)
+
+        {:noreply, socket}
+
+      {:error, :not_found} ->
+        {:noreply, put_flash(socket, :error, "Source not found")}
 
       {:error, _changeset} ->
-        {:noreply, put_flash(socket, :error, "Add a title or some content first.")}
+        {:noreply, put_flash(socket, :error, "Source could not be deleted")}
     end
   end
 
   defp empty_compose, do: %{"title" => "", "content" => "", "project_id" => "", "tags" => ""}
+
+  defp compose_from_source(source) do
+    %{
+      "title" => source.title || "",
+      "content" => source.content || "",
+      "project_id" => source.project_id || "",
+      "tags" => Enum.join(source.tags || [], ", ")
+    }
+  end
+
+  defp source_update_attrs(source, note) do
+    attrs = %{
+      "source_type" => source.source_type || "markdown",
+      "content_format" => source.content_format || "markdown",
+      "title" => note["title"],
+      "tags" => note["tags"],
+      "project_id" => blank_to_nil(note["project_id"])
+    }
+
+    if source.encrypted do
+      attrs
+    else
+      Map.put(attrs, "content", note["content"])
+    end
+  end
+
+  defp maybe_clear_selected(socket, source_id) do
+    if socket.assigns.selected_id == source_id do
+      assign(socket, :selected_id, nil)
+    else
+      socket
+    end
+  end
 
   defp blank_to_nil(value) when value in [nil, ""], do: nil
   defp blank_to_nil(value), do: value
@@ -169,12 +276,14 @@ defmodule ElektrineWeb.KairoLive.Index do
 
     visible = visible_sources(sources, query, active_tag, active_project)
     selected = Enum.find(sources, &(&1.id == selected_id))
+    editing_source = Enum.find(sources, &(&1.id == socket.assigns.editing_source_id))
 
     socket
     |> assign(:all_tags, all_tags(sources))
     |> assign(:folders, folders(visible, socket.assigns.projects))
     |> assign(:visible_count, length(visible))
     |> assign(:selected, selected)
+    |> assign(:editing_source, editing_source)
     |> assign(:related, related_sources(sources, selected))
     |> assign(:has_encrypted_sources, Enum.any?(sources, & &1.encrypted))
     |> assign(:graph, build_graph(visible, socket.assigns.projects))
@@ -600,7 +709,13 @@ defmodule ElektrineWeb.KairoLive.Index do
               class="card-body space-y-3 p-4 sm:p-6"
             >
               <div class="flex items-center justify-between">
-                <h2 class="card-title text-base sm:text-lg">New note</h2>
+                <h2 class="card-title text-base sm:text-lg">
+                  <%= if @editing_source do %>
+                    Edit source
+                  <% else %>
+                    New note
+                  <% end %>
+                </h2>
                 <button type="button" phx-click="cancel_note" class="btn btn-ghost btn-sm">
                   Cancel
                 </button>
@@ -658,14 +773,25 @@ defmodule ElektrineWeb.KairoLive.Index do
               </div>
 
               <textarea
-                :if={@compose_tab == "write"}
-                id="kairo-note-content"
+                :if={is_nil(@editing_source) or !@editing_source.encrypted}
+                id={"kairo-note-content-#{@editing_source_id || "new"}"}
                 name="note[content]"
                 rows="16"
                 phx-debounce="200"
+                phx-update="ignore"
                 placeholder="Write markdown…"
-                class="textarea textarea-bordered w-full font-mono text-sm"
+                class={[
+                  "textarea textarea-bordered w-full font-mono text-sm",
+                  @compose_tab != "write" && "hidden"
+                ]}
               >{@compose["content"]}</textarea>
+              <div
+                :if={@editing_source && @editing_source.encrypted}
+                class="rounded border border-warning/30 bg-warning/5 p-3 text-sm text-base-content/70"
+              >
+                Encrypted source content cannot be edited on the server. You can still change the
+                title, project, and tags.
+              </div>
               <div
                 :if={@compose_tab == "preview"}
                 class="prose min-h-[16rem] max-w-none rounded border border-base-300 bg-base-100 p-3"
@@ -677,7 +803,9 @@ defmodule ElektrineWeb.KairoLive.Index do
                 <button type="button" phx-click="cancel_note" class="btn btn-ghost btn-sm">
                   Cancel
                 </button>
-                <button type="submit" class="btn btn-primary btn-sm">Save note</button>
+                <button type="submit" class="btn btn-primary btn-sm">
+                  {if @editing_source, do: "Save changes", else: "Save note"}
+                </button>
               </div>
             </form>
 
@@ -697,7 +825,28 @@ defmodule ElektrineWeb.KairoLive.Index do
               class="card-body space-y-4 p-4 sm:p-6"
             >
               <header class="space-y-2 border-b border-base-300 pb-4">
-                <h1 class="text-xl font-bold sm:text-2xl">{source_label(@selected)}</h1>
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <h1 class="min-w-0 text-xl font-bold sm:text-2xl">{source_label(@selected)}</h1>
+                  <div class="flex shrink-0 items-center gap-2">
+                    <button
+                      type="button"
+                      phx-click="edit_source"
+                      phx-value-id={@selected.id}
+                      class="btn btn-outline btn-xs"
+                    >
+                      <.icon name="hero-pencil-square" class="h-3.5 w-3.5" /> Edit
+                    </button>
+                    <button
+                      type="button"
+                      phx-click="delete_source"
+                      phx-value-id={@selected.id}
+                      data-confirm="Delete this Kairo source? This cannot be undone."
+                      class="btn btn-error btn-outline btn-xs"
+                    >
+                      <.icon name="hero-trash" class="h-3.5 w-3.5" /> Delete
+                    </button>
+                  </div>
+                </div>
                 <div class="flex flex-wrap items-center gap-2 text-xs text-base-content/60">
                   <span class="badge badge-outline badge-sm">{@selected.source_type}</span>
                   <span class="badge badge-sm">{@selected.status}</span>

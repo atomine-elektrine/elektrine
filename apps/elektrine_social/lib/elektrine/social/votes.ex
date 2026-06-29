@@ -22,6 +22,7 @@ defmodule Elektrine.Social.Votes do
 
   import Ecto.Query, warn: false
   alias Elektrine.Accounts.User
+  alias Elektrine.AppCache
   alias Elektrine.Repo
   alias Elektrine.Social.Message
   alias Elektrine.Social.MessageVote
@@ -418,7 +419,7 @@ defmodule Elektrine.Social.Votes do
 
           # Notify post owner on upvotes (not downvotes)
           if vote_type == "up" do
-            message = Repo.get(Message, message_id)
+            message = get_message(message_id)
 
             if message && message.sender_id && message.sender_id != user_id do
               notify_post_upvote(user_id, message_id)
@@ -521,8 +522,10 @@ defmodule Elektrine.Social.Votes do
     from(m in Message, where: m.id == ^message_id)
     |> Repo.update_all(set: [upvotes: upvotes, downvotes: downvotes, score: score])
 
+    AppCache.invalidate_social_message(message_id)
+
     # Broadcast vote updates to discussion feeds (only for community posts)
-    message = Repo.get!(Message, message_id) |> Repo.preload(:conversation)
+    message = get_message!(message_id) |> Repo.preload(:conversation)
 
     if message.conversation && message.conversation.type == "community" do
       Phoenix.PubSub.broadcast(
@@ -537,7 +540,7 @@ defmodule Elektrine.Social.Votes do
   # Notifies post owner when their post is upvoted
   defp notify_post_upvote(voter_id, message_id) do
     # Get the post and users
-    message = Repo.get!(Message, message_id)
+    message = get_message!(message_id)
 
     # Don't notify if user voted on their own post
     # Only notify for local posts (federated posts don't have sender_id)
@@ -559,6 +562,19 @@ defmodule Elektrine.Social.Votes do
           priority: "low"
         })
       end
+    end
+  end
+
+  defp get_message(message_id) do
+    AppCache.get_social_message(message_id, fn ->
+      Repo.get(Message, message_id)
+    end)
+  end
+
+  defp get_message!(message_id) do
+    case get_message(message_id) do
+      %Message{} = message -> message
+      _ -> Repo.get!(Message, message_id)
     end
   end
 end

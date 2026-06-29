@@ -240,16 +240,24 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
       viewer_user_id = if is_map(current_user), do: current_user.id, else: nil
       {conn, visitor_id} = ensure_profile_site_visitor_id(conn)
 
-      _ =
-        Profiles.track_profile_site_visit(profile_user_id,
-          viewer_user_id: viewer_user_id,
-          visitor_id: visitor_id,
-          ip_address: ClientIP.client_ip(conn),
-          user_agent: get_req_header(conn, "user-agent") |> List.first(),
-          referer: get_req_header(conn, "referer") |> List.first(),
-          request_host: conn.host,
-          request_path: request_path
-        )
+      if Elektrine.AppCache.allow_site_visit_tracking?(
+           :profile_site,
+           visitor_id,
+           conn.host,
+           request_path,
+           200
+         ) do
+        _ =
+          Profiles.track_profile_site_visit(profile_user_id,
+            viewer_user_id: viewer_user_id,
+            visitor_id: visitor_id,
+            ip_address: ClientIP.client_ip(conn),
+            user_agent: get_req_header(conn, "user-agent") |> List.first(),
+            referer: get_req_header(conn, "referer") |> List.first(),
+            request_host: conn.host,
+            request_path: request_path
+          )
+      end
 
       conn
     else

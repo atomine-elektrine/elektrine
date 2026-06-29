@@ -174,6 +174,30 @@ defmodule Elektrine.Accounts do
   def get_user!(id), do: Repo.get!(User, id)
 
   @doc """
+  Gets only the fields needed to validate a signed web session.
+
+  This stays intentionally narrow because it runs on hot request paths. Callers
+  that need the full user should load it separately after validating the stamp.
+  """
+  def get_user_session_stamp(id) when is_integer(id) do
+    from(u in User,
+      where: u.id == ^id,
+      select: %{
+        id: u.id,
+        is_admin: u.is_admin,
+        banned: u.banned,
+        suspended: u.suspended,
+        suspended_until: u.suspended_until,
+        last_password_change: u.last_password_change,
+        auth_valid_after: u.auth_valid_after
+      }
+    )
+    |> Repo.one()
+  end
+
+  def get_user_session_stamp(_), do: nil
+
+  @doc """
   Gets a user by username.
 
   Returns nil if the User does not exist.

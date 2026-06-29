@@ -6,6 +6,7 @@ defmodule Elektrine.Messaging.Federation.State do
 
   alias Elektrine.Accounts.User
   alias Elektrine.ActivityPub.Actor, as: ActivityPubActor
+  alias Elektrine.AppCache
 
   alias Elektrine.Messaging.{
     ChatConversation,
@@ -79,7 +80,7 @@ defmodule Elektrine.Messaging.Federation.State do
       )
       when is_integer(conversation_id) and is_integer(chat_message_id) and
              is_integer(remote_actor_id) and is_map(context) do
-    case Repo.get(ActivityPubActor, remote_actor_id) do
+    case get_remote_actor(remote_actor_id) do
       %ActivityPubActor{} = actor ->
         label =
           case normalize_optional_string(actor.display_name) do
@@ -705,7 +706,7 @@ defmodule Elektrine.Messaging.Federation.State do
       )
       when is_list(subscriber_user_ids) and is_list(server_ids) and is_integer(remote_actor_id) and
              is_binary(status) and is_map(context) do
-    actor = Repo.get(ActivityPubActor, remote_actor_id)
+    actor = get_remote_actor(remote_actor_id)
     username = if actor, do: actor.username, else: "remote"
     domain = if actor, do: actor.domain, else: call(context, :local_domain, [])
     handle = "@#{username}@#{domain}"
@@ -762,7 +763,7 @@ defmodule Elektrine.Messaging.Federation.State do
       )
       when is_integer(conversation_id) and is_integer(remote_actor_id) and is_binary(status) and
              is_map(context) do
-    case Repo.get(ActivityPubActor, remote_actor_id) do
+    case get_remote_actor(remote_actor_id) do
       %ActivityPubActor{} = actor ->
         handle = "@#{actor.username}@#{actor.domain}"
 
@@ -807,7 +808,7 @@ defmodule Elektrine.Messaging.Federation.State do
 
   def maybe_broadcast_membership_state(conversation_id, membership_state, context)
       when is_integer(conversation_id) and is_map(context) do
-    case Repo.get(ActivityPubActor, membership_state.remote_actor_id) do
+    case get_remote_actor(membership_state.remote_actor_id) do
       %ActivityPubActor{} = actor ->
         payload = %{
           conversation_id: conversation_id,
@@ -836,7 +837,7 @@ defmodule Elektrine.Messaging.Federation.State do
 
   def maybe_broadcast_remote_typing_started(conversation_id, remote_actor_id, context)
       when is_integer(conversation_id) and is_integer(remote_actor_id) and is_map(context) do
-    case Repo.get(ActivityPubActor, remote_actor_id) do
+    case get_remote_actor(remote_actor_id) do
       %ActivityPubActor{} = actor ->
         label =
           case normalize_optional_string(actor.display_name) do
@@ -865,7 +866,7 @@ defmodule Elektrine.Messaging.Federation.State do
 
   def maybe_broadcast_remote_typing_stopped(conversation_id, remote_actor_id, context)
       when is_integer(conversation_id) and is_integer(remote_actor_id) and is_map(context) do
-    case Repo.get(ActivityPubActor, remote_actor_id) do
+    case get_remote_actor(remote_actor_id) do
       %ActivityPubActor{} = actor ->
         call(context, :broadcast_conversation_event, [
           conversation_id,
@@ -930,6 +931,14 @@ defmodule Elektrine.Messaging.Federation.State do
   defp remote_actor_typing_key(%ActivityPubActor{} = actor) do
     "remote:#{actor.id}:#{actor.domain}"
   end
+
+  defp get_remote_actor(actor_id) when is_integer(actor_id) do
+    AppCache.get_activitypub_actor_by_id(actor_id, fn ->
+      Repo.get(ActivityPubActor, actor_id)
+    end)
+  end
+
+  defp get_remote_actor(_actor_id), do: nil
 
   defp normalize_positive_int(value) when is_integer(value) and value > 0, do: value
   defp normalize_positive_int(_value), do: nil

@@ -81,8 +81,9 @@ defmodule ElektrineWeb.Plugs.SecurityHeaders do
       "font-src 'self' data:",
       # Connect: allow self and the explicit third-party endpoints used by the app
       "connect-src 'self' ws://#{host} wss://#{host}",
-      # Media: allow self and HTTPS (for video backgrounds from S3-compatible storage)
-      "media-src 'self' https: blob:",
+      # Media: allow self, HTTPS (video backgrounds from S3-compatible storage),
+      # blob URLs, and data URIs (inline audio/video)
+      "media-src 'self' https: data: blob:",
       # Frames: allow any HTTPS embeds used by emails/chat/profiles
       "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://open.spotify.com",
       # Child/Worker: allow app workers and Blob workers
@@ -132,10 +133,19 @@ defmodule ElektrineWeb.Plugs.SecurityHeaders do
   end
 
   defp allowed_host(host) when is_binary(host) do
-    if host in allowed_hosts() do
-      host
-    else
-      default_host()
+    cond do
+      host in allowed_hosts() ->
+        host
+
+      # Tor onion mirror: the .onion address is the page's own (self-authenticating)
+      # origin, so reflecting it into the websocket connect-src is equivalent to
+      # 'self'. Without this the CSP pins the clearnet host and the onion site's
+      # LiveView socket is blocked, forcing it to fall back to longpoll.
+      String.ends_with?(host, ".onion") ->
+        host
+
+      true ->
+        default_host()
     end
   end
 

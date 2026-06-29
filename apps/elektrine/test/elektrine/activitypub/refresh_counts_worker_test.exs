@@ -68,6 +68,15 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorkerTest do
     assert RefreshCountsWorker.visible_refresh_candidate_ids(posts, limit: 2) == [11, 14]
   end
 
+  test "schedule_visible_refreshes/2 is disabled by default for feed page views" do
+    posts = [
+      %{id: 1, federated: true, activitypub_id: "https://remote.example/statuses/1"}
+    ]
+
+    assert RefreshCountsWorker.visible_refresh_candidate_ids(posts, limit: 10) == [1]
+    assert RefreshCountsWorker.schedule_visible_refreshes(posts, limit: 10) == []
+  end
+
   test "reconciles zero remote refreshes with local engagement rows" do
     user = AccountsFixtures.user_fixture()
     actor = remote_actor_fixture()

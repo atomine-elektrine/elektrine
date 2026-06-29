@@ -175,7 +175,7 @@ config :elektrine, :dns,
   zone_cache_refresh_interval_ms:
     parse_int_env.(
       "DNS_ZONE_CACHE_REFRESH_INTERVAL_MS",
-      Keyword.get(dns_config, :zone_cache_refresh_interval_ms, 5_000)
+      Keyword.get(dns_config, :zone_cache_refresh_interval_ms, 300_000)
     ),
   nameservers: dns_nameservers,
   soa_rname: dns_soa_rname,

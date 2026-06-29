@@ -2,6 +2,7 @@ defmodule Elektrine.Social.Conversations do
   @moduledoc "Context for managing conversations - creation, updates, membership, and discovery.\n"
   import Ecto.Query, warn: false
   alias Elektrine.Accounts
+  alias Elektrine.AppCache
   alias Elektrine.Repo
 
   alias Elektrine.Messaging.{
@@ -944,7 +945,7 @@ defmodule Elektrine.Social.Conversations do
          %User{} <- Repo.get(User, reviewer_user_id),
          %FederationMembershipState{} = membership_state <-
            pending_remote_join_membership_state(conversation_id, remote_actor_id),
-         %ActivityPubActor{} = remote_actor <- Repo.get(ActivityPubActor, remote_actor_id) do
+         %ActivityPubActor{} = remote_actor <- get_remote_actor(remote_actor_id) do
       timestamp = DateTime.utc_now() |> DateTime.truncate(:second)
       membership_state_value = if decision == "accepted", do: "active", else: "left"
 
@@ -1131,12 +1132,20 @@ defmodule Elektrine.Social.Conversations do
 
   defp maybe_put_actor_avatar(payload, _avatar_url), do: payload
 
+  defp get_remote_actor(actor_id) when is_integer(actor_id) do
+    AppCache.get_activitypub_actor_by_id(actor_id, fn ->
+      Repo.get(ActivityPubActor, actor_id)
+    end)
+  end
+
+  defp get_remote_actor(_actor_id), do: nil
+
   defp broadcast_remote_join_request_update(
          conversation_id,
          %FederationMembershipState{} = membership_state
        )
        when is_integer(conversation_id) do
-    case Repo.get(ActivityPubActor, membership_state.remote_actor_id) do
+    case get_remote_actor(membership_state.remote_actor_id) do
       %ActivityPubActor{} = actor ->
         Phoenix.PubSub.broadcast(
           Elektrine.PubSub,

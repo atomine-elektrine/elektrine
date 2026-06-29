@@ -342,6 +342,18 @@ defmodule ElektrineWeb.PageLive.Home do
         label: "Beyond the inbox",
         items: [
           %{
+            tag: "Knowledge",
+            title: "Your knowledge base",
+            detail:
+              "Kairo ingests notes and sources into a durable, searchable knowledge graph you own"
+          },
+          %{
+            tag: "Secrets",
+            title: "Password & secrets manager",
+            detail:
+              "Nerve keeps passwords and secrets client-side encrypted, so the server only stores ciphertext"
+          },
+          %{
             tag: "Web search",
             title: "Private web search",
             detail:

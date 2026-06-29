@@ -1847,8 +1847,19 @@ defmodule Elektrine.Social.Messages do
   @doc """
   Gets a message by ID.
   """
-  def get_message(id) do
-    Repo.get(Message, id)
+  def get_message(id) when is_integer(id) do
+    AppCache.get_social_message(id, fn ->
+      Repo.get(Message, id)
+    end)
+  end
+
+  def get_message(_id), do: nil
+
+  def get_message!(id) when is_integer(id) do
+    case get_message(id) do
+      %Message{} = message -> message
+      _ -> Repo.get!(Message, id)
+    end
   end
 
   @doc """
@@ -1863,6 +1874,8 @@ defmodule Elektrine.Social.Messages do
     |> Repo.update()
     |> case do
       {:ok, updated_message} = result ->
+        AppCache.invalidate_social_message(message.id)
+        AppCache.invalidate_social_message(updated_message.id)
         invalidate_activitypub_ref_cache(old_refs)
         invalidate_activitypub_ref_cache_for_message(updated_message)
         result
@@ -1910,6 +1923,8 @@ defmodule Elektrine.Social.Messages do
     |> Repo.update()
     |> case do
       {:ok, updated_message} = result ->
+        AppCache.invalidate_social_message(message.id)
+        AppCache.invalidate_social_message(updated_message.id)
         invalidate_activitypub_ref_cache(old_refs)
         invalidate_activitypub_ref_cache_for_message(updated_message)
         result
@@ -2253,44 +2268,60 @@ defmodule Elektrine.Social.Messages do
   Increments the share count for a message.
   """
   def increment_share_count(message_id) do
-    from(m in Message,
-      where: m.id == ^message_id,
-      update: [inc: [share_count: 1]]
-    )
-    |> Repo.update_all([])
+    result =
+      from(m in Message,
+        where: m.id == ^message_id,
+        update: [inc: [share_count: 1]]
+      )
+      |> Repo.update_all([])
+
+    AppCache.invalidate_social_message(message_id)
+    result
   end
 
   @doc """
   Decrements the share count for a message.
   """
   def decrement_share_count(message_id) do
-    from(m in Message,
-      where: m.id == ^message_id and m.share_count > 0,
-      update: [inc: [share_count: -1]]
-    )
-    |> Repo.update_all([])
+    result =
+      from(m in Message,
+        where: m.id == ^message_id and m.share_count > 0,
+        update: [inc: [share_count: -1]]
+      )
+      |> Repo.update_all([])
+
+    AppCache.invalidate_social_message(message_id)
+    result
   end
 
   @doc """
   Increments the quote count for a message.
   """
   def increment_quote_count(message_id) do
-    from(m in Message,
-      where: m.id == ^message_id,
-      update: [inc: [quote_count: 1]]
-    )
-    |> Repo.update_all([])
+    result =
+      from(m in Message,
+        where: m.id == ^message_id,
+        update: [inc: [quote_count: 1]]
+      )
+      |> Repo.update_all([])
+
+    AppCache.invalidate_social_message(message_id)
+    result
   end
 
   @doc """
   Decrements the quote count for a message.
   """
   def decrement_quote_count(message_id) do
-    from(m in Message,
-      where: m.id == ^message_id and m.quote_count > 0,
-      update: [inc: [quote_count: -1]]
-    )
-    |> Repo.update_all([])
+    result =
+      from(m in Message,
+        where: m.id == ^message_id and m.quote_count > 0,
+        update: [inc: [quote_count: -1]]
+      )
+      |> Repo.update_all([])
+
+    AppCache.invalidate_social_message(message_id)
+    result
   end
 
   ## Post Loading Helpers
@@ -2299,7 +2330,7 @@ defmodule Elektrine.Social.Messages do
   Gets a discussion post by ID with standard preloads for display.
   """
   def get_discussion_post(message_id) do
-    Repo.get(Message, message_id)
+    get_message(message_id)
     |> Repo.preload(discussion_post_preloads())
     |> Message.decrypt_content()
   end
@@ -2310,7 +2341,7 @@ defmodule Elektrine.Social.Messages do
   def get_discussion_post!(message_id, opts \\ []) do
     force = Keyword.get(opts, :force, false)
 
-    message = Repo.get!(Message, message_id)
+    message = if(force, do: Repo.get!(Message, message_id), else: get_message!(message_id))
 
     if force do
       Repo.preload(message, discussion_post_preloads(), force: true)
@@ -2324,7 +2355,7 @@ defmodule Elektrine.Social.Messages do
   Gets a timeline post by ID with standard preloads for display.
   """
   def get_timeline_post(message_id) do
-    Repo.get(Message, message_id)
+    get_message(message_id)
     |> Repo.preload(timeline_post_preloads())
     |> Message.decrypt_content()
   end
@@ -2335,7 +2366,7 @@ defmodule Elektrine.Social.Messages do
   def get_timeline_post!(message_id, opts \\ []) do
     force = Keyword.get(opts, :force, false)
 
-    message = Repo.get!(Message, message_id)
+    message = if(force, do: Repo.get!(Message, message_id), else: get_message!(message_id))
 
     if force do
       Repo.preload(message, timeline_post_preloads(), force: true)

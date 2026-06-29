@@ -129,6 +129,46 @@ defmodule Kairo do
     end
   end
 
+  def update_source(%User{id: user_id}, id, attrs), do: update_source(user_id, id, attrs)
+
+  def update_source(user_id, id, attrs) do
+    case get_source(user_id, id) do
+      %Source{} = source ->
+        attrs = normalize_attrs(attrs)
+
+        with {:ok, attrs} <- resolve_project_id(user_id, attrs) do
+          attrs =
+            attrs
+            |> maybe_put_updated_raw_hash(source)
+
+          case source
+               |> Source.changeset(attrs)
+               |> Repo.update()
+               |> tap_storage_update(user_id) do
+            {:ok, source} -> {:ok, decrypt_at_rest_content(source)}
+            other -> other
+          end
+        end
+
+      nil ->
+        {:error, :not_found}
+    end
+  end
+
+  def delete_source(%User{id: user_id}, id), do: delete_source(user_id, id)
+
+  def delete_source(user_id, id) do
+    case get_source(user_id, id) do
+      %Source{} = source ->
+        source
+        |> Repo.delete()
+        |> tap_storage_update(user_id)
+
+      nil ->
+        {:error, :not_found}
+    end
+  end
+
   def source_types, do: Source.source_types()
   def source_statuses, do: Source.statuses()
   def project_statuses, do: Project.statuses()
@@ -206,6 +246,18 @@ defmodule Kairo do
     else
       Map.put_new(attrs, "raw_hash", raw_hash(attrs))
     end
+  end
+
+  defp maybe_put_updated_raw_hash(attrs, %Source{encrypted: true}), do: attrs
+
+  defp maybe_put_updated_raw_hash(attrs, %Source{} = source) do
+    merged =
+      source
+      |> Map.take([:source_type, :title, :url, :content, :content_format, :metadata, :tags])
+      |> Map.new(fn {key, value} -> {to_string(key), value} end)
+      |> Map.merge(attrs)
+
+    Map.put(attrs, "raw_hash", raw_hash(merged))
   end
 
   defp encrypted?(true), do: true

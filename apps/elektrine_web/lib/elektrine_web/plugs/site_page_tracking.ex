@@ -28,7 +28,7 @@ defmodule ElektrineWeb.Plugs.SitePageTracking do
   end
 
   defp track_page_visit(conn) do
-    if html_response?(conn) and conn.status < 400 do
+    if html_response?(conn) and conn.status < 400 and trackable_visit?(conn) do
       current_user = conn.assigns[:current_user]
       viewer_user_id = if is_map(current_user), do: current_user.id, else: nil
 
@@ -49,6 +49,16 @@ defmodule ElektrineWeb.Plugs.SitePageTracking do
     else
       conn
     end
+  end
+
+  defp trackable_visit?(conn) do
+    Elektrine.AppCache.allow_site_visit_tracking?(
+      :site_page,
+      conn.assigns[:site_page_session_id],
+      conn.host,
+      conn.request_path,
+      conn.status
+    )
   end
 
   defp html_response?(conn) do

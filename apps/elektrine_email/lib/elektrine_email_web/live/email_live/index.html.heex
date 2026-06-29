@@ -930,7 +930,7 @@
                       get_message_classes(message, @current_tab),
                       message.id in @selected_messages && "message-selected",
                       message.reply_later_at && overdue?(message.reply_later_at) &&
-                        "border-l-4 border-l-error bg-error/5"
+                        "bg-error/5"
                     ]}
                     data-message-id={message.id}
                     data-private-message={to_string(private_message?(message))}

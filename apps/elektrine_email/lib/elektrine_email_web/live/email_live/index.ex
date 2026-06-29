@@ -541,13 +541,13 @@ defmodule ElektrineEmailWeb.EmailLive.Index do
 
     cond do
       message_unread_for_list?(message) ->
-        "#{base_classes} border-l-4 border-l-secondary bg-secondary/5"
+        "#{base_classes} bg-secondary/5"
 
       current_tab == "spam" ->
-        "#{base_classes} border-l-4 border-l-warning bg-warning/5"
+        "#{base_classes} bg-warning/5"
 
       current_tab == "archive" ->
-        "#{base_classes} border-l-4 border-l-info bg-info/5"
+        "#{base_classes} bg-info/5"
 
       true ->
         base_classes

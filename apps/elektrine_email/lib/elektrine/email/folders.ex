@@ -61,26 +61,21 @@ defmodule Elektrine.Email.Folders do
   Optimized to build base query once and reuse for both count and fetch.
   """
   def list_inbox_messages_paginated(mailbox_id, page \\ 1, per_page \\ 20) do
+    list_inbox_family_paginated(mailbox_id, page, per_page, :all)
+  end
+
+  @doc """
+  Flat (one row per message) inbox listing. The UI lists by thread via
+  `list_inbox_messages_paginated/3`; the public API keeps per-message semantics
+  so replies are never hidden behind a thread head.
+  """
+  def list_inbox_messages_flat_paginated(mailbox_id, page \\ 1, per_page \\ 20) do
     page = max(page, 1)
     offset = (page - 1) * per_page
-    excluded_categories = inbox_excluded_categories(mailbox_id)
+    base_query = inbox_family_scope(mailbox_id)
 
-    # Build base query once with common filters
-    base_query =
-      Message
-      |> where(mailbox_id: ^mailbox_id, spam: false, archived: false, deleted: false)
-      |> where(
-        [m],
-        (m.status not in ["sent", "draft"] or is_nil(m.status) or m.from == m.to) and
-          (is_nil(m.category) or m.category not in ^excluded_categories) and
-          is_nil(m.reply_later_at) and
-          is_nil(m.folder_id)
-      )
-
-    # Get total count (optimized - single AND clause)
     total_count = Repo.aggregate(base_query, :count)
 
-    # Get messages for current page (reuse base query)
     messages =
       base_query
       |> order_by(desc: :inserted_at)
@@ -89,10 +84,7 @@ defmodule Elektrine.Email.Folders do
       |> Repo.all()
       |> decrypt_email_messages(mailbox_id)
 
-    # Calculate pagination metadata
-    total_pages = ceil(total_count / per_page)
-    has_next = page < total_pages
-    has_prev = page > 1
+    total_pages = if total_count > 0, do: ceil(total_count / per_page), else: 0
 
     %{
       messages: messages,
@@ -100,10 +92,162 @@ defmodule Elektrine.Email.Folders do
       per_page: per_page,
       total_count: total_count,
       total_pages: total_pages,
-      has_next: has_next,
-      has_prev: has_prev
+      has_next: page < total_pages,
+      has_prev: page > 1
     }
   end
+
+  # Shared scope for the inbox, unread, and read filters: the same set of
+  # messages the inbox shows. Unread and read are not different message sets -
+  # they are the same threads partitioned by whether the thread has any unread
+  # message - so they must share one scope.
+  defp inbox_family_scope(mailbox_id) do
+    excluded_categories = inbox_excluded_categories(mailbox_id)
+
+    Message
+    |> where([m], m.mailbox_id == ^mailbox_id and not m.spam and not m.archived and not m.deleted)
+    |> where([m], m.status not in ["sent", "draft"] or is_nil(m.status) or m.from == m.to)
+    |> where([m], is_nil(m.category) or m.category not in ^excluded_categories)
+    |> where([m], is_nil(m.reply_later_at))
+    |> where([m], is_nil(m.folder_id))
+  end
+
+  # Thread-level pagination. Messages are grouped into conversations in SQL so
+  # each thread's read/unread state, message count, and attachment flag reflect
+  # the WHOLE thread (not just the messages that landed on the current page),
+  # and pagination is by thread so threads never split across page boundaries.
+  #
+  # `thread_filter` partitions threads: `:all` (inbox), `:unread` (any unread
+  # message), or `:read` (fully read). Real thread ids are positive; thread-less
+  # messages key off the negative of their own id, so the thread-id and
+  # message-id spaces can never collide.
+  defp list_inbox_family_paginated(mailbox_id, page, per_page, thread_filter) do
+    page = max(page, 1)
+    offset = (page - 1) * per_page
+    scope = inbox_family_scope(mailbox_id)
+
+    groups =
+      from(m in scope,
+        group_by:
+          fragment(
+            "case when ? is not null and ? > 0 then ? else -? end",
+            m.thread_id,
+            m.thread_id,
+            m.thread_id,
+            m.id
+          ),
+        select: %{
+          key:
+            fragment(
+              "case when ? is not null and ? > 0 then ? else -? end",
+              m.thread_id,
+              m.thread_id,
+              m.thread_id,
+              m.id
+            ),
+          latest_at: max(m.inserted_at),
+          latest_id: max(m.id),
+          count: count(m.id),
+          unread_count: filter(count(m.id), m.read == false),
+          has_attachments: fragment("bool_or(?)", m.has_attachments)
+        }
+      )
+
+    groups =
+      case thread_filter do
+        :unread -> from(g in subquery(groups), where: g.unread_count > 0)
+        :read -> from(g in subquery(groups), where: g.unread_count == 0)
+        _ -> groups
+      end
+
+    total_count = Repo.aggregate(subquery(groups), :count)
+
+    page_groups =
+      from(g in subquery(groups),
+        order_by: [desc: g.latest_at, desc: g.latest_id],
+        limit: ^per_page,
+        offset: ^offset
+      )
+      |> Repo.all()
+
+    keys = Enum.map(page_groups, & &1.key)
+    heads_by_key = inbox_family_heads(scope, keys, mailbox_id)
+
+    messages =
+      Enum.flat_map(page_groups, fn group ->
+        case Map.get(heads_by_key, group.key) do
+          nil ->
+            []
+
+          head ->
+            [
+              head
+              |> Map.put(:thread_message_count, group.count)
+              |> Map.put(:thread_unread_count, group.unread_count)
+              |> Map.put(:thread_has_unread, group.unread_count > 0)
+              |> Map.put(:thread_has_attachments, group.has_attachments)
+            ]
+        end
+      end)
+
+    total_pages = if total_count > 0, do: ceil(total_count / per_page), else: 0
+
+    %{
+      messages: messages,
+      page: page,
+      per_page: per_page,
+      total_count: total_count,
+      total_pages: total_pages,
+      has_next: page < total_pages,
+      has_prev: page > 1
+    }
+  end
+
+  # Loads the head (newest message) of each thread key on the current page.
+  defp inbox_family_heads(_scope, [], _mailbox_id), do: %{}
+
+  defp inbox_family_heads(scope, keys, mailbox_id) do
+    from(m in scope,
+      where:
+        fragment(
+          "(case when ? is not null and ? > 0 then ? else -? end) = ANY(?)",
+          m.thread_id,
+          m.thread_id,
+          m.thread_id,
+          m.id,
+          ^keys
+        ),
+      distinct:
+        fragment(
+          "case when ? is not null and ? > 0 then ? else -? end",
+          m.thread_id,
+          m.thread_id,
+          m.thread_id,
+          m.id
+        ),
+      order_by: [
+        asc:
+          fragment(
+            "case when ? is not null and ? > 0 then ? else -? end",
+            m.thread_id,
+            m.thread_id,
+            m.thread_id,
+            m.id
+          ),
+        desc: m.inserted_at,
+        desc: m.id
+      ]
+    )
+    |> Repo.all()
+    |> decrypt_email_messages(mailbox_id)
+    |> Map.new(fn message -> {inbox_family_thread_key(message), message} end)
+  end
+
+  defp inbox_family_thread_key(%{thread_id: thread_id})
+       when is_integer(thread_id) and thread_id > 0,
+       do: thread_id
+
+  defp inbox_family_thread_key(%{id: id}), do: -id
 
   @doc """
   Returns paginated spam messages for a mailbox with metadata.
@@ -316,46 +460,7 @@ defmodule Elektrine.Email.Folders do
   Optimized to build base query once and reuse for both count and fetch.
   """
   def list_unread_messages_paginated(mailbox_id, page \\ 1, per_page \\ 20) do
-    page = max(page, 1)
-    offset = (page - 1) * per_page
-    excluded_categories = inbox_excluded_categories(mailbox_id)
-
-    # Build base query once with common filters
-    base_query =
-      Message
-      |> where(mailbox_id: ^mailbox_id, read: false)
-      |> where([m], not m.spam and not m.archived and not m.deleted)
-      |> where([m], m.status not in ["sent", "draft"] or is_nil(m.status) or m.from == m.to)
-      |> where([m], is_nil(m.category) or m.category not in ^excluded_categories)
-      |> where([m], is_nil(m.reply_later_at))
-      |> where([m], is_nil(m.folder_id))
-
-    # Get total count (optimized - single AND clause)
-    total_count = Repo.aggregate(base_query, :count)
-
-    # Get messages for current page (reuse base query)
-    messages =
-      base_query
-      |> order_by(desc: :inserted_at)
-      |> limit(^per_page)
-      |> offset(^offset)
-      |> Repo.all()
-      |> decrypt_email_messages(mailbox_id)
-
-    # Calculate pagination metadata
-    total_pages = ceil(total_count / per_page)
-    has_next = page < total_pages
-    has_prev = page > 1
-
-    %{
-      messages: messages,
-      page: page,
-      per_page: per_page,
-      total_count: total_count,
-      total_pages: total_pages,
-      has_next: has_next,
-      has_prev: has_prev
-    }
+    list_inbox_family_paginated(mailbox_id, page, per_page, :unread)
   end
 
   @doc """
@@ -363,46 +468,7 @@ defmodule Elektrine.Email.Folders do
   Optimized to build base query once and reuse for both count and fetch.
   """
   def list_read_messages_paginated(mailbox_id, page \\ 1, per_page \\ 20) do
-    page = max(page, 1)
-    offset = (page - 1) * per_page
-    excluded_categories = inbox_excluded_categories(mailbox_id)
-
-    # Build base query once with common filters
-    base_query =
-      Message
-      |> where(mailbox_id: ^mailbox_id, read: true)
-      |> where([m], not m.spam and not m.archived and not m.deleted)
-      |> where([m], m.status not in ["sent", "draft"] or is_nil(m.status) or m.from == m.to)
-      |> where([m], is_nil(m.category) or m.category not in ^excluded_categories)
-      |> where([m], is_nil(m.reply_later_at))
-      |> where([m], is_nil(m.folder_id))
-
-    # Get total count (optimized - single AND clause)
-    total_count = Repo.aggregate(base_query, :count)
-
-    # Get messages for current page (reuse base query)
-    messages =
-      base_query
-      |> order_by(desc: :inserted_at)
-      |> limit(^per_page)
-      |> offset(^offset)
-      |> Repo.all()
-      |> decrypt_email_messages(mailbox_id)
-
-    # Calculate pagination metadata
-    total_pages = ceil(total_count / per_page)
-    has_next = page < total_pages
-    has_prev = page > 1
-
-    %{
-      messages: messages,
-      page: page,
-      per_page: per_page,
-      total_count: total_count,
-      total_pages: total_pages,
-      has_next: has_next,
-      has_prev: has_prev
-    }
+    list_inbox_family_paginated(mailbox_id, page, per_page, :read)
   end
 
   ## Hey.com-style Features

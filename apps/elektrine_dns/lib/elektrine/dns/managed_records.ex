@@ -3,6 +3,7 @@ defmodule Elektrine.DNS.ManagedRecords do
 
   import Ecto.Query, warn: false
 
+  alias Elektrine.AppCache
   alias Elektrine.DNS.MailSecurity
   alias Elektrine.DNS.Record
   alias Elektrine.DNS.Zone
@@ -132,12 +133,18 @@ defmodule Elektrine.DNS.ManagedRecords do
   end
 
   def service_status(%Zone{} = zone, service) do
-    Repo.get_by(ZoneServiceConfig, zone_id: zone.id, service: normalize_service(service))
+    service = normalize_service(service)
+
+    zone.id
+    |> list_service_configs()
+    |> Enum.find(&(&1.service == service))
   end
 
   def list_service_configs(zone_id) do
-    from(c in ZoneServiceConfig, where: c.zone_id == ^zone_id, order_by: c.service)
-    |> Repo.all()
+    AppCache.get_dns_service_configs(zone_id, fn ->
+      from(c in ZoneServiceConfig, where: c.zone_id == ^zone_id, order_by: c.service)
+      |> Repo.all()
+    end)
   end
 
   def public_settings(service, settings) do
@@ -268,11 +275,11 @@ defmodule Elektrine.DNS.ManagedRecords do
   defp sync_side_effects(_zone, _service, _settings), do: nil
 
   defp finalize_side_effects(_zone, _service, %ZoneServiceConfig{enabled: false} = config),
-    do: {:ok, config}
+    do: invalidate_and_return(config)
 
   defp finalize_side_effects(_zone, _service, %ZoneServiceConfig{status: status} = config)
        when status in ["conflict", "disabled", "pending"],
-       do: {:ok, config}
+       do: invalidate_and_return(config)
 
   defp finalize_side_effects(zone, service, %ZoneServiceConfig{} = config) do
     sync_error =
@@ -292,7 +299,12 @@ defmodule Elektrine.DNS.ManagedRecords do
         })
       )
 
-    {:ok, updated}
+    invalidate_and_return(updated)
+  end
+
+  defp invalidate_and_return(%ZoneServiceConfig{} = config) do
+    AppCache.invalidate_dns_service_configs(config.zone_id)
+    {:ok, config}
   end
 
   defp normalize_mail_target(%Zone{} = zone, settings) do

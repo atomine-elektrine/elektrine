@@ -12,6 +12,7 @@ defmodule Elektrine.Social.Boosts do
 
   import Ecto.Query, warn: false
   require Logger
+  alias Elektrine.AppCache
   alias Elektrine.Repo
   alias Elektrine.Social.Message
   alias Elektrine.Social.PostBoost
@@ -29,7 +30,7 @@ defmodule Elektrine.Social.Boosts do
   def boost_post(user_id, message_id) do
     # Get original message to validate it has content
     original =
-      Repo.get!(Message, message_id) |> Repo.preload([:sender, :conversation, :remote_actor])
+      get_message!(message_id) |> Repo.preload([:sender, :conversation, :remote_actor])
 
     if public_reshareable_message?(original) do
       # Validate: Don't allow boosting empty posts (must have content OR media)
@@ -105,7 +106,7 @@ defmodule Elektrine.Social.Boosts do
   Removes the boost and deletes the timeline entry.
   """
   def unboost_post(user_id, message_id) do
-    original = Repo.get!(Message, message_id)
+    original = get_message!(message_id)
 
     case Repo.get_by(PostBoost, user_id: user_id, message_id: message_id) do
       nil ->
@@ -171,7 +172,7 @@ defmodule Elektrine.Social.Boosts do
   """
   def create_quote_post(user_id, quoted_message_id, content, opts \\ []) do
     # Validate the quoted message exists
-    quoted = Repo.get!(Message, quoted_message_id)
+    quoted = get_message!(quoted_message_id)
 
     cond do
       not can_quote_message?(quoted, user_id) ->
@@ -205,6 +206,8 @@ defmodule Elektrine.Social.Boosts do
               update: [inc: [quote_count: 1]]
             )
             |> Repo.update_all([])
+
+            AppCache.invalidate_social_message(quoted_message_id)
 
             # Federate the quote post if user has federation enabled
             Elektrine.Async.run(fn ->
@@ -281,11 +284,15 @@ defmodule Elektrine.Social.Boosts do
 
     share_count = remote_baseline + current_local_boost_count
 
-    from(m in Message,
-      where: m.id == ^message.id,
-      update: [set: [share_count: ^share_count]]
-    )
-    |> Repo.update_all([])
+    result =
+      from(m in Message,
+        where: m.id == ^message.id,
+        update: [set: [share_count: ^share_count]]
+      )
+      |> Repo.update_all([])
+
+    AppCache.invalidate_social_message(message.id)
+    result
   end
 
   defp remote_share_count_baseline(%Message{} = message) do
@@ -307,12 +314,19 @@ defmodule Elektrine.Social.Boosts do
   defp parse_non_negative_integer(_), do: 0
 
   defp broadcast_share_count_update(message_id) do
-    message = Repo.get!(Message, message_id)
+    message = get_message!(message_id)
 
     Elektrine.Social.Messages.broadcast_post_counts_updated(message_id, %{
       like_count: message.like_count || 0,
       share_count: message.share_count || 0,
       reply_count: message.reply_count || 0
     })
+  end
+
+  defp get_message!(message_id) do
+    case AppCache.get_social_message(message_id, fn -> Repo.get(Message, message_id) end) do
+      %Message{} = message -> message
+      _ -> Repo.get!(Message, message_id)
+    end
   end
 end

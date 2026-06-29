@@ -37,9 +37,6 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
   @recent_threshold_hours 24
   @stale_threshold_hours 6
   @visible_refresh_limit 20
-  @visible_refresh_unique_period 6 * 60 * 60
-  @visible_refresh_backlog_limit 1_000
-  @worker_name inspect(__MODULE__)
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"type" => "refresh_recent"}}) do
@@ -73,7 +70,7 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
   """
   def schedule_recent_refresh do
     %{"type" => "refresh_recent"}
-    |> new(schedule_in: 60)
+    |> new(schedule_in: 60, unique: refresh_type_unique(60 * 60))
     |> Elektrine.JobQueue.insert()
   end
 
@@ -82,7 +79,7 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
   """
   def schedule_popular_refresh do
     %{"type" => "refresh_popular"}
-    |> new(schedule_in: 60)
+    |> new(schedule_in: 60, unique: refresh_type_unique(4 * 60 * 60))
     |> Elektrine.JobQueue.insert()
   end
 
@@ -91,7 +88,7 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
   """
   def schedule_interacted_refresh do
     %{"type" => "refresh_interacted"}
-    |> new(schedule_in: 60)
+    |> new(schedule_in: 60, unique: refresh_type_unique(30 * 60))
     |> Elektrine.JobQueue.insert()
   end
 
@@ -129,58 +126,20 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
   def visible_refresh_candidate_ids(_posts, _opts), do: []
 
   @doc """
-  Enqueues count refreshes for visible federated posts and returns the message ids scheduled.
+  Feed page views intentionally do not enqueue count refresh jobs.
+
+  Remote engagement counts are refreshed by bounded cron jobs and explicit
+  single-post detail refreshes. Enqueueing refresh jobs from timeline renders can
+  create unbounded Oban backlogs under normal traffic.
   """
-  def schedule_visible_refreshes(posts, opts \\ []) do
-    message_ids = visible_refresh_candidate_ids(posts, opts)
+  def schedule_visible_refreshes(_posts, _opts \\ []), do: []
 
-    if message_ids != [] && visible_refresh_queue_available?() do
-      Enum.each(message_ids, fn message_id ->
-        _ = schedule_visible_refresh(message_id)
-      end)
-    end
-
-    message_ids
-  end
-
-  defp schedule_visible_refresh(message_id) do
-    %{"type" => "refresh_single", "message_id" => message_id}
-    |> new(unique: [period: @visible_refresh_unique_period, keys: [:message_id]])
-    |> Elektrine.JobQueue.insert()
-  end
-
-  defp visible_refresh_queue_available? do
-    backlog_limit =
-      :elektrine
-      |> Application.get_env(:visible_count_refresh_backlog_limit, @visible_refresh_backlog_limit)
-      |> normalize_visible_refresh_backlog_limit()
-
-    not visible_refresh_backlog_at_or_above?(backlog_limit)
-  end
-
-  defp normalize_visible_refresh_backlog_limit(limit) when is_integer(limit) and limit >= 0,
-    do: limit
-
-  defp normalize_visible_refresh_backlog_limit(_limit), do: @visible_refresh_backlog_limit
-
-  defp visible_refresh_backlog_at_or_above?(0), do: true
-
-  defp visible_refresh_backlog_at_or_above?(limit) do
-    query =
-      from(j in Oban.Job,
-        where:
-          j.queue == "federation" and j.state == "available" and
-            j.worker == ^@worker_name,
-        offset: ^limit,
-        limit: 1,
-        select: 1
-      )
-
-    Repo.one(query) == 1
-  rescue
-    error ->
-      Logger.debug("Skipping visible count refresh backlog check: #{Exception.message(error)}")
-      false
+  defp refresh_type_unique(period) do
+    [
+      period: period,
+      fields: [:worker, :args],
+      states: [:available, :scheduled, :executing, :retryable]
+    ]
   end
 
   @doc """

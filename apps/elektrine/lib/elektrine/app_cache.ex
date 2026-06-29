@@ -21,6 +21,10 @@ defmodule Elektrine.AppCache do
   # ActivityPub ref lookups are hot during inbox processing.
   @activitypub_ref_ttl :timer.minutes(5)
   @activitypub_ref_negative_ttl :timer.seconds(15)
+  @activitypub_actor_id_ttl :timer.minutes(10)
+  @social_message_ttl :timer.seconds(5)
+  @dns_service_config_ttl :timer.minutes(5)
+  @site_visit_track_ttl :timer.seconds(60)
   # WebFinger lookups cached longer since they rarely change
   @webfinger_ttl :timer.hours(6)
   @webfinger_negative_ttl :timer.minutes(15)
@@ -154,6 +158,14 @@ defmodule Elektrine.AppCache do
     fetch_value(key, @actor_ttl, fetch_fn)
   end
 
+  @doc """
+  Caches ActivityPub actors by database ID for hot broadcast/projection paths.
+  """
+  def get_activitypub_actor_by_id(actor_id, fetch_fn) when is_integer(actor_id) do
+    key = {:activitypub_actor_id, actor_id}
+    fetch_value(key, @activitypub_actor_id_ttl, fetch_fn)
+  end
+
   # ActivityPub object caching
 
   @doc """
@@ -232,6 +244,53 @@ defmodule Elektrine.AppCache do
   def invalidate_activitypub_message_ref(ref) when is_binary(ref) do
     delete_with_telemetry({:activitypub_ref, normalize_activitypub_ref(ref)})
   end
+
+  @doc """
+  Caches social message primary-key lookups briefly to absorb repeated UI/broadcast reads.
+  """
+  def get_social_message(message_id, fetch_fn) when is_integer(message_id) do
+    key = {:social_message, message_id}
+    fetch_value(key, @social_message_ttl, fetch_fn)
+  end
+
+  def invalidate_social_message(message_id) when is_integer(message_id) do
+    delete_with_telemetry({:social_message, message_id})
+  end
+
+  @doc """
+  Caches DNS service configs per zone. Managed service writes explicitly invalidate this.
+  """
+  def get_dns_service_configs(zone_id, fetch_fn) when is_integer(zone_id) do
+    key = {:dns_service_configs, zone_id}
+    fetch_value(key, @dns_service_config_ttl, fetch_fn)
+  end
+
+  def invalidate_dns_service_configs(zone_id) when is_integer(zone_id) do
+    delete_with_telemetry({:dns_service_configs, zone_id})
+  end
+
+  @doc """
+  Returns true once per short tracking window for a site/page/session tuple.
+  """
+  def allow_site_visit_tracking?(scope, session_id, request_host, request_path, status)
+      when is_binary(session_id) and is_binary(request_path) do
+    key = {:site_visit_seen, scope, session_id, request_host, request_path, status}
+
+    case get_with_telemetry(key) do
+      {:ok, nil} ->
+        _ = put_with_telemetry(key, true, ttl: @site_visit_track_ttl)
+        true
+
+      {:ok, _} ->
+        false
+
+      _ ->
+        true
+    end
+  end
+
+  def allow_site_visit_tracking?(_scope, _session_id, _request_host, _request_path, _status),
+    do: true
 
   # WebFinger caching
 

@@ -276,6 +276,59 @@ defmodule Elektrine.Email.MessageOperationsTest do
     end
   end
 
+  describe "inbox/unread/read thread pagination" do
+    setup do
+      user = user_fixture()
+      mailbox = mailbox_fixture(%{user_id: user.id, email: "threadtest@example.com"})
+      %{mailbox: mailbox, address: "threadtest@example.com"}
+    end
+
+    test "a read-headed thread with an older unread reply shows in Unread, not Read", %{
+      mailbox: mailbox,
+      address: address
+    } do
+      root =
+        message_fixture(%{mailbox_id: mailbox.id, to: address, category: "inbox", read: false})
+
+      # Newest message in the thread is read; the thread still has an unread member.
+      _reply =
+        message_fixture(%{
+          mailbox_id: mailbox.id,
+          to: address,
+          category: "inbox",
+          read: true,
+          in_reply_to: root.message_id
+        })
+
+      unread = Cached.list_unread_messages_paginated(mailbox.id, 1, 20)
+      read = Cached.list_read_messages_paginated(mailbox.id, 1, 20)
+      inbox = Cached.list_inbox_messages_paginated(mailbox.id, 1, 20)
+
+      # One thread, counted once, and it carries whole-thread state.
+      assert inbox.total_count == 1
+      [thread] = inbox.messages
+      assert thread.thread_message_count == 2
+      assert thread.thread_has_unread == true
+
+      # The thread is unread (it has an unread member) and absent from Read.
+      assert unread.total_count == 1
+      assert read.total_count == 0
+    end
+
+    test "unread and read filters partition singleton threads", %{
+      mailbox: mailbox,
+      address: address
+    } do
+      message_fixture(%{mailbox_id: mailbox.id, to: address, category: "inbox", read: false})
+      message_fixture(%{mailbox_id: mailbox.id, to: address, category: "inbox", read: false})
+      message_fixture(%{mailbox_id: mailbox.id, to: address, category: "inbox", read: true})
+
+      assert Cached.list_inbox_messages_paginated(mailbox.id, 1, 20).total_count == 3
+      assert Cached.list_unread_messages_paginated(mailbox.id, 1, 20).total_count == 2
+      assert Cached.list_read_messages_paginated(mailbox.id, 1, 20).total_count == 1
+    end
+  end
+
   describe "message creation deduplication" do
     setup do
       user = user_fixture()

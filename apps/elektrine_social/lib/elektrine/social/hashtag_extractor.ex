@@ -48,6 +48,7 @@ defmodule Elektrine.Social.HashtagExtractor do
       if user_id, do: BlockedUsersCache.get_all_blocked_user_ids(user_id), else: []
 
     normalized_name = String.downcase(hashtag_name)
+    candidate_limit = max(limit * 10, 100)
 
     query =
       from m in Message,
@@ -55,6 +56,7 @@ defmodule Elektrine.Social.HashtagExtractor do
         on: ph.message_id == m.id,
         join: h in Hashtag,
         on: h.id == ph.hashtag_id,
+        left_join: remote_actor in assoc(m, :remote_actor),
         where:
           h.normalized_name == ^normalized_name and
             m.visibility in ["public", "unlisted"] and
@@ -64,23 +66,34 @@ defmodule Elektrine.Social.HashtagExtractor do
             (m.sender_id not in ^blocked_user_ids or is_nil(m.sender_id)) and
             (not is_nil(m.sender_id) or not is_nil(m.remote_actor_id)),
         order_by: [desc: m.id],
-        limit: ^limit
+        limit: ^candidate_limit,
+        select: %{
+          id: m.id,
+          sender_id: m.sender_id,
+          actor_uri: remote_actor.uri,
+          actor_domain: remote_actor.domain
+        }
 
-    # Reuse standard timeline preloads so hashtag cards match timeline/detail rendering.
     query =
-      from m in query,
-        preload: ^preloads
+      if before_id, do: from(m in query, where: m.id < ^before_id), else: query
 
-    query =
-      if before_id do
-        from m in query, where: m.id < ^before_id
-      else
-        query
-      end
+    excluded_domains = compile_domain_policy(public_timeline_excluded_instance_domains())
+    viewer_policy = viewer_policy(user_id)
 
-    query = apply_viewer_policy(query, user_id)
+    post_ids =
+      query
+      |> Repo.all()
+      |> Enum.reject(&candidate_excluded?(&1, excluded_domains, viewer_policy))
+      |> Enum.take(limit)
+      |> Enum.map(& &1.id)
 
-    Repo.all(query)
+    if post_ids == [] do
+      []
+    else
+      # Reuse standard timeline preloads so hashtag cards match timeline/detail rendering.
+      from(m in Message, where: m.id in ^post_ids, order_by: [desc: m.id], preload: ^preloads)
+      |> Repo.all()
+    end
   end
 
   @doc """
@@ -127,104 +140,83 @@ defmodule Elektrine.Social.HashtagExtractor do
 
   # Private functions
 
-  defp apply_viewer_policy(query, user_id) do
-    query
-    |> exclude_muted_senders(user_id)
-    |> exclude_blocked_remote_actors(user_id)
-    |> exclude_blocked_domains(user_id)
-    |> exclude_blocked_instances()
-    |> exclude_public_timeline_removed_instances()
-  end
-
-  defp exclude_muted_senders(query, nil), do: query
-
-  defp exclude_muted_senders(query, user_id) do
-    from(m in query,
-      left_join: mute in UserMute,
-      on: mute.muter_id == ^user_id and mute.muted_id == m.sender_id,
-      where: is_nil(mute.id)
+  defp public_timeline_excluded_instance_domains do
+    Repo.all(
+      from i in Instance,
+        where: i.blocked == true or i.silenced == true or i.federated_timeline_removal == true,
+        select: i.domain
     )
+    |> Enum.filter(&is_binary/1)
   end
 
-  defp exclude_blocked_remote_actors(query, nil), do: query
-
-  defp exclude_blocked_remote_actors(query, user_id) do
-    from(m in query,
-      left_join: remote_actor in assoc(m, :remote_actor),
-      left_join: blocked_remote_actor in UserBlock,
-      on:
-        blocked_remote_actor.user_id == ^user_id and blocked_remote_actor.block_type == "user" and
-          blocked_remote_actor.blocked_uri == remote_actor.uri,
-      where: is_nil(remote_actor.id) or is_nil(blocked_remote_actor.id)
-    )
+  defp viewer_policy(nil) do
+    %{
+      muted_sender_ids: MapSet.new(),
+      blocked_actor_uris: MapSet.new(),
+      blocked_domains: compile_domain_policy([])
+    }
   end
 
-  defp exclude_blocked_domains(query, nil), do: query
-
-  defp exclude_blocked_domains(query, user_id) do
-    from(m in query,
-      left_join: remote_actor in assoc(m, :remote_actor),
-      left_join: blocked_domain in UserBlock,
-      on:
-        blocked_domain.user_id == ^user_id and blocked_domain.block_type == "domain" and
-          (fragment("lower(?)", blocked_domain.blocked_uri) ==
-             fragment("lower(?)", remote_actor.domain) or
-             fragment(
-               "? LIKE '*.%' AND lower(?) LIKE ('%.' || substring(lower(?) from 3))",
-               blocked_domain.blocked_uri,
-               remote_actor.domain,
-               blocked_domain.blocked_uri
-             )),
-      where: is_nil(remote_actor.id) or is_nil(blocked_domain.id)
-    )
-  end
-
-  defp exclude_blocked_instances(query) do
-    if Repo.exists?(from(i in Instance, where: i.blocked == true)) do
-      from(m in query,
-        left_join: remote_actor in assoc(m, :remote_actor),
-        left_join: blocked_instance in Instance,
-        on:
-          blocked_instance.blocked == true and
-            (fragment("lower(?)", blocked_instance.domain) ==
-               fragment("lower(?)", remote_actor.domain) or
-               fragment(
-                 "? LIKE '*.%' AND lower(?) LIKE ('%.' || substring(lower(?) from 3))",
-                 blocked_instance.domain,
-                 remote_actor.domain,
-                 blocked_instance.domain
-               )),
-        where: is_nil(remote_actor.id) or is_nil(blocked_instance.id)
+  defp viewer_policy(user_id) do
+    muted_sender_ids =
+      Repo.all(
+        from m in UserMute,
+          where: m.muter_id == ^user_id,
+          select: m.muted_id
       )
-    else
-      query
-    end
+      |> MapSet.new()
+
+    blocks =
+      Repo.all(
+        from b in UserBlock,
+          where: b.user_id == ^user_id,
+          select: {b.block_type, b.blocked_uri}
+      )
+
+    %{
+      muted_sender_ids: muted_sender_ids,
+      blocked_actor_uris:
+        blocks
+        |> Enum.filter(fn {type, uri} -> type == "user" and is_binary(uri) end)
+        |> Enum.map(fn {_type, uri} -> uri end)
+        |> MapSet.new(),
+      blocked_domains:
+        blocks
+        |> Enum.filter(fn {type, domain} -> type == "domain" and is_binary(domain) end)
+        |> Enum.map(fn {_type, domain} -> domain end)
+        |> compile_domain_policy()
+    }
   end
 
-  defp exclude_public_timeline_removed_instances(query) do
-    if Repo.exists?(
-         from(i in Instance, where: i.silenced == true or i.federated_timeline_removal == true)
-       ) do
-      from(m in query,
-        left_join: remote_actor in assoc(m, :remote_actor),
-        left_join: removed_instance in Instance,
-        on:
-          (removed_instance.silenced == true or
-             removed_instance.federated_timeline_removal == true) and
-            (fragment("lower(?)", removed_instance.domain) ==
-               fragment("lower(?)", remote_actor.domain) or
-               fragment(
-                 "? LIKE '*.%' AND lower(?) LIKE ('%.' || substring(lower(?) from 3))",
-                 removed_instance.domain,
-                 remote_actor.domain,
-                 removed_instance.domain
-               )),
-        where: is_nil(remote_actor.id) or is_nil(removed_instance.id)
-      )
-    else
-      query
-    end
+  defp candidate_excluded?(candidate, excluded_domains, viewer_policy) do
+    domain_excluded?(excluded_domains, candidate.actor_domain) or
+      MapSet.member?(viewer_policy.muted_sender_ids, candidate.sender_id) or
+      (is_binary(candidate.actor_uri) &&
+         MapSet.member?(viewer_policy.blocked_actor_uris, candidate.actor_uri)) or
+      domain_excluded?(viewer_policy.blocked_domains, candidate.actor_domain)
   end
+
+  defp compile_domain_policy(domains) do
+    {wildcards, exacts} =
+      domains
+      |> Enum.filter(&is_binary/1)
+      |> Enum.map(&(String.trim(&1) |> String.downcase()))
+      |> Enum.split_with(&String.starts_with?(&1, "*."))
+
+    %{
+      exact: MapSet.new(exacts),
+      wildcard_suffixes: Enum.map(wildcards, &("." <> String.trim_leading(&1, "*.")))
+    }
+  end
+
+  defp domain_excluded?(%{exact: exact, wildcard_suffixes: suffixes}, domain)
+       when is_binary(domain) do
+    domain = String.downcase(domain)
+
+    MapSet.member?(exact, domain) or Enum.any?(suffixes, &String.ends_with?(domain, &1))
+  end
+
+  defp domain_excluded?(_policy, _domain), do: false
 
   defp valid_hashtag?(hashtag) do
     # Basic validation: length between 1-50 chars, alphanumeric + underscore

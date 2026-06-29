@@ -303,6 +303,7 @@ defmodule Elektrine.ActivityPub.MRF.SimplePolicy do
 
     if host do
       :ets.delete(@cache_table, host)
+      :ets.delete(@cache_table, :db_policy_instances)
     else
       :ets.delete_all_objects(@cache_table)
     end
@@ -331,26 +332,35 @@ defmodule Elektrine.ActivityPub.MRF.SimplePolicy do
 
   # Get instances matching this host (supports wildcards)
   defp get_matching_instances(host) do
-    # Get exact match
-    exact_query = from(i in Instance, where: i.domain == ^host)
+    host = String.downcase(host || "")
 
-    # Get wildcard matches (domains starting with *.)
-    # We need to check each wildcard domain against the host
-    wildcard_query =
-      from(i in Instance,
-        where: like(i.domain, "*.%")
-      )
+    Enum.filter(db_policy_instances(), fn instance ->
+      Instance.matches_domain?(instance, host)
+    end)
+  end
 
-    exact_instances = Repo.all(exact_query)
-    wildcard_instances = Repo.all(wildcard_query)
+  defp db_policy_instances do
+    ensure_cache_table_exists()
+    now = System.monotonic_time(:millisecond)
 
-    # Filter wildcards to only those that match
-    matching_wildcards =
-      Enum.filter(wildcard_instances, fn instance ->
-        Instance.matches_domain?(instance, host)
-      end)
+    case :ets.lookup(@cache_table, :db_policy_instances) do
+      [{:db_policy_instances, instances, timestamp}] when now - timestamp < @cache_ttl ->
+        instances
 
-    exact_instances ++ matching_wildcards
+      _ ->
+        instances = load_db_policy_instances()
+        :ets.insert(@cache_table, {:db_policy_instances, instances, now})
+        instances
+    end
+  end
+
+  defp load_db_policy_instances do
+    policy_filter =
+      Instance.policy_fields()
+      |> Enum.map(&dynamic([i], field(i, ^&1) == true))
+      |> Enum.reduce(fn condition, acc -> dynamic([i], ^acc or ^condition) end)
+
+    Repo.all(from(i in Instance, where: ^policy_filter))
   end
 
   # Merge with config-based policies as fallback

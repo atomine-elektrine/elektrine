@@ -19,7 +19,7 @@ defmodule ElektrineEmailWeb.API.EmailController do
       result =
         case folder do
           "inbox" ->
-            Email.Folders.list_inbox_messages_paginated(mailbox.id, page, limit)
+            Email.Folders.list_inbox_messages_flat_paginated(mailbox.id, page, limit)
 
           "feed" ->
             Email.Folders.list_feed_messages_paginated(mailbox.id, page, limit)
@@ -46,7 +46,7 @@ defmodule ElektrineEmailWeb.API.EmailController do
             Email.Folders.list_archived_messages_paginated(mailbox.id, page, limit)
 
           _ ->
-            Email.Folders.list_inbox_messages_paginated(mailbox.id, page, limit)
+            Email.Folders.list_inbox_messages_flat_paginated(mailbox.id, page, limit)
         end
 
       conn

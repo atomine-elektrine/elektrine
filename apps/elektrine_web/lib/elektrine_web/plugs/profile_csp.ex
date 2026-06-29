@@ -14,7 +14,7 @@ defmodule ElektrineWeb.Plugs.ProfileCSP do
         "script-src 'self' 'nonce-#{ElektrineWeb.Plugs.SecurityHeaders.script_nonce()}' https://open.spotify.com https://www.youtube.com https://s.ytimg.com",
         "style-src 'self' 'unsafe-inline'",
         "img-src 'self' data: https: blob:",
-        "media-src 'self' https: blob:",
+        "media-src 'self' https: data: blob:",
         "font-src 'self' data:",
         "connect-src 'self' wss: https://open.spotify.com https://www.youtube.com https://www.youtube-nocookie.com",
         "frame-src 'self' https://open.spotify.com https://www.youtube.com https://www.youtube-nocookie.com",
