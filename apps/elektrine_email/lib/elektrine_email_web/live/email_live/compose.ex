@@ -1201,7 +1201,7 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
     draft_id = socket.assigns[:draft_id]
 
     # In reply/forward modes the user's text lives in "new_message", not
-    # "body" — draft_body/2 picks the right field so autosave doesn't lose it.
+    # "body" - draft_body/2 picks the right field so autosave doesn't lose it.
     body = draft_body(email_params, socket.assigns.mode)
 
     draft_attrs = %{

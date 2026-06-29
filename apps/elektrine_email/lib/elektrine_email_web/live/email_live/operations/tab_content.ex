@@ -4,7 +4,7 @@ defmodule ElektrineEmailWeb.EmailLive.Operations.TabContent do
 
   This is the single source of truth for what each tab shows. It is shared by
   the inbox LiveView (`EmailLive.Index`) and every operation module that needs
-  to refresh the current tab after an action — previously each kept its own
+  to refresh the current tab after an action - previously each kept its own
   drifted copy.
   """
 

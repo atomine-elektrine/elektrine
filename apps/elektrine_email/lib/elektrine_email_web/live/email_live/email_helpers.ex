@@ -409,7 +409,7 @@ defmodule ElektrineEmailWeb.EmailLive.EmailHelpers do
     |> String.replace("&quot;", "\"")
     |> String.replace("&apos;", "'")
     |> String.replace("&nbsp;", " ")
-    |> String.replace("&mdash;", "—")
+    |> String.replace("&mdash;", "-")
     |> String.replace("&ndash;", "-")
     |> String.replace("&hellip;", "...")
     |> String.replace("&copy;", "©")

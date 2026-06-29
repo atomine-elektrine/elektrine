@@ -21,7 +21,7 @@ defmodule Elektrine.Uptime.Checker do
 
   `ping` typically requires the binary to be setuid root or to hold the
   `CAP_NET_RAW` capability. When the binary is missing or refuses to run, the
-  check degrades to `{:down, "ping unavailable"}` — TCP is the privilege-free
+  check degrades to `{:down, "ping unavailable"}` - TCP is the privilege-free
   alternative for reachability checks.
 
   ## Test injection
@@ -29,9 +29,9 @@ defmodule Elektrine.Uptime.Checker do
   Each transport resolves its worker function from application env so tests can
   stub them without real sockets:
 
-    * `:http_fun`        — `fun.(request, finch_name, opts)`
-    * `:tcp_connect_fun` — `fun.(ip, port, opts, timeout_ms)`
-    * `:ping_fun`        — `fun.(host, timeout_seconds)`
+    * `:http_fun`        - `fun.(request, finch_name, opts)`
+    * `:tcp_connect_fun` - `fun.(ip, port, opts, timeout_ms)`
+    * `:ping_fun`        - `fun.(host, timeout_seconds)`
 
   The real SSRF guard (`URLValidator`) still runs even with stubbed transports.
   """

@@ -245,7 +245,7 @@ config :elektrine, Oban, queues: oban_queues
 # Drop cron entries whose worker module isn't bundled in this release build.
 # Module-specific workers (uptime, email, social, ...) are only present when
 # their platform module is compiled in. Oban validates the whole crontab on
-# boot, so a single missing worker would crash the app — fatal for partial
+# boot, so a single missing worker would crash the app - fatal for partial
 # builds (e.g. ELEKTRINE_RELEASE_MODULES=chat). Filtering by module
 # loadability keeps the scheduler running with whatever modules are present.
 oban_existing_plugins = Application.get_env(:elektrine, Oban, []) |> Keyword.get(:plugins)

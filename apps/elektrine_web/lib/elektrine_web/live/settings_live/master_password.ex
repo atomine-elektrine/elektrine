@@ -152,7 +152,7 @@ defmodule ElektrineWeb.SettingsLive.MasterPassword do
             <div class="card-body p-4 sm:p-6">
               <.section_header
                 title="Set a master password"
-                description="Choose a strong passphrase that is different from your login password. We can never recover it for you — you'll get a one-time recovery code."
+                description="Choose a strong passphrase that is different from your login password. We can never recover it for you - you'll get a one-time recovery code."
               />
 
               <form
@@ -201,7 +201,7 @@ defmodule ElektrineWeb.SettingsLive.MasterPassword do
                 >
                 </code>
                 <button type="button" class="btn btn-primary btn-sm mt-3" data-vault-setup-finish>
-                  I've saved it — finish
+                  I've saved it - finish
                 </button>
               </div>
             </div>

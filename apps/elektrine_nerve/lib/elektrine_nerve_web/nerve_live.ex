@@ -125,7 +125,7 @@ defmodule ElektrineNerveWeb.NerveLive do
           <div>
             <h1 class="text-2xl font-bold text-base-content sm:text-3xl">Nerve</h1>
             <p class="mt-1 text-base-content/70">
-              Your external access layer — the browser extension and external API that let the web
+              Your external access layer - the browser extension and external API that let the web
               and your other tools reach your Elektrine data, encrypted with your master password.
             </p>
           </div>
@@ -191,21 +191,21 @@ defmodule ElektrineNerveWeb.NerveLive do
                     <span class="hero-key h-5 w-5 shrink-0 text-base-content/50"></span>
                     <span>
                       <span class="font-medium text-base-content">Passwords &amp; autofill</span>
-                      — store logins encrypted and fill them on matching sites from the extension.
+                      - store logins encrypted and fill them on matching sites from the extension.
                     </span>
                   </li>
                   <li class="flex gap-2">
                     <span class="hero-inbox-arrow-down h-5 w-5 shrink-0 text-base-content/50"></span>
                     <span>
                       <span class="font-medium text-base-content">Kairo capture</span>
-                      — clip pages and content straight into <.link href="/kairo" class="link">Kairo</.link>.
+                      - clip pages and content straight into <.link href="/kairo" class="link">Kairo</.link>.
                     </span>
                   </li>
                   <li class="flex gap-2">
                     <span class="hero-puzzle-piece h-5 w-5 shrink-0 text-base-content/50"></span>
                     <span>
                       <span class="font-medium text-base-content">More integrations</span>
-                      — anything Elektrine needs to reach from outside the app.
+                      - anything Elektrine needs to reach from outside the app.
                     </span>
                   </li>
                 </ul>
@@ -286,7 +286,7 @@ defmodule ElektrineNerveWeb.NerveLive do
                 </div>
 
                 <p class="text-sm text-base-content/70">
-                  Clip the page you're on — or selected text — straight into your Kairo knowledge
+                  Clip the page you're on - or selected text - straight into your Kairo knowledge
                   base. The extension posts to your Kairo sources over the external API.
                 </p>
 

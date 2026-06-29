@@ -1,5 +1,5 @@
 /**
- * Vault session — the unlocked master key for this browser tab.
+ * Vault session - the unlocked master key for this browser tab.
  *
  * Holds the Master Data Key (MDK) in memory only (never persisted to
  * localStorage/sessionStorage), so unlocking once unlocks Nerve, Kairo, and

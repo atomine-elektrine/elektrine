@@ -107,7 +107,7 @@ defmodule Elektrine.Uptime.NotifierTest do
       Uptime.record_check(m2, {:down, "x"})
 
     assert :ok = Notifier.notify(m3, c3, :still_down)
-    # still exactly one — no per-check spam
+    # still exactly one - no per-check spam
     assert [_one] = uptime_notifications(user.id, "uptime_down")
   end
 

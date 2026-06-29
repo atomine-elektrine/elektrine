@@ -279,7 +279,7 @@ defmodule ElektrineSocialWeb.WebFingerController do
   # Render XML Resource Descriptor (XRD) format
   #
   # SECURITY: This builds XRD via string interpolation with a hand-maintained
-  # `xml_escape/1`. That is fragile — every value interpolated into the XML body
+  # `xml_escape/1`. That is fragile - every value interpolated into the XML body
   # or into an attribute MUST be wrapped in `xml_escape/1`, or it becomes an XML
   # injection vector. Audited here: `subject`, each `Alias` value, and every
   # `Link` attribute (`rel`, `type`, `href`, `template`) all pass through

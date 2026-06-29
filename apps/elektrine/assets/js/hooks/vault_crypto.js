@@ -1,13 +1,13 @@
 /**
- * Vault crypto — shared zero-knowledge primitives for the Elektrine master
+ * Vault crypto - shared zero-knowledge primitives for the Elektrine master
  * password. One passphrase unlocks a random Master Data Key (MDK); per-feature
  * keys (Nerve, Kairo, email) are derived from the MDK via HKDF. The server only
- * ever stores wrapped blobs and ciphertext — never the passphrase, recovery
+ * ever stores wrapped blobs and ciphertext - never the passphrase, recovery
  * code, or MDK.
  *
  * Two payload shapes:
  *  - "wrapped" (server: account_master_keys): a secret-wrapped value carrying
- *    its own KDF params — {version, algorithm, kdf, iterations, salt, iv, ciphertext}.
+ *    its own KDF params - {version, algorithm, kdf, iterations, salt, iv, ciphertext}.
  *  - "value"   (feature data, keyed by an HKDF subkey): {version, algorithm, iv, ciphertext}.
  */
 

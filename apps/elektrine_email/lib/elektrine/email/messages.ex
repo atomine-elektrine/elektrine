@@ -251,8 +251,8 @@ defmodule Elektrine.Email.Messages do
       # Seed the connected component with the opened message AND the user's own
       # sent messages. Sent replies belong to the thread (same thread_id) and are
       # the user's deliberate participation, never unrelated noise to hide. Seeding
-      # from them keeps replies the user wrote — and any received messages chaining
-      # off those replies — visible even when a subject-merged thread leaves them in
+      # from them keeps replies the user wrote - and any received messages chaining
+      # off those replies - visible even when a subject-merged thread leaves them in
       # a different header component than the message that happens to be open.
       seed_ids =
         messages

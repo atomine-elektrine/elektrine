@@ -1,5 +1,5 @@
 /**
- * Nerve — zero-knowledge password entries, now keyed by the account master
+ * Nerve - zero-knowledge password entries, now keyed by the account master
  * password. Unlock is shared via vault_session; entries are encrypted/decrypted
  * with the Nerve subkey of the master key. The server only ever stores ciphertext.
  */

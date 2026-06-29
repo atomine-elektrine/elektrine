@@ -93,7 +93,7 @@ defmodule ElektrineWeb.SessionConfig do
   # dedicated session salt configured. A valid prod boot fails fast in
   # config/runtime.exs (which raises when the salt is unset) BEFORE this is ever
   # reached, so this only matters for degraded/artificial states. It derives a
-  # stable, secret, per-purpose salt from secret_key_base — never a publicly
+  # stable, secret, per-purpose salt from secret_key_base - never a publicly
   # known constant (the old "chat_auth_signing_salt" footgun) and never nil
   # (which would crash the cookie store on every request).
   defp prod_fallback_salt(purpose) do

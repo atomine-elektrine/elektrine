@@ -75,7 +75,7 @@ defmodule Elektrine.Email.Contacts do
     user_id = Map.get(attrs, :user_id) || Map.get(attrs, "user_id")
 
     # Set user_id on the struct (not via the changeset, which no longer casts
-    # :user_id — see Contact.changeset, mass-assignment hardening). It must be
+    # :user_id - see Contact.changeset, mass-assignment hardening). It must be
     # present BEFORE Contact.changeset runs so its validate_required(:user_id)
     # passes; a put_change after the changeset would run too late.
     %Contact{user_id: user_id}

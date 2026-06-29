@@ -2,7 +2,7 @@ defmodule Elektrine.Vault.MasterKey do
   @moduledoc """
   Per-user master encryption key, stored zero-knowledge.
 
-  Holds the user's Master Data Key (MDK) wrapped two ways — under a key derived
+  Holds the user's Master Data Key (MDK) wrapped two ways - under a key derived
   from the master passphrase (`wrapped_dek`) and under a key derived from a
   one-time recovery code (`wrapped_dek_recovery`). Both are client-encrypted
   AES-256-GCM payloads; the server never sees the passphrase, recovery code, or
