@@ -317,12 +317,30 @@
             <.user_avatar user={@current_user} size="md" class="w-10 h-10" />
           </div>
 
+          <% user_menu_profile_class =
+            "flex items-center gap-3 rounded px-2 py-2 -mx-2 -my-2 text-base-content hover:bg-base-200 focus:bg-base-200" %>
+          <% user_menu_link_base =
+            "gap-3 rounded px-3 py-2 text-base-content/80 hover:bg-base-200 focus:bg-base-200" %>
+          <% user_menu_primary_class =
+            user_menu_link_base <> " hover:text-primary focus:text-primary" %>
+          <% user_menu_secondary_class =
+            user_menu_link_base <> " hover:text-secondary focus:text-secondary" %>
+          <% user_menu_success_class =
+            user_menu_link_base <> " hover:text-success focus:text-success" %>
+          <% user_menu_info_class = user_menu_link_base <> " hover:text-info focus:text-info" %>
+          <% user_menu_accent_class =
+            user_menu_link_base <> " hover:text-accent focus:text-accent" %>
+          <% user_menu_warning_class =
+            "gap-3 rounded px-3 py-2 text-warning hover:bg-base-200 focus:bg-base-200" %>
+          <% user_menu_danger_class =
+            "gap-3 rounded px-3 py-2 text-error hover:bg-base-200 focus:bg-base-200" %>
+
           <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 p-2 rounded-box w-56">
             <!-- User Info Header -->
             <li class="menu-title px-3 py-2">
               <.link
                 navigate={~p"/#{@current_user.handle || @current_user.username}"}
-                class="flex items-center gap-3 hover:bg-primary/20 hover:text-base-content transition-all duration-200 rounded-md px-2 py-2 -mx-2 -my-2"
+                class={user_menu_profile_class}
               >
                 <.user_avatar user={@current_user} size="sm" />
                 <div>
@@ -346,7 +364,7 @@
             <li>
               <.link
                 navigate={Elektrine.Paths.notifications_path()}
-                class="gap-3 hover:bg-warning/20 hover:text-warning hover:border-l-4 hover:border-warning transition-all duration-200 rounded-md px-3 py-2"
+                class={user_menu_warning_class}
               >
                 <.icon
                   name={
@@ -368,7 +386,7 @@
               <li>
                 <.link
                   navigate={Elektrine.Paths.timeline_path(filter: "saved", view: "all")}
-                  class="gap-3 hover:bg-secondary/20 hover:text-secondary hover:border-l-4 hover:border-secondary transition-all duration-200 rounded-md px-3 py-2"
+                  class={user_menu_secondary_class}
                 >
                   <.icon name="hero-bookmark" class="w-4 h-4" /> {gettext("Saved Posts")}
                 </.link>
@@ -379,7 +397,7 @@
               <li>
                 <.link
                   navigate={Elektrine.Paths.friends_path()}
-                  class="gap-3 hover:bg-success/20 hover:text-success hover:border-l-4 hover:border-success transition-all duration-200 rounded-md px-3 py-2"
+                  class={user_menu_success_class}
                 >
                   <.icon name="hero-user-group" class="w-4 h-4" /> {gettext("Friends")}
                 </.link>
@@ -390,7 +408,7 @@
               <li>
                 <.link
                   navigate={Elektrine.Paths.lists_path()}
-                  class="gap-3 hover:bg-info/20 hover:text-info hover:border-l-4 hover:border-info transition-all duration-200 rounded-md px-3 py-2"
+                  class={user_menu_info_class}
                 >
                   <.icon name="hero-queue-list" class="w-4 h-4" /> {gettext("Lists")}
                 </.link>
@@ -400,7 +418,7 @@
             <li>
               <.link
                 navigate={~p"/account/profile/edit"}
-                class="gap-3 hover:bg-primary/20 hover:text-primary hover:border-l-4 hover:border-primary transition-all duration-200 rounded-md px-3 py-2"
+                class={user_menu_primary_class}
               >
                 <.icon name="hero-pencil-square" class="w-4 h-4" /> {gettext("Edit Profile")}
               </.link>
@@ -414,7 +432,7 @@
               <li>
                 <.link
                   navigate={Elektrine.Paths.email_index_path()}
-                  class="gap-3 hover:bg-primary/20 hover:text-primary hover:border-l-4 hover:border-primary transition-all duration-200 rounded-md px-3 py-2"
+                  class={user_menu_primary_class}
                 >
                   <.icon name="hero-inbox" class="w-4 h-4" /> {gettext("Email")}
                 </.link>
@@ -425,7 +443,7 @@
               <li>
                 <.link
                   navigate={Elektrine.Paths.timeline_path()}
-                  class="gap-3 hover:bg-secondary/20 hover:text-secondary hover:border-l-4 hover:border-secondary transition-all duration-200 rounded-md px-3 py-2"
+                  class={user_menu_secondary_class}
                 >
                   <.icon name="hero-rectangle-stack" class="w-4 h-4" /> {gettext("Timeline")}
                 </.link>
@@ -436,7 +454,7 @@
               <li>
                 <.link
                   navigate={Elektrine.Paths.vpn_path()}
-                  class="gap-3 hover:bg-primary/20 hover:text-primary hover:border-l-4 hover:border-primary transition-all duration-200 rounded-md px-3 py-2"
+                  class={user_menu_primary_class}
                 >
                   <.icon name="hero-shield-check" class="w-4 h-4" /> {gettext("VPN")}
                 </.link>
@@ -447,9 +465,17 @@
               <li>
                 <.link
                   navigate={~p"/dns"}
-                  class="gap-3 hover:bg-accent/20 hover:text-accent hover:border-l-4 hover:border-accent transition-all duration-200 rounded-md px-3 py-2"
+                  class={user_menu_accent_class}
                 >
                   <.icon name="hero-globe-alt" class="w-4 h-4" /> {gettext("DNS")}
+                </.link>
+              </li>
+            <% end %>
+
+            <%= if platform_module_enabled?(:kairo) do %>
+              <li>
+                <.link navigate={~p"/kairo"} class={user_menu_accent_class}>
+                  <.icon name="hero-circle-stack" class="w-4 h-4" /> {gettext("Kairo")}
                 </.link>
               </li>
             <% end %>
@@ -464,7 +490,7 @@
               <li>
                 <.link
                   navigate={~p"/pripyat"}
-                  class="gap-3 hover:bg-primary/20 hover:text-primary hover:border-l-4 hover:border-primary transition-all duration-200 rounded-md px-3 py-2"
+                  class={user_menu_primary_class}
                 >
                   <.icon name="hero-cog-6-tooth" class="w-4 h-4" /> {gettext("Admin Panel")}
                 </.link>
@@ -480,7 +506,7 @@
             <li>
               <.link
                 navigate={~p"/account/storage"}
-                class="gap-3 hover:bg-info/20 hover:text-info hover:border-l-4 hover:border-info transition-all duration-200 rounded-md px-3 py-2"
+                class={user_menu_info_class}
               >
                 <.icon name="hero-circle-stack" class="w-4 h-4" /> {gettext("Storage")}
               </.link>
@@ -489,7 +515,7 @@
             <li>
               <.link
                 navigate={~p"/account"}
-                class="gap-3 hover:bg-primary/20 hover:text-primary hover:border-l-4 hover:border-primary transition-all duration-200 rounded-md px-3 py-2"
+                class={user_menu_primary_class}
               >
                 <.icon name="hero-user-circle" class="w-4 h-4" /> {gettext("Account Settings")}
               </.link>
@@ -498,7 +524,7 @@
             <li>
               <a
                 href={ Elektrine.EmailAddresses.mailto("support") <> "?subject=Issue Report - Elektrine Beta" }
-                class="gap-3 text-warning hover:bg-warning/20 hover:text-warning hover:border-l-4 hover:border-warning transition-all duration-200 rounded-md px-3 py-2"
+                class={user_menu_warning_class}
               >
                 <.icon name="hero-exclamation-triangle" class="w-4 h-4" /> {gettext(
                   "Report Issue"
@@ -511,7 +537,7 @@
                 href={~p"/logout"}
                 method="delete"
                 data-test="logout-link"
-                class="gap-3 text-error hover:bg-error/20 hover:text-error hover:border-l-4 hover:border-error transition-all duration-200 rounded-md px-3 py-2"
+                class={user_menu_danger_class}
               >
                 <.icon name="hero-arrow-right-on-rectangle" class="w-4 h-4" /> {gettext("Log out")}
               </.link>

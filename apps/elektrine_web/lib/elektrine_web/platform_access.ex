@@ -255,9 +255,6 @@ defmodule ElektrineWeb.PlatformAccess do
       path_matches?(path, "/account/drive") or path_matches?(path, "/drive-dav") ->
         :drive
 
-      path_matches?(path, "/account/notes") ->
-        :notes
-
       true ->
         nil
     end
@@ -311,9 +308,6 @@ defmodule ElektrineWeb.PlatformAccess do
 
       view == :"Elixir.ElektrineWeb.DriveLive" ->
         :drive
-
-      view == :"Elixir.ElektrineWeb.NotesLive" ->
-        :notes
 
       true ->
         nil

@@ -319,15 +319,6 @@ defmodule ElektrineWeb.Layouts do
         platform_module: :social,
         access_module: :lists,
         icon: "hero-queue-list"
-      },
-      %{
-        id: "note",
-        label: "Note",
-        detail: "Keep a private note",
-        href: Elektrine.Paths.notes_path(new: true),
-        platform_module: :social,
-        access_module: :notes,
-        icon: "hero-document-text"
       }
     ]
     |> Enum.filter(&item_accessible?(&1, current_user))

@@ -56,7 +56,7 @@ defmodule ElektrineWeb.AuthenticatedRoutesLiveTest do
     user = AccountsFixtures.user_fixture()
     {:ok, banned_user} = Accounts.ban_user(user, %{banned_reason: "security test"})
 
-    for path <- ["/portal", "/email", "/account/drive", "/account/notes", "/account/proofs"] do
+    for path <- ["/portal", "/email", "/account/drive", "/account/proofs"] do
       assert {:error, reason} = live(log_in_user(build_conn(), banned_user), path)
 
       assert match?({:redirect, %{to: "/logout"}}, reason) or

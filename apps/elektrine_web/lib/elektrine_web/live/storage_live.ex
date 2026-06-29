@@ -298,6 +298,7 @@ defmodule ElektrineWeb.StorageLive do
     profile_storage = Storage.calculate_profile_storage(user_id)
     static_site_storage = Storage.calculate_static_site_storage(user_id)
     files_storage = Storage.calculate_files_storage(user_id)
+    kairo_storage = Storage.calculate_kairo_storage(user_id)
 
     [
       %{
@@ -335,6 +336,12 @@ defmodule ElektrineWeb.StorageLive do
         bytes: files_storage,
         icon: "hero-folder",
         color: "text-secondary"
+      },
+      %{
+        category: "Kairo",
+        bytes: kairo_storage,
+        icon: "hero-circle-stack",
+        color: "text-accent"
       }
     ]
   end

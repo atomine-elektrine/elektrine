@@ -512,7 +512,6 @@ defmodule ElektrineWeb.Router do
     # Public file shares
     get("/drive/share/:token", DriveShareController, :show)
     post("/drive/share/:token", DriveShareController, :authorize)
-    get("/notes/share/:token", NoteShareController, :show)
   end
 
   # Routes that are specifically for unauthenticated users
@@ -1310,7 +1309,6 @@ defmodule ElektrineWeb.Router do
       live("/analytics/domains", ProfileLive.DomainAnalytics, :analytics)
       live("/account/storage", StorageLive)
       live("/account/drive", DriveLive)
-      live("/account/notes", NotesLive)
       live("/account/proofs", ProofsLive)
 
       live("/friends", FriendsLive, :index)
