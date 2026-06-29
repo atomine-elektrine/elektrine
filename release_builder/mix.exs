@@ -26,7 +26,7 @@ defmodule ElektrineReleaseBuilder.MixProject do
 
   defp deps do
     ElektrineReleaseBuilder.ModuleSelection.selected_apps()
-    |> Kernel.++([:elektrine_dns])
+    |> Kernel.++([:elektrine_dns, :kairo])
     |> Enum.uniq()
     |> Enum.map(&internal_dep/1)
   end
@@ -45,7 +45,7 @@ defmodule ElektrineReleaseBuilder.MixProject do
 
   defp release_applications do
     ElektrineReleaseBuilder.ModuleSelection.selected_apps()
-    |> Kernel.++([:elektrine_dns])
+    |> Kernel.++([:elektrine_dns, :kairo])
     |> Enum.uniq()
     |> Enum.map(&{&1, :permanent})
     |> Kernel.++(elektrine_release_builder: :load)

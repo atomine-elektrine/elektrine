@@ -1,5 +1,5 @@
 defmodule ElektrineReleaseBuilder.ModuleSelection do
-  @known_modules [:chat, :social, :email, :nerve, :vpn, :dns, :uptime, :atomine]
+  @known_modules [:chat, :social, :email, :nerve, :vpn, :dns, :uptime, :atomine, :kairo]
   @module_order @known_modules |> Enum.with_index() |> Map.new()
   @core_apps [:elektrine, :elektrine_web]
   @module_apps %{
@@ -10,7 +10,8 @@ defmodule ElektrineReleaseBuilder.ModuleSelection do
     vpn: :elektrine_vpn,
     dns: :elektrine_dns,
     uptime: :elektrine_uptime,
-    atomine: :atomine
+    atomine: :atomine,
+    kairo: :kairo
   }
 
   def selected_modules(value \\ requested_module_value()) do
@@ -78,6 +79,7 @@ defmodule ElektrineReleaseBuilder.ModuleSelection do
       "atomine" -> :atomine
       "proofs" -> :atomine
       "personhood" -> :atomine
+      "kairo" -> :kairo
       _ -> raise ArgumentError, "unknown Elektrine module: #{inspect(value)}"
     end
   end
