@@ -776,8 +776,7 @@ defmodule Elektrine.Search do
        when module in [:timeline, :communities, :gallery, :lists, :friends],
        do: :social
 
-  defp platform_module_for_access_module(module) when module in [:portal, :storage, :notes],
-    do: nil
+  defp platform_module_for_access_module(module) when module in [:portal, :storage], do: nil
 
   defp platform_module_for_access_module(:maid), do: nil
 

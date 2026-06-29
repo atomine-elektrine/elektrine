@@ -52,6 +52,7 @@ defmodule Kairo do
     %Project{}
     |> Project.changeset(Map.put(normalize_attrs(attrs), "user_id", user_id))
     |> Repo.insert()
+    |> tap_storage_update(user_id)
   end
 
   def list_sources(user_or_id, opts \\ [])
@@ -121,7 +122,7 @@ defmodule Kairo do
         |> Map.put_new("status", "received")
         |> maybe_put_raw_hash()
 
-      case %Source{} |> Source.changeset(attrs) |> Repo.insert() do
+      case %Source{} |> Source.changeset(attrs) |> Repo.insert() |> tap_storage_update(user_id) do
         {:ok, source} -> {:ok, decrypt_at_rest_content(source)}
         other -> other
       end
@@ -197,7 +198,7 @@ defmodule Kairo do
   defp parse_id(_id), do: :error
 
   # Plaintext sources get a server-computed content hash for dedup. Encrypted
-  # sources keep whatever blind HMAC the client supplied (or none) — the server
+  # sources keep whatever blind HMAC the client supplied (or none) - the server
   # never sees the plaintext, so it cannot and must not hash it.
   defp maybe_put_raw_hash(attrs) do
     if encrypted?(attrs["encrypted"]) do
@@ -241,4 +242,11 @@ defmodule Kairo do
 
   defp maybe_filter_source_type(query, type),
     do: where(query, [source], source.source_type == ^type)
+
+  defp tap_storage_update({:ok, _schema} = result, user_id) do
+    _ = Elektrine.Accounts.Storage.update_user_storage(user_id)
+    result
+  end
+
+  defp tap_storage_update(result, _user_id), do: result
 end

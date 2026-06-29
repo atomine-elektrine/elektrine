@@ -116,5 +116,28 @@ defmodule KairoTest do
 
       assert %{encrypted_content: _} = errors_on(changeset)
     end
+
+    test "create_source/2 accounts for Kairo storage usage" do
+      user = user_fixture()
+
+      assert Elektrine.Accounts.Storage.calculate_kairo_storage(user.id) == 0
+
+      assert {:ok, _project} =
+               Kairo.create_project(user, %{
+                 "name" => "Storage Project",
+                 "description" => "Kairo storage accounting"
+               })
+
+      assert {:ok, _source} =
+               Kairo.create_source(user, %{
+                 "source_type" => "markdown",
+                 "title" => "Storage source",
+                 "content" => String.duplicate("kairo ", 100),
+                 "metadata" => %{"origin" => "test"}
+               })
+
+      assert Elektrine.Accounts.Storage.calculate_kairo_storage(user.id) > 0
+      assert Elektrine.Accounts.Storage.get_storage_info(user.id).used_bytes > 0
+    end
   end
 end

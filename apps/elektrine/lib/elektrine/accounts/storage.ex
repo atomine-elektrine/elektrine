@@ -12,7 +12,7 @@ defmodule Elektrine.Accounts.Storage do
 
   @doc """
   Calculates total storage used by a user across all sources.
-  Includes: email messages, chat attachments, profile images, etc.
+  Includes: email messages, chat attachments, profile images, Kairo sources, etc.
   """
   def calculate_user_storage(user_id) do
     # Email storage (mailbox messages)
@@ -30,7 +30,12 @@ defmodule Elektrine.Accounts.Storage do
     # Personal file library
     files_storage = calculate_files_storage(user_id)
 
-    total = email_storage + chat_storage + profile_storage + static_site_storage + files_storage
+    # Kairo ingested sources and project metadata
+    kairo_storage = calculate_kairo_storage(user_id)
+
+    total =
+      email_storage + chat_storage + profile_storage + static_site_storage + files_storage +
+        kairo_storage
 
     total
   end
@@ -265,6 +270,72 @@ defmodule Elektrine.Accounts.Storage do
 
   def calculate_files_storage(user_id) do
     Elektrine.Drive.storage_used(user_id)
+  end
+
+  def calculate_kairo_storage(user_id) do
+    if Modules.compiled?(:kairo) do
+      calculate_kairo_projects_storage(user_id) + calculate_kairo_sources_storage(user_id)
+    else
+      0
+    end
+  end
+
+  defp calculate_kairo_projects_storage(user_id) do
+    from(project in "kairo_projects",
+      where: field(project, :user_id) == ^user_id,
+      select:
+        fragment(
+          """
+          COALESCE(SUM(
+            COALESCE(octet_length(?), 0) +
+            COALESCE(octet_length(?), 0) +
+            COALESCE(octet_length(?), 0) +
+            COALESCE(octet_length(?), 0)
+          ), 0)
+          """,
+          field(project, :name),
+          field(project, :slug),
+          field(project, :description),
+          field(project, :status)
+        )
+    )
+    |> Repo.one()
+    |> size_to_integer()
+  end
+
+  defp calculate_kairo_sources_storage(user_id) do
+    from(source in "kairo_sources",
+      where: field(source, :user_id) == ^user_id,
+      select:
+        fragment(
+          """
+          COALESCE(SUM(
+            COALESCE(octet_length(?), 0) +
+            COALESCE(octet_length(?), 0) +
+            COALESCE(octet_length(?), 0) +
+            COALESCE(octet_length(?), 0) +
+            COALESCE(octet_length(?), 0) +
+            COALESCE(octet_length(?), 0) +
+            COALESCE(octet_length(?::text), 0) +
+            COALESCE(octet_length(?::text), 0) +
+            COALESCE(octet_length(?::text), 0) +
+            COALESCE(octet_length(?::text), 0)
+          ), 0)
+          """,
+          field(source, :source_type),
+          field(source, :title),
+          field(source, :url),
+          field(source, :content),
+          field(source, :content_format),
+          field(source, :raw_hash),
+          field(source, :tags),
+          field(source, :metadata),
+          field(source, :content_encrypted),
+          field(source, :encrypted_content)
+        )
+    )
+    |> Repo.one()
+    |> size_to_integer()
   end
 
   @doc """
