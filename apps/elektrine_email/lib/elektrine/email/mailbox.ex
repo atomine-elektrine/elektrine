@@ -194,7 +194,7 @@ defmodule Elektrine.Email.Mailbox do
       ) ||
         payload_value(mailbox.private_storage_verifier || %{}, "unlock_mode", :unlock_mode)
 
-    if unlock_mode in ["account_password", "separate_passphrase"] do
+    if unlock_mode in ["account_password", "separate_passphrase", "master"] do
       unlock_mode
     else
       "separate_passphrase"
@@ -263,23 +263,33 @@ defmodule Elektrine.Email.Mailbox do
     algorithm = payload_value(payload, "algorithm", :algorithm)
     kdf = payload_value(payload, "kdf", :kdf)
     unlock_mode = payload_value(payload, "unlock_mode", :unlock_mode)
-    n = payload_value(payload, "n", :n)
-    r = payload_value(payload, "r", :r)
-    p = payload_value(payload, "p", :p)
-    salt = payload_value(payload, "salt", :salt)
     iv = payload_value(payload, "iv", :iv)
     ciphertext = payload_value(payload, "ciphertext", :ciphertext)
 
     valid_version?(version) and
       valid_wrapped_aad_context?(payload, version, unlock_mode, expected_kind) and
-      algorithm == "AES-GCM" and kdf == "scrypt" and
-      (is_nil(unlock_mode) or unlock_mode in ["account_password", "separate_passphrase"]) and
-      is_integer(n) and n >= 16_384 and is_integer(r) and r >= 8 and is_integer(p) and p >= 1 and
-      valid_base64_bytes?(salt, min_size: 16) and valid_base64_bytes?(iv, exact_size: 12) and
-      valid_base64_bytes?(ciphertext, min_size: 1)
+      algorithm == "AES-GCM" and
+      valid_base64_bytes?(iv, exact_size: 12) and valid_base64_bytes?(ciphertext, min_size: 1) and
+      valid_wrap_kdf?(payload, kdf, unlock_mode)
   end
 
   defp valid_wrapped_payload?(_payload, _expected_kind), do: false
+
+  # Passphrase modes wrap with scrypt; the master mode wraps with the master
+  # key's email subkey, so it carries no scrypt parameters.
+  defp valid_wrap_kdf?(payload, "scrypt", unlock_mode) do
+    n = payload_value(payload, "n", :n)
+    r = payload_value(payload, "r", :r)
+    p = payload_value(payload, "p", :p)
+    salt = payload_value(payload, "salt", :salt)
+
+    (is_nil(unlock_mode) or unlock_mode in ["account_password", "separate_passphrase"]) and
+      is_integer(n) and n >= 16_384 and is_integer(r) and r >= 8 and is_integer(p) and p >= 1 and
+      valid_base64_bytes?(salt, min_size: 16)
+  end
+
+  defp valid_wrap_kdf?(_payload, "master", unlock_mode), do: unlock_mode == "master"
+  defp valid_wrap_kdf?(_payload, _kdf, _unlock_mode), do: false
 
   defp payload_value(payload, string_key, atom_key) do
     Map.get(payload, string_key) || Map.get(payload, atom_key)
@@ -301,7 +311,7 @@ defmodule Elektrine.Email.Mailbox do
           payload_value(context, "version", :version) in [2, 2.0] and
           payload_value(context, "kind", :kind) == expected_kind and
           payload_value(context, "algorithm", :algorithm) == "AES-GCM" and
-          payload_value(context, "kdf", :kdf) == "scrypt" and
+          payload_value(context, "kdf", :kdf) in ["scrypt", "master"] and
           payload_value(context, "unlock_mode", :unlock_mode) == unlock_mode
 
       _ ->

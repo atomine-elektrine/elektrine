@@ -204,9 +204,53 @@ defmodule Elektrine.Email.MailboxPrivateStorageTest do
       private_storage_verifier: Map.put(wrapped_payload(), "unlock_mode", "account_password")
     }
 
+    master_mailbox = %Mailbox{
+      private_storage_public_key: public_key_pem(),
+      private_storage_wrapped_private_key: master_wrapped_payload("private_key"),
+      private_storage_verifier: master_wrapped_payload("verifier")
+    }
+
     assert Mailbox.private_storage_unlock_mode(legacy_mailbox) == "separate_passphrase"
     assert Mailbox.private_storage_unlock_mode(account_password_mailbox) == "account_password"
     assert Mailbox.private_storage_account_password?(account_password_mailbox)
+    assert Mailbox.private_storage_unlock_mode(master_mailbox) == "master"
+    refute Mailbox.private_storage_account_password?(master_mailbox)
+  end
+
+  test "private storage changeset accepts a master-wrapped (key-wrapped) payload" do
+    user = AccountsFixtures.user_fixture()
+
+    mailbox =
+      case Email.ensure_user_has_mailbox(user) do
+        {:ok, mailbox} -> mailbox
+        mailbox -> mailbox
+      end
+
+    changeset =
+      Mailbox.private_storage_changeset(mailbox, %{
+        private_storage_enabled: true,
+        private_storage_public_key: public_key_pem(),
+        private_storage_wrapped_private_key: master_wrapped_payload("private_key"),
+        private_storage_verifier: master_wrapped_payload("verifier")
+      })
+
+    assert changeset.valid?
+
+    # A master payload that still carries the wrong unlock_mode must be rejected.
+    invalid =
+      master_wrapped_payload("private_key")
+      |> Map.put("unlock_mode", "account_password")
+
+    invalid_changeset =
+      Mailbox.private_storage_changeset(mailbox, %{
+        private_storage_enabled: true,
+        private_storage_public_key: public_key_pem(),
+        private_storage_wrapped_private_key: invalid,
+        private_storage_verifier: master_wrapped_payload("verifier")
+      })
+
+    refute invalid_changeset.valid?
+    assert invalid_changeset.errors[:private_storage_wrapped_private_key]
   end
 
   test "private storage changeset requires v2 wrapped payload AAD context" do
@@ -328,6 +372,25 @@ defmodule Elektrine.Email.MailboxPrivateStorageTest do
       "kdf" => "scrypt",
       "unlock_mode" => "account_password"
     })
+  end
+
+  defp master_wrapped_payload(kind) do
+    %{
+      "version" => 2,
+      "algorithm" => "AES-GCM",
+      "kdf" => "master",
+      "unlock_mode" => "master",
+      "aad_context" => %{
+        "purpose" => "elektrine-private-mailbox-key-wrap",
+        "version" => 2,
+        "kind" => kind,
+        "algorithm" => "AES-GCM",
+        "kdf" => "master",
+        "unlock_mode" => "master"
+      },
+      "iv" => Base.encode64("123456789012"),
+      "ciphertext" => Base.encode64("ciphertext-payload")
+    }
   end
 
   defp public_key_pem do

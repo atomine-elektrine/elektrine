@@ -1,4 +1,8 @@
 import { scryptAsync } from "@noble/hashes/scrypt.js"
+import * as vaultSession from "./vault_session"
+
+const MASTER_MODE = "master"
+const MASTER_FEATURE = "email"
 const WRAP_ALGORITHM = "AES-GCM"
 export const VERIFY_TEXT = "elektrine-private-mailbox-v1"
 const MESSAGE_AAD = new TextEncoder().encode("ElektrineMailboxStorageV1")
@@ -73,12 +77,16 @@ function isValidUnlockMode(value) {
   return value === "account_password" || value === "separate_passphrase"
 }
 
+function isKnownUnlockMode(value) {
+  return isValidUnlockMode(value) || value === MASTER_MODE
+}
+
 function unlockModeFromPayload(...payloads) {
   for (const payload of payloads) {
     if (!payload || typeof payload !== "object") continue
 
     const unlockMode = payload.unlock_mode || payload.unlockMode
-    if (isValidUnlockMode(unlockMode)) {
+    if (isKnownUnlockMode(unlockMode)) {
       return unlockMode
     }
   }
@@ -217,6 +225,55 @@ async function unwrapBytes(payload, passphrase) {
   return new Uint8Array(plaintext)
 }
 
+// --- master-password mode -------------------------------------------------
+// Instead of deriving a wrapping key from a passphrase, master mode wraps the
+// mailbox key with the email subkey of the account master key (held in the
+// shared vault session). One master unlock therefore unlocks this mailbox too.
+
+async function masterEmailKey() {
+  return vaultSession.featureKey(MASTER_FEATURE)
+}
+
+function masterAADContext(kind) {
+  return {
+    purpose: "elektrine-private-mailbox-key-wrap",
+    version: 2,
+    kind,
+    algorithm: WRAP_ALGORITHM,
+    kdf: MASTER_MODE,
+    unlock_mode: MASTER_MODE
+  }
+}
+
+async function wrapBytesWithMasterKey(bytes, kind = "private_key") {
+  const key = await masterEmailKey()
+  const iv = randomBytes(12)
+  const aadContext = masterAADContext(kind)
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: WRAP_ALGORITHM, iv, additionalData: encodedStableJson(aadContext) },
+    key,
+    bytes
+  )
+
+  return {
+    version: 2,
+    algorithm: WRAP_ALGORITHM,
+    kdf: MASTER_MODE,
+    unlock_mode: MASTER_MODE,
+    aad_context: aadContext,
+    iv: bytesToBase64(iv),
+    ciphertext: bytesToBase64(new Uint8Array(ciphertext))
+  }
+}
+
+async function unwrapBytesWithMasterKey(payload) {
+  const key = await masterEmailKey()
+  const iv = base64ToBytes(payload.iv)
+  const ciphertext = base64ToBytes(payload.ciphertext)
+  const plaintext = await crypto.subtle.decrypt(wrapParams(payload, iv), key, ciphertext)
+  return new Uint8Array(plaintext)
+}
+
 async function generateMailboxKeypair() {
   const keypair = await crypto.subtle.generateKey(
     {
@@ -296,12 +353,7 @@ export async function unwrapMailboxPrivateKey(wrappedKeyPayload, verifierPayload
   return unwrapBytes(wrappedKeyPayload, passphrase)
 }
 
-async function unlockMailbox(mailboxId, wrappedKeyPayload, verifierPayload, passphrase) {
-  const privateKeyBytes = await unwrapMailboxPrivateKey(
-    wrappedKeyPayload,
-    verifierPayload,
-    passphrase
-  )
+async function importAndStorePrivateKey(mailboxId, privateKeyBytes) {
   const privateKey = await crypto.subtle.importKey(
     "pkcs8",
     privateKeyBytes,
@@ -311,6 +363,38 @@ async function unlockMailbox(mailboxId, wrappedKeyPayload, verifierPayload, pass
   )
   storePrivateKey(mailboxId, privateKey)
   dispatchMailboxEvent("elektrine:private-mailbox-unlocked", mailboxId)
+}
+
+async function unlockMailbox(mailboxId, wrappedKeyPayload, verifierPayload, passphrase) {
+  const privateKeyBytes = await unwrapMailboxPrivateKey(
+    wrappedKeyPayload,
+    verifierPayload,
+    passphrase
+  )
+  await importAndStorePrivateKey(mailboxId, privateKeyBytes)
+}
+
+async function unlockMailboxWithMaster(mailboxId, wrappedKeyPayload, verifierPayload) {
+  const verifierBytes = await unwrapBytesWithMasterKey(verifierPayload)
+
+  if (decoder.decode(verifierBytes) !== VERIFY_TEXT) {
+    throw new Error("invalid-master-key")
+  }
+
+  const privateKeyBytes = await unwrapBytesWithMasterKey(wrappedKeyPayload)
+  await importAndStorePrivateKey(mailboxId, privateKeyBytes)
+}
+
+function lockedStatusText(unlockMode) {
+  if (unlockMode === MASTER_MODE) {
+    return "Mailbox locked. Unlock your master password to unlock it in this tab."
+  }
+
+  if (unlockMode === "account_password") {
+    return "Mailbox locked. Enter your account password again to unlock it in this tab."
+  }
+
+  return "Mailbox locked."
 }
 
 function unlockSecretLabel(unlockMode) {
@@ -340,6 +424,7 @@ export const MailboxPrivateStorage = {
   mounted() {
     this.captureElements()
     this.bindEvents()
+    this.unsubscribeVault = vaultSession.subscribe(() => this.onVaultChange())
     this.renderLockState()
     this.renderSetupModeState()
     void this.maybeAutoUnlock()
@@ -355,6 +440,19 @@ export const MailboxPrivateStorage = {
   destroyed() {
     if (this.onClick) this.el.removeEventListener("click", this.onClick)
     if (this.onChange) this.el.removeEventListener("change", this.onChange)
+    if (this.unsubscribeVault) this.unsubscribeVault()
+  },
+
+  onVaultChange() {
+    // The shared master vault locked or unlocked: master-mode setup gating and
+    // auto-unlock both depend on it.
+    this.renderSetupModeState()
+    if (vaultSession.isUnlocked()) {
+      void this.maybeAutoUnlock()
+    } else if (this.unlockMode === MASTER_MODE && this.mailboxId) {
+      clearPrivateKey(this.mailboxId)
+      this.renderLockState()
+    }
   },
 
   captureElements() {
@@ -365,7 +463,7 @@ export const MailboxPrivateStorage = {
     const datasetUnlockMode = this.el.dataset.privateMailboxUnlockMode
 
     this.unlockMode =
-      (isValidUnlockMode(datasetUnlockMode) ? datasetUnlockMode : null) ||
+      (isKnownUnlockMode(datasetUnlockMode) ? datasetUnlockMode : null) ||
       unlockModeFromPayload(this.wrappedKeyPayload, this.verifierPayload) ||
       "separate_passphrase"
     this.statusElements = Array.from(this.el.querySelectorAll("[data-private-mailbox-status]"))
@@ -380,6 +478,8 @@ export const MailboxPrivateStorage = {
     this.setupModeInput = this.el.querySelector("[data-private-mailbox-setup-mode]")
     this.setupAccountPasswordInput = this.el.querySelector("[data-private-mailbox-account-password]")
     this.accountPasswordFields = this.el.querySelector("[data-private-mailbox-account-password-fields]")
+    this.masterFields = this.el.querySelector("[data-private-mailbox-master-fields]")
+    this.masterLockedNote = this.el.querySelector("[data-private-mailbox-master-locked-note]")
     this.customPassphraseFields = this.el.querySelector(
       "[data-private-mailbox-custom-passphrase-fields]"
     )
@@ -451,7 +551,7 @@ export const MailboxPrivateStorage = {
   currentSetupMode() {
     const selectedMode = this.setupModeInput?.value
 
-    if (isValidUnlockMode(selectedMode)) {
+    if (isKnownUnlockMode(selectedMode)) {
       return selectedMode
     }
 
@@ -459,8 +559,10 @@ export const MailboxPrivateStorage = {
   },
 
   renderSetupModeState() {
+    const mode = this.currentSetupMode()
+
     if (this.accountPasswordFields) {
-      const hidden = this.currentSetupMode() !== "account_password"
+      const hidden = mode !== "account_password"
       this.accountPasswordFields.classList.toggle("hidden", hidden)
 
       if (this.setupAccountPasswordInput) {
@@ -469,7 +571,7 @@ export const MailboxPrivateStorage = {
     }
 
     if (this.customPassphraseFields) {
-      const hidden = this.currentSetupMode() !== "separate_passphrase"
+      const hidden = mode !== "separate_passphrase"
       this.customPassphraseFields.classList.toggle("hidden", hidden)
 
       if (this.setupPassphraseInput) {
@@ -479,6 +581,15 @@ export const MailboxPrivateStorage = {
       if (this.setupConfirmInput) {
         this.setupConfirmInput.toggleAttribute("required", !hidden)
       }
+    }
+
+    if (this.masterFields) {
+      this.masterFields.classList.toggle("hidden", mode !== MASTER_MODE)
+    }
+
+    if (this.masterLockedNote) {
+      const showLockedNote = mode === MASTER_MODE && !vaultSession.isUnlocked()
+      this.masterLockedNote.classList.toggle("hidden", !showLockedNote)
     }
   },
 
@@ -497,11 +608,7 @@ export const MailboxPrivateStorage = {
       return
     }
 
-    this.setStatusText(
-      this.unlockMode === "account_password"
-        ? "Mailbox locked. Enter your account password again to unlock it in this tab."
-        : "Mailbox locked."
-    )
+    this.setStatusText(lockedStatusText(this.unlockMode))
     this.renderUnlockPanels(false)
   },
 
@@ -512,9 +619,29 @@ export const MailboxPrivateStorage = {
       !this.mailboxId ||
       !this.wrappedKeyPayload ||
       !this.verifierPayload ||
-      this.unlockMode !== "account_password" ||
       getStoredPrivateKey(this.mailboxId)
     ) {
+      return
+    }
+
+    if (this.unlockMode === MASTER_MODE) {
+      if (!vaultSession.isUnlocked()) return
+
+      try {
+        await unlockMailboxWithMaster(
+          this.mailboxId,
+          this.wrappedKeyPayload,
+          this.verifierPayload
+        )
+        this.renderLockState()
+      } catch (_error) {
+        // master key mismatch or transient error; stay locked
+      }
+
+      return
+    }
+
+    if (this.unlockMode !== "account_password") {
       return
     }
 
@@ -541,12 +668,30 @@ export const MailboxPrivateStorage = {
   },
 
   async handleUnlock() {
-    const passphrase = this.passphraseInput?.value || ""
-
     if (!this.mailboxId || !this.wrappedKeyPayload || !this.verifierPayload) {
       notify("Private mailbox storage is not configured yet.")
       return
     }
+
+    if (this.unlockMode === MASTER_MODE) {
+      if (!vaultSession.isUnlocked()) {
+        notify("Unlock your master password at /account/security first.")
+        return
+      }
+
+      try {
+        await unlockMailboxWithMaster(this.mailboxId, this.wrappedKeyPayload, this.verifierPayload)
+        this.autoUnlockSuppressed = false
+        this.renderLockState()
+        notify("Mailbox unlocked for this tab.", "success")
+      } catch (_error) {
+        notify("Could not unlock the mailbox with your master password.")
+      }
+
+      return
+    }
+
+    const passphrase = this.passphraseInput?.value || ""
 
     if (passphrase.trim() === "") {
       notify(`Enter your ${unlockSecretLabel(this.unlockMode)} first.`)
@@ -588,6 +733,28 @@ export const MailboxPrivateStorage = {
 
     if (!this.setupForm || !this.mailboxId) {
       notify("Mailbox setup is unavailable right now.")
+      return
+    }
+
+    if (unlockMode === MASTER_MODE) {
+      if (!vaultSession.isUnlocked()) {
+        notify("Set up and unlock your master password at /account/security first.")
+        return
+      }
+
+      try {
+        const { publicKeyPem, privateKey } = await generateMailboxKeypair()
+        const wrappedPrivateKey = await wrapBytesWithMasterKey(privateKey, "private_key")
+        const verifier = await wrapBytesWithMasterKey(encoder.encode(VERIFY_TEXT), "verifier")
+
+        this.wrappedKeyInput.value = JSON.stringify(wrappedPrivateKey)
+        this.publicKeyInput.value = publicKeyPem
+        this.verifierInput.value = JSON.stringify(verifier)
+        this.setupForm.requestSubmit()
+      } catch (_error) {
+        notify("Could not generate mailbox keys with your master password.")
+      }
+
       return
     }
 
