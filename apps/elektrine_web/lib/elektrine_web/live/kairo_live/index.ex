@@ -109,6 +109,7 @@ defmodule ElektrineWeb.KairoLive.Index do
     |> assign(:visible_count, length(visible))
     |> assign(:selected, selected)
     |> assign(:related, related_sources(sources, selected))
+    |> assign(:has_encrypted_sources, Enum.any?(sources, & &1.encrypted))
   end
 
   defp visible_sources(sources, query, active_tag, active_project) do
@@ -259,6 +260,7 @@ defmodule ElektrineWeb.KairoLive.Index do
               </form>
 
               <div
+                :if={@has_encrypted_sources}
                 class="hidden flex-col gap-2 rounded-lg border border-warning/30 bg-warning/5 p-2"
                 data-kairo-locked-hint
               >
