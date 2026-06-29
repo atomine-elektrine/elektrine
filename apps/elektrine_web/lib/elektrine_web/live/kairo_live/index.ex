@@ -16,6 +16,7 @@ defmodule ElektrineWeb.KairoLive.Index do
          |> assign(:active_tag, nil)
          |> assign(:active_project, nil)
          |> assign(:selected_id, nil)
+         |> assign(:view_mode, "reader")
          |> assign(:composing, false)
          |> assign(:compose, empty_compose())
          |> assign(:compose_tab, "write")
@@ -67,14 +68,23 @@ defmodule ElektrineWeb.KairoLive.Index do
      |> assign_view()}
   end
 
+  def handle_event("toggle_view", %{"mode" => mode}, socket) when mode in ~w(reader graph) do
+    {:noreply, assign(socket, :view_mode, mode)}
+  end
+
   def handle_event("select_source", %{"id" => id}, socket) do
     {:noreply,
-     socket |> assign(:composing, false) |> assign(:selected_id, parse_id(id)) |> assign_view()}
+     socket
+     |> assign(:composing, false)
+     |> assign(:view_mode, "reader")
+     |> assign(:selected_id, parse_id(id))
+     |> assign_view()}
   end
 
   def handle_event("new_note", _params, socket) do
     {:noreply,
      socket
+     |> assign(:view_mode, "reader")
      |> assign(:composing, true)
      |> assign(:selected, nil)
      |> assign(:selected_id, nil)
@@ -167,6 +177,83 @@ defmodule ElektrineWeb.KairoLive.Index do
     |> assign(:selected, selected)
     |> assign(:related, related_sources(sources, selected))
     |> assign(:has_encrypted_sources, Enum.any?(sources, & &1.encrypted))
+    |> assign(:graph, build_graph(visible, socket.assigns.projects))
+  end
+
+  # Palette for project-colored source nodes. Inbox (no project) falls back to a
+  # neutral gray. Mid-tone hues so they read on both light and dark themes.
+  @project_palette ~w(#6366f1 #ec4899 #14b8a6 #f59e0b #8b5cf6 #ef4444 #10b981 #3b82f6)
+  @inbox_color "#9ca3af"
+
+  # Cap on how many of its strongest neighbors each source links to. Keeps the
+  # graph sparse and readable (and cheap to animate) even when many sources share
+  # a common tag, which would otherwise produce a near-complete graph.
+  @max_edges_per_source 5
+
+  # Graph: one node per source (file), with an edge between two
+  # sources that share tags. Edge weight is the number of shared tags. To avoid a
+  # hairball, each source only links to its strongest few neighbors. Sources are
+  # colored by project; untagged or unconnected sources appear as lone nodes.
+  defp build_graph(sources, projects) do
+    colors = project_colors(projects)
+
+    nodes =
+      Enum.map(sources, fn source ->
+        %{
+          id: "s-#{source.id}",
+          ref: source.id,
+          label: source_label(source),
+          color: Map.get(colors, source.project_id, @inbox_color)
+        }
+      end)
+
+    tagged =
+      sources
+      |> Enum.map(fn source -> {source.id, MapSet.new(source.tags || [])} end)
+      |> Enum.reject(fn {_id, tags} -> MapSet.size(tags) == 0 end)
+
+    pairs =
+      for {id_a, tags_a} <- tagged,
+          {id_b, tags_b} <- tagged,
+          id_a < id_b,
+          shared = MapSet.size(MapSet.intersection(tags_a, tags_b)),
+          shared > 0 do
+        {id_a, id_b, shared}
+      end
+
+    edges =
+      pairs
+      |> strongest_edges(@max_edges_per_source)
+      |> Enum.map(fn {id_a, id_b, weight} ->
+        %{source: "s-#{id_a}", target: "s-#{id_b}", weight: weight}
+      end)
+
+    %{nodes: nodes, edges: edges}
+  end
+
+  # Keeps, for each source, only its `max` highest-weight pairs, then unions
+  # those choices so an edge survives if either endpoint ranks it.
+  defp strongest_edges(pairs, max) do
+    pairs
+    |> Enum.reduce(%{}, fn {a, b, _w} = pair, acc ->
+      acc
+      |> Map.update(a, [pair], &[pair | &1])
+      |> Map.update(b, [pair], &[pair | &1])
+    end)
+    |> Enum.flat_map(fn {_id, node_pairs} ->
+      node_pairs
+      |> Enum.sort_by(fn {_a, _b, w} -> -w end)
+      |> Enum.take(max)
+    end)
+    |> Enum.uniq()
+  end
+
+  defp project_colors(projects) do
+    projects
+    |> Enum.with_index()
+    |> Map.new(fn {project, index} ->
+      {project.id, Enum.at(@project_palette, rem(index, length(@project_palette)))}
+    end)
   end
 
   defp visible_sources(sources, query, active_tag, active_project) do
@@ -272,14 +359,34 @@ defmodule ElektrineWeb.KairoLive.Index do
             zero-knowledge.
           </p>
         </div>
-        <div class="stats stats-horizontal border border-base-300 bg-base-200 shadow-none">
-          <div class="stat px-4 py-2">
-            <div class="stat-title text-xs">Sources</div>
-            <div class="stat-value text-xl">{length(@sources)}</div>
+        <div class="flex items-center gap-3">
+          <div class="join">
+            <button
+              type="button"
+              phx-click="toggle_view"
+              phx-value-mode="reader"
+              class={["btn btn-sm join-item", @view_mode == "reader" && "btn-active"]}
+            >
+              <.icon name="hero-list-bullet" class="h-4 w-4" /> List
+            </button>
+            <button
+              type="button"
+              phx-click="toggle_view"
+              phx-value-mode="graph"
+              class={["btn btn-sm join-item", @view_mode == "graph" && "btn-active"]}
+            >
+              <.icon name="hero-share" class="h-4 w-4" /> Graph
+            </button>
           </div>
-          <div class="stat px-4 py-2">
-            <div class="stat-title text-xs">Projects</div>
-            <div class="stat-value text-xl">{length(@projects)}</div>
+          <div class="stats stats-horizontal border border-base-300 bg-base-200 shadow-none">
+            <div class="stat px-4 py-2">
+              <div class="stat-title text-xs">Sources</div>
+              <div class="stat-value text-xl">{length(@sources)}</div>
+            </div>
+            <div class="stat px-4 py-2">
+              <div class="stat-title text-xs">Projects</div>
+              <div class="stat-value text-xl">{length(@projects)}</div>
+            </div>
           </div>
         </div>
       </div>
@@ -468,8 +575,25 @@ defmodule ElektrineWeb.KairoLive.Index do
 
           <%!-- Reader / editor --%>
           <section class="card panel-card border border-base-300 lg:max-h-[calc(100vh-11rem)] lg:overflow-y-auto">
+            <%!-- Graph view --%>
+            <div
+              :if={@view_mode == "graph"}
+              class="relative h-[60vh] text-base-content lg:h-[calc(100vh-11rem)]"
+            >
+              <div
+                id="kairo-graph"
+                phx-hook="KairoGraph"
+                data-graph={Jason.encode!(@graph)}
+                class="absolute inset-0"
+              >
+              </div>
+              <div class="pointer-events-none absolute bottom-2 left-3 text-xs text-base-content/40">
+                connected files share a tag · drag to reposition · scroll to zoom · click to open
+              </div>
+            </div>
+
             <form
-              :if={@composing}
+              :if={@view_mode == "reader" and @composing}
               id="kairo-note-form"
               phx-submit="save_note"
               phx-change="compose_change"
@@ -558,7 +682,7 @@ defmodule ElektrineWeb.KairoLive.Index do
             </form>
 
             <div
-              :if={is_nil(@selected) and not @composing}
+              :if={@view_mode == "reader" and is_nil(@selected) and not @composing}
               class="flex flex-col items-center justify-center gap-3 p-12 text-center text-base-content/50"
             >
               <.icon name="hero-document-magnifying-glass" class="h-10 w-10" />
@@ -568,7 +692,10 @@ defmodule ElektrineWeb.KairoLive.Index do
               </button>
             </div>
 
-            <article :if={@selected} class="card-body space-y-4 p-4 sm:p-6">
+            <article
+              :if={@view_mode == "reader" and @selected}
+              class="card-body space-y-4 p-4 sm:p-6"
+            >
               <header class="space-y-2 border-b border-base-300 pb-4">
                 <h1 class="text-xl font-bold sm:text-2xl">{source_label(@selected)}</h1>
                 <div class="flex flex-wrap items-center gap-2 text-xs text-base-content/60">

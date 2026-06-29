@@ -118,6 +118,7 @@ check_max_lines apps/elektrine/assets/js/hooks/email_shortcut_helpers.js 75
 check_max_lines apps/elektrine/assets/js/hooks/file_explorer_hook.js 400
 check_max_lines apps/elektrine/assets/js/hooks/mailbox_private_auth_forms.js 150
 check_max_lines apps/elektrine/assets/js/hooks/mailbox_private_compose_hook.js 250
+check_max_lines apps/elektrine/assets/js/hooks/mailbox_private_crypto.js 475
 check_max_lines apps/elektrine/assets/js/hooks/mailbox_private_content.js 350
 check_max_lines apps/elektrine/assets/js/hooks/mailbox_private_messages_hook.js 300
 check_max_lines apps/elektrine/assets/js/hooks/mailbox_private_storage_hooks.js 700
