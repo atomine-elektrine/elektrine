@@ -39,6 +39,7 @@ export const Nerve = {
     this.el.addEventListener("click", (event) => {
       if (event.target.closest("[data-vault-unlock]")) return this.unlock()
       if (event.target.closest("[data-vault-lock]")) return vaultSession.lock()
+      if (event.target.closest("[data-nerve-toggle-password]")) return this.togglePasswordVisibility()
       if (event.target.closest("[data-nerve-generate]")) return this.generatePassword()
       if (event.target.closest("[data-nerve-entry-submit]")) {
         event.preventDefault()
@@ -224,6 +225,24 @@ export const Nerve = {
     crypto.getRandomValues(bytes)
     const password = Array.from(bytes, (b) => PASSWORD_ALPHABET[b % PASSWORD_ALPHABET.length]).join("")
     this.setValue("[data-nerve-password-input]", password)
+    // Reveal it so the user can see/copy what was generated.
+    this.setPasswordVisible(true)
+  },
+
+  togglePasswordVisibility() {
+    const input = this.el.querySelector("[data-nerve-password-input]")
+    this.setPasswordVisible(input && input.type === "password")
+  },
+
+  setPasswordVisible(visible) {
+    const input = this.el.querySelector("[data-nerve-password-input]")
+    if (!input) return
+    input.type = visible ? "text" : "password"
+
+    const show = this.el.querySelector("[data-nerve-eye-show]")
+    const hide = this.el.querySelector("[data-nerve-eye-hide]")
+    if (show) show.classList.toggle("hidden", visible)
+    if (hide) hide.classList.toggle("hidden", !visible)
   },
 
   // --- small DOM helpers ---

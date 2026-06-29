@@ -381,13 +381,24 @@ defmodule ElektrineNerveWeb.NerveLive do
                           Generate
                         </button>
                       </div>
-                      <input
-                        id="nerve-password-input"
-                        type="password"
-                        class="input input-bordered w-full"
-                        autocomplete="new-password"
-                        data-nerve-password-input
-                      />
+                      <div class="relative">
+                        <input
+                          id="nerve-password-input"
+                          type="password"
+                          class="input input-bordered w-full pr-10 font-mono"
+                          autocomplete="new-password"
+                          data-nerve-password-input
+                        />
+                        <button
+                          type="button"
+                          class="absolute right-2 top-1/2 -translate-y-1/2 text-base-content/50 hover:text-base-content"
+                          data-nerve-toggle-password
+                          aria-label="Show or hide password"
+                        >
+                          <span data-nerve-eye-show class="hero-eye h-5 w-5"></span>
+                          <span data-nerve-eye-hide class="hero-eye-slash hidden h-5 w-5"></span>
+                        </button>
+                      </div>
                     </div>
 
                     <div class="form-control">
