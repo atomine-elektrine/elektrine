@@ -10,10 +10,13 @@ defmodule Elektrine.ActivityPub.ThreadBackfillWorker do
   use Oban.Worker,
     queue: :federation,
     max_attempts: 2,
-    unique: [period: 120, keys: [:message_id], states: [:available, :scheduled, :executing]]
+    unique: [
+      period: 300,
+      keys: [:message_id],
+      states: [:available, :scheduled, :executing, :retryable]
+    ]
 
-  alias Elektrine.ActivityPub.Helpers
-  alias Elektrine.ActivityPub.RepliesFetcher
+  alias Elektrine.ActivityPub.{FederationLoadGuard, Helpers, RepliesFetcher}
   alias Elektrine.Messaging
 
   @max_ancestor_depth 10
@@ -28,20 +31,24 @@ defmodule Elektrine.ActivityPub.ThreadBackfillWorker do
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"message_id" => message_id}}) do
-    case Messaging.get_message(message_id) do
-      nil ->
-        {:discard, :message_not_found}
+    if FederationLoadGuard.skip_nonessential?(__MODULE__) do
+      {:discard, :federation_overloaded}
+    else
+      case Messaging.get_message(message_id) do
+        nil ->
+          {:discard, :message_not_found}
 
-      message ->
-        actor_uri = message.remote_actor && message.remote_actor.uri
-        :ok = backfill_ancestors(message, actor_uri, 0)
+        message ->
+          actor_uri = message.remote_actor && message.remote_actor.uri
+          :ok = backfill_ancestors(message, actor_uri, 0)
 
-        case RepliesFetcher.fetch_full_thread_for_message(message.id, skip_cache: true) do
-          {:ok, _} -> :ok
-          {:error, :message_not_found} -> {:discard, :message_not_found}
-          {:error, :no_activitypub_id} -> {:discard, :no_activitypub_id}
-          {:error, reason} -> {:error, reason}
-        end
+          case RepliesFetcher.fetch_full_thread_for_message(message.id, skip_cache: true) do
+            {:ok, _} -> :ok
+            {:error, :message_not_found} -> {:discard, :message_not_found}
+            {:error, :no_activitypub_id} -> {:discard, :no_activitypub_id}
+            {:error, reason} -> {:error, reason}
+          end
+      end
     end
   end
 

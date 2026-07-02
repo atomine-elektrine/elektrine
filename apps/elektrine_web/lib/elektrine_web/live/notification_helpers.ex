@@ -237,7 +237,7 @@ defmodule ElektrineWeb.Live.NotificationHelpers do
   def handle_notification_count_update(:notification_updated, socket) do
     # Refresh count when individual notification is updated
     if socket.assigns[:current_user] do
-      count = Elektrine.Notifications.get_unread_count(socket.assigns.current_user.id)
+      count = Elektrine.Notifications.get_visible_unread_count(socket.assigns.current_user.id)
 
       {:noreply,
        socket

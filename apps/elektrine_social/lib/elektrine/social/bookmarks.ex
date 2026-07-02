@@ -8,7 +8,9 @@ defmodule Elektrine.Social.Bookmarks do
 
   import Ecto.Query, warn: false
   alias Elektrine.Repo
+  alias Elektrine.Social.BookmarkFolders
   alias Elektrine.Social.Message
+  alias Elektrine.Social.MessagePolicy
   alias Elektrine.Social.SavedItem
 
   @doc """
@@ -22,24 +24,37 @@ defmodule Elektrine.Social.Bookmarks do
       iex> save_post(user_id, already_saved_id)
       {:ok, %SavedItem{}}
   """
-  def save_post(user_id, message_id) do
-    case Repo.get_by(SavedItem, user_id: user_id, message_id: message_id) do
-      %SavedItem{} = saved ->
-        {:ok, saved}
+  def save_post(user_id, message_id, opts \\ []) do
+    folder_id = Keyword.get(opts, :bookmark_folder_id) || Keyword.get(opts, :folder_id)
 
-      nil ->
-        insert_saved_message(user_id, message_id)
+    with %Message{} = message <- Repo.get(Message, message_id),
+         true <- MessagePolicy.save?(user_id, message),
+         true <- BookmarkFolders.folder_belongs_to_user?(folder_id, user_id) do
+      case Repo.get_by(SavedItem, user_id: user_id, message_id: message_id) do
+        %SavedItem{} = saved ->
+          maybe_update_folder(saved, folder_id)
+
+        nil ->
+          insert_saved_message(user_id, message_id, folder_id)
+      end
+    else
+      nil -> {:error, :not_found}
+      false -> {:error, :not_authorized}
     end
   end
 
-  defp insert_saved_message(user_id, message_id) do
+  defp insert_saved_message(user_id, message_id, folder_id) do
     %SavedItem{}
-    |> SavedItem.message_changeset(%{user_id: user_id, message_id: message_id})
+    |> SavedItem.message_changeset(%{
+      user_id: user_id,
+      message_id: message_id,
+      bookmark_folder_id: normalize_folder_id(folder_id)
+    })
     |> Repo.insert()
     |> case do
       {:error, %Ecto.Changeset{}} = error ->
         case Repo.get_by(SavedItem, user_id: user_id, message_id: message_id) do
-          %SavedItem{} = saved -> {:ok, saved}
+          %SavedItem{} = saved -> maybe_update_folder(saved, folder_id)
           nil -> error
         end
 
@@ -51,24 +66,38 @@ defmodule Elektrine.Social.Bookmarks do
   @doc """
   Saves an RSS item for later.
   """
-  def save_rss_item(user_id, rss_item_id) do
-    case Repo.get_by(SavedItem, user_id: user_id, rss_item_id: rss_item_id) do
-      %SavedItem{} = saved ->
-        {:ok, saved}
+  def save_rss_item(user_id, rss_item_id, opts \\ []) do
+    folder_id = Keyword.get(opts, :bookmark_folder_id) || Keyword.get(opts, :folder_id)
 
-      nil ->
-        insert_saved_rss_item(user_id, rss_item_id)
+    if BookmarkFolders.folder_belongs_to_user?(folder_id, user_id) do
+      do_save_rss_item(user_id, rss_item_id, folder_id)
+    else
+      {:error, :not_authorized}
     end
   end
 
-  defp insert_saved_rss_item(user_id, rss_item_id) do
+  defp do_save_rss_item(user_id, rss_item_id, folder_id) do
+    case Repo.get_by(SavedItem, user_id: user_id, rss_item_id: rss_item_id) do
+      %SavedItem{} = saved ->
+        maybe_update_folder(saved, folder_id)
+
+      nil ->
+        insert_saved_rss_item(user_id, rss_item_id, folder_id)
+    end
+  end
+
+  defp insert_saved_rss_item(user_id, rss_item_id, folder_id) do
     %SavedItem{}
-    |> SavedItem.rss_item_changeset(%{user_id: user_id, rss_item_id: rss_item_id})
+    |> SavedItem.rss_item_changeset(%{
+      user_id: user_id,
+      rss_item_id: rss_item_id,
+      bookmark_folder_id: normalize_folder_id(folder_id)
+    })
     |> Repo.insert()
     |> case do
       {:error, %Ecto.Changeset{}} = error ->
         case Repo.get_by(SavedItem, user_id: user_id, rss_item_id: rss_item_id) do
-          %SavedItem{} = saved -> {:ok, saved}
+          %SavedItem{} = saved -> maybe_update_folder(saved, folder_id)
           nil -> error
         end
 
@@ -160,6 +189,10 @@ defmodule Elektrine.Social.Bookmarks do
     limit = Keyword.get(opts, :limit, 20)
     offset = Keyword.get(opts, :offset, 0)
     search_query = Keyword.get(opts, :search_query)
+    folder_id = Keyword.get(opts, :bookmark_folder_id) || Keyword.get(opts, :folder_id)
+    before_id = Keyword.get(opts, :before_id)
+    since_id = Keyword.get(opts, :since_id)
+    min_id = Keyword.get(opts, :min_id)
 
     # First get the message IDs in saved order
     message_ids_query =
@@ -175,6 +208,19 @@ defmodule Elektrine.Social.Bookmarks do
         offset: ^offset,
         select: {m.id, s.inserted_at}
       )
+
+    message_ids_query =
+      if is_nil(folder_id) do
+        message_ids_query
+      else
+        from(s in message_ids_query, where: s.bookmark_folder_id == ^folder_id)
+      end
+
+    message_ids_query =
+      message_ids_query
+      |> maybe_filter_before_id(before_id)
+      |> maybe_filter_since_id(since_id)
+      |> maybe_filter_since_id(min_id)
 
     message_ids_query =
       if Elektrine.Strings.present?(search_query) do
@@ -239,39 +285,50 @@ defmodule Elektrine.Social.Bookmarks do
   def get_saved_rss_items(user_id, opts \\ []) do
     limit = Keyword.get(opts, :limit, 20)
     offset = Keyword.get(opts, :offset, 0)
+    folder_id = Keyword.get(opts, :bookmark_folder_id) || Keyword.get(opts, :folder_id)
 
     alias Elektrine.RSS.{Feed, Item}
 
-    from(s in SavedItem,
-      where: s.user_id == ^user_id and not is_nil(s.rss_item_id),
-      join: i in Item,
-      on: i.id == s.rss_item_id,
-      join: f in Feed,
-      on: f.id == i.feed_id,
-      order_by: [desc: s.inserted_at],
-      limit: ^limit,
-      offset: ^offset,
-      select: %{
-        id: i.id,
-        type: :rss_item,
-        title: i.title,
-        content: i.content,
-        summary: i.summary,
-        url: i.url,
-        author: i.author,
-        published_at: i.published_at,
-        inserted_at: i.inserted_at,
-        image_url: i.image_url,
-        enclosure_url: i.enclosure_url,
-        enclosure_type: i.enclosure_type,
-        categories: i.categories,
-        feed_id: f.id,
-        feed_title: f.title,
-        feed_url: f.url,
-        feed_favicon_url: f.favicon_url,
-        feed_site_url: f.site_url
-      }
-    )
+    query =
+      from(s in SavedItem,
+        where: s.user_id == ^user_id and not is_nil(s.rss_item_id),
+        join: i in Item,
+        on: i.id == s.rss_item_id,
+        join: f in Feed,
+        on: f.id == i.feed_id,
+        order_by: [desc: s.inserted_at],
+        limit: ^limit,
+        offset: ^offset,
+        select: %{
+          id: i.id,
+          type: :rss_item,
+          title: i.title,
+          content: i.content,
+          summary: i.summary,
+          url: i.url,
+          author: i.author,
+          published_at: i.published_at,
+          inserted_at: i.inserted_at,
+          image_url: i.image_url,
+          enclosure_url: i.enclosure_url,
+          enclosure_type: i.enclosure_type,
+          categories: i.categories,
+          feed_id: f.id,
+          feed_title: f.title,
+          feed_url: f.url,
+          feed_favicon_url: f.favicon_url,
+          feed_site_url: f.site_url
+        }
+      )
+
+    query =
+      if is_nil(folder_id) do
+        query
+      else
+        from(s in query, where: s.bookmark_folder_id == ^folder_id)
+      end
+
+    query
     |> Repo.all()
   end
 
@@ -285,4 +342,29 @@ defmodule Elektrine.Social.Bookmarks do
     )
     |> Repo.one()
   end
+
+  defp maybe_update_folder(%SavedItem{} = saved, nil), do: {:ok, saved}
+  defp maybe_update_folder(%SavedItem{} = saved, ""), do: {:ok, saved}
+
+  defp maybe_update_folder(%SavedItem{} = saved, folder_id) do
+    saved
+    |> Ecto.Changeset.change(bookmark_folder_id: normalize_folder_id(folder_id))
+    |> Repo.update()
+  end
+
+  defp normalize_folder_id(nil), do: nil
+  defp normalize_folder_id(""), do: nil
+  defp normalize_folder_id(folder_id), do: folder_id
+
+  defp maybe_filter_before_id(query, id) when is_integer(id) do
+    from([_s, m, _sender, _remote_actor] in query, where: m.id < ^id)
+  end
+
+  defp maybe_filter_before_id(query, _id), do: query
+
+  defp maybe_filter_since_id(query, id) when is_integer(id) do
+    from([_s, m, _sender, _remote_actor] in query, where: m.id > ^id)
+  end
+
+  defp maybe_filter_since_id(query, _id), do: query
 end

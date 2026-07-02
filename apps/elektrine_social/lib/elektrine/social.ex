@@ -18,11 +18,28 @@ defmodule Elektrine.Social do
   alias Elektrine.Profiles.Follow
   alias Elektrine.Repo
   alias Elektrine.Security.ContentValidator
-  alias Elektrine.Social.{Conversation, Message}
-  alias Elektrine.Social.ConversationMember
+
+  alias Elektrine.Social.{
+    Conversation,
+    FeedPolicy,
+    HomeFeedCache,
+    Message,
+    MessagePolicy,
+    MessageReaction,
+    PostBoost,
+    PostHashtag,
+    PostLike,
+    SuggestedAccountDismissal,
+    TimelinePagination,
+    TimelineRelationships
+  }
+
+  alias Elektrine.Social.{ConversationMember, HashtagFollow}
   alias Elektrine.Social.{FetchLinkPreviewWorker, Hashtag, HashtagExtractor, LinkPreviewFetcher}
   alias Elektrine.Social.Messages, as: MessagingMessages
   @discussion_post_types ["discussion", "link", "poll"]
+  @profile_pin_limit 3
+  @profile_pin_visibilities ["public", "unlisted"]
   @public_audience_uris ["Public", "as:Public", "https://www.w3.org/ns/activitystreams#Public"]
 
   ## Following System
@@ -35,8 +52,8 @@ defmodule Elektrine.Social do
   defdelegate get_following_count(user_id), to: Elektrine.Profiles
 
   ## Bookmarks (Saved Items) - Delegated to Elektrine.Social.Bookmarks
-  defdelegate save_post(user_id, message_id), to: Elektrine.Social.Bookmarks
-  defdelegate save_rss_item(user_id, rss_item_id), to: Elektrine.Social.Bookmarks
+  defdelegate save_post(user_id, message_id, opts \\ []), to: Elektrine.Social.Bookmarks
+  defdelegate save_rss_item(user_id, rss_item_id, opts \\ []), to: Elektrine.Social.Bookmarks
   defdelegate unsave_post(user_id, message_id), to: Elektrine.Social.Bookmarks
   defdelegate unsave_rss_item(user_id, rss_item_id), to: Elektrine.Social.Bookmarks
   defdelegate post_saved?(user_id, message_id), to: Elektrine.Social.Bookmarks
@@ -46,6 +63,26 @@ defmodule Elektrine.Social do
   defdelegate get_saved_posts(user_id, opts \\ []), to: Elektrine.Social.Bookmarks
   defdelegate get_saved_rss_items(user_id, opts \\ []), to: Elektrine.Social.Bookmarks
   defdelegate count_saved_posts(user_id), to: Elektrine.Social.Bookmarks
+
+  defdelegate list_bookmark_folders(user_id),
+    to: Elektrine.Social.BookmarkFolders,
+    as: :list_folders
+
+  defdelegate get_bookmark_folder(id, user_id),
+    to: Elektrine.Social.BookmarkFolders,
+    as: :get_folder
+
+  defdelegate create_bookmark_folder(user_id, attrs),
+    to: Elektrine.Social.BookmarkFolders,
+    as: :create_folder
+
+  defdelegate update_bookmark_folder(folder, attrs),
+    to: Elektrine.Social.BookmarkFolders,
+    as: :update_folder
+
+  defdelegate delete_bookmark_folder(id, user_id),
+    to: Elektrine.Social.BookmarkFolders,
+    as: :delete_folder
 
   ## Post View Tracking - Delegated to Elektrine.Social.Views
   defdelegate track_post_view(user_id, message_id, opts \\ []), to: Elektrine.Social.Views
@@ -58,10 +95,12 @@ defmodule Elektrine.Social do
   defdelegate unlike_post(user_id, message_id), to: Elektrine.Social.Likes
   defdelegate user_liked_post?(user_id, message_id), to: Elektrine.Social.Likes
   defdelegate list_user_likes(user_id, message_ids), to: Elektrine.Social.Likes
+  defdelegate get_liked_posts(user_id, opts \\ []), to: Elektrine.Social.Likes
 
   ## Boosts - Delegated to Elektrine.Social.Boosts
   defdelegate boost_post(user_id, message_id), to: Elektrine.Social.Boosts
   defdelegate unboost_post(user_id, message_id), to: Elektrine.Social.Boosts
+  defdelegate list_user_boosts(user_id, message_ids), to: Elektrine.Social.Boosts
 
   defdelegate create_quote_post(user_id, quoted_message_id, content, opts \\ []),
     to: Elektrine.Social.Boosts
@@ -82,6 +121,135 @@ defmodule Elektrine.Social do
 
   defdelegate recalculate_all_scores(), to: Elektrine.Social.Votes
   defdelegate recalculate_recent_discussion_scores(), to: Elektrine.Social.Votes
+
+  def status_visible?(user_id, %Message{} = message), do: MessagePolicy.visible?(user_id, message)
+  def status_visible?(_user_id, _message), do: false
+
+  def status_explicit_visible?(user_id, message, opts \\ [])
+
+  def status_explicit_visible?(user_id, %Message{} = message, opts) do
+    relationships = TimelineRelationships.load(user_id, [message])
+    status_explicit_visible?(user_id, message, opts, relationships)
+  end
+
+  def status_explicit_visible?(_user_id, _message, _opts), do: false
+
+  def status_explicit_visible?(user_id, %Message{} = message, opts, relationships) do
+    MessagePolicy.visible?(user_id, message) and
+      if Keyword.get(opts, :with_muted, false) do
+        not TimelineRelationships.blocked_message_except_mutes?(relationships, message)
+      else
+        not TimelineRelationships.blocked_message?(relationships, message)
+      end
+  end
+
+  def filter_explicit_visible_statuses(user_id, statuses, opts \\ [])
+
+  def filter_explicit_visible_statuses(user_id, statuses, opts)
+      when is_integer(user_id) and is_list(statuses) do
+    relationships = TimelineRelationships.load(user_id, statuses)
+
+    Enum.filter(statuses, &status_explicit_visible?(user_id, &1, opts, relationships))
+  end
+
+  def filter_explicit_visible_statuses(_user_id, _statuses, _opts), do: []
+
+  def status_liked_by_accounts(message_id, limit \\ 80) do
+    from(like in PostLike,
+      join: account in assoc(like, :user),
+      where: like.message_id == ^message_id,
+      order_by: [desc: like.id],
+      limit: ^limit,
+      select: account
+    )
+    |> Repo.all()
+  end
+
+  def status_boosted_by_accounts(message_id, limit \\ 80) do
+    from(boost in PostBoost,
+      join: account in assoc(boost, :user),
+      where: boost.message_id == ^message_id,
+      order_by: [desc: boost.id],
+      limit: ^limit,
+      select: account
+    )
+    |> Repo.all()
+  end
+
+  def list_status_quotes(message_id, viewer_id, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 20)
+    pagination = pagination_opts(opts)
+    preloads = MessagingMessages.timeline_feed_preloads()
+
+    from(message in Message,
+      where:
+        message.quoted_message_id == ^message_id and
+          message.is_draft != true and
+          is_nil(message.deleted_at) and
+          (message.approval_status == "approved" or is_nil(message.approval_status)),
+      order_by: [desc: message.id],
+      limit: ^(limit * 3),
+      preload: ^preloads
+    )
+    |> apply_id_pagination(pagination)
+    |> apply_id_order(pagination.order)
+    |> Repo.all()
+    |> Enum.filter(&MessagePolicy.visible?(viewer_id, &1))
+    |> Enum.take(limit)
+  end
+
+  def list_status_reactions(message_id, opts \\ []) do
+    emoji = Keyword.get(opts, :emoji)
+
+    query =
+      from(reaction in MessageReaction,
+        where: reaction.message_id == ^message_id,
+        order_by: [asc: reaction.inserted_at, asc: reaction.id],
+        preload: [:user, :remote_actor]
+      )
+
+    query =
+      if is_binary(emoji) and emoji != "" do
+        from(reaction in query, where: reaction.emoji == ^emoji)
+      else
+        query
+      end
+
+    Repo.all(query)
+  end
+
+  def add_status_reaction(user_id, message_id, emoji)
+      when is_integer(user_id) and is_binary(emoji) do
+    with %Message{} = message <- Repo.get(Message, message_id),
+         true <- MessagePolicy.visible?(user_id, message) do
+      case Repo.get_by(MessageReaction, message_id: message.id, user_id: user_id, emoji: emoji) do
+        %MessageReaction{} = reaction -> {:ok, reaction}
+        nil -> Elektrine.Messaging.add_reaction(message.id, user_id, emoji)
+      end
+    else
+      nil -> {:error, :not_found}
+      false -> {:error, :not_found}
+    end
+  rescue
+    Ecto.Query.CastError -> {:error, :not_found}
+  end
+
+  def add_status_reaction(_user_id, _message_id, _emoji), do: {:error, :not_found}
+
+  def remove_status_reaction(user_id, message_id, emoji)
+      when is_integer(user_id) and is_binary(emoji) do
+    with %Message{} = message <- Repo.get(Message, message_id),
+         true <- MessagePolicy.visible?(user_id, message) do
+      Elektrine.Messaging.remove_reaction(message.id, user_id, emoji)
+    else
+      nil -> {:error, :not_found}
+      false -> {:error, :not_found}
+    end
+  rescue
+    Ecto.Query.CastError -> {:error, :not_found}
+  end
+
+  def remove_status_reaction(_user_id, _message_id, _emoji), do: {:error, :not_found}
 
   ## Hashtag System
   defdelegate get_posts_for_hashtag(hashtag_name, opts \\ []), to: HashtagExtractor
@@ -333,6 +501,42 @@ defmodule Elektrine.Social do
   end
 
   @doc """
+  Gets direct timeline posts visible to a user.
+  """
+  def get_direct_timeline(user_id, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 50)
+    pagination = pagination_opts(opts)
+    preloads = MessagingMessages.timeline_feed_preloads()
+    all_blocked_ids = blocked_user_ids(user_id)
+
+    from(m in Message,
+      join: c in Conversation,
+      on: c.id == m.conversation_id,
+      left_join: cm in ConversationMember,
+      on:
+        cm.conversation_id == m.conversation_id and cm.user_id == ^user_id and is_nil(cm.left_at),
+      where:
+        c.type in ["timeline", "dm"] and
+          m.post_type == "post" and
+          m.visibility == "direct" and
+          (m.sender_id == ^user_id or not is_nil(cm.id)) and
+          m.is_draft != true and
+          is_nil(m.deleted_at) and
+          (m.approval_status == "approved" or is_nil(m.approval_status)),
+      order_by: [desc: m.id],
+      limit: ^(limit * 3),
+      preload: ^preloads
+    )
+    |> maybe_exclude_blocked_senders(all_blocked_ids)
+    |> maybe_apply_viewer_timeline_policy(user_id)
+    |> apply_id_pagination(pagination)
+    |> apply_id_order(pagination.order)
+    |> Repo.all()
+    |> Enum.filter(&MessagePolicy.visible?(user_id, &1))
+    |> Enum.take(limit)
+  end
+
+  @doc """
   Gets public timeline (discovery feed).
   """
   def get_public_timeline(opts \\ []) do
@@ -340,6 +544,7 @@ defmodule Elektrine.Social do
     pagination = pagination_opts(opts)
     user_id = Keyword.get(opts, :user_id)
     search_query = Keyword.get(opts, :search_query)
+    only_media = Keyword.get(opts, :only_media, false)
     preloads = MessagingMessages.timeline_feed_preloads()
     all_blocked_ids = blocked_user_ids(user_id)
 
@@ -368,6 +573,7 @@ defmodule Elektrine.Social do
     query = maybe_apply_viewer_timeline_policy(query, user_id)
     query = maybe_exclude_public_timeline_removed_instances(query)
     query = maybe_apply_timeline_search(query, search_query)
+    query = maybe_filter_timeline_media(query, only_media)
     query = query |> apply_id_pagination(pagination) |> apply_id_order(pagination.order)
 
     Repo.all(query)
@@ -478,7 +684,7 @@ defmodule Elektrine.Social do
     query = maybe_exclude_blocked_senders_or_nil(query, all_blocked_ids)
     query = maybe_apply_viewer_timeline_policy(query, user_id)
     query = maybe_exclude_public_timeline_removed_instances(query)
-    query = maybe_before_id(query, pagination.before_id)
+    query = apply_id_pagination(query, pagination)
 
     Repo.all(query)
   end
@@ -618,7 +824,7 @@ defmodule Elektrine.Social do
   """
   def get_gallery_feed(user_id, opts \\ []) do
     limit = Keyword.get(opts, :limit, 50)
-    before_id = Keyword.get(opts, :before_id)
+    pagination = pagination_opts(opts)
     following_only = Keyword.get(opts, :following_only, false)
 
     # Get list of users this person follows
@@ -638,7 +844,7 @@ defmodule Elektrine.Social do
             is_nil(m.deleted_at) and
             (m.approval_status == "approved" or is_nil(m.approval_status)) and
             m.sender_id not in ^all_blocked_ids,
-        order_by: [desc: m.inserted_at],
+        order_by: [desc: m.id],
         limit: ^limit,
         preload: [sender: [:profile]]
 
@@ -650,14 +856,9 @@ defmodule Elektrine.Social do
         from m in query, where: m.sender_id in ^following_ids or m.visibility == "public"
       end
 
-    query =
-      if before_id do
-        from m in query, where: m.id < ^before_id
-      else
-        query
-      end
-
     query
+    |> apply_id_pagination(pagination)
+    |> apply_id_order(pagination.order)
     |> maybe_exclude_blocked_instances()
     |> Repo.all()
   end
@@ -685,6 +886,184 @@ defmodule Elektrine.Social do
       preload: ^preloads
     )
     |> Repo.all()
+  end
+
+  @doc """
+  Gets profile statuses for API clients with common account-status filters.
+  """
+  def get_account_statuses(user_id, opts \\ []) do
+    if Keyword.get(opts, :pinned, false) do
+      get_pinned_posts(user_id, opts)
+    else
+      limit = Keyword.get(opts, :limit, 20)
+      pagination = pagination_opts(opts)
+      viewer_id = Keyword.get(opts, :viewer_id)
+      preloads = MessagingMessages.timeline_feed_preloads()
+      visibility_levels = visibility_levels_for_viewer(user_id, viewer_id)
+
+      query =
+        from(m in Message,
+          join: c in Conversation,
+          on: c.id == m.conversation_id,
+          where:
+            c.type == "timeline" and
+              m.sender_id == ^user_id and
+              m.post_type == "post" and
+              m.is_draft != true and
+              m.visibility in ^visibility_levels and
+              is_nil(m.deleted_at) and
+              (m.approval_status == "approved" or is_nil(m.approval_status)),
+          order_by: [desc: m.id],
+          limit: ^limit,
+          preload: ^preloads
+        )
+
+      query
+      |> maybe_filter_timeline_media(Keyword.get(opts, :only_media, false))
+      |> maybe_filter_account_status_reblogs(
+        Keyword.get(opts, :exclude_reblogs, false),
+        Keyword.get(opts, :only_reblogs, false)
+      )
+      |> maybe_filter_account_status_replies(Keyword.get(opts, :exclude_replies, false))
+      |> apply_id_pagination(pagination)
+      |> apply_id_order(pagination.order)
+      |> Repo.all()
+    end
+  end
+
+  defp maybe_filter_timeline_media(query, true) do
+    from(m in query, where: fragment("array_length(?, 1) > 0", m.media_urls))
+  end
+
+  defp maybe_filter_timeline_media(query, _only_media), do: query
+
+  defp maybe_filter_account_status_reblogs(query, _exclude_reblogs, true) do
+    from(m in query, where: not is_nil(m.shared_message_id))
+  end
+
+  defp maybe_filter_account_status_reblogs(query, true, _only_reblogs) do
+    from(m in query, where: is_nil(m.shared_message_id))
+  end
+
+  defp maybe_filter_account_status_reblogs(query, _exclude_reblogs, _only_reblogs), do: query
+
+  defp maybe_filter_account_status_replies(query, true) do
+    from(m in query,
+      where:
+        is_nil(m.reply_to_id) and
+          fragment("(?->>'inReplyTo' IS NULL)", m.media_metadata)
+    )
+  end
+
+  defp maybe_filter_account_status_replies(query, _exclude_replies), do: query
+
+  @doc """
+  Pins one of the user's own profile timeline posts.
+  """
+  def pin_timeline_post(user_id, message_id) when is_integer(user_id) do
+    with %Message{} = message <- get_timeline_pin_candidate(message_id),
+         :ok <- authorize_profile_pin(user_id, message),
+         :ok <- validate_profile_pin_visibility(message),
+         :ok <- validate_profile_pin_limit(user_id, message),
+         {:ok, updated_message} <- update_profile_pin(message, true, user_id) do
+      broadcast_profile_pin(user_id, :profile_post_pinned, updated_message)
+      {:ok, updated_message}
+    else
+      nil -> {:error, :not_found}
+      {:error, reason} -> {:error, reason}
+      error -> error
+    end
+  end
+
+  def pin_timeline_post(_user_id, _message_id), do: {:error, :unauthorized}
+
+  @doc """
+  Unpins one of the user's own profile timeline posts.
+  """
+  def unpin_timeline_post(user_id, message_id) when is_integer(user_id) do
+    with %Message{} = message <- get_timeline_pin_candidate(message_id),
+         :ok <- authorize_profile_pin(user_id, message),
+         {:ok, updated_message} <- update_profile_pin(message, false, user_id) do
+      broadcast_profile_pin(user_id, :profile_post_unpinned, updated_message)
+      {:ok, updated_message}
+    else
+      nil -> {:error, :not_found}
+      {:error, reason} -> {:error, reason}
+      error -> error
+    end
+  end
+
+  def unpin_timeline_post(_user_id, _message_id), do: {:error, :unauthorized}
+
+  defp get_timeline_pin_candidate(message_id) do
+    from(m in Message,
+      join: c in Conversation,
+      on: c.id == m.conversation_id,
+      where:
+        m.id == ^message_id and
+          c.type == "timeline" and
+          m.post_type == "post" and
+          m.is_draft != true and
+          is_nil(m.deleted_at),
+      preload: [conversation: c]
+    )
+    |> Repo.one()
+  rescue
+    Ecto.Query.CastError -> nil
+  end
+
+  defp authorize_profile_pin(user_id, %Message{sender_id: user_id}), do: :ok
+  defp authorize_profile_pin(_user_id, _message), do: {:error, :unauthorized}
+
+  defp validate_profile_pin_visibility(%Message{visibility: visibility})
+       when visibility in @profile_pin_visibilities,
+       do: :ok
+
+  defp validate_profile_pin_visibility(_message), do: {:error, :invalid_visibility}
+
+  defp validate_profile_pin_limit(_user_id, %Message{is_pinned: true}), do: :ok
+
+  defp validate_profile_pin_limit(user_id, %Message{id: message_id}) do
+    pinned_count =
+      from(m in Message,
+        join: c in Conversation,
+        on: c.id == m.conversation_id,
+        where:
+          c.type == "timeline" and
+            m.sender_id == ^user_id and
+            m.id != ^message_id and
+            m.is_pinned == true and
+            m.is_draft != true and
+            is_nil(m.deleted_at),
+        select: count(m.id)
+      )
+      |> Repo.one()
+
+    if pinned_count < @profile_pin_limit do
+      :ok
+    else
+      {:error, :pin_limit_reached}
+    end
+  end
+
+  defp update_profile_pin(%Message{} = message, true, user_id) do
+    message
+    |> Ecto.Changeset.change(%{
+      is_pinned: true,
+      pinned_at: DateTime.utc_now() |> DateTime.truncate(:second),
+      pinned_by_id: user_id
+    })
+    |> Repo.update()
+  end
+
+  defp update_profile_pin(%Message{} = message, false, _user_id) do
+    message
+    |> Ecto.Changeset.change(%{is_pinned: false, pinned_at: nil, pinned_by_id: nil})
+    |> Repo.update()
+  end
+
+  defp broadcast_profile_pin(user_id, event, %Message{} = message) do
+    Phoenix.PubSub.broadcast(Elektrine.PubSub, "profile:#{user_id}", {event, message})
   end
 
   def get_user_timeline_posts(user_id, opts \\ []) do
@@ -818,9 +1197,251 @@ defmodule Elektrine.Social do
     |> maybe_put_community_actor_uri(community_actor_uri)
   end
 
+  def update_media_attachment_metadata(user_id, media_id, attrs)
+      when is_integer(user_id) and is_binary(media_id) and is_map(attrs) do
+    normalized_media_id = normalize_media_attachment_lookup_id(media_id)
+
+    with %Message{} = message <- get_owned_message_for_media(user_id, normalized_media_id),
+         {:ok, metadata, attachment} <-
+           put_media_attachment_metadata(message, normalized_media_id, attrs),
+         {:ok, _updated_message} <-
+           MessagingMessages.update_message_metadata(message, %{media_metadata: metadata}) do
+      {:ok, attachment}
+    else
+      nil -> {:error, :not_found}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  def update_media_attachment_metadata(_user_id, _media_id, _attrs), do: {:error, :not_found}
+
   defp build_media_metadata(base_metadata, alt_texts, community_actor_uri) do
     merge_post_media_metadata(base_metadata, alt_texts, community_actor_uri)
   end
+
+  defp get_owned_message_for_media(user_id, media_id) do
+    metadata_match = %{"attachments" => [%{"id" => media_id}]}
+
+    from(m in Message,
+      where: m.sender_id == ^user_id,
+      where: is_nil(m.deleted_at),
+      where: fragment("? = ANY(?)", ^media_id, m.media_urls),
+      or_where:
+        m.sender_id == ^user_id and is_nil(m.deleted_at) and
+          fragment("? @> ?", m.media_metadata, ^metadata_match),
+      limit: 1
+    )
+    |> Repo.one()
+  end
+
+  defp put_media_attachment_metadata(%Message{} = message, media_id, attrs) do
+    media_urls = message.media_urls || []
+    metadata = normalize_media_metadata(message.media_metadata || %{})
+    attachments = metadata |> Map.get("attachments", []) |> normalize_existing_media_attachments()
+
+    with {:ok, index, url, attachment} <-
+           find_media_attachment(media_urls, attachments, media_id),
+         {:ok, updates} <- media_attachment_updates(attrs) do
+      updated_attachment =
+        attachment
+        |> Map.put_new("id", media_attachment_id(url))
+        |> Map.put("url", url)
+        |> apply_media_attachment_updates(updates)
+
+      updated_attachments = put_media_attachment_at(attachments, index, updated_attachment)
+
+      updated_metadata =
+        metadata
+        |> Map.put("attachments", updated_attachments)
+        |> put_media_attachment_alt_text(index, updates)
+
+      {:ok, updated_metadata, updated_attachment}
+    end
+  end
+
+  defp find_media_attachment(media_urls, attachments, media_id) do
+    media_urls
+    |> Enum.with_index()
+    |> Enum.find(fn {url, _index} -> media_attachment_ref_matches?(url, media_id) end)
+    |> case do
+      {url, index} ->
+        attachment = Enum.at(attachments, index) || %{}
+        {:ok, index, url, attachment}
+
+      nil ->
+        find_media_attachment_by_metadata(attachments, media_id)
+    end
+  end
+
+  defp find_media_attachment_by_metadata(attachments, media_id) do
+    attachments
+    |> Enum.with_index()
+    |> Enum.find(fn {attachment, _index} ->
+      media_attachment_ref_matches?(attachment["id"], media_id) ||
+        media_attachment_ref_matches?(attachment["url"], media_id)
+    end)
+    |> case do
+      {%{"url" => url} = attachment, index} when is_binary(url) ->
+        {:ok, index, url, attachment}
+
+      _ ->
+        {:error, :not_found}
+    end
+  end
+
+  defp media_attachment_ref_matches?(ref, media_id) when is_binary(ref) do
+    ref == media_id || media_attachment_id(ref) == media_id
+  end
+
+  defp media_attachment_ref_matches?(_ref, _media_id), do: false
+
+  defp media_attachment_updates(attrs) do
+    description = media_attachment_description(attrs)
+    focus = media_attachment_focus(attrs)
+
+    case {Map.has_key?(attrs, "description") || Map.has_key?(attrs, "text") ||
+            Map.has_key?(attrs, "alt_text"), focus} do
+      {false, nil} -> {:error, :empty_media_update}
+      _ -> {:ok, %{description: description, focus: focus}}
+    end
+  end
+
+  defp media_attachment_description(attrs) do
+    cond do
+      Map.has_key?(attrs, "description") -> attrs["description"]
+      Map.has_key?(attrs, "text") -> attrs["text"]
+      Map.has_key?(attrs, "alt_text") -> attrs["alt_text"]
+      true -> :unchanged
+    end
+  end
+
+  defp media_attachment_focus(%{"focus" => focus}), do: normalize_media_attachment_focus(focus)
+  defp media_attachment_focus(_attrs), do: nil
+
+  defp normalize_media_attachment_focus(%{"x" => x, "y" => y}) do
+    with {:ok, parsed_x} <- parse_media_attachment_focus_axis(x),
+         {:ok, parsed_y} <- parse_media_attachment_focus_axis(y) do
+      %{"x" => parsed_x, "y" => parsed_y}
+    else
+      _ -> nil
+    end
+  end
+
+  defp normalize_media_attachment_focus(%{x: x, y: y}) do
+    normalize_media_attachment_focus(%{"x" => x, "y" => y})
+  end
+
+  defp normalize_media_attachment_focus(focus) when is_binary(focus) do
+    case String.split(focus, ",", parts: 2) do
+      [x, y] -> normalize_media_attachment_focus(%{"x" => x, "y" => y})
+      _ -> nil
+    end
+  end
+
+  defp normalize_media_attachment_focus(_focus), do: nil
+
+  defp parse_media_attachment_focus_axis(value) when is_float(value),
+    do: {:ok, clamp_focus(value)}
+
+  defp parse_media_attachment_focus_axis(value) when is_integer(value),
+    do: {:ok, clamp_focus(value / 1)}
+
+  defp parse_media_attachment_focus_axis(value) when is_binary(value) do
+    case Float.parse(String.trim(value)) do
+      {float, ""} -> {:ok, clamp_focus(float)}
+      _ -> :error
+    end
+  end
+
+  defp parse_media_attachment_focus_axis(_value), do: :error
+
+  defp clamp_focus(value), do: value |> max(-1.0) |> min(1.0)
+
+  defp apply_media_attachment_updates(attachment, %{description: :unchanged, focus: nil}),
+    do: attachment
+
+  defp apply_media_attachment_updates(attachment, %{description: description, focus: focus}) do
+    attachment
+    |> put_media_attachment_description(description)
+    |> put_media_attachment_focus(focus)
+  end
+
+  defp put_media_attachment_description(attachment, :unchanged), do: attachment
+
+  defp put_media_attachment_description(attachment, description) when is_binary(description) do
+    trimmed = String.trim(description)
+
+    if Elektrine.Strings.present?(trimmed) do
+      Map.put(attachment, "alt_text", trimmed)
+    else
+      Map.delete(attachment, "alt_text")
+    end
+  end
+
+  defp put_media_attachment_description(attachment, nil), do: Map.delete(attachment, "alt_text")
+  defp put_media_attachment_description(attachment, _description), do: attachment
+
+  defp put_media_attachment_focus(attachment, nil), do: attachment
+  defp put_media_attachment_focus(attachment, focus), do: Map.put(attachment, "focus", focus)
+
+  defp put_media_attachment_at(attachments, index, attachment) do
+    attachments
+    |> pad_media_attachments(index)
+    |> List.replace_at(index, attachment)
+  end
+
+  defp pad_media_attachments(attachments, index) do
+    if length(attachments) > index do
+      attachments
+    else
+      attachments ++ List.duplicate(%{}, index - length(attachments) + 1)
+    end
+  end
+
+  defp put_media_attachment_alt_text(metadata, _index, %{description: :unchanged}), do: metadata
+
+  defp put_media_attachment_alt_text(metadata, index, %{description: description})
+       when is_binary(description) do
+    trimmed = String.trim(description)
+    alt_texts = Map.get(metadata, "alt_texts", %{})
+
+    if Elektrine.Strings.present?(trimmed) do
+      Map.put(metadata, "alt_texts", Map.put(alt_texts, to_string(index), trimmed))
+    else
+      Map.put(metadata, "alt_texts", Map.delete(alt_texts, to_string(index)))
+    end
+  end
+
+  defp put_media_attachment_alt_text(metadata, index, %{description: nil}) do
+    alt_texts = Map.get(metadata, "alt_texts", %{})
+    Map.put(metadata, "alt_texts", Map.delete(alt_texts, to_string(index)))
+  end
+
+  defp put_media_attachment_alt_text(metadata, _index, _updates), do: metadata
+
+  defp normalize_media_attachment_lookup_id(media_id) do
+    media_id
+    |> String.trim()
+    |> URI.decode_www_form()
+  rescue
+    ArgumentError -> String.trim(media_id)
+  end
+
+  defp normalize_existing_media_attachments(attachments) when is_list(attachments) do
+    attachments
+    |> Enum.map(fn
+      attachment when is_map(attachment) ->
+        Enum.reduce(attachment, %{}, fn {key, value}, acc ->
+          if is_nil(value), do: acc, else: Map.put(acc, to_string(key), value)
+        end)
+
+      _ ->
+        nil
+    end)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp normalize_existing_media_attachments(_attachments), do: []
 
   defp normalize_media_metadata(metadata) when is_map(metadata) do
     Enum.reduce(metadata, %{}, fn {key, value}, acc ->
@@ -1044,6 +1665,8 @@ defmodule Elektrine.Social do
       promoted_from_community_name: Keyword.get(opts, :promoted_from_community_name),
       promoted_from_community_hash: Keyword.get(opts, :promoted_from_community_hash),
       primary_url: primary_url,
+      content_warning: Keyword.get(opts, :content_warning),
+      sensitive: Keyword.get(opts, :sensitive, false),
       title: final_title,
       auto_title: is_auto_title
     }
@@ -1057,8 +1680,10 @@ defmodule Elektrine.Social do
         maybe_process_message_hashtags(message.id, extracted_hashtags)
         message = %{message | like_count: 0, reply_count: 0, share_count: 0}
         notify_mentions(validated_content, user_id, message.id)
+        Accounts.notify_subscribers_for_message(message)
         broadcast_timeline_post(message)
         maybe_federate_timeline_post(message)
+        enqueue_home_feed_fanout(message.id)
         emit_post_created_webhook(message, user_id)
         reloaded_message = Repo.preload(message, [:link_preview, :hashtags, sender: :profile])
         {:ok, %{reloaded_message | like_count: 0, reply_count: 0, share_count: 0}}
@@ -1085,82 +1710,28 @@ defmodule Elektrine.Social do
     _ -> :ok
   end
 
+  defp enqueue_home_feed_fanout(message_id) when is_integer(message_id) do
+    _ = Elektrine.Social.HomeFeedFanoutWorker.enqueue(message_id)
+    :ok
+  rescue
+    _ -> :ok
+  end
+
   defp blocked_user_ids(nil), do: []
   defp blocked_user_ids(user_id), do: BlockedUsersCache.get_all_blocked_user_ids(user_id)
 
-  defp maybe_before_id(query, nil), do: query
-  defp maybe_before_id(query, before_id), do: from(m in query, where: m.id < ^before_id)
-  defp maybe_after_id(query, nil), do: query
-  defp maybe_after_id(query, after_id), do: from(m in query, where: m.id > ^after_id)
-
   defp apply_id_pagination(query, %{before_id: before_id} = pagination) do
-    lower_bound = pagination_lower_bound(pagination)
-
-    query
-    |> maybe_before_id(before_id)
-    |> maybe_after_id(lower_bound)
+    TimelinePagination.apply(query, %{pagination | before_id: before_id})
   end
 
-  defp apply_id_order(query, :asc) do
-    query
-    |> exclude(:order_by)
-    |> order_by([m], asc: m.id)
-  end
+  defp apply_id_order(query, :asc), do: TimelinePagination.order(query, :asc)
 
-  defp apply_id_order(query, :desc) do
-    query
-    |> exclude(:order_by)
-    |> order_by([m], desc: m.id)
-  end
+  defp apply_id_order(query, :desc), do: TimelinePagination.order(query, :desc)
 
-  defp pagination_requested?(%{before_id: nil, since_id: nil, min_id: nil}), do: false
-  defp pagination_requested?(_), do: true
+  defp pagination_requested?(pagination), do: TimelinePagination.requested?(pagination)
 
-  defp pagination_lower_bound(%{since_id: nil, min_id: nil}), do: nil
-  defp pagination_lower_bound(%{since_id: since_id, min_id: nil}), do: since_id
-  defp pagination_lower_bound(%{since_id: nil, min_id: min_id}), do: min_id
-  defp pagination_lower_bound(%{since_id: since_id, min_id: min_id}), do: max(since_id, min_id)
-
-  defp pagination_opts(opts, default_order \\ :desc) do
-    before_id = parse_pagination_id(Keyword.get(opts, :before_id) || Keyword.get(opts, :cursor))
-    since_id = parse_pagination_id(Keyword.get(opts, :since_id))
-    min_id = parse_pagination_id(Keyword.get(opts, :min_id))
-    order = normalize_pagination_order(Keyword.get(opts, :order), default_order, min_id)
-
-    %{
-      before_id: before_id,
-      since_id: since_id,
-      min_id: min_id,
-      order: order
-    }
-  end
-
-  defp normalize_pagination_order(nil, _default_order, min_id) when is_integer(min_id), do: :asc
-  defp normalize_pagination_order(nil, default_order, _min_id), do: default_order
-  defp normalize_pagination_order(:asc, _default_order, _min_id), do: :asc
-  defp normalize_pagination_order(:desc, _default_order, _min_id), do: :desc
-
-  defp normalize_pagination_order(order, default_order, _min_id) when is_binary(order) do
-    case String.downcase(order) do
-      "asc" -> :asc
-      "desc" -> :desc
-      _ -> default_order
-    end
-  end
-
-  defp normalize_pagination_order(_order, default_order, _min_id), do: default_order
-
-  defp parse_pagination_id(nil), do: nil
-  defp parse_pagination_id(value) when is_integer(value) and value > 0, do: value
-  defp parse_pagination_id(value) when is_binary(value), do: parse_integer_id(value)
-  defp parse_pagination_id(_), do: nil
-
-  defp parse_integer_id(value) do
-    case Integer.parse(value) do
-      {int, ""} when int > 0 -> int
-      _ -> nil
-    end
-  end
+  defp pagination_opts(opts, default_order \\ :desc),
+    do: TimelinePagination.opts(opts, default_order)
 
   defp maybe_exclude_blocked_senders(query, []), do: query
 
@@ -1339,9 +1910,7 @@ defmodule Elektrine.Social do
   Increments the reply count for a message.
   """
   def increment_reply_count(message_id) do
-    # Increment the count in the database
-    from(m in Message, where: m.id == ^message_id)
-    |> Repo.update_all(inc: [reply_count: 1])
+    reconcile_reply_count(message_id, 1)
 
     # Also increment all ancestor posts in the thread
     increment_parent_counts(message_id)
@@ -1378,6 +1947,59 @@ defmodule Elektrine.Social do
       end
     end
   end
+
+  defp reconcile_reply_count(message_id, delta) when delta in [-1, 1] do
+    with %Message{} = message <- Repo.get(Message, message_id) do
+      current_local_reply_count =
+        from(m in Message,
+          where: m.reply_to_id == ^message_id and is_nil(m.deleted_at),
+          select: count(m.id)
+        )
+        |> Repo.one()
+
+      previous_local_reply_count = max(current_local_reply_count - delta, 0)
+
+      remote_baseline =
+        message
+        |> remote_reply_count_baseline()
+        |> max(max((message.reply_count || 0) - previous_local_reply_count, 0))
+
+      reply_count = remote_baseline + current_local_reply_count
+
+      from(m in Message, where: m.id == ^message_id)
+      |> Repo.update_all(set: [reply_count: reply_count])
+
+      Elektrine.AppCache.invalidate_social_message(message_id)
+    end
+  end
+
+  defp reconcile_reply_count(_, _), do: :ok
+
+  defp remote_reply_count_baseline(%Message{} = message) do
+    remote_count =
+      message
+      |> Map.get(:remote_reply_count)
+      |> parse_non_negative_count()
+
+    metadata_count =
+      message
+      |> Map.get(:media_metadata, %{})
+      |> Map.get("original_reply_count")
+      |> parse_non_negative_count()
+
+    max(remote_count, metadata_count)
+  end
+
+  defp parse_non_negative_count(value) when is_integer(value) and value >= 0, do: value
+
+  defp parse_non_negative_count(value) when is_binary(value) do
+    case Integer.parse(String.trim(value)) do
+      {count, ""} when count >= 0 -> count
+      _ -> 0
+    end
+  end
+
+  defp parse_non_negative_count(_), do: 0
 
   @doc """
   Broadcasts a timeline post to followers via PubSub.
@@ -1433,6 +2055,7 @@ defmodule Elektrine.Social do
   def get_suggested_follows(user_id, opts \\ []) do
     limit = Keyword.get(opts, :limit, 5)
     following_ids = list_following_ids(user_id)
+    dismissed_ids = list_dismissed_suggested_follow_ids(user_id)
 
     suggestions =
       suggested_active_users(user_id, following_ids, limit) ++
@@ -1441,7 +2064,38 @@ defmodule Elektrine.Social do
 
     suggestions
     |> Enum.uniq_by(& &1.id)
+    |> Enum.reject(&(&1.id in dismissed_ids))
     |> Enum.take(limit)
+    |> hydrate_suggested_follow_users()
+  end
+
+  @doc """
+  Dismisses an account from a user's follow suggestions.
+  """
+  def dismiss_suggested_follow(user_id, suggested_user_id)
+      when is_integer(user_id) and is_integer(suggested_user_id) and user_id != suggested_user_id do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    %SuggestedAccountDismissal{}
+    |> SuggestedAccountDismissal.changeset(%{
+      user_id: user_id,
+      suggested_user_id: suggested_user_id,
+      dismissed_at: now
+    })
+    |> Repo.insert(
+      on_conflict: [set: [dismissed_at: now, updated_at: now]],
+      conflict_target: [:user_id, :suggested_user_id]
+    )
+  end
+
+  def dismiss_suggested_follow(_user_id, _suggested_user_id), do: {:error, :invalid_suggestion}
+
+  defp list_dismissed_suggested_follow_ids(user_id) do
+    from(dismissal in SuggestedAccountDismissal,
+      where: dismissal.user_id == ^user_id,
+      select: dismissal.suggested_user_id
+    )
+    |> Repo.all()
   end
 
   defp list_following_ids(user_id) do
@@ -1524,6 +2178,22 @@ defmodule Elektrine.Social do
       }
     )
     |> Repo.all()
+  end
+
+  defp hydrate_suggested_follow_users([]), do: []
+
+  defp hydrate_suggested_follow_users(suggestions) do
+    ids = Enum.map(suggestions, & &1.id)
+
+    users_by_id =
+      User
+      |> where([user], user.id in ^ids)
+      |> Repo.all()
+      |> Map.new(&{&1.id, &1})
+
+    Enum.map(suggestions, fn suggestion ->
+      Map.put(suggestion, :user, Map.get(users_by_id, suggestion.id))
+    end)
   end
 
   # Add missing helper function for timeline LiveView
@@ -2331,10 +3001,9 @@ defmodule Elektrine.Social do
     # Build a list of all parent IDs by following the reply chain
     parent_ids = build_parent_chain(message_id, [])
 
-    # Increment all parents in a single batch update per parent
+    # Increment all parents in a single update per parent
     Enum.each(parent_ids, fn parent_id ->
-      from(m in Message, where: m.id == ^parent_id)
-      |> Repo.update_all(inc: [reply_count: 1])
+      reconcile_reply_count(parent_id, 1)
     end)
   end
 
@@ -2476,6 +3145,132 @@ defmodule Elektrine.Social do
   end
 
   defp finalize_poll_vote_result(other, _poll, _option_id, _user_id), do: other
+
+  def get_poll(poll_id) do
+    Poll
+    |> Repo.get(poll_id)
+    |> case do
+      %Poll{} = poll ->
+        {:ok, Repo.preload(poll, [:options, message: [:sender, :remote_actor]])}
+
+      nil ->
+        {:error, :not_found}
+    end
+  rescue
+    Ecto.Query.CastError -> {:error, :not_found}
+  end
+
+  def set_poll_votes(poll_id, option_ids, user_id)
+      when is_list(option_ids) and is_integer(user_id) do
+    with {:ok, %Poll{} = poll} <- get_poll(poll_id),
+         normalized_option_ids <- normalize_poll_vote_option_ids(option_ids),
+         :ok <- validate_poll_vote_set(poll, normalized_option_ids, user_id) do
+      Repo.transaction(fn ->
+        existing_votes = list_poll_votes_for_user(poll.id, user_id)
+        existing_option_ids = Enum.map(existing_votes, & &1.option_id)
+        desired_option_ids = normalized_poll_vote_set(poll, normalized_option_ids)
+        remove_stale_poll_votes(existing_votes, desired_option_ids)
+
+        inserted_votes =
+          insert_missing_poll_votes(poll.id, desired_option_ids -- existing_option_ids, user_id)
+
+        refresh_poll_counts(poll.id, existing_option_ids ++ desired_option_ids)
+        Enum.each(inserted_votes, &maybe_federate_poll_vote(poll, &1.option_id, user_id))
+
+        Poll
+        |> Repo.get!(poll.id)
+        |> Repo.preload([:options, message: [:sender, :remote_actor]])
+      end)
+    end
+  end
+
+  def set_poll_votes(_poll_id, _option_ids, _user_id), do: {:error, :invalid_vote}
+
+  def clear_poll_votes(poll_id, user_id) when is_integer(user_id) do
+    with {:ok, %Poll{} = poll} <- get_poll(poll_id) do
+      Repo.transaction(fn ->
+        existing_votes = list_poll_votes_for_user(poll.id, user_id)
+        remove_stale_poll_votes(existing_votes, [])
+        refresh_poll_counts(poll.id, Enum.map(existing_votes, & &1.option_id))
+
+        Poll
+        |> Repo.get!(poll.id)
+        |> Repo.preload([:options, message: [:sender, :remote_actor]])
+      end)
+    end
+  end
+
+  def clear_poll_votes(_poll_id, _user_id), do: {:error, :not_found}
+
+  defp normalize_poll_vote_option_ids(option_ids) do
+    option_ids
+    |> List.wrap()
+    |> Enum.map(&parse_poll_vote_option_id/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+  end
+
+  defp parse_poll_vote_option_id(value) when is_integer(value) and value > 0, do: value
+
+  defp parse_poll_vote_option_id(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {id, ""} when id > 0 -> id
+      _ -> nil
+    end
+  end
+
+  defp parse_poll_vote_option_id(_value), do: nil
+
+  defp validate_poll_vote_set(%Poll{} = poll, option_ids, user_id) do
+    valid_option_ids = MapSet.new(Enum.map(poll.options || [], & &1.id))
+
+    cond do
+      option_ids == [] ->
+        {:error, :invalid_vote}
+
+      Poll.closed?(poll) ->
+        {:error, :poll_closed}
+
+      poll.message && poll.message.sender_id == user_id ->
+        {:error, :self_vote}
+
+      Enum.any?(option_ids, &(not MapSet.member?(valid_option_ids, &1))) ->
+        {:error, :invalid_option}
+
+      not poll.allow_multiple and length(option_ids) > 1 ->
+        {:error, :multiple_votes_not_allowed}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp normalized_poll_vote_set(%Poll{allow_multiple: true}, option_ids), do: option_ids
+  defp normalized_poll_vote_set(%Poll{}, [option_id | _]), do: [option_id]
+
+  defp remove_stale_poll_votes(existing_votes, desired_option_ids) do
+    desired_option_ids = MapSet.new(desired_option_ids)
+
+    existing_votes
+    |> Enum.reject(&MapSet.member?(desired_option_ids, &1.option_id))
+    |> Enum.each(&Repo.delete!/1)
+  end
+
+  defp insert_missing_poll_votes(poll_id, option_ids, user_id) do
+    Enum.map(option_ids, fn option_id ->
+      %PollVote{}
+      |> PollVote.changeset(%{poll_id: poll_id, option_id: option_id, user_id: user_id})
+      |> Repo.insert!()
+    end)
+  end
+
+  defp refresh_poll_counts(_poll_id, []), do: :ok
+
+  defp refresh_poll_counts(poll_id, option_ids) do
+    option_ids
+    |> Enum.uniq()
+    |> Enum.each(&update_poll_counts(poll_id, &1))
+  end
 
   # Federates poll vote to remote instance if applicable
   defp maybe_federate_poll_vote(poll, option_id, user_id) do
@@ -2707,6 +3502,23 @@ defmodule Elektrine.Social do
     search_query = Keyword.get(opts, :search_query)
     preloads = MessagingMessages.timeline_feed_preloads()
 
+    case cached_combined_feed_page(user_id, limit, pagination, search_query, preloads) do
+      posts when is_list(posts) and length(posts) >= limit ->
+        posts
+
+      _ ->
+        posts =
+          user_id
+          |> query_combined_feed(limit * 2, pagination, search_query, preloads)
+          |> then(&FeedPolicy.filter_home_posts(user_id, &1))
+          |> Enum.take(limit)
+
+        maybe_cache_combined_feed_page(user_id, posts, pagination, search_query)
+        posts
+    end
+  end
+
+  defp query_combined_feed(user_id, limit, pagination, search_query, preloads) do
     remote_actor_ids = list_remote_actor_ids(user_id)
     following_ids = get_following_user_ids(user_id)
     all_blocked_ids = blocked_user_ids(user_id)
@@ -2721,11 +3533,72 @@ defmodule Elektrine.Social do
       |> maybe_federated_combined_query()
       |> maybe_apply_timeline_search(search_query)
 
-    query = combined_feed_query(local_query, federated_query, limit, preloads)
-    query = maybe_apply_viewer_timeline_policy(query, user_id)
-    query = query |> apply_id_pagination(pagination) |> apply_id_order(pagination.order)
+    hashtag_query =
+      user_id
+      |> maybe_followed_hashtag_combined_query(all_blocked_ids)
+      |> maybe_apply_timeline_search(search_query)
 
-    Repo.all(query)
+    local_query
+    |> combined_feed_query([federated_query, hashtag_query], limit, preloads)
+    |> maybe_apply_viewer_timeline_policy(user_id)
+    |> apply_id_pagination(pagination)
+    |> apply_id_order(pagination.order)
+    |> Repo.all()
+  end
+
+  defp cached_combined_feed_page(user_id, limit, pagination, search_query, preloads) do
+    if cacheable_combined_feed_page?(pagination, search_query) do
+      ids = HomeFeedCache.get(user_id) |> Enum.take(limit * 3)
+
+      if length(ids) >= limit do
+        posts =
+          from(m in Message,
+            where: m.id in ^ids,
+            where: is_nil(m.deleted_at) and m.is_draft != true,
+            preload: ^preloads
+          )
+          |> maybe_apply_viewer_timeline_policy(user_id)
+          |> Repo.all()
+          |> order_posts_by_ids(ids)
+          |> then(&FeedPolicy.filter_home_posts(user_id, &1))
+          |> Enum.take(limit)
+
+        if length(posts) >= limit, do: posts, else: nil
+      end
+    end
+  end
+
+  defp maybe_cache_combined_feed_page(user_id, posts, pagination, search_query) do
+    cond do
+      cacheable_combined_feed_page?(pagination, search_query) ->
+        HomeFeedCache.put(user_id, Enum.map(posts, & &1.id))
+
+      appendable_combined_feed_page?(pagination, search_query) ->
+        HomeFeedCache.append(user_id, Enum.map(posts, & &1.id))
+
+      true ->
+        :ok
+    end
+
+    :ok
+  end
+
+  defp cacheable_combined_feed_page?(pagination, search_query) do
+    pagination_requested?(pagination) == false and
+      not Elektrine.Strings.present?(search_query)
+  end
+
+  defp appendable_combined_feed_page?(%{before_id: before_id, order: :desc}, search_query)
+       when is_integer(before_id) do
+    not Elektrine.Strings.present?(search_query)
+  end
+
+  defp appendable_combined_feed_page?(_pagination, _search_query), do: false
+
+  defp order_posts_by_ids(posts, ids) do
+    positions = ids |> Enum.with_index() |> Map.new()
+
+    Enum.sort_by(posts, fn post -> Map.get(positions, post.id, length(ids)) end)
   end
 
   defp list_remote_actor_ids(user_id) do
@@ -2780,16 +3653,52 @@ defmodule Elektrine.Social do
     )
   end
 
-  defp combined_feed_query(local_query, nil, limit, preloads) do
-    from(m in local_query,
-      order_by: [desc: m.id],
-      limit: ^limit,
-      preload: ^preloads
+  defp maybe_followed_hashtag_combined_query(user_id, blocked_ids) when is_integer(user_id) do
+    followed_hashtag_ids =
+      from(hf in HashtagFollow,
+        where: hf.user_id == ^user_id,
+        select: hf.hashtag_id
+      )
+      |> Repo.all()
+
+    case followed_hashtag_ids do
+      [] ->
+        nil
+
+      _ ->
+        followed_hashtag_combined_query(followed_hashtag_ids, blocked_ids)
+    end
+  end
+
+  defp maybe_followed_hashtag_combined_query(_user_id, _blocked_ids), do: nil
+
+  defp followed_hashtag_combined_query(hashtag_ids, blocked_ids) do
+    from(m in Message,
+      join: ph in PostHashtag,
+      on: ph.message_id == m.id,
+      left_join: c in Conversation,
+      on: c.id == m.conversation_id,
+      where:
+        ph.hashtag_id in ^hashtag_ids and
+          is_nil(m.deleted_at) and
+          m.is_draft != true and
+          m.visibility in ["public", "unlisted"] and
+          is_nil(m.reply_to_id) and
+          (is_nil(c.id) or c.type == "timeline"),
+      where: is_nil(m.sender_id) or m.sender_id not in ^blocked_ids,
+      select: m
     )
   end
 
-  defp combined_feed_query(local_query, federated_query, limit, preloads) do
-    from(m in subquery(union_all(local_query, ^federated_query)),
+  defp combined_feed_query(local_query, optional_queries, limit, preloads)
+       when is_list(optional_queries) do
+    combined_query =
+      optional_queries
+      |> Enum.reject(&is_nil/1)
+      |> Enum.reduce(local_query, fn query, acc -> union_all(acc, ^query) end)
+
+    from(m in subquery(combined_query),
+      distinct: [desc: m.id],
       order_by: [desc: m.id],
       limit: ^limit,
       preload: ^preloads
@@ -2805,6 +3714,7 @@ defmodule Elektrine.Social do
     pagination = pagination_opts(opts)
     user_id = Keyword.get(opts, :user_id)
     search_query = Keyword.get(opts, :search_query)
+    only_media = Keyword.get(opts, :only_media, false)
     preloads = MessagingMessages.timeline_feed_preloads()
 
     all_blocked_ids = blocked_user_ids(user_id)
@@ -2832,6 +3742,7 @@ defmodule Elektrine.Social do
     query = maybe_exclude_blocked_senders(query, all_blocked_ids)
     query = maybe_apply_viewer_timeline_policy(query, user_id)
     query = maybe_apply_timeline_search(query, search_query)
+    query = maybe_filter_timeline_media(query, only_media)
     query = query |> apply_id_pagination(pagination) |> apply_id_order(pagination.order)
 
     Repo.all(query)
@@ -3072,8 +3983,11 @@ defmodule Elektrine.Social do
   defdelegate list_public_lists(opts \\ []), to: Elektrine.Social.Lists
   defdelegate search_public_lists(query, opts \\ []), to: Elektrine.Social.Lists
   defdelegate get_public_list(list_id), to: Elektrine.Social.Lists
+  defdelegate list_user_lists_for_account(owner_user_id, account), to: Elektrine.Social.Lists
   defdelegate add_to_list(list_id, attrs), to: Elektrine.Social.Lists
+  defdelegate add_accounts_to_list(owner_user_id, list_id, attrs), to: Elektrine.Social.Lists
   defdelegate remove_from_list(list_member_id), to: Elektrine.Social.Lists
+  defdelegate remove_accounts_from_list(owner_user_id, list_id, attrs), to: Elektrine.Social.Lists
   defdelegate get_list_timeline(list_id, opts \\ []), to: Elektrine.Social.Lists
 
   # NOTE: Saved Items (Bookmarks) functions are now in Elektrine.Social.Bookmarks

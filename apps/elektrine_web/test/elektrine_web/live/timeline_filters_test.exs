@@ -1598,6 +1598,63 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
       |> render_click()
 
     assert html =~ "Load more timeline post 01"
+
+    assert {existing_page_pos, _} = :binary.match(html, "Load more timeline post 06")
+    assert {loaded_page_pos, _} = :binary.match(html, "Load more timeline post 05")
+    assert existing_page_pos < loaded_page_pos
+  end
+
+  test "load more skips hidden-only pages until older visible posts are found", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    author = AccountsFixtures.user_fixture()
+
+    parent =
+      post_fixture(
+        user: author,
+        content: "Load more hidden page parent"
+      )
+
+    for i <- 1..5 do
+      _post =
+        post_fixture(
+          user: author,
+          content: "Older visible load-more post #{String.pad_leading(to_string(i), 2, "0")}"
+        )
+    end
+
+    for i <- 1..20 do
+      post_fixture(
+        user: author,
+        content: "Hidden reply load-more page #{String.pad_leading(to_string(i), 2, "0")}"
+      )
+      |> Ecto.Changeset.change(reply_to_id: parent.id)
+      |> Repo.update!()
+    end
+
+    for i <- 1..20 do
+      _post =
+        post_fixture(
+          user: author,
+          content: "Newest visible load-more post #{String.pad_leading(to_string(i), 2, "0")}"
+        )
+    end
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=all&view=posts")
+
+    initial_html = render(view)
+    assert initial_html =~ "Newest visible load-more post 01"
+    refute initial_html =~ "Hidden reply load-more page 01"
+    refute initial_html =~ "Older visible load-more post 01"
+
+    html =
+      view
+      |> element("button[phx-click='load_more_posts']")
+      |> render_click()
+
+    assert html =~ "Older visible load-more post 01"
   end
 
   test "hide_post removes the post from the timeline immediately", %{conn: conn} do

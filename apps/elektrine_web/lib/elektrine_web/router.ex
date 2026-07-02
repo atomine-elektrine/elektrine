@@ -210,6 +210,29 @@ defmodule ElektrineWeb.Router do
     plug(ElektrineWeb.Plugs.PATAuth, scopes: ["write:static_site"])
   end
 
+  pipeline :api_pat_report_create_scope do
+    plug(ElektrineWeb.Plugs.PATAuth,
+      scopes: ["write:social", "write:moderation"],
+      any: true,
+      allow_api_token: true
+    )
+  end
+
+  pipeline :api_pat_moderation_read_scope do
+    plug(ElektrineWeb.Plugs.PATAuth,
+      scopes: ["read:moderation", "write:moderation"],
+      any: true,
+      allow_api_token: true
+    )
+  end
+
+  pipeline :api_pat_moderation_write_scope do
+    plug(ElektrineWeb.Plugs.PATAuth,
+      scopes: ["write:moderation"],
+      allow_api_token: true
+    )
+  end
+
   pipeline :api_pat_dns_read_scope do
     plug(ElektrineWeb.Plugs.PATAuth, scopes: ["read:dns", "write:dns"], any: true)
   end
@@ -705,11 +728,16 @@ defmodule ElektrineWeb.Router do
     end
 
     # Monitoring (Admin.MonitoringController)
+    get("/operations", Admin.MonitoringController, :operations)
     get("/active-users", Admin.MonitoringController, :active_users)
     get("/imap-users", Admin.MonitoringController, :imap_users)
     get("/pop3-users", Admin.MonitoringController, :pop3_users)
     get("/2fa-status", Admin.MonitoringController, :two_factor_status)
     get("/system-health", Admin.MonitoringController, :system_health)
+    get("/job-queue-stats", Admin.MonitoringController, :job_queue_stats)
+    get("/media-proxy-cache", Admin.MonitoringController, :media_proxy_cache)
+    post("/media-proxy-cache/purge", Admin.MonitoringController, :purge_media_proxy_cache)
+    post("/media-proxy-cache/unban", Admin.MonitoringController, :unban_media_proxy_cache)
 
     # Deletion requests (Admin.DeletionRequestsController)
     get("/deletion-requests", Admin.DeletionRequestsController, :index)
@@ -864,6 +892,7 @@ defmodule ElektrineWeb.Router do
 
     # Authentication endpoints (no auth required)
     post("/auth/login", AuthController, :login)
+    post("/auth/password", PasswordResetController, :request)
 
     # Portable Atomine anti-bot attestations
     get("/atomine/issuer", AtomineAttestationController, :issuer)
@@ -884,6 +913,72 @@ defmodule ElektrineWeb.Router do
     )
 
     post("/atomine/artifacts/verify", AtomineAttestationController, :verify)
+
+    # Public client metadata
+    post("/v1/apps", AppController, :create)
+    get("/v1/apps/verify_credentials", AppController, :verify_credentials)
+    get("/pleroma/frontend_configurations", UtilityController, :frontend_configurations)
+    get("/v1/pleroma/frontend_configurations", UtilityController, :frontend_configurations)
+    get("/v1/pleroma/preferred_frontend/available", UtilityController, :available_frontends)
+    put("/v1/pleroma/preferred_frontend", UtilityController, :update_preferred_frontend)
+    post("/v1/pleroma/password_reset", PasswordResetController, :confirm)
+    get("/v1/pleroma/emoji", UtilityController, :emoji)
+    get("/v1/pleroma/captcha", UtilityController, :captcha)
+    get("/v1/pleroma/healthcheck", UtilityController, :healthcheck)
+    get("/v1/pleroma/accounts/:id/scrobbles", ScrobbleController, :index)
+    get("/v1/instance", InstanceController, :show_v1)
+    get("/v1/instance/peers", InstanceController, :peers)
+    get("/v1/instance/rules", InstanceController, :rules)
+    get("/v1/instance/domain_blocks", InstanceController, :domain_blocks)
+    get("/v1/instance/translation_languages", InstanceController, :translation_languages)
+    get("/v2/instance", InstanceController, :show_v2)
+    get("/v1/custom_emojis", CustomEmojiController, :index)
+    get("/v1/directory", AccountDirectoryController, :index)
+  end
+
+  scope "/api", alias: false do
+    pipe_through([:api, :api_rate_limited])
+
+    post("/v1/accounts", ElektrineWeb.API.AccountRegistrationController, :create)
+    post("/v1/accounts/password_reset", ElektrineWeb.API.PasswordResetController, :request)
+
+    post(
+      "/v1/accounts/password_reset/confirm",
+      ElektrineWeb.API.PasswordResetController,
+      :confirm
+    )
+  end
+
+  scope "/api", alias: false do
+    pipe_through([:api_pat_authenticated, :api_pat_account_read_scope])
+
+    get("/v1/apps", ElektrineWeb.API.AppController, :index)
+    get("/v1/pleroma/apps", ElektrineWeb.API.AppController, :index)
+  end
+
+  scope "/api", alias: false do
+    pipe_through([:api_pat_authenticated, :api_pat_report_create_scope])
+
+    post("/v1/reports", ElektrineWeb.API.ReportController, :create)
+  end
+
+  scope "/api", alias: false do
+    pipe_through([:api_pat_authenticated, :api_pat_moderation_read_scope])
+
+    get("/v1/reports", ElektrineWeb.API.ReportController, :index)
+    get("/v1/reports/:id", ElektrineWeb.API.ReportController, :show)
+    get("/v0/pleroma/reports", ElektrineWeb.API.ReportController, :index)
+    get("/v0/pleroma/reports/:id", ElektrineWeb.API.ReportController, :show)
+  end
+
+  scope "/api", alias: false do
+    pipe_through([:api_pat_authenticated, :api_pat_moderation_write_scope])
+
+    put("/v1/reports/:id", ElektrineWeb.API.ReportController, :update)
+    patch("/v1/reports/:id", ElektrineWeb.API.ReportController, :update)
+    post("/v1/reports/:id/resolve", ElektrineWeb.API.ReportController, :resolve)
+    post("/v1/reports/:id/dismiss", ElektrineWeb.API.ReportController, :dismiss)
+    post("/v1/reports/:id/reopen", ElektrineWeb.API.ReportController, :reopen)
   end
 
   # Mobile app authenticated endpoints - Always available for VPN
@@ -901,6 +996,74 @@ defmodule ElektrineWeb.Router do
     put("/settings/password", ElektrineWeb.API.SettingsController, :update_password)
     post("/settings/bluesky/enable", ElektrineWeb.API.SettingsController, :enable_bluesky_managed)
 
+    put(
+      "/pleroma/notification_settings",
+      ElektrineWeb.API.SettingsController,
+      :update_notifications
+    )
+
+    put(
+      "/v1/pleroma/notification_settings",
+      ElektrineWeb.API.SettingsController,
+      :update_notifications
+    )
+
+    post("/pleroma/change_password", ElektrineWeb.API.SettingsController, :change_password)
+    post("/v1/pleroma/change_password", ElektrineWeb.API.SettingsController, :change_password)
+    post("/pleroma/change_email", ElektrineWeb.API.SettingsController, :change_email)
+    post("/v1/pleroma/change_email", ElektrineWeb.API.SettingsController, :change_email)
+
+    get("/pleroma/accounts/mfa", ElektrineWeb.API.TwoFactorAuthenticationController, :settings)
+    get("/v1/pleroma/accounts/mfa", ElektrineWeb.API.TwoFactorAuthenticationController, :settings)
+
+    get(
+      "/pleroma/accounts/mfa/backup_codes",
+      ElektrineWeb.API.TwoFactorAuthenticationController,
+      :backup_codes
+    )
+
+    get(
+      "/v1/pleroma/accounts/mfa/backup_codes",
+      ElektrineWeb.API.TwoFactorAuthenticationController,
+      :backup_codes
+    )
+
+    get(
+      "/pleroma/accounts/mfa/setup/:method",
+      ElektrineWeb.API.TwoFactorAuthenticationController,
+      :setup
+    )
+
+    get(
+      "/v1/pleroma/accounts/mfa/setup/:method",
+      ElektrineWeb.API.TwoFactorAuthenticationController,
+      :setup
+    )
+
+    post(
+      "/pleroma/accounts/mfa/confirm/:method",
+      ElektrineWeb.API.TwoFactorAuthenticationController,
+      :confirm
+    )
+
+    post(
+      "/v1/pleroma/accounts/mfa/confirm/:method",
+      ElektrineWeb.API.TwoFactorAuthenticationController,
+      :confirm
+    )
+
+    delete(
+      "/pleroma/accounts/mfa/:method",
+      ElektrineWeb.API.TwoFactorAuthenticationController,
+      :disable
+    )
+
+    delete(
+      "/v1/pleroma/accounts/mfa/:method",
+      ElektrineWeb.API.TwoFactorAuthenticationController,
+      :disable
+    )
+
     # VPN endpoints
     ElektrineWeb.Routes.VPN.authenticated_api_routes()
 
@@ -916,6 +1079,393 @@ defmodule ElektrineWeb.Router do
     post("/notifications/:id/read", ElektrineWeb.API.NotificationController, :mark_read)
     post("/notifications/read-all", ElektrineWeb.API.NotificationController, :mark_all_read)
     delete("/notifications/:id", ElektrineWeb.API.NotificationController, :dismiss)
+    get("/v1/pleroma/settings/:app", ElektrineWeb.API.SettingsController, :show_app)
+    patch("/v1/pleroma/settings/:app", ElektrineWeb.API.SettingsController, :update_app)
+    put("/v1/pleroma/settings/:app", ElektrineWeb.API.SettingsController, :update_app)
+    get("/pleroma/aliases", ElektrineWeb.API.UtilityController, :list_aliases)
+    put("/pleroma/aliases", ElektrineWeb.API.UtilityController, :add_alias)
+    delete("/pleroma/aliases", ElektrineWeb.API.UtilityController, :delete_alias)
+    post("/pleroma/move_account", ElektrineWeb.API.UtilityController, :move_account)
+    get("/v1/notifications", ElektrineWeb.API.NotificationController, :v1_index)
+    get("/v1/notifications/:id", ElektrineWeb.API.NotificationController, :show)
+    post("/v1/notifications/clear", ElektrineWeb.API.NotificationController, :clear)
+
+    post(
+      "/v1/pleroma/notifications/read",
+      ElektrineWeb.API.NotificationController,
+      :mark_read_via_body
+    )
+
+    post("/v1/notifications/dismiss", ElektrineWeb.API.NotificationController, :dismiss_via_body)
+    post("/v1/notifications/:id/dismiss", ElektrineWeb.API.NotificationController, :dismiss)
+
+    delete(
+      "/v1/notifications/destroy_multiple",
+      ElektrineWeb.API.NotificationController,
+      :destroy_multiple
+    )
+
+    get("/v2/notifications", ElektrineWeb.API.NotificationController, :v2_index)
+    get("/v2/notifications/unread_count", ElektrineWeb.API.NotificationController, :unread_count)
+
+    get(
+      "/v2/notifications/:group_key/accounts",
+      ElektrineWeb.API.NotificationController,
+      :group_accounts
+    )
+
+    get("/v2/notifications/:group_key", ElektrineWeb.API.NotificationController, :show_group)
+
+    post(
+      "/v2/notifications/:group_key/dismiss",
+      ElektrineWeb.API.NotificationController,
+      :dismiss_group
+    )
+
+    get("/v1/push/subscription", ElektrineWeb.API.PushSubscriptionController, :show)
+    post("/v1/push/subscription", ElektrineWeb.API.PushSubscriptionController, :create)
+    put("/v1/push/subscription", ElektrineWeb.API.PushSubscriptionController, :update)
+    delete("/v1/push/subscription", ElektrineWeb.API.PushSubscriptionController, :delete)
+
+    # Timeline markers
+    get("/markers", ElektrineWeb.API.MarkerController, :index)
+    post("/markers", ElektrineWeb.API.MarkerController, :upsert)
+    get("/v1/markers", ElektrineWeb.API.MarkerController, :index)
+    post("/v1/markers", ElektrineWeb.API.MarkerController, :upsert)
+
+    # Client preferences
+    get("/v1/preferences", ElektrineWeb.API.PreferenceController, :show)
+
+    # Suggested follows
+    get("/v1/suggestions", ElektrineWeb.API.SuggestionController, :index)
+    get("/v2/suggestions", ElektrineWeb.API.SuggestionController, :index)
+    delete("/v2/suggestions/:account_id", ElektrineWeb.API.SuggestionController, :dismiss)
+
+    # Search
+    get("/v2/search", ElektrineWeb.API.SearchController, :index)
+
+    # Account search and lookup
+    get(
+      "/v1/accounts/verify_credentials",
+      ElektrineWeb.API.AccountCredentialController,
+      :verify_credentials
+    )
+
+    patch(
+      "/v1/accounts/update_credentials",
+      ElektrineWeb.API.AccountCredentialController,
+      :update_credentials
+    )
+
+    get("/v1/accounts/search", ElektrineWeb.API.AccountSearchController, :search)
+    get("/v1/accounts/lookup", ElektrineWeb.API.AccountSearchController, :lookup)
+    post("/v1/follows", ElektrineWeb.API.AccountRelationshipController, :follow_by_uri)
+
+    get(
+      "/v1/accounts/familiar_followers",
+      ElektrineWeb.API.AccountRelationshipController,
+      :familiar_followers
+    )
+
+    get(
+      "/v1/accounts/relationships",
+      ElektrineWeb.API.AccountRelationshipController,
+      :relationships
+    )
+
+    get("/v1/endorsements", ElektrineWeb.API.AccountRelationshipController, :endorsements)
+    get("/v1/pleroma/birthdays", ElektrineWeb.API.AccountBirthdayController, :index)
+    get("/v1/accounts/:id", ElektrineWeb.API.AccountSearchController, :show)
+
+    # Account statuses
+    get("/v1/accounts/:id/statuses", ElektrineWeb.API.AccountStatusController, :index)
+    get("/v1/accounts/:id/favourites", ElektrineWeb.API.AccountStatusController, :favourites)
+
+    get(
+      "/v1/pleroma/accounts/:id/favourites",
+      ElektrineWeb.API.AccountStatusController,
+      :favourites
+    )
+
+    get("/v1/accounts/:id/followers", ElektrineWeb.API.AccountRelationshipController, :followers)
+    get("/v1/accounts/:id/following", ElektrineWeb.API.AccountRelationshipController, :following)
+
+    get(
+      "/v1/accounts/:id/endorsements",
+      ElektrineWeb.API.AccountRelationshipController,
+      :account_endorsements
+    )
+
+    get("/v1/accounts/:id/lists", ElektrineWeb.API.AccountRelationshipController, :lists)
+    post("/v1/accounts/:id/follow", ElektrineWeb.API.AccountRelationshipController, :follow)
+    post("/v1/accounts/:id/unfollow", ElektrineWeb.API.AccountRelationshipController, :unfollow)
+    post("/v1/accounts/:id/subscribe", ElektrineWeb.API.AccountRelationshipController, :subscribe)
+
+    post(
+      "/v1/accounts/:id/unsubscribe",
+      ElektrineWeb.API.AccountRelationshipController,
+      :unsubscribe
+    )
+
+    post("/v1/accounts/:id/pin", ElektrineWeb.API.AccountRelationshipController, :endorse)
+    post("/v1/accounts/:id/unpin", ElektrineWeb.API.AccountRelationshipController, :unendorse)
+    post("/v1/accounts/:id/endorse", ElektrineWeb.API.AccountRelationshipController, :endorse)
+    post("/v1/accounts/:id/unendorse", ElektrineWeb.API.AccountRelationshipController, :unendorse)
+
+    post(
+      "/v1/accounts/:id/remove_from_followers",
+      ElektrineWeb.API.AccountRelationshipController,
+      :remove_from_followers
+    )
+
+    # Status read/actions
+    get("/v1/bookmarks", ElektrineWeb.API.BookmarkController, :index)
+    get("/v1/favourites", ElektrineWeb.API.FavouriteController, :index)
+    post("/v1/pleroma/scrobble", ElektrineWeb.API.ScrobbleController, :create)
+    get("/v1/statuses", ElektrineWeb.API.StatusReadController, :index)
+    post("/v1/statuses", ElektrineWeb.API.StatusActionController, :create)
+    get("/v1/statuses/:id", ElektrineWeb.API.StatusReadController, :show)
+    get("/v1/statuses/:id/context", ElektrineWeb.API.StatusReadController, :context)
+    get("/v1/statuses/:id/favourited_by", ElektrineWeb.API.StatusReadController, :favourited_by)
+    get("/v1/statuses/:id/reblogged_by", ElektrineWeb.API.StatusReadController, :reblogged_by)
+    get("/v1/statuses/:id/quotes", ElektrineWeb.API.StatusReadController, :quotes)
+    get("/v1/pleroma/statuses/:id/quotes", ElektrineWeb.API.StatusReadController, :quotes)
+    get("/v1/statuses/:id/source", ElektrineWeb.API.StatusReadController, :source)
+    get("/v1/statuses/:id/history", ElektrineWeb.API.StatusReadController, :history)
+    get("/v1/statuses/:id/reactions", ElektrineWeb.API.StatusReactionController, :index)
+    get("/v1/statuses/:id/reactions/:emoji", ElektrineWeb.API.StatusReactionController, :show)
+    put("/v1/statuses/:id", ElektrineWeb.API.StatusActionController, :update)
+    patch("/v1/statuses/:id", ElektrineWeb.API.StatusActionController, :update)
+    delete("/v1/statuses/:id", ElektrineWeb.API.StatusActionController, :delete)
+    put("/v1/statuses/:id/reactions/:emoji", ElektrineWeb.API.StatusReactionController, :create)
+
+    delete(
+      "/v1/statuses/:id/reactions/:emoji",
+      ElektrineWeb.API.StatusReactionController,
+      :delete
+    )
+
+    get("/v1/pleroma/statuses/:id/reactions", ElektrineWeb.API.StatusReactionController, :index)
+
+    get(
+      "/v1/pleroma/statuses/:id/reactions/:emoji",
+      ElektrineWeb.API.StatusReactionController,
+      :show
+    )
+
+    put(
+      "/v1/pleroma/statuses/:id/reactions/:emoji",
+      ElektrineWeb.API.StatusReactionController,
+      :create
+    )
+
+    delete(
+      "/v1/pleroma/statuses/:id/reactions/:emoji",
+      ElektrineWeb.API.StatusReactionController,
+      :delete
+    )
+
+    post("/v1/media", ElektrineWeb.API.MediaAttachmentController, :create)
+    get("/v1/media/:id", ElektrineWeb.API.MediaAttachmentController, :show)
+    put("/v1/media", ElektrineWeb.API.MediaAttachmentController, :update)
+    patch("/v1/media", ElektrineWeb.API.MediaAttachmentController, :update)
+    put("/v1/media/:id", ElektrineWeb.API.MediaAttachmentController, :update)
+    patch("/v1/media/:id", ElektrineWeb.API.MediaAttachmentController, :update)
+    post("/v2/media", ElektrineWeb.API.MediaAttachmentController, :create)
+    get("/v2/media/:id", ElektrineWeb.API.MediaAttachmentController, :show)
+
+    # Lists
+    get("/v1/lists", ElektrineWeb.API.ListController, :index)
+    post("/v1/lists", ElektrineWeb.API.ListController, :create)
+    get("/v1/lists/:id", ElektrineWeb.API.ListController, :show)
+    put("/v1/lists/:id", ElektrineWeb.API.ListController, :update)
+    patch("/v1/lists/:id", ElektrineWeb.API.ListController, :update)
+    delete("/v1/lists/:id", ElektrineWeb.API.ListController, :delete)
+    get("/v1/lists/:id/accounts", ElektrineWeb.API.ListController, :accounts)
+    post("/v1/lists/:id/accounts", ElektrineWeb.API.ListController, :add_accounts)
+    delete("/v1/lists/:id/accounts", ElektrineWeb.API.ListController, :remove_accounts)
+
+    post("/v1/statuses/:id/favourite", ElektrineWeb.API.StatusActionController, :favourite)
+    post("/v1/statuses/:id/unfavourite", ElektrineWeb.API.StatusActionController, :unfavourite)
+    post("/v1/statuses/:id/reblog", ElektrineWeb.API.StatusActionController, :reblog)
+    post("/v1/statuses/:id/unreblog", ElektrineWeb.API.StatusActionController, :unreblog)
+    post("/v1/statuses/:id/bookmark", ElektrineWeb.API.StatusActionController, :bookmark)
+    post("/v1/statuses/:id/unbookmark", ElektrineWeb.API.StatusActionController, :unbookmark)
+    post("/v1/statuses/:id/mute", ElektrineWeb.API.StatusActionController, :mute)
+    post("/v1/statuses/:id/unmute", ElektrineWeb.API.StatusActionController, :unmute)
+    post("/v1/statuses/:id/pin", ElektrineWeb.API.StatusPinController, :pin)
+    post("/v1/statuses/:id/unpin", ElektrineWeb.API.StatusPinController, :unpin)
+    post("/v1/statuses/:id/translate", ElektrineWeb.API.StatusActionController, :translate)
+
+    # Direct conversations
+    get("/v1/conversations", ElektrineWeb.API.DirectConversationController, :index)
+    get("/v1/pleroma/conversations/:id", ElektrineWeb.API.DirectConversationController, :show)
+    patch("/v1/pleroma/conversations/:id", ElektrineWeb.API.DirectConversationController, :update)
+
+    get(
+      "/v1/conversations/:id/statuses",
+      ElektrineWeb.API.DirectConversationController,
+      :statuses
+    )
+
+    get(
+      "/v1/pleroma/conversations/:id/statuses",
+      ElektrineWeb.API.DirectConversationController,
+      :statuses
+    )
+
+    post(
+      "/v1/pleroma/conversations/read",
+      ElektrineWeb.API.DirectConversationController,
+      :read_all
+    )
+
+    post("/v1/conversations/:id/read", ElektrineWeb.API.DirectConversationController, :read)
+    delete("/v1/conversations/:id", ElektrineWeb.API.DirectConversationController, :delete)
+
+    # System announcements
+    get("/v1/announcements", ElektrineWeb.API.AnnouncementController, :index)
+    post("/v1/announcements/:id/dismiss", ElektrineWeb.API.AnnouncementController, :dismiss)
+
+    # Polls
+    get("/v1/polls/:id", ElektrineWeb.API.PollController, :show)
+    post("/v1/polls/:id/votes", ElektrineWeb.API.PollController, :vote)
+    delete("/v1/polls/:id/votes", ElektrineWeb.API.PollController, :delete_votes)
+
+    # Scheduled statuses
+    get("/v1/scheduled_statuses", ElektrineWeb.API.ScheduledStatusController, :index)
+    post("/v1/scheduled_statuses", ElektrineWeb.API.ScheduledStatusController, :create)
+    get("/v1/scheduled_statuses/:id", ElektrineWeb.API.ScheduledStatusController, :show)
+    put("/v1/scheduled_statuses/:id", ElektrineWeb.API.ScheduledStatusController, :update)
+    patch("/v1/scheduled_statuses/:id", ElektrineWeb.API.ScheduledStatusController, :update)
+    delete("/v1/scheduled_statuses/:id", ElektrineWeb.API.ScheduledStatusController, :delete)
+
+    post(
+      "/v1/scheduled_statuses/:id/publish",
+      ElektrineWeb.API.ScheduledStatusController,
+      :publish
+    )
+
+    # Timeline filters
+    get("/v1/filters", ElektrineWeb.API.FilterController, :index)
+    post("/v1/filters", ElektrineWeb.API.FilterController, :create)
+    get("/v1/filters/:id", ElektrineWeb.API.FilterController, :show)
+    put("/v1/filters/:id", ElektrineWeb.API.FilterController, :update)
+    patch("/v1/filters/:id", ElektrineWeb.API.FilterController, :update)
+    delete("/v1/filters/:id", ElektrineWeb.API.FilterController, :delete)
+
+    # Tags
+    get("/v1/timelines/direct", ElektrineWeb.API.TimelineController, :direct)
+    get("/v1/timelines/home", ElektrineWeb.API.TimelineController, :home)
+    get("/v1/timelines/public", ElektrineWeb.API.TimelineController, :public)
+    get("/v1/timelines/list/:id", ElektrineWeb.API.ListController, :timeline)
+    get("/v1/timelines/tag/:tag", ElektrineWeb.API.TagController, :timeline)
+    get("/v1/trends", ElektrineWeb.API.TrendController, :tags)
+    get("/v1/trends/tags", ElektrineWeb.API.TrendController, :tags)
+    get("/v1/trends/statuses", ElektrineWeb.API.TrendController, :statuses)
+    get("/v1/trends/links", ElektrineWeb.API.TrendController, :links)
+    get("/v1/followed_tags", ElektrineWeb.API.TagController, :index_followed)
+    get("/v1/tags/:id", ElektrineWeb.API.TagController, :show)
+    post("/v1/tags/:id/follow", ElektrineWeb.API.TagController, :follow)
+    post("/v1/tags/:id/unfollow", ElektrineWeb.API.TagController, :unfollow)
+
+    # Account notes
+    post("/v1/accounts/:id/note", ElektrineWeb.API.AccountNoteController, :create)
+
+    # Account relationships
+    get("/v1/mutes", ElektrineWeb.API.AccountRelationshipController, :mutes)
+    get("/v1/blocks", ElektrineWeb.API.AccountRelationshipController, :blocks)
+    get("/v1/domain_blocks", ElektrineWeb.API.DomainBlockController, :index)
+    post("/v1/domain_blocks", ElektrineWeb.API.DomainBlockController, :create)
+    delete("/v1/domain_blocks", ElektrineWeb.API.DomainBlockController, :delete)
+    post("/v1/accounts/:id/mute", ElektrineWeb.API.AccountRelationshipController, :mute)
+    post("/v1/accounts/:id/unmute", ElektrineWeb.API.AccountRelationshipController, :unmute)
+    post("/v1/accounts/:id/block", ElektrineWeb.API.AccountRelationshipController, :block)
+    post("/v1/accounts/:id/unblock", ElektrineWeb.API.AccountRelationshipController, :unblock)
+
+    # Follow requests
+    get("/v1/follow_requests", ElektrineWeb.API.FollowRequestController, :index)
+
+    post(
+      "/v1/follow_requests/:id/authorize",
+      ElektrineWeb.API.FollowRequestController,
+      :authorize
+    )
+
+    post("/v1/follow_requests/:id/reject", ElektrineWeb.API.FollowRequestController, :reject)
+
+    get(
+      "/v1/pleroma/outgoing_follow_requests",
+      ElektrineWeb.API.OutgoingFollowRequestController,
+      :index
+    )
+
+    delete(
+      "/v1/pleroma/outgoing_follow_requests/:id",
+      ElektrineWeb.API.OutgoingFollowRequestController,
+      :cancel
+    )
+
+    post("/v1/pleroma/import", ElektrineWeb.API.RelationshipImportController, :create)
+    post("/pleroma/follow_import", ElektrineWeb.API.RelationshipImportController, :follow_import)
+
+    post(
+      "/v1/pleroma/follow_import",
+      ElektrineWeb.API.RelationshipImportController,
+      :follow_import
+    )
+
+    post("/pleroma/mutes_import", ElektrineWeb.API.RelationshipImportController, :mutes_import)
+    post("/v1/pleroma/mutes_import", ElektrineWeb.API.RelationshipImportController, :mutes_import)
+    post("/pleroma/blocks_import", ElektrineWeb.API.RelationshipImportController, :blocks_import)
+
+    post(
+      "/v1/pleroma/blocks_import",
+      ElektrineWeb.API.RelationshipImportController,
+      :blocks_import
+    )
+
+    # Chat client compatibility
+    post(
+      "/v1/pleroma/chats/by-account-id/:id",
+      ElektrineWeb.API.ChatCompatController,
+      :create_by_account
+    )
+
+    get("/v1/pleroma/chats", ElektrineWeb.API.ChatCompatController, :index)
+    get("/v1/pleroma/chats/:id", ElektrineWeb.API.ChatCompatController, :show)
+    get("/v1/pleroma/chats/:id/messages", ElektrineWeb.API.ChatCompatController, :messages)
+    post("/v1/pleroma/chats/:id/messages", ElektrineWeb.API.ChatCompatController, :post_message)
+
+    delete(
+      "/v1/pleroma/chats/:id/messages/:message_id",
+      ElektrineWeb.API.ChatCompatController,
+      :delete_message
+    )
+
+    post("/v1/pleroma/chats/:id/read", ElektrineWeb.API.ChatCompatController, :read)
+
+    post(
+      "/v1/pleroma/chats/:id/messages/:message_id/read",
+      ElektrineWeb.API.ChatCompatController,
+      :read_message
+    )
+
+    post("/v1/pleroma/chats/:id/pin", ElektrineWeb.API.ChatCompatController, :pin)
+    post("/v1/pleroma/chats/:id/unpin", ElektrineWeb.API.ChatCompatController, :unpin)
+    get("/v2/pleroma/chats", ElektrineWeb.API.ChatCompatController, :index)
+
+    # Client-compatible bookmark folders
+    get("/v1/pleroma/bookmark_folders", ElektrineWeb.API.BookmarkFolderController, :index)
+    post("/v1/pleroma/bookmark_folders", ElektrineWeb.API.BookmarkFolderController, :create)
+    patch("/v1/pleroma/bookmark_folders/:id", ElektrineWeb.API.BookmarkFolderController, :update)
+    delete("/v1/pleroma/bookmark_folders/:id", ElektrineWeb.API.BookmarkFolderController, :delete)
+
+    # Client-compatible account backups
+    get("/pleroma/backups", ElektrineWeb.API.BackupController, :index)
+    post("/pleroma/backups", ElektrineWeb.API.BackupController, :create)
+    get("/pleroma/backups/:id", ElektrineWeb.API.BackupController, :show)
+    delete("/pleroma/backups/:id", ElektrineWeb.API.BackupController, :delete)
 
     ElektrineWeb.Routes.Chat.authenticated_api_routes()
     ElektrineWeb.Routes.Social.authenticated_api_routes()

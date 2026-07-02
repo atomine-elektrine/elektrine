@@ -20,16 +20,31 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
   use Oban.Worker,
     queue: :federation,
     max_attempts: 3,
-    priority: 3
+    priority: 3,
+    unique: [
+      period: 300,
+      fields: [:worker, :args],
+      states: [:available, :scheduled, :executing, :retryable]
+    ]
 
   require Logger
 
   import Ecto.Query
 
-  alias Elektrine.ActivityPub.{CollectionFetcher, LemmyApi, MastodonApi, Normalizer, RemoteFetch}
+  alias Elektrine.ActivityPub.{
+    CollectionFetcher,
+    FederationLoadGuard,
+    LemmyApi,
+    MastodonApi,
+    Normalizer,
+    RemoteFetch
+  }
+
   alias Elektrine.Repo
+  alias Elektrine.Social.EngagementCounts
   alias Elektrine.Social.Message
   alias Elektrine.Social.Messages
+  alias Elektrine.Social.MessageStats
   alias Elektrine.Social.PostBoost
   alias Elektrine.Social.PostLike
 
@@ -40,29 +55,32 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"type" => "refresh_recent"}}) do
-    refresh_recent_posts()
-    :ok
+    nonessential_or(fn -> refresh_recent_posts() end)
   end
 
   def perform(%Oban.Job{args: %{"type" => "refresh_popular"}}) do
-    refresh_popular_posts()
-    :ok
+    nonessential_or(fn -> refresh_popular_posts() end)
   end
 
   def perform(%Oban.Job{args: %{"type" => "refresh_interacted"}}) do
-    refresh_interacted_posts()
-    :ok
+    nonessential_or(fn -> refresh_interacted_posts() end)
   end
 
   def perform(%Oban.Job{args: %{"type" => "refresh_single", "message_id" => message_id}}) do
-    refresh_single_post(message_id)
-    :ok
+    nonessential_or(fn -> refresh_single_post(message_id) end)
   end
 
   def perform(%Oban.Job{}) do
-    # Default: refresh a batch of stale posts
-    refresh_stale_posts()
-    :ok
+    nonessential_or(fn -> refresh_stale_posts() end)
+  end
+
+  defp nonessential_or(fun) when is_function(fun, 0) do
+    if FederationLoadGuard.skip_nonessential?(__MODULE__) do
+      {:discard, :federation_overloaded}
+    else
+      fun.()
+      :ok
+    end
   end
 
   @doc """
@@ -98,7 +116,7 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
   """
   def schedule_single_refresh(message_id) do
     %{"type" => "refresh_single", "message_id" => message_id}
-    |> new(unique: [period: 300, keys: [:message_id]])
+    |> new(unique: refresh_type_unique(300))
     |> Elektrine.JobQueue.insert()
   end
 
@@ -443,15 +461,20 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
           like_count: updated_counts.like_count,
           reply_count: updated_counts.reply_count,
           share_count: updated_counts.share_count,
+          remote_like_count: normalize_remote_count(score),
+          remote_reply_count: normalize_remote_count(comments),
+          remote_share_count: 0,
           upvotes: updated_counts.upvotes,
           downvotes: updated_counts.downvotes,
           score: updated_counts.score,
           media_metadata: media_metadata,
+          remote_counts_fetched_at: DateTime.utc_now() |> DateTime.truncate(:second),
           updated_at: DateTime.utc_now() |> DateTime.truncate(:second)
         ]
       )
 
       Messages.broadcast_post_counts_updated(post.id, updated_counts)
+      sync_refreshed_stats(post.id, updated_counts, score, comments, 0, nil)
     end
   end
 
@@ -506,12 +529,18 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
           reply_count: updated_counts.reply_count,
           share_count: updated_counts.share_count,
           quote_count: updated_counts.quote_count,
+          remote_like_count: normalize_remote_count(fav),
+          remote_reply_count: normalize_remote_count(rep),
+          remote_share_count: normalize_remote_count(reb),
+          remote_quote_count: quotes,
           media_metadata: media_metadata,
+          remote_counts_fetched_at: DateTime.utc_now() |> DateTime.truncate(:second),
           updated_at: DateTime.utc_now() |> DateTime.truncate(:second)
         ]
       )
 
       Messages.broadcast_post_counts_updated(post.id, updated_counts)
+      sync_refreshed_stats(post.id, updated_counts, fav, rep, reb, quotes)
     end
   end
 
@@ -603,15 +632,21 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
           reply_count: updated_counts.reply_count,
           share_count: updated_counts.share_count,
           quote_count: updated_counts.quote_count,
+          remote_like_count: normalize_remote_count(likes),
+          remote_reply_count: normalize_remote_count(replies),
+          remote_share_count: normalize_remote_count(shares),
+          remote_quote_count: normalize_remote_count(quotes),
           upvotes: updated_counts.upvotes,
           downvotes: updated_counts.downvotes,
           score: updated_counts.score,
           media_metadata: media_metadata,
+          remote_counts_fetched_at: DateTime.utc_now() |> DateTime.truncate(:second),
           updated_at: DateTime.utc_now() |> DateTime.truncate(:second)
         ]
       )
 
       Messages.broadcast_post_counts_updated(id, updated_counts)
+      sync_refreshed_stats(id, updated_counts, likes, replies, shares, quotes)
 
       Logger.debug(
         "Refreshed counts for #{ap_id}: likes=#{likes}, replies=#{replies}, shares=#{shares}"
@@ -701,17 +736,19 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
     end
   end
 
-  defp normalize_remote_count(value) when is_integer(value), do: max(value, 0)
+  defp normalize_remote_count(value), do: EngagementCounts.remote_count(value)
 
-  defp normalize_remote_count(value) when is_binary(value) do
-    case Integer.parse(String.trim(value)) do
-      {count, _} -> max(count, 0)
-      :error -> 0
-    end
+  defp sync_refreshed_stats(message_id, counts, likes, replies, shares, quotes) do
+    counts =
+      counts
+      |> Map.put(:remote_like_count, normalize_remote_count(likes))
+      |> Map.put(:remote_reply_count, normalize_remote_count(replies))
+      |> Map.put(:remote_share_count, normalize_remote_count(shares))
+      |> Map.put(:remote_quote_count, normalize_remote_count(quotes))
+      |> Map.put(:remote_counts_fetched_at, DateTime.utc_now() |> DateTime.truncate(:second))
+
+    MessageStats.upsert_counts(message_id, counts)
   end
-
-  defp normalize_remote_count(nil), do: 0
-  defp normalize_remote_count(_), do: 0
 
   defp normalize_status_metadata(metadata) when is_map(metadata), do: metadata
   defp normalize_status_metadata(_), do: %{}
@@ -773,6 +810,7 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
        when is_integer(message_id) do
     [
       post.like_count,
+      post.remote_like_count,
       remote_like_count,
       get_in(normalize_status_metadata(post.media_metadata), ["original_like_count"]),
       local_like_count(message_id)
@@ -788,6 +826,7 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
        when is_integer(message_id) do
     [
       post.reply_count,
+      post.remote_reply_count,
       remote_reply_count,
       get_in(normalize_status_metadata(post.media_metadata), ["original_reply_count"]),
       local_reply_count(message_id)
@@ -803,6 +842,7 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
        when is_integer(message_id) do
     [
       post.share_count,
+      post.remote_share_count,
       remote_share_count,
       get_in(normalize_status_metadata(post.media_metadata), ["original_share_count"]),
       local_share_count(message_id)

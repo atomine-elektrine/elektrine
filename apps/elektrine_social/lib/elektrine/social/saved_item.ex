@@ -10,6 +10,7 @@ defmodule Elektrine.Social.SavedItem do
     belongs_to :user, Elektrine.Accounts.User
     belongs_to :message, Elektrine.Social.Message
     belongs_to :rss_item, Elektrine.RSS.Item
+    belongs_to :bookmark_folder, Elektrine.Social.BookmarkFolder
 
     field :folder, :string
     field :notes, :string
@@ -22,11 +23,12 @@ defmodule Elektrine.Social.SavedItem do
   """
   def message_changeset(saved_item, attrs) do
     saved_item
-    |> cast(attrs, [:user_id, :message_id, :folder, :notes])
+    |> cast(attrs, [:user_id, :message_id, :folder, :notes, :bookmark_folder_id])
     |> validate_required([:user_id, :message_id])
     |> unique_constraint([:user_id, :message_id], name: :saved_items_user_message_unique)
     |> foreign_key_constraint(:user_id)
     |> foreign_key_constraint(:message_id)
+    |> foreign_key_constraint(:bookmark_folder_id)
   end
 
   @doc """
@@ -34,10 +36,11 @@ defmodule Elektrine.Social.SavedItem do
   """
   def rss_item_changeset(saved_item, attrs) do
     saved_item
-    |> cast(attrs, [:user_id, :rss_item_id, :folder, :notes])
+    |> cast(attrs, [:user_id, :rss_item_id, :folder, :notes, :bookmark_folder_id])
     |> validate_required([:user_id, :rss_item_id])
     |> unique_constraint([:user_id, :rss_item_id], name: :saved_items_user_rss_item_unique)
     |> foreign_key_constraint(:user_id)
     |> foreign_key_constraint(:rss_item_id)
+    |> foreign_key_constraint(:bookmark_folder_id)
   end
 end

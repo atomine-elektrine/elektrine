@@ -6,6 +6,10 @@ defmodule Elektrine.Social.Drafts do
   alias Elektrine.Social
   alias Elektrine.Social.{Conversation, Message}
   alias Elektrine.Social.HashtagExtractor
+
+  @default_min_schedule_offset_seconds 300
+  @default_daily_schedule_limit 25
+  @default_total_schedule_limit 300
   @doc "Lists all drafts for a user.\nReturns drafts ordered by most recently updated first.\n"
   def list_drafts(user_id, opts \\ []) do
     limit = Keyword.get(opts, :limit, 50)
@@ -17,6 +21,23 @@ defmodule Elektrine.Social.Drafts do
         m.sender_id == ^user_id and m.is_draft == true and c.type == "timeline" and
           is_nil(m.deleted_at),
       order_by: [desc: m.updated_at],
+      limit: ^limit,
+      preload: [:link_preview, :hashtags]
+    )
+    |> Repo.all()
+  end
+
+  @doc "Lists scheduled drafts for Mastodon-compatible scheduled status APIs."
+  def list_scheduled_drafts(user_id, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 50)
+
+    from(m in Message,
+      join: c in Conversation,
+      on: c.id == m.conversation_id,
+      where:
+        m.sender_id == ^user_id and m.is_draft == true and c.type == "timeline" and
+          not is_nil(m.scheduled_at) and is_nil(m.deleted_at),
+      order_by: [asc: m.scheduled_at, asc: m.id],
       limit: ^limit,
       preload: [:link_preview, :hashtags]
     )
@@ -61,6 +82,14 @@ defmodule Elektrine.Social.Drafts do
       preload: [:link_preview, :hashtags, sender: [:profile]]
     )
     |> Repo.one()
+  end
+
+  @doc "Gets a scheduled draft by ID."
+  def get_scheduled_draft(draft_id, user_id) do
+    case get_draft(draft_id, user_id) do
+      %Message{scheduled_at: %DateTime{}} = draft -> draft
+      _ -> nil
+    end
   end
 
   @doc "Saves a new draft or updates an existing one.\n\n## Options\n  * `:content` - The post content\n  * `:title` - Optional title\n  * `:visibility` - Post visibility (defaults to \"followers\")\n  * `:media_urls` - List of media URLs\n  * `:alt_texts` - Map of media alt texts\n  * `:content_warning` - Optional content warning\n  * `:sensitive` - Whether media/content should be treated as sensitive\n  * `:category` - Gallery category\n"
@@ -118,7 +147,10 @@ defmodule Elektrine.Social.Drafts do
       scheduled_at: scheduled_at
     }
 
-    %Message{} |> Message.changeset(attrs) |> Repo.insert()
+    %Message{}
+    |> Message.changeset(attrs)
+    |> validate_schedule_limits(user_id)
+    |> Repo.insert()
   end
 
   @doc "Updates an existing draft.\n"
@@ -173,7 +205,18 @@ defmodule Elektrine.Social.Drafts do
           scheduled_at: scheduled_at
         }
 
-        draft |> Message.changeset(attrs) |> Repo.update()
+        draft
+        |> Message.changeset(attrs)
+        |> maybe_validate_updated_schedule(draft, opts)
+        |> Repo.update()
+    end
+  end
+
+  @doc "Updates a scheduled draft while preserving scheduled-status semantics."
+  def update_scheduled_draft(draft_id, user_id, opts) do
+    case get_scheduled_draft(draft_id, user_id) do
+      nil -> {:error, :not_found}
+      _draft -> update_draft(draft_id, user_id, opts)
     end
   end
 
@@ -237,6 +280,100 @@ defmodule Elektrine.Social.Drafts do
 
   defp scheduled_for_future?(%DateTime{} = scheduled_at) do
     DateTime.compare(scheduled_at, DateTime.utc_now()) == :gt
+  end
+
+  defp maybe_validate_updated_schedule(changeset, draft, opts) do
+    if Keyword.has_key?(opts, :scheduled_at) do
+      validate_schedule_limits(changeset, draft.sender_id, draft.id)
+    else
+      changeset
+    end
+  end
+
+  defp validate_schedule_limits(changeset, user_id, current_draft_id \\ nil) do
+    scheduled_at = get_field(changeset, :scheduled_at)
+
+    cond do
+      is_nil(scheduled_at) ->
+        changeset
+
+      not far_enough?(scheduled_at) ->
+        add_error(
+          changeset,
+          :scheduled_at,
+          "must be at least #{min_schedule_offset_seconds()} seconds from now"
+        )
+
+      exceeds_daily_schedule_limit?(user_id, scheduled_at, current_draft_id) ->
+        add_error(changeset, :scheduled_at, "daily limit exceeded")
+
+      exceeds_total_schedule_limit?(user_id, current_draft_id) ->
+        add_error(changeset, :scheduled_at, "total limit exceeded")
+
+      true ->
+        changeset
+    end
+  end
+
+  defp far_enough?(%DateTime{} = scheduled_at) do
+    DateTime.diff(scheduled_at, DateTime.utc_now(), :second) >= min_schedule_offset_seconds()
+  end
+
+  defp far_enough?(_scheduled_at), do: false
+
+  defp exceeds_daily_schedule_limit?(user_id, scheduled_at, current_draft_id) do
+    scheduled_date = DateTime.to_date(scheduled_at)
+
+    count =
+      base_scheduled_limit_query(user_id, current_draft_id)
+      |> where([m], fragment("?::date = ?", m.scheduled_at, ^scheduled_date))
+      |> Repo.aggregate(:count, :id)
+
+    count >= daily_schedule_limit()
+  end
+
+  defp exceeds_total_schedule_limit?(user_id, current_draft_id) do
+    user_id
+    |> base_scheduled_limit_query(current_draft_id)
+    |> Repo.aggregate(:count, :id)
+    |> Kernel.>=(total_schedule_limit())
+  end
+
+  defp base_scheduled_limit_query(user_id, current_draft_id) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    query =
+      from(m in Message,
+        join: c in Conversation,
+        on: c.id == m.conversation_id,
+        where:
+          m.sender_id == ^user_id and m.is_draft == true and c.type == "timeline" and
+            not is_nil(m.scheduled_at) and m.scheduled_at > ^now and is_nil(m.deleted_at)
+      )
+
+    if current_draft_id do
+      from(m in query, where: m.id != ^current_draft_id)
+    else
+      query
+    end
+  end
+
+  defp min_schedule_offset_seconds do
+    schedule_config(:min_offset_seconds, @default_min_schedule_offset_seconds)
+  end
+
+  defp daily_schedule_limit do
+    schedule_config(:daily_user_limit, @default_daily_schedule_limit)
+  end
+
+  defp total_schedule_limit do
+    schedule_config(:total_user_limit, @default_total_schedule_limit)
+  end
+
+  defp schedule_config(key, default) do
+    :elektrine_social
+    |> Application.get_env(__MODULE__, [])
+    |> Keyword.get(key, default)
   end
 
   @doc "Deletes a draft (soft delete).\n"

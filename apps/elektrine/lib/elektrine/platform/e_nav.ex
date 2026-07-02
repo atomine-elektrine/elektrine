@@ -238,7 +238,7 @@ defmodule Elektrine.Platform.ENav do
 
   def notification_badge_counts(%{id: user_id} = current_user) when is_integer(user_id) do
     %{
-      "portal" => safe_count(fn -> Notifications.get_unread_count(user_id) end),
+      "portal" => safe_count(fn -> Notifications.get_visible_unread_count(user_id) end),
       "chat" => safe_count(fn -> Messaging.get_unread_count(user_id) end),
       "friends" => safe_count(fn -> friend_request_count(user_id) end),
       "email" => safe_count(fn -> email_unread_count(user_id) end),

@@ -12,7 +12,7 @@ defmodule ElektrineWeb.Plugs.NotificationCount do
         conn
 
       user ->
-        count = Elektrine.Notifications.get_unread_count(user.id)
+        count = Elektrine.Notifications.get_visible_unread_count(user.id)
         assign(conn, :notification_count, count)
     end
   end

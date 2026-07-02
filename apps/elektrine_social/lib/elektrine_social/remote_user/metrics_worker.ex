@@ -4,7 +4,11 @@ defmodule ElektrineSocial.RemoteUser.MetricsWorker do
   use Oban.Worker,
     queue: :federation,
     max_attempts: 3,
-    unique: [period: 60, keys: [:actor_id, :type], states: [:available, :scheduled, :executing]]
+    unique: [
+      period: 300,
+      keys: [:actor_id, :type],
+      states: [:available, :scheduled, :executing, :retryable]
+    ]
 
   alias ElektrineSocial.RemoteUser.Metrics
 

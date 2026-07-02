@@ -10,7 +10,7 @@ defmodule Elektrine.Social.Messages do
   alias Elektrine.Repo
 
   alias Elektrine.Messaging.{LinkPreviewBroadcast, RateLimiter, UserHiddenMessage}
-  alias Elektrine.Social.{Conversation, ConversationMember, Message}
+  alias Elektrine.Social.{Conversation, ConversationMember, Message, MessageStats}
 
   alias Elektrine.Social.{FetchLinkPreviewWorker, LinkPreview, LinkPreviewFetcher}
   @mention_pattern ~r/(?:^|[^A-Za-z0-9_])@([A-Za-z0-9_]{1,30})/
@@ -116,6 +116,8 @@ defmodule Elektrine.Social.Messages do
                       message.id,
                       reply_to_id
                     )
+
+                    Accounts.notify_subscribers_for_message(message)
 
                     # Broadcast the message (unless explicitly skipped)
                     unless opts[:skip_broadcast] do
@@ -454,8 +456,15 @@ defmodule Elektrine.Social.Messages do
           |> Repo.update()
           |> case do
             {:ok, deleted_message} ->
+              _ =
+                Elektrine.Social.AttachmentCleanupWorker.enqueue(
+                  deleted_message.id,
+                  deleted_message.media_urls || []
+                )
+
               maybe_record_moderated_delete(deleted_message, user_id, is_admin, is_mod)
               broadcast_message_delete(deleted_message)
+              notify_home_feed_message_deleted(deleted_message)
 
               # Side-effect (federation): skip in tests.
               Elektrine.Async.start(fn ->
@@ -493,6 +502,12 @@ defmodule Elektrine.Social.Messages do
             |> Repo.update()
             |> case do
               {:ok, deleted_message} ->
+                _ =
+                  Elektrine.Social.AttachmentCleanupWorker.enqueue(
+                    deleted_message.id,
+                    deleted_message.media_urls || []
+                  )
+
                 maybe_record_moderated_delete(deleted_message, admin_user.id, true, true)
                 broadcast_message_delete(deleted_message)
                 {:ok, deleted_message}
@@ -1590,6 +1605,7 @@ defmodule Elektrine.Social.Messages do
 
       {:ok, message} = result ->
         invalidate_activitypub_ref_cache_for_message(message)
+        Accounts.notify_subscribers_for_message(message)
         result
 
       error ->
@@ -1878,6 +1894,7 @@ defmodule Elektrine.Social.Messages do
         AppCache.invalidate_social_message(updated_message.id)
         invalidate_activitypub_ref_cache(old_refs)
         invalidate_activitypub_ref_cache_for_message(updated_message)
+        notify_home_feed_message_changed(updated_message)
         result
 
       {:error, %Ecto.Changeset{} = changeset} = error ->
@@ -2096,39 +2113,55 @@ defmodule Elektrine.Social.Messages do
   def create_federated_boost(message_id, remote_actor_id, activitypub_id \\ nil) do
     alias Elektrine.Messaging.FederatedBoost
 
-    # Check if already boosted
-    existing =
-      Repo.get_by(FederatedBoost, message_id: message_id, remote_actor_id: remote_actor_id)
+    Repo.transaction(fn ->
+      message =
+        from(m in Message,
+          where: m.id == ^message_id and is_nil(m.deleted_at),
+          lock: "FOR UPDATE"
+        )
+        |> Repo.one()
 
-    if existing do
-      maybe_backfill_federated_activity_id(existing, activitypub_id)
-      {:ok, :already_boosted}
-    else
-      # Create boost record
-      case %FederatedBoost{}
-           |> FederatedBoost.changeset(%{
-             message_id: message_id,
-             remote_actor_id: remote_actor_id,
-             activitypub_id: activitypub_id
-           })
-           |> Repo.insert() do
-        {:ok, _boost} ->
-          # Increment share count
-          from(m in Message,
-            where: m.id == ^message_id,
-            update: [inc: [share_count: 1]]
-          )
-          |> Repo.update_all([])
-
-          {:ok, :boosted}
-
-        {:error, %Ecto.Changeset{errors: [message_id: _]}} ->
-          # Race condition - already boosted
-          {:ok, :already_boosted}
-
-        {:error, changeset} ->
-          {:error, changeset}
+      if is_nil(message) do
+        Repo.rollback(:message_deleted)
       end
+
+      existing =
+        Repo.get_by(FederatedBoost, message_id: message_id, remote_actor_id: remote_actor_id)
+
+      if existing do
+        maybe_backfill_federated_activity_id(existing, activitypub_id)
+        :already_boosted
+      else
+        case %FederatedBoost{}
+             |> FederatedBoost.changeset(%{
+               message_id: message_id,
+               remote_actor_id: remote_actor_id,
+               activitypub_id: activitypub_id
+             })
+             |> Repo.insert() do
+          {:ok, _boost} ->
+            from(m in Message,
+              where: m.id == ^message_id and is_nil(m.deleted_at),
+              update: [inc: [share_count: 1]]
+            )
+            |> Repo.update_all([])
+
+            AppCache.invalidate_social_message(message_id)
+            MessageStats.upsert_counts(message_id, %{share_count: share_count(message_id)})
+            :boosted
+
+          {:error, %Ecto.Changeset{errors: [message_id: _]}} ->
+            :already_boosted
+
+          {:error, changeset} ->
+            Repo.rollback(changeset)
+        end
+      end
+    end)
+    |> case do
+      {:ok, result} -> {:ok, result}
+      {:error, :message_deleted} -> {:ok, :ignored_deleted}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -2560,14 +2593,22 @@ defmodule Elektrine.Social.Messages do
     normalized_counts = %{
       like_count: normalize_non_negative_count(Map.get(counts, :like_count)),
       share_count: normalize_non_negative_count(Map.get(counts, :share_count)),
-      reply_count: normalize_non_negative_count(Map.get(counts, :reply_count))
+      reply_count: normalize_non_negative_count(Map.get(counts, :reply_count)),
+      quote_count: normalize_non_negative_count(Map.get(counts, :quote_count))
     }
 
     payload = {:post_counts_updated, %{message_id: message_id, counts: normalized_counts}}
 
     Phoenix.PubSub.broadcast(Elektrine.PubSub, "timeline:public", payload)
+    MessageStats.upsert_counts(message_id, normalized_counts)
 
     :ok
+  end
+
+  defp share_count(message_id) do
+    from(m in Message, where: m.id == ^message_id, select: coalesce(m.share_count, 0))
+    |> Repo.one()
+    |> Kernel.||(0)
   end
 
   defp normalize_non_negative_count(value) when is_integer(value), do: max(value, 0)
@@ -2580,4 +2621,28 @@ defmodule Elektrine.Social.Messages do
   end
 
   defp normalize_non_negative_count(_), do: 0
+
+  defp notify_home_feed_message_deleted(%Message{id: message_id}) when is_integer(message_id) do
+    module = Module.concat([Elektrine, Social, HomeFeedInvalidationWorker])
+
+    if Code.ensure_loaded?(module) do
+      _ = module.remove_message(message_id)
+    end
+
+    :ok
+  rescue
+    _ -> :ok
+  end
+
+  defp notify_home_feed_message_changed(%Message{id: message_id}) when is_integer(message_id) do
+    module = Module.concat([Elektrine, Social, HomeFeedInvalidationWorker])
+
+    if Code.ensure_loaded?(module) do
+      _ = module.message_changed(message_id)
+    end
+
+    :ok
+  rescue
+    _ -> :ok
+  end
 end

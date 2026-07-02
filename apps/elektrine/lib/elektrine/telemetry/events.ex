@@ -189,6 +189,22 @@ defmodule Elektrine.Telemetry.Events do
     :ok
   end
 
+  @spec report(atom() | binary(), atom() | binary(), map()) :: :ok
+  def report(operation, outcome, metadata \\ %{}) do
+    :telemetry.execute(
+      [:elektrine, :reports, :operation],
+      %{count: 1},
+      metadata
+      |> Map.merge(%{
+        operation: normalize_tag(operation),
+        outcome: normalize_tag(outcome)
+      })
+      |> normalize_metadata()
+    )
+
+    :ok
+  end
+
   defp base_measurements(nil), do: %{count: 1}
   defp base_measurements(duration_ms), do: %{count: 1, duration: duration_ms}
 

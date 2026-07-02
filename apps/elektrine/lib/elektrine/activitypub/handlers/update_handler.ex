@@ -33,6 +33,8 @@ defmodule Elektrine.ActivityPub.Handlers.UpdateHandler do
     "pleroma",
     "misskey"
   ]
+  @history_key "activitypub_edit_history"
+  @history_limit 20
 
   @doc """
   Handles an incoming Update activity.
@@ -196,7 +198,9 @@ defmodule Elektrine.ActivityPub.Handlers.UpdateHandler do
       ])
       |> Map.put(
         :media_metadata,
-        merge_remote_media_metadata(message.media_metadata, payload.attrs.media_metadata)
+        message.media_metadata
+        |> merge_remote_media_metadata(payload.attrs.media_metadata)
+        |> append_activitypub_edit_history(message, object, actor_uri)
       )
 
     message
@@ -249,7 +253,9 @@ defmodule Elektrine.ActivityPub.Handlers.UpdateHandler do
       ])
       |> Map.put(
         :media_metadata,
-        merge_remote_media_metadata(message.media_metadata, payload.attrs.media_metadata)
+        message.media_metadata
+        |> merge_remote_media_metadata(payload.attrs.media_metadata)
+        |> append_activitypub_edit_history(message, object, actor_uri)
       )
       |> maybe_put_primary_url_from_metadata(message)
 
@@ -285,6 +291,62 @@ defmodule Elektrine.ActivityPub.Handlers.UpdateHandler do
     |> Map.drop(@remote_media_metadata_keys)
     |> Map.merge(fresh_metadata)
   end
+
+  defp append_activitypub_edit_history(metadata, message, object, actor_uri) do
+    previous =
+      %{
+        "content" => message.content,
+        "title" => message.title,
+        "summary" => message.content_warning,
+        "sensitive" => message.sensitive,
+        "visibility" => message.visibility,
+        "media_urls" => message.media_urls || [],
+        "activitypub_id" => message.activitypub_id,
+        "activitypub_url" => message.activitypub_url,
+        "edited_at" => format_datetime(message.edited_at || message.updated_at),
+        "seen_update_id" => object["id"],
+        "seen_update_actor" => actor_uri,
+        "seen_update_at" => format_datetime(DateTime.utc_now())
+      }
+      |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+      |> Map.new()
+
+    history =
+      metadata
+      |> Map.get(@history_key, [])
+      |> case do
+        values when is_list(values) -> values
+        _ -> []
+      end
+
+    metadata
+    |> maybe_put_former_representations(object)
+    |> Map.put(@history_key, Enum.take([previous | history], @history_limit))
+  end
+
+  defp maybe_put_former_representations(metadata, %{"formerRepresentations" => history})
+       when is_map(history) do
+    Map.put(metadata, "formerRepresentations", trim_former_representations(history))
+  end
+
+  defp maybe_put_former_representations(metadata, _object), do: metadata
+
+  defp trim_former_representations(%{"orderedItems" => items} = history) when is_list(items) do
+    Map.put(history, "orderedItems", Enum.take(items, @history_limit))
+  end
+
+  defp trim_former_representations(%{"items" => items} = history) when is_list(items) do
+    Map.put(history, "items", Enum.take(items, @history_limit))
+  end
+
+  defp trim_former_representations(history), do: history
+
+  defp format_datetime(%DateTime{} = datetime), do: DateTime.to_iso8601(datetime)
+
+  defp format_datetime(%NaiveDateTime{} = datetime),
+    do: datetime |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_iso8601()
+
+  defp format_datetime(_), do: nil
 
   defp maybe_put_primary_url_from_metadata(attrs, message) when is_map(attrs) do
     cond do

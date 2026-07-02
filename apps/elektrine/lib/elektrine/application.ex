@@ -41,9 +41,15 @@ defmodule Elektrine.Application do
       Elektrine.Messaging.RateLimiter,
       Elektrine.Auth.RateLimiter,
       Elektrine.API.RateLimiter,
+      Elektrine.API.SearchRateLimiter,
+      Elektrine.API.TimelineRateLimiter,
+      Elektrine.API.MediaRateLimiter,
+      Elektrine.API.ImportRateLimiter,
+      Elektrine.API.WriteRateLimiter,
       Elektrine.Search.RateLimiter,
       Elektrine.HTTP.Backoff,
-      Elektrine.MailAuth.RateLimiter
+      Elektrine.MailAuth.RateLimiter,
+      Elektrine.JobQueueMonitor
     ] ++ ModuleProviders.core_children()
   end
 

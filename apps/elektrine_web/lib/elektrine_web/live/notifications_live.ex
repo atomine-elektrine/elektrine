@@ -28,7 +28,7 @@ defmodule ElektrineWeb.NotificationsLive do
     # Load cached unread count to prevent badge flicker on refresh
     {:ok, cached_unread} =
       Elektrine.AppCache.get_notification_unread_count(user.id, fn ->
-        Notifications.get_unread_count(user.id)
+        Notifications.get_visible_unread_count(user.id)
       end)
 
     if connected?(socket) do
@@ -220,7 +220,7 @@ defmodule ElektrineWeb.NotificationsLive do
         Notifications.list_grouped_notifications(user.id, filter: filter)
       end)
 
-    unread_task = Task.async(fn -> Notifications.get_unread_count(user.id) end)
+    unread_task = Task.async(fn -> Notifications.get_visible_unread_count(user.id) end)
     grouped_notifications = Task.await(notifications_task)
     stats_notifications = Task.await(stats_task)
     unread_count = Task.await(unread_task)
@@ -273,7 +273,7 @@ defmodule ElektrineWeb.NotificationsLive do
     stats_notifications =
       Notifications.list_grouped_notifications(user_id, filter: socket.assigns.filter)
 
-    unread_count = Notifications.get_unread_count(user_id)
+    unread_count = Notifications.get_visible_unread_count(user_id)
     assign_notification_data(socket, grouped_notifications, stats_notifications, unread_count)
   end
 
@@ -399,8 +399,15 @@ defmodule ElektrineWeb.NotificationsLive do
       {"mention", _} -> "social"
       {"reply", _} -> "social"
       {"like", _} -> "social"
+      {"boost", _} -> "social"
+      {"reaction", _} -> "social"
+      {"status", _} -> "social"
+      {"poll", _} -> "social"
+      {"update", _} -> "social"
       {"comment", _} -> "social"
       {"discussion_reply", _} -> "social"
+      {"admin.sign_up", _} -> "system"
+      {"admin.report", _} -> "system"
       _ -> "system"
     end
   end
@@ -644,9 +651,16 @@ defmodule ElektrineWeb.NotificationsLive do
       "reply" -> "hero-chat-bubble-left-right"
       "follow" -> "hero-user-plus"
       "like" -> "hero-heart"
+      "boost" -> "hero-arrow-path-rounded-square"
+      "reaction" -> "hero-face-smile"
+      "status" -> "hero-rectangle-stack"
+      "poll" -> "hero-chart-bar"
+      "update" -> "hero-pencil-square"
       "comment" -> "hero-chat-bubble-bottom-center"
       "discussion_reply" -> "hero-chat-bubble-bottom-center-text"
       "email_received" -> "hero-envelope"
+      "admin.sign_up" -> "hero-user-plus"
+      "admin.report" -> "hero-shield-exclamation"
       "system" -> "hero-information-circle"
       _ -> "hero-bell"
     end

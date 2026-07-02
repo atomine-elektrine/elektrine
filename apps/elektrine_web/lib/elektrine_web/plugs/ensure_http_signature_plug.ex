@@ -51,6 +51,7 @@ defmodule ElektrineWeb.Plugs.EnsureHTTPSignaturePlug do
         # Check if authorized fetch mode is enabled
         if authorized_fetch_enabled?() do
           Logger.warning("Rejecting unsigned ActivityPub request to #{conn.request_path}")
+          maybe_enqueue_signature_retry(conn)
 
           conn
           |> put_status(:unauthorized)
@@ -70,6 +71,29 @@ defmodule ElektrineWeb.Plugs.EnsureHTTPSignaturePlug do
       _ -> false
     end
   end
+
+  defp maybe_enqueue_signature_retry(
+         %Plug.Conn{method: "POST", body_params: %{} = activity} = conn
+       ) do
+    actor_uri = activity["actor"]
+
+    if is_binary(actor_uri) and retryable_signature_error?(conn.assigns[:signature_error]) do
+      _ = Elektrine.ActivityPub.SignatureRetryWorker.enqueue(activity, actor_uri, conn, nil)
+    end
+
+    :ok
+  rescue
+    e ->
+      Logger.warning("Failed to enqueue ActivityPub signature retry: #{inspect(e)}")
+      :ok
+  end
+
+  defp maybe_enqueue_signature_retry(_conn), do: :ok
+
+  defp retryable_signature_error?({:key_fetch_failed, _}), do: true
+  defp retryable_signature_error?(:invalid_signature), do: true
+  defp retryable_signature_error?(:actor_fetch_failed), do: true
+  defp retryable_signature_error?(_), do: false
 
   defp public_activitypub_resource?(conn) do
     conn.method in ["GET", "HEAD"] and public_activitypub_path?(conn.request_path)

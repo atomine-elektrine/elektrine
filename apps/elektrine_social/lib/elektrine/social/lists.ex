@@ -1,11 +1,11 @@
 defmodule Elektrine.Social.Lists do
   @moduledoc "Functions for managing user lists (curated collections of accounts to follow).\n"
   import Ecto.Query, warn: false
-  alias Elektrine.Accounts.{BlockedUsersCache, UserMute}
-  alias Elektrine.ActivityPub.{Instance, UserBlock}
+  alias Elektrine.Accounts.{BlockedUsersCache, User, UserMute}
+  alias Elektrine.ActivityPub.{Actor, Instance, UserBlock}
   alias Elektrine.Profiles.Follow
   alias Elektrine.Repo
-  alias Elektrine.Social.{Conversation, Message}
+  alias Elektrine.Social.{Conversation, Message, TimelinePagination}
   alias Elektrine.Social.{List, ListMember}
   @doc "Creates a new list for a user.\n"
   def create_list(attrs \\ %{}) do
@@ -48,6 +48,28 @@ defmodule Elektrine.Social.Lists do
   def list_user_lists(user_id) do
     from(l in List,
       where: l.user_id == ^user_id,
+      order_by: [asc: l.name],
+      preload: [list_members: [:user, :remote_actor]]
+    )
+    |> Repo.all()
+  end
+
+  @doc "Lists the current user's lists that contain an account."
+  def list_user_lists_for_account(owner_user_id, %User{id: account_id}) do
+    list_user_lists_for_member(owner_user_id, :user_id, account_id)
+  end
+
+  def list_user_lists_for_account(owner_user_id, %Actor{id: actor_id}) do
+    list_user_lists_for_member(owner_user_id, :remote_actor_id, actor_id)
+  end
+
+  def list_user_lists_for_account(_owner_user_id, _account), do: []
+
+  defp list_user_lists_for_member(owner_user_id, member_field, account_id) do
+    from(l in List,
+      join: lm in ListMember,
+      on: lm.list_id == l.id,
+      where: l.user_id == ^owner_user_id and field(lm, ^member_field) == ^account_id,
       order_by: [asc: l.name],
       preload: [list_members: [:user, :remote_actor]]
     )
@@ -133,14 +155,128 @@ defmodule Elektrine.Social.Lists do
     end
   end
 
+  @doc "Adds local users and remote actors to a user-owned list."
+  def add_accounts_to_list(owner_user_id, list_id, attrs) do
+    case get_user_list(owner_user_id, list_id) do
+      %List{} ->
+        attrs
+        |> normalize_account_member_attrs()
+        |> Enum.reduce_while({:ok, []}, fn attrs, {:ok, members} ->
+          if list_member_exists?(list_id, attrs) do
+            {:cont, {:ok, members}}
+          else
+            case add_to_list(list_id, attrs) do
+              {:ok, member} ->
+                {:cont, {:ok, [member | members]}}
+
+              {:error, reason} ->
+                {:halt, {:error, reason}}
+            end
+          end
+        end)
+
+      nil ->
+        {:error, :not_found}
+    end
+  end
+
+  @doc "Removes local users and remote actors from a user-owned list by account ids."
+  def remove_accounts_from_list(owner_user_id, list_id, attrs) do
+    case get_user_list(owner_user_id, list_id) do
+      %List{} ->
+        account_refs = normalize_account_member_attrs(attrs)
+
+        Enum.each(account_refs, fn
+          %{user_id: user_id} ->
+            delete_list_member(list_id, :user_id, user_id)
+
+          %{remote_actor_id: remote_actor_id} ->
+            delete_list_member(list_id, :remote_actor_id, remote_actor_id)
+        end)
+
+        {:ok, :removed}
+
+      nil ->
+        {:error, :not_found}
+    end
+  end
+
   defp list_owned_by?(owner_user_id, list_id) do
     not is_nil(get_user_list(owner_user_id, list_id))
+  end
+
+  defp normalize_account_member_attrs(%{"account_ids" => account_ids})
+       when is_list(account_ids) do
+    Enum.flat_map(account_ids, &account_member_attr/1)
+  end
+
+  defp normalize_account_member_attrs(%{account_ids: account_ids}) when is_list(account_ids) do
+    Enum.flat_map(account_ids, &account_member_attr/1)
+  end
+
+  defp normalize_account_member_attrs(%{"user_id" => user_id}), do: account_member_attr(user_id)
+  defp normalize_account_member_attrs(%{user_id: user_id}), do: account_member_attr(user_id)
+
+  defp normalize_account_member_attrs(%{"remote_actor_id" => remote_actor_id}),
+    do: account_member_attr("remote:#{remote_actor_id}")
+
+  defp normalize_account_member_attrs(%{remote_actor_id: remote_actor_id}),
+    do: account_member_attr("remote:#{remote_actor_id}")
+
+  defp normalize_account_member_attrs(_attrs), do: []
+
+  defp account_member_attr("remote:" <> id) do
+    case parse_positive_int(id) do
+      {:ok, remote_actor_id} -> [%{remote_actor_id: remote_actor_id}]
+      :error -> []
+    end
+  end
+
+  defp account_member_attr(id) do
+    case parse_positive_int(id) do
+      {:ok, user_id} -> [%{user_id: user_id}]
+      :error -> []
+    end
+  end
+
+  defp parse_positive_int(id) when is_integer(id) and id > 0, do: {:ok, id}
+
+  defp parse_positive_int(id) when is_binary(id) do
+    case Integer.parse(id) do
+      {int, ""} when int > 0 -> {:ok, int}
+      _ -> :error
+    end
+  end
+
+  defp parse_positive_int(_id), do: :error
+
+  defp list_member_exists?(list_id, %{user_id: user_id}),
+    do:
+      Repo.exists?(
+        from(member in ListMember,
+          where: member.list_id == ^list_id and member.user_id == ^user_id
+        )
+      )
+
+  defp list_member_exists?(list_id, %{remote_actor_id: remote_actor_id}),
+    do:
+      Repo.exists?(
+        from(member in ListMember,
+          where: member.list_id == ^list_id and member.remote_actor_id == ^remote_actor_id
+        )
+      )
+
+  defp delete_list_member(list_id, field, account_id) do
+    from(member in ListMember,
+      where: member.list_id == ^list_id and field(member, ^field) == ^account_id
+    )
+    |> Repo.delete_all()
   end
 
   @doc "Gets timeline posts from a list (posts from list members only).\n"
   def get_list_timeline(list_id, opts \\ []) do
     limit = Keyword.get(opts, :limit, 20)
-    before_id = Keyword.get(opts, :before_id)
+    pagination = TimelinePagination.opts(opts)
     viewer_id = Keyword.get(opts, :viewer_id)
 
     list_member_ids =
@@ -180,6 +316,8 @@ defmodule Elektrine.Social.Lists do
                 m.sender_id not in ^blocked_user_ids and
                 (m.approval_status == "approved" or is_nil(m.approval_status)),
             where: ^local_visibility_filter,
+            order_by: [desc: m.id],
+            limit: ^limit,
             preload: [
               sender: [:profile],
               conversation: [],
@@ -198,13 +336,9 @@ defmodule Elektrine.Social.Lists do
           )
 
         query =
-          if before_id do
-            from(m in query, where: m.id < ^before_id)
-          else
-            query
-          end
-
-        query = apply_local_viewer_policy(query, viewer_id)
+          query
+          |> TimelinePagination.apply(pagination)
+          |> apply_local_viewer_policy(viewer_id)
 
         Repo.all(query)
       end
@@ -220,6 +354,8 @@ defmodule Elektrine.Social.Lists do
                 is_nil(m.deleted_at) and is_nil(m.reply_to_id),
             where: m.is_draft != true,
             where: ^remote_visibility_filter,
+            order_by: [desc: m.id],
+            limit: ^limit,
             preload: [
               remote_actor: [],
               link_preview: [],
@@ -237,13 +373,9 @@ defmodule Elektrine.Social.Lists do
           )
 
         query =
-          if before_id do
-            from(m in query, where: m.id < ^before_id)
-          else
-            query
-          end
-
-        query = apply_remote_viewer_policy(query, viewer_id)
+          query
+          |> TimelinePagination.apply(pagination)
+          |> apply_remote_viewer_policy(viewer_id)
 
         Repo.all(query)
       end
@@ -315,7 +447,8 @@ defmodule Elektrine.Social.Lists do
       left_join: remote_actor in assoc(m, :remote_actor),
       left_join: blocked_remote_actor in UserBlock,
       on:
-        blocked_remote_actor.user_id == ^viewer_id and blocked_remote_actor.block_type == "user" and
+        blocked_remote_actor.user_id == ^viewer_id and
+          blocked_remote_actor.block_type in ["user", "mute"] and
           blocked_remote_actor.blocked_uri == remote_actor.uri,
       where: is_nil(remote_actor.id) or is_nil(blocked_remote_actor.id)
     )

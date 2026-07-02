@@ -5,6 +5,7 @@ defmodule Elektrine.Social.Message do
 
   alias Elektrine.ActivityPub.Mentions
   alias Elektrine.Security.SafeExternalURL
+  alias Elektrine.Social.EngagementCounts
 
   @varchar_limit 255
   @local_content_max 20_000
@@ -28,6 +29,11 @@ defmodule Elektrine.Social.Message do
     field :reply_count, :integer, default: 0
     field :share_count, :integer, default: 0
     field :quote_count, :integer, default: 0
+    field :remote_like_count, :integer
+    field :remote_reply_count, :integer
+    field :remote_share_count, :integer
+    field :remote_quote_count, :integer
+    field :remote_counts_fetched_at, :utc_datetime
 
     belongs_to :conversation, Elektrine.Social.Conversation
     belongs_to :sender, Elektrine.Accounts.User
@@ -38,6 +44,7 @@ defmodule Elektrine.Social.Message do
 
     has_many :replies, __MODULE__, foreign_key: :reply_to_id
     has_many :reactions, Elektrine.Social.MessageReaction, foreign_key: :message_id
+    has_one :message_stat, Elektrine.Social.MessageStat, foreign_key: :message_id
 
     # Cross-context promotion fields
     belongs_to :original_message, __MODULE__
@@ -139,6 +146,11 @@ defmodule Elektrine.Social.Message do
       :dislike_count,
       :reply_count,
       :share_count,
+      :remote_like_count,
+      :remote_reply_count,
+      :remote_share_count,
+      :remote_quote_count,
+      :remote_counts_fetched_at,
       :link_preview_id,
       :extracted_urls,
       :extracted_hashtags,
@@ -184,6 +196,7 @@ defmodule Elektrine.Social.Message do
       :pinned_at,
       :locked_at,
       :approved_at,
+      :remote_counts_fetched_at,
       :scheduled_at
     ])
     |> validate_required([:conversation_id, :sender_id])
@@ -213,6 +226,7 @@ defmodule Elektrine.Social.Message do
     |> validate_media_urls_security()
     |> validate_optional_safe_href(:primary_url)
     |> validate_content_or_media()
+    |> clamp_remote_counts()
     |> normalize_activitypub_refs()
     |> foreign_key_constraint(:conversation_id)
     |> foreign_key_constraint(:sender_id)
@@ -255,6 +269,11 @@ defmodule Elektrine.Social.Message do
       :downvotes,
       :score,
       :quote_count,
+      :remote_like_count,
+      :remote_reply_count,
+      :remote_share_count,
+      :remote_quote_count,
+      :remote_counts_fetched_at,
       :quoted_message_id,
       :content_warning,
       :sensitive,
@@ -262,6 +281,7 @@ defmodule Elektrine.Social.Message do
     ])
     |> truncate_utc_datetimes([:inserted_at])
     |> normalize_federated_columns()
+    |> clamp_remote_counts()
     |> normalize_activitypub_refs()
     |> validate_required([:activitypub_id, :remote_actor_id])
     |> put_change(:federated, true)
@@ -323,6 +343,12 @@ defmodule Elektrine.Social.Message do
     |> update_change(:title, &truncate_varchar/1)
     |> update_change(:activitypub_url, &sanitize_federated_remote_url/1)
     |> update_change(:media_urls, &sanitize_federated_media_urls/1)
+  end
+
+  defp clamp_remote_counts(changeset) do
+    Enum.reduce(EngagementCounts.remote_fields(), changeset, fn field, acc ->
+      update_change(acc, field, &EngagementCounts.nullable_remote_count/1)
+    end)
   end
 
   defp truncate_varchar(value) when is_binary(value) do

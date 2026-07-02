@@ -5,11 +5,66 @@ defmodule Elektrine.ActivityPub.DomainMigration do
 
   import Ecto.Query, warn: false
 
+  alias Elektrine.Accounts
   alias Elektrine.Accounts.User
   alias Elektrine.ActivityPub
-  alias Elektrine.ActivityPub.{Builder, Publisher}
+  alias Elektrine.ActivityPub.{Actor, Builder, Publisher}
   alias Elektrine.Domains
   alias Elektrine.Repo
+
+  @doc """
+  Verifies, stores, and broadcasts a single local account move.
+  """
+  def move_account(user, target_account, opts \\ [])
+
+  def move_account(%User{} = user, target_account, opts) when is_binary(target_account) do
+    with {:ok, target_actor} <- resolve_move_target_actor(target_account, opts),
+         old_actor_uri <- ActivityPub.actor_uri(user),
+         :ok <- validate_target_alias(target_actor, old_actor_uri),
+         {:ok, updated_user} <- Accounts.update_user(user, %{moved_to: target_actor.uri}),
+         {:ok, summary} <- broadcast_account_move(updated_user, target_actor.uri, opts) do
+      {:ok, Map.put(summary, :user, updated_user)}
+    end
+  end
+
+  def move_account(%User{}, _target_account, _opts), do: {:error, :invalid_move_target}
+
+  @doc """
+  Broadcasts a Move activity for an already-verified local account move.
+  """
+  def broadcast_account_move(user, target_actor_uri, opts \\ [])
+
+  def broadcast_account_move(%User{} = user, target_actor_uri, opts)
+      when is_binary(target_actor_uri) do
+    old_actor_uri = ActivityPub.actor_uri(user)
+    move_activity = Builder.build_move_activity(user, old_actor_uri, target_actor_uri)
+    inboxes = Publisher.get_follower_inboxes(user.id) |> Enum.uniq()
+
+    if Keyword.get(opts, :dry_run, false) do
+      {:ok,
+       %{
+         activity: nil,
+         target_actor_uri: target_actor_uri,
+         old_actor_uri: old_actor_uri,
+         deliveries_queued: length(inboxes),
+         dry_run: true
+       }}
+    else
+      with {:ok, activity_record} <- Publisher.publish(move_activity, user, inboxes) do
+        {:ok,
+         %{
+           activity: activity_record,
+           target_actor_uri: target_actor_uri,
+           old_actor_uri: old_actor_uri,
+           deliveries_queued: length(inboxes),
+           dry_run: false
+         }}
+      end
+    end
+  end
+
+  def broadcast_account_move(%User{}, _target_actor_uri, _opts),
+    do: {:error, :invalid_move_target}
 
   @doc """
   Broadcasts Move activities to remote follower inboxes.
@@ -159,4 +214,140 @@ defmodule Elektrine.ActivityPub.DomainMigration do
   end
 
   defp normalize_domain(_), do: nil
+
+  defp resolve_move_target_actor(target_account, opts) do
+    case normalize_target_account(target_account) do
+      nil ->
+        {:error, :invalid_move_target}
+
+      {:uri, actor_uri} ->
+        resolve_actor_uri(actor_uri, opts)
+
+      {:acct, acct} ->
+        resolve_acct_actor(acct, opts)
+    end
+  end
+
+  defp normalize_target_account(value) when is_binary(value) do
+    value = String.trim(value)
+
+    cond do
+      value == "" ->
+        nil
+
+      String.starts_with?(value, ["http://", "https://"]) ->
+        {:uri, value}
+
+      String.starts_with?(value, "acct:") ->
+        value |> String.trim_leading("acct:") |> normalize_acct_target()
+
+      String.contains?(value, "@") ->
+        normalize_acct_target(value)
+
+      true ->
+        nil
+    end
+  end
+
+  defp normalize_target_account(_), do: nil
+
+  defp normalize_acct_target(acct) do
+    acct =
+      acct
+      |> String.trim()
+      |> String.trim_leading("@")
+
+    case String.split(acct, "@", parts: 2) do
+      [username, domain] when username != "" and domain != "" -> {:acct, "#{username}@#{domain}"}
+      _ -> nil
+    end
+  end
+
+  defp resolve_actor_uri(actor_uri, _opts) do
+    case ActivityPub.get_actor_by_uri(actor_uri) do
+      %Actor{} = actor ->
+        {:ok, actor}
+
+      nil ->
+        ActivityPub.get_or_fetch_actor(actor_uri)
+    end
+  end
+
+  defp resolve_acct_actor(acct, opts) do
+    with {:ok, {username, domain}} <- split_acct(acct) do
+      case get_actor_by_handle(username, domain) do
+        %Actor{} = actor ->
+          {:ok, actor}
+
+        nil ->
+          with {:ok, actor_uri} <- ActivityPub.webfinger_lookup(acct, opts) do
+            resolve_actor_uri(actor_uri, opts)
+          end
+      end
+    end
+  end
+
+  defp split_acct(acct) when is_binary(acct) do
+    case String.split(acct, "@", parts: 2) do
+      [username, domain] when username != "" and domain != "" -> {:ok, {username, domain}}
+      _ -> {:error, :invalid_move_target}
+    end
+  end
+
+  defp get_actor_by_handle(username, domain) do
+    from(a in Actor,
+      where:
+        fragment("LOWER(?)", a.username) == ^String.downcase(username) and
+          fragment("LOWER(?)", a.domain) == ^String.downcase(domain),
+      order_by: [asc: a.inserted_at, asc: a.id],
+      limit: 1
+    )
+    |> Repo.one()
+  end
+
+  defp validate_target_alias(%Actor{} = target_actor, old_actor_uri)
+       when is_binary(old_actor_uri) do
+    aliases =
+      target_actor.metadata
+      |> extract_uri_candidates("alsoKnownAs")
+      |> Enum.map(&normalize_uri/1)
+
+    if normalize_uri(old_actor_uri) in aliases do
+      :ok
+    else
+      {:error, :move_target_not_verified}
+    end
+  end
+
+  defp validate_target_alias(_, _), do: {:error, :move_target_not_verified}
+
+  defp extract_uri_candidates(metadata, field) when is_map(metadata) do
+    metadata
+    |> Map.get(field)
+    |> expand_uri_candidates()
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+  end
+
+  defp extract_uri_candidates(_metadata, _field), do: []
+
+  defp expand_uri_candidates(value) when is_binary(value), do: [value]
+
+  defp expand_uri_candidates(values) when is_list(values),
+    do: Enum.flat_map(values, &expand_uri_candidates/1)
+
+  defp expand_uri_candidates(%{"id" => id}) when is_binary(id), do: [id]
+  defp expand_uri_candidates(%{"href" => href}) when is_binary(href), do: [href]
+  defp expand_uri_candidates(%{"url" => url}) when is_binary(url), do: [url]
+  defp expand_uri_candidates(_), do: []
+
+  defp normalize_uri(uri) when is_binary(uri),
+    do:
+      uri
+      |> String.trim()
+      |> String.split("#", parts: 2)
+      |> hd()
+      |> String.split("?", parts: 2)
+      |> hd()
+      |> String.trim_trailing("/")
 end

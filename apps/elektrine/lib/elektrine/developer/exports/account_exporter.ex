@@ -13,10 +13,15 @@ defmodule Elektrine.Developer.Exports.AccountExporter do
 
   import Ecto.Query
   alias Elektrine.Accounts.User
+  alias Elektrine.Accounts.UserMute
+  alias Elektrine.ActivityPub
+  alias Elektrine.ActivityPub.Actor
+  alias Elektrine.ActivityPub.UserBlock, as: ActivityPubUserBlock
   alias Elektrine.Domains
   alias Elektrine.EmailAddresses
   alias Elektrine.OwnRoot
   alias Elektrine.Profiles
+  alias Elektrine.Profiles.Follow
   alias Elektrine.Repo
 
   @doc """
@@ -28,6 +33,22 @@ defmodule Elektrine.Developer.Exports.AccountExporter do
     user = Repo.get!(User, user_id)
     contacts = fetch_contacts(user_id)
     blocked = fetch_blocked_users(user_id)
+    muted = fetch_muted_users(user_id)
+    remote_following = fetch_remote_following(user_id)
+    remote_blocks = fetch_remote_relationships(user_id, "user")
+    remote_mutes = fetch_remote_relationships(user_id, "mute")
+    domain_blocks = fetch_domain_blocks(user_id)
+
+    relationships =
+      format_relationships(%{
+        contacts: contacts,
+        blocked: blocked,
+        muted: muted,
+        remote_following: remote_following,
+        remote_blocks: remote_blocks,
+        remote_mutes: remote_mutes,
+        domain_blocks: domain_blocks
+      })
 
     data = %{
       profile: format_profile(user),
@@ -37,6 +58,8 @@ defmodule Elektrine.Developer.Exports.AccountExporter do
       notifications: format_notifications(user),
       contacts: Enum.map(contacts, &format_contact/1),
       blocked_users: Enum.map(blocked, &format_blocked/1),
+      muted_users: Enum.map(muted, &format_muted/1),
+      relationships: relationships,
       exported_at: DateTime.utc_now()
     }
 
@@ -45,8 +68,12 @@ defmodule Elektrine.Developer.Exports.AccountExporter do
       _ -> export_json(data, file_path)
     end
 
-    # Count: 1 for the account itself + contacts + blocked
-    {:ok, 1 + length(contacts) + length(blocked)}
+    relationship_count =
+      length(contacts) + length(blocked) + length(muted) + length(remote_following) +
+        length(remote_blocks) + length(remote_mutes) + length(domain_blocks)
+
+    # Count: 1 for the account itself + exported relationship rows.
+    {:ok, 1 + relationship_count}
   end
 
   @doc """
@@ -105,6 +132,50 @@ defmodule Elektrine.Developer.Exports.AccountExporter do
       join: u in User,
       on: u.id == b.blocked_id,
       select: %{user: u, blocked_at: b.inserted_at}
+    )
+    |> Repo.all()
+  end
+
+  defp fetch_muted_users(user_id) do
+    from(m in UserMute,
+      where: m.muter_id == ^user_id,
+      where: is_nil(m.expires_at) or m.expires_at > ^Elektrine.Time.utc_now(),
+      join: u in User,
+      on: u.id == m.muted_id,
+      select: %{
+        user: u,
+        muted_at: m.inserted_at,
+        mute_notifications: m.mute_notifications,
+        expires_at: m.expires_at
+      }
+    )
+    |> Repo.all()
+  end
+
+  defp fetch_remote_following(user_id) do
+    from(f in Follow,
+      where: f.follower_id == ^user_id and not is_nil(f.remote_actor_id),
+      join: a in Actor,
+      on: a.id == f.remote_actor_id,
+      select: %{actor: a, followed_at: f.inserted_at, pending: f.pending}
+    )
+    |> Repo.all()
+  end
+
+  defp fetch_remote_relationships(user_id, block_type) do
+    from(b in ActivityPubUserBlock,
+      where: b.user_id == ^user_id and b.block_type == ^block_type,
+      left_join: a in Actor,
+      on: a.uri == b.blocked_uri,
+      select: %{actor: a, uri: b.blocked_uri, inserted_at: b.inserted_at}
+    )
+    |> Repo.all()
+  end
+
+  defp fetch_domain_blocks(user_id) do
+    from(b in ActivityPubUserBlock,
+      where: b.user_id == ^user_id and b.block_type == "domain",
+      select: %{domain: b.blocked_uri, blocked_at: b.inserted_at}
     )
     |> Repo.all()
   end
@@ -259,7 +330,10 @@ defmodule Elektrine.Developer.Exports.AccountExporter do
       allow_calls_from: user.allow_calls_from,
       allow_friend_requests_from: user.allow_friend_requests_from,
       profile_visibility: user.profile_visibility,
-      default_post_visibility: user.default_post_visibility
+      default_post_visibility: user.default_post_visibility,
+      hide_followers: user.hide_followers,
+      hide_follows: user.hide_follows,
+      hide_favorites: user.hide_favorites
     }
   end
 
@@ -272,7 +346,9 @@ defmodule Elektrine.Developer.Exports.AccountExporter do
       notify_on_like: user.notify_on_like,
       notify_on_email_received: user.notify_on_email_received,
       notify_on_discussion_reply: user.notify_on_discussion_reply,
-      notify_on_comment: user.notify_on_comment
+      notify_on_comment: user.notify_on_comment,
+      block_notifications_from_strangers: user.block_notifications_from_strangers,
+      hide_notification_contents: user.hide_notification_contents
     }
   end
 
@@ -280,8 +356,10 @@ defmodule Elektrine.Developer.Exports.AccountExporter do
     user = contact.user
 
     %{
+      type: "local",
       user_id: user.id,
       username: user.username,
+      account: local_account_address(user),
       handle: user.handle,
       display_name: user.display_name,
       avatar: user.avatar,
@@ -293,11 +371,102 @@ defmodule Elektrine.Developer.Exports.AccountExporter do
     user = blocked.user
 
     %{
+      type: "local",
       user_id: user.id,
       username: user.username,
+      account: local_account_address(user),
       blocked_at: blocked.blocked_at
     }
   end
+
+  defp format_muted(muted) do
+    user = muted.user
+
+    %{
+      type: "local",
+      user_id: user.id,
+      username: user.username,
+      account: local_account_address(user),
+      muted_at: muted.muted_at,
+      mute_notifications: muted.mute_notifications,
+      expires_at: muted.expires_at
+    }
+  end
+
+  defp format_relationships(relationships) do
+    local_following = Enum.map(relationships.contacts, &format_contact/1)
+    local_blocks = Enum.map(relationships.blocked, &format_blocked/1)
+    local_mutes = Enum.map(relationships.muted, &format_muted/1)
+    remote_following = Enum.map(relationships.remote_following, &format_remote_follow/1)
+    remote_blocks = Enum.map(relationships.remote_blocks, &format_remote_block/1)
+    remote_mutes = Enum.map(relationships.remote_mutes, &format_remote_mute/1)
+
+    %{
+      following: local_following ++ remote_following,
+      blocks: local_blocks ++ remote_blocks,
+      mutes: local_mutes ++ remote_mutes,
+      domain_blocks: Enum.map(relationships.domain_blocks, &format_domain_block/1),
+      import_lists: %{
+        follows: Enum.map(local_following ++ remote_following, & &1.account),
+        blocks: Enum.map(local_blocks ++ remote_blocks, & &1.account),
+        mutes: Enum.map(local_mutes ++ remote_mutes, & &1.account),
+        domain_blocks: Enum.map(relationships.domain_blocks, & &1.domain)
+      }
+    }
+  end
+
+  defp format_remote_follow(%{actor: actor, followed_at: followed_at, pending: pending}) do
+    actor
+    |> format_remote_actor()
+    |> Map.merge(%{
+      type: "remote",
+      followed_at: followed_at,
+      pending: pending
+    })
+  end
+
+  defp format_remote_block(%{actor: actor, uri: uri, inserted_at: blocked_at}) do
+    actor
+    |> format_remote_actor(uri)
+    |> Map.merge(%{type: "remote", blocked_at: blocked_at})
+  end
+
+  defp format_remote_mute(%{actor: actor, uri: uri, inserted_at: muted_at}) do
+    actor
+    |> format_remote_actor(uri)
+    |> Map.merge(%{type: "remote", muted_at: muted_at})
+  end
+
+  defp format_domain_block(domain_block) do
+    %{domain: domain_block.domain, blocked_at: domain_block.blocked_at}
+  end
+
+  defp format_remote_actor(actor, fallback_uri \\ nil)
+
+  defp format_remote_actor(%Actor{} = actor, _fallback_uri) do
+    %{
+      account: remote_account_address(actor),
+      uri: actor.uri,
+      username: actor.username,
+      domain: actor.domain,
+      display_name: actor.display_name
+    }
+  end
+
+  defp format_remote_actor(nil, fallback_uri) do
+    %{account: fallback_uri, uri: fallback_uri, username: nil, domain: nil, display_name: nil}
+  end
+
+  defp local_account_address(%User{} = user) do
+    "#{user.handle || user.username}@#{ActivityPub.instance_domain()}"
+  end
+
+  defp remote_account_address(%Actor{username: username, domain: domain})
+       when is_binary(username) and is_binary(domain) do
+    "#{username}@#{domain}"
+  end
+
+  defp remote_account_address(%Actor{uri: uri}), do: uri
 
   defp format_vcard(contact) do
     user = contact.user

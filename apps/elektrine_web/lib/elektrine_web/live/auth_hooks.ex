@@ -54,15 +54,20 @@ defmodule ElektrineWeb.Live.AuthHooks do
                             "close_report_modal",
                             "filter",
                             "filter_change",
+                            "filter_timeline",
                             "instances_next_page",
                             "instances_prev_page",
+                            "load-more",
                             "load_more",
+                            "load_more_posts",
                             "next_page",
                             "prev_page",
                             "refresh",
                             "search",
                             "search_user",
+                            "set_filter",
                             "set_filter_status",
+                            "set_software_filter",
                             "show_add_block_modal",
                             "show_add_modal",
                             "show_policy_modal",
@@ -398,7 +403,7 @@ defmodule ElektrineWeb.Live.AuthHooks do
         end
       end
 
-      count = Elektrine.Notifications.get_unread_count(socket.assigns.current_user.id)
+      count = Elektrine.Notifications.get_visible_unread_count(socket.assigns.current_user.id)
       assign(socket, :notification_count, count)
     else
       socket

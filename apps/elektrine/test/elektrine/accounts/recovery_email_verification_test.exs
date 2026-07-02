@@ -319,6 +319,13 @@ defmodule Elektrine.Accounts.RecoveryEmailVerificationTest do
       assert updated_user.recovery_email_verified == false
     end
 
+    test "rejects invalid recovery email", %{user: user} do
+      assert {:error, changeset} =
+               RecoveryEmailVerification.set_recovery_email(user.id, "not-an-email")
+
+      assert %{recovery_email: [_ | _]} = errors_on(changeset)
+    end
+
     test "updating recovery email resets verified status", %{user: user} do
       # First set and verify a recovery email
       user

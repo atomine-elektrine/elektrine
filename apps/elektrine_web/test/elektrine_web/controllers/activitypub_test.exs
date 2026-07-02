@@ -73,6 +73,26 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
              end)
     end
 
+    test "includes account aliases in webfinger aliases", %{conn: conn} do
+      user =
+        AccountsFixtures.user_fixture(%{username: "webfingeraccountalias"})
+        |> Ecto.Changeset.change(
+          also_known_as: ["https://old.example/users/webfingeraccountalias"]
+        )
+        |> Repo.update!()
+
+      domain = Elektrine.ActivityPub.instance_domain()
+
+      conn =
+        conn
+        |> put_req_header("accept", "application/jrd+json")
+        |> get("/.well-known/webfinger", %{resource: "acct:#{user.username}@#{domain}"})
+
+      response = json_response(conn, 200)
+
+      assert "https://old.example/users/webfingeraccountalias" in response["aliases"]
+    end
+
     test "returns webfinger for community acct handle", %{conn: conn} do
       unique = System.unique_integer([:positive])
       owner = AccountsFixtures.user_fixture(%{username: "communityowner#{unique}"})
@@ -508,6 +528,26 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
       assert alias_response["id"] == username_alias_uri
       assert alias_response["preferredUsername"] == user.handle
       assert alias_response["movedTo"] == canonical_actor_uri
+    end
+
+    test "exports configured account aliases and moved target on canonical actor", %{conn: conn} do
+      user =
+        AccountsFixtures.user_fixture(%{username: "actorconfiguredmove"})
+        |> Ecto.Changeset.change(
+          also_known_as: ["https://old.example/users/actorconfiguredmove"],
+          moved_to: "https://new.example/users/actorconfiguredmove"
+        )
+        |> Repo.update!()
+
+      conn =
+        conn
+        |> put_req_header("accept", "application/activity+json")
+        |> get("/users/#{user.username}")
+
+      response = json_response(conn, 200)
+
+      assert "https://old.example/users/actorconfiguredmove" in response["alsoKnownAs"]
+      assert response["movedTo"] == "https://new.example/users/actorconfiguredmove"
     end
 
     test "exports active profile links as actor attachments", %{conn: conn, user: user} do

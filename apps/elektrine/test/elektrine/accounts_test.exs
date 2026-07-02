@@ -205,6 +205,22 @@ defmodule Elektrine.AccountsTest do
 
       refute Repo.get_by(Activity, internal_user_id: user.id, activity_type: "Update")
     end
+
+    test "remote actor mutes are idempotent and distinct from blocks" do
+      user = AccountsFixtures.user_fixture()
+      remote_actor = remote_actor_fixture()
+
+      assert {:ok, mute} = Accounts.mute_remote_actor(user.id, remote_actor.id)
+      assert {:ok, ^mute} = Accounts.mute_remote_actor(user.id, remote_actor.id)
+
+      assert Accounts.remote_actor_muted?(user.id, remote_actor.id)
+      refute Accounts.remote_actor_blocked?(user.id, remote_actor.id)
+      assert [mute] == Accounts.list_muted_remote_actors(user.id)
+
+      assert {:ok, _deleted} = Accounts.unmute_remote_actor(user.id, remote_actor.id)
+      refute Accounts.remote_actor_muted?(user.id, remote_actor.id)
+      assert {:error, :not_muted} = Accounts.unmute_remote_actor(user.id, remote_actor.id)
+    end
   end
 
   defp remote_actor_fixture(attrs \\ %{}) do

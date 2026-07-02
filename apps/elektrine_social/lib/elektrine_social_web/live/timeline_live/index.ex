@@ -883,6 +883,11 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
   end
 
   @impl true
+  def handle_info({:post_deleted, message_id}, socket) do
+    {:noreply, TimelineHelpers.remove_post_from_socket(socket, message_id)}
+  end
+
+  @impl true
   def handle_info({:remote_user_fetched, actor}, socket) do
     {:noreply, assign(socket, remote_user_preview: actor, remote_user_loading: false)}
   end
@@ -920,7 +925,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
   def handle_info(:notification_updated, socket) do
     count =
       if socket.assigns.current_user do
-        Elektrine.Notifications.get_unread_count(socket.assigns.current_user.id)
+        Elektrine.Notifications.get_visible_unread_count(socket.assigns.current_user.id)
       else
         0
       end
@@ -1196,7 +1201,8 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
     counts = %{
       like_count: like_count,
       share_count: Map.get(message || %{}, :share_count, 0),
-      reply_count: Map.get(message || %{}, :reply_count, 0)
+      reply_count: Map.get(message || %{}, :reply_count, 0),
+      quote_count: Map.get(message || %{}, :quote_count, 0)
     }
 
     update_fn = &update_posts_for_counts(&1, message_id, counts)
@@ -2180,9 +2186,10 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
         post.id == message_id ->
           %{
             post
-            | like_count: counts.like_count,
-              share_count: counts.share_count,
-              reply_count: counts.reply_count
+            | like_count: count_value(counts, :like_count, post.like_count),
+              share_count: count_value(counts, :share_count, post.share_count),
+              reply_count: count_value(counts, :reply_count, post.reply_count),
+              quote_count: count_value(counts, :quote_count, post.quote_count)
           }
 
         Ecto.assoc_loaded?(post.shared_message) && is_map(post.shared_message) &&
@@ -2191,9 +2198,10 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
             post
             | shared_message: %{
                 post.shared_message
-                | like_count: counts.like_count,
-                  share_count: counts.share_count,
-                  reply_count: counts.reply_count
+                | like_count: count_value(counts, :like_count, post.shared_message.like_count),
+                  share_count: count_value(counts, :share_count, post.shared_message.share_count),
+                  reply_count: count_value(counts, :reply_count, post.shared_message.reply_count),
+                  quote_count: count_value(counts, :quote_count, post.shared_message.quote_count)
               }
           }
 
@@ -2213,9 +2221,10 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
           if reply.id == message_id do
             %{
               reply
-              | like_count: counts.like_count,
-                share_count: counts.share_count,
-                reply_count: counts.reply_count
+              | like_count: count_value(counts, :like_count, reply.like_count),
+                share_count: count_value(counts, :share_count, reply.share_count),
+                reply_count: count_value(counts, :reply_count, reply.reply_count),
+                quote_count: count_value(counts, :quote_count, reply.quote_count)
             }
           else
             reply
@@ -2227,6 +2236,13 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
   end
 
   defp update_reply_previews_for_counts(_post_replies, _message_id, _counts), do: %{}
+
+  defp count_value(counts, field, fallback) when is_map(counts) do
+    case Map.get(counts, field) do
+      value when is_integer(value) -> max(value, 0)
+      _ -> fallback || 0
+    end
+  end
 
   defp find_message_post(posts, message_id) when is_list(posts) do
     Enum.find_value(posts, fn post ->

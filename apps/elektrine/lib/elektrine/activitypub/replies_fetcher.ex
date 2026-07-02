@@ -21,18 +21,16 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
     LemmyApi,
     MastodonApi,
     Normalizer,
-    RemoteFetch
+    RemoteFetch,
+    ReplyFetchPolicy
   }
 
   alias Elektrine.Messaging
   alias Elektrine.Repo
 
-  @max_replies 100
-  @max_depth 3
-  @max_pages 10
-  @full_thread_max_replies 1000
-  @full_thread_max_depth 5
-  @full_thread_max_pages 50
+  @max_replies Keyword.fetch!(ReplyFetchPolicy.preview_defaults(), :max_replies)
+  @max_depth Keyword.fetch!(ReplyFetchPolicy.preview_defaults(), :max_depth)
+  @max_pages Keyword.fetch!(ReplyFetchPolicy.preview_defaults(), :max_pages)
 
   @doc """
   Fetches replies for a post and stores them locally.
@@ -51,6 +49,8 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
   - `{:error, reason}` - If fetching failed
   """
   def fetch_and_store_replies(post_object, opts \\ []) do
+    mode = Keyword.get(opts, :reply_fetch_mode, :preview)
+    opts = ReplyFetchPolicy.clamp_fetch_opts(opts, mode)
     max_replies = Keyword.get(opts, :max_replies, @max_replies)
     max_depth = Keyword.get(opts, :max_depth, @max_depth)
     max_pages = Keyword.get(opts, :max_pages, @max_pages)
@@ -87,32 +87,44 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
 
   def fetch_replies_for_message(message_id, opts)
       when (is_binary(message_id) or is_integer(message_id)) and is_list(opts) do
+    mode = Keyword.get(opts, :reply_fetch_mode, :preview)
+    opts = ReplyFetchPolicy.clamp_fetch_opts(opts, mode)
+
     case Elektrine.Repo.get(Elektrine.Social.Message, message_id) do
       nil ->
         {:error, :message_not_found}
 
       message ->
-        if message.activitypub_id do
-          case RemoteFetch.fetch_object(message.activitypub_id, fetch_object_opts(opts)) do
-            {:ok, post_object} ->
-              case fetch_and_store_replies(post_object, opts) do
-                {:ok, stored_count} ->
-                  maybe_fetch_missing_replies_via_fallback(
-                    post_object,
-                    message.id,
-                    opts,
-                    stored_count
-                  )
+        cond do
+          is_nil(message.activitypub_id) ->
+            {:error, :no_activitypub_id}
+
+          not ReplyFetchPolicy.cooldown_elapsed?(message, opts) ->
+            {:ok, 0}
+
+          true ->
+            result =
+              case RemoteFetch.fetch_object(message.activitypub_id, fetch_object_opts(opts)) do
+                {:ok, post_object} ->
+                  case fetch_and_store_replies(post_object, opts) do
+                    {:ok, stored_count} ->
+                      maybe_fetch_missing_replies_via_fallback(
+                        post_object,
+                        message.id,
+                        opts,
+                        stored_count
+                      )
+
+                    {:error, _reason} ->
+                      fetch_and_store_replies_via_fallback(post_object, message.id, opts)
+                  end
 
                 {:error, _reason} ->
-                  fetch_and_store_replies_via_fallback(post_object, message.id, opts)
+                  fetch_replies_without_post_object(message.activitypub_id, message.id, opts)
               end
 
-            {:error, _reason} ->
-              fetch_replies_without_post_object(message.activitypub_id, message.id, opts)
-          end
-        else
-          {:error, :no_activitypub_id}
+            mark_reply_fetch_attempt(message)
+            result
         end
     end
   end
@@ -122,14 +134,9 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
   """
   def fetch_full_thread_for_message(message_id, opts \\ []) do
     opts =
-      Keyword.merge(
-        [
-          max_replies: @full_thread_max_replies,
-          max_depth: @full_thread_max_depth,
-          max_pages: @full_thread_max_pages
-        ],
-        opts
-      )
+      opts
+      |> Keyword.put(:reply_fetch_mode, :full_thread)
+      |> ReplyFetchPolicy.clamp_fetch_opts(:full_thread)
 
     fetch_replies_for_message(message_id, opts)
   end
@@ -141,6 +148,7 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
   """
   def fetch_from_collection_url(collection_url, parent_message_id, opts \\ [])
       when is_binary(collection_url) do
+    opts = ReplyFetchPolicy.clamp_fetch_opts(opts, :preview)
     max_replies = Keyword.get(opts, :max_replies, @max_replies)
     max_depth = Keyword.get(opts, :max_depth, @max_depth)
     max_pages = Keyword.get(opts, :max_pages, @max_pages)
@@ -156,6 +164,20 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
   end
 
   # Private implementation
+
+  defp mark_reply_fetch_attempt(message) do
+    metadata =
+      (message.media_metadata || %{})
+      |> Map.put(
+        ReplyFetchPolicy.fetched_at_metadata_key(),
+        ReplyFetchPolicy.fetched_at_timestamp()
+      )
+
+    from(m in Elektrine.Social.Message, where: m.id == ^message.id)
+    |> Repo.update_all(set: [media_metadata: metadata])
+
+    :ok
+  end
 
   defp do_fetch_and_store_replies(
          collection,

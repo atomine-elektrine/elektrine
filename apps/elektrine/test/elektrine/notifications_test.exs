@@ -141,6 +141,40 @@ defmodule Elektrine.NotificationsTest do
       assert notification.user_id == user.id
     end
 
+    test "create_notification accepts advertised web push alert types", %{user: user} do
+      for type <- ["status", "poll", "update", "admin.sign_up", "admin.report"] do
+        assert {:ok, notification} =
+                 Notifications.create_notification(%{
+                   type: type,
+                   title: "Push alert #{type}",
+                   user_id: user.id
+                 })
+
+        assert notification.type == type
+      end
+    end
+
+    test "redact_delivery_payload hides notification previews when enabled", %{user: user} do
+      payload = %{
+        title: "Private title",
+        body: "Private body",
+        type: "mention",
+        data: %{notification_id: 123}
+      }
+
+      assert Notifications.redact_delivery_payload(payload, user.id) == payload
+
+      from(u in User, where: u.id == ^user.id)
+      |> Repo.update_all(set: [hide_notification_contents: true])
+
+      assert %{
+               title: "New notification",
+               body: "Open Elektrine to view it.",
+               type: "mention",
+               data: %{notification_id: 123}
+             } = Notifications.redact_delivery_payload(payload, user.id)
+    end
+
     test "list_notifications returns notifications for user", %{user: user} do
       # Create some notifications
       {:ok, _n1} =

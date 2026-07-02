@@ -3,11 +3,36 @@ defmodule ElektrineWeb.API.SettingsController do
 
   alias Elektrine.Accounts
   alias Elektrine.Accounts.Authentication
+  alias Elektrine.Accounts.ClientAppSettings
+  alias Elektrine.Accounts.RecoveryEmailVerification
   alias Elektrine.Bluesky.Managed, as: BlueskyManaged
   alias Elektrine.Profiles
   alias Elektrine.Repo
 
   action_fallback ElektrineWeb.FallbackController
+
+  @notification_setting_fields [
+    "notify_on_email_received",
+    "notify_on_mention",
+    "notify_on_reply",
+    "notify_on_new_follower",
+    "notify_on_direct_message",
+    "notify_on_like",
+    "notify_on_discussion_reply",
+    "notify_on_comment",
+    "block_notifications_from_strangers",
+    "hide_notification_contents"
+  ]
+
+  @notification_setting_aliases %{
+    "block_from_strangers" => "block_notifications_from_strangers",
+    "notify_on_follow" => "notify_on_new_follower",
+    "notify_on_follower" => "notify_on_new_follower",
+    "notify_on_followers" => "notify_on_new_follower",
+    "notify_on_message" => "notify_on_direct_message",
+    "notify_on_messages" => "notify_on_direct_message",
+    "notify_on_direct_messages" => "notify_on_direct_message"
+  }
 
   @doc """
   GET /api/settings
@@ -49,6 +74,8 @@ defmodule ElektrineWeb.API.SettingsController do
         notify_on_reply: user.notify_on_reply,
         notify_on_new_follower: user.notify_on_new_follower,
         notify_on_direct_message: user.notify_on_direct_message,
+        block_notifications_from_strangers: user.block_notifications_from_strangers,
+        hide_notification_contents: user.hide_notification_contents,
         bluesky_enabled: user.bluesky_enabled,
         bluesky_identifier: user.bluesky_identifier,
         bluesky_pds_url: user.bluesky_pds_url
@@ -141,23 +168,17 @@ defmodule ElektrineWeb.API.SettingsController do
   def update_notifications(conn, params) do
     user = conn.assigns[:current_user]
 
-    # Build notification attrs from params
-    attrs =
-      params
-      |> Map.take([
-        "notify_on_email_received",
-        "notify_on_mention",
-        "notify_on_reply",
-        "notify_on_follow",
-        "notify_on_message"
-      ])
-      |> Enum.into(%{})
+    attrs = notification_attrs(params)
 
     case Accounts.update_user(user, attrs) do
-      {:ok, _updated_user} ->
+      {:ok, updated_user} ->
         conn
         |> put_status(:ok)
-        |> json(%{message: "Notification settings updated successfully"})
+        |> json(%{
+          status: "success",
+          message: "Notification settings updated successfully",
+          settings: notification_settings_payload(updated_user)
+        })
 
       {:error, %Ecto.Changeset{} = changeset} ->
         errors =
@@ -173,6 +194,67 @@ defmodule ElektrineWeb.API.SettingsController do
     end
   end
 
+  defp notification_attrs(params) do
+    Enum.reduce(params, %{}, fn {key, value}, attrs ->
+      canonical_key =
+        key
+        |> to_string()
+        |> then(&Map.get(@notification_setting_aliases, &1, &1))
+
+      if canonical_key in @notification_setting_fields do
+        Map.put(attrs, canonical_key, value)
+      else
+        attrs
+      end
+    end)
+  end
+
+  defp notification_settings_payload(user) do
+    %{
+      notify_on_email_received: user.notify_on_email_received,
+      notify_on_mention: user.notify_on_mention,
+      notify_on_reply: user.notify_on_reply,
+      notify_on_new_follower: user.notify_on_new_follower,
+      notify_on_direct_message: user.notify_on_direct_message,
+      notify_on_like: user.notify_on_like,
+      notify_on_discussion_reply: user.notify_on_discussion_reply,
+      notify_on_comment: user.notify_on_comment,
+      block_notifications_from_strangers: user.block_notifications_from_strangers,
+      block_from_strangers: user.block_notifications_from_strangers,
+      hide_notification_contents: user.hide_notification_contents
+    }
+  end
+
+  def show_app(conn, %{"app" => app}) do
+    user = conn.assigns[:current_user]
+
+    conn
+    |> put_status(:ok)
+    |> json(ClientAppSettings.get_settings(user.id, app))
+  end
+
+  def update_app(conn, %{"app" => app} = params) do
+    user = conn.assigns[:current_user]
+    patch = Map.drop(params, ["app"])
+
+    case ClientAppSettings.update_settings(user.id, app, patch) do
+      {:ok, settings} ->
+        conn
+        |> put_status(:ok)
+        |> json(settings)
+
+      {:error, :invalid_settings} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{error: "settings must be an object"})
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{error: "invalid_app_settings", details: changeset_errors(changeset)})
+    end
+  end
+
   @doc """
   PUT /api/settings/password
   Changes user password
@@ -181,12 +263,86 @@ defmodule ElektrineWeb.API.SettingsController do
         "current_password" => current_password,
         "new_password" => new_password
       }) do
+    update_password_with_confirmation(conn, current_password, new_password, new_password)
+  end
+
+  def update_password(conn, _params) do
+    conn
+    |> put_status(:bad_request)
+    |> json(%{error: "current_password and new_password are required"})
+  end
+
+  def change_password(
+        conn,
+        %{
+          "password" => current_password,
+          "new_password" => new_password
+        } = params
+      ) do
+    new_password_confirmation = Map.get(params, "new_password_confirmation", new_password)
+
+    update_password_with_confirmation(
+      conn,
+      current_password,
+      new_password,
+      new_password_confirmation
+    )
+  end
+
+  def change_password(conn, _params) do
+    conn
+    |> put_status(:bad_request)
+    |> json(%{error: "password and new_password are required"})
+  end
+
+  def change_email(conn, %{"password" => password, "email" => email}) do
+    user = conn.assigns[:current_user]
+
+    with {:ok, _user} <- Authentication.verify_user_password(user, password),
+         {:ok, updated_user} <- RecoveryEmailVerification.set_recovery_email(user.id, email) do
+      conn
+      |> put_status(:ok)
+      |> json(%{
+        status: "success",
+        email: updated_user.recovery_email,
+        verified: updated_user.recovery_email_verified
+      })
+    else
+      {:error, :invalid_credentials} ->
+        conn
+        |> put_status(:unauthorized)
+        |> json(%{error: "Password is incorrect"})
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{error: "Failed to update email", errors: changeset_errors(changeset)})
+
+      {:error, :user_not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{error: "User not found"})
+    end
+  end
+
+  def change_email(conn, _params) do
+    conn
+    |> put_status(:bad_request)
+    |> json(%{error: "password and email are required"})
+  end
+
+  defp update_password_with_confirmation(
+         conn,
+         current_password,
+         new_password,
+         new_password_confirmation
+       ) do
     user = conn.assigns[:current_user]
 
     case Authentication.update_user_password(user, %{
            current_password: current_password,
            password: new_password,
-           password_confirmation: new_password
+           password_confirmation: new_password_confirmation
          }) do
       {:ok, _updated_user} ->
         conn
@@ -214,10 +370,12 @@ defmodule ElektrineWeb.API.SettingsController do
     end
   end
 
-  def update_password(conn, _params) do
-    conn
-    |> put_status(:bad_request)
-    |> json(%{error: "current_password and new_password are required"})
+  defp changeset_errors(changeset) do
+    Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
+      Enum.reduce(opts, msg, fn {key, value}, acc ->
+        String.replace(acc, "%{#{key}}", to_string(value))
+      end)
+    end)
   end
 
   @doc """
@@ -278,13 +436,5 @@ defmodule ElektrineWeb.API.SettingsController do
     conn
     |> put_status(:bad_request)
     |> json(%{error: "current_password is required"})
-  end
-
-  defp changeset_errors(changeset) do
-    Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
-      Enum.reduce(opts, msg, fn {key, value}, acc ->
-        String.replace(acc, "%{#{key}}", to_string(value))
-      end)
-    end)
   end
 end

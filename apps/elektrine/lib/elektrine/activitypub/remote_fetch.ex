@@ -10,8 +10,7 @@ defmodule Elektrine.ActivityPub.RemoteFetch do
 
   require Logger
 
-  alias Elektrine.ActivityPub.DomainThrottler
-  alias Elektrine.ActivityPub.Fetcher
+  alias Elektrine.ActivityPub.{DomainDeliveryHealth, DomainThrottler, Fetcher}
   alias Elektrine.HTTP.Backoff
 
   @non_domain_failure_reasons [
@@ -78,10 +77,15 @@ defmodule Elektrine.ActivityPub.RemoteFetch do
   defp fetch_with_domain_policy(resource, opts, fetch_fun, domain_source \\ nil) do
     domain = fetch_domain(domain_source || resource)
 
-    if bypass_domain_policy?(opts) or !is_binary(domain) do
-      fetch_fun.(resource, opts)
-    else
-      with_domain_slot(domain, fn -> fetch_fun.(resource, opts) end)
+    cond do
+      bypass_domain_policy?(opts) or !is_binary(domain) ->
+        fetch_fun.(resource, opts)
+
+      not DomainDeliveryHealth.deliverable_url?("https://" <> domain) ->
+        {:error, :domain_unreachable}
+
+      true ->
+        with_domain_slot(domain, fn -> fetch_fun.(resource, opts) end)
     end
   end
 

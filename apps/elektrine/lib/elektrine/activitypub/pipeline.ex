@@ -131,11 +131,6 @@ defmodule Elektrine.ActivityPub.Pipeline do
   @doc "Stage 4: Handle side effects after main processing.\n"
   def handle_side_effects(activity, actor_uri, result) do
     SideEffects.handle(activity, actor_uri, result)
-    :ok
-  rescue
-    e ->
-      Logger.warning("Pipeline: Side effect error: #{inspect(e)}")
-      :ok
   end
 
   defp handle_undo(%{"object" => object} = _activity, actor_uri, _target_user)
@@ -198,8 +193,6 @@ defmodule Elektrine.ActivityPub.Pipeline do
       :ok -> :ok
       {:error, reason} -> {:error, {:federation_failed, reason}}
     end
-  rescue
-    _ -> :ok
   end
 
   defp get_object_id(%{"object" => object}) when is_binary(object) do

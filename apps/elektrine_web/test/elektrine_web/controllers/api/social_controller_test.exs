@@ -17,6 +17,10 @@ defmodule ElektrineSocialWeb.API.SocialControllerTest do
     |> put_req_header("content-type", "application/json")
   end
 
+  defp auth_upload_conn(conn, token) do
+    put_req_header(conn, "authorization", "Bearer #{token}")
+  end
+
   describe "GET /api/social/timeline" do
     test "returns timeline posts", %{conn: conn, token: token} do
       conn =
@@ -274,5 +278,78 @@ defmodule ElektrineSocialWeb.API.SocialControllerTest do
       response = json_response(conn, 200)
       assert is_list(response["users"])
     end
+  end
+
+  describe "POST /api/social/upload" do
+    setup do
+      previous_uploads = Application.get_env(:elektrine, :uploads)
+
+      tmp_dir =
+        Path.join(
+          System.tmp_dir!(),
+          "elektrine-social-upload-test-#{System.unique_integer([:positive])}"
+        )
+
+      File.mkdir_p!(tmp_dir)
+      Application.put_env(:elektrine, :uploads, adapter: :local, uploads_dir: tmp_dir)
+
+      on_exit(fn ->
+        Application.put_env(:elektrine, :uploads, previous_uploads)
+        File.rm_rf(tmp_dir)
+      end)
+
+      {:ok, tmp_dir: tmp_dir}
+    end
+
+    test "uploads media for posts", %{conn: conn, token: token, tmp_dir: tmp_dir} do
+      upload = upload_fixture(tmp_dir, "sample.png", "image/png", png_bytes())
+
+      conn =
+        conn
+        |> auth_upload_conn(token)
+        |> post("/api/social/upload", %{
+          "file" => upload,
+          "description" => "Timeline image"
+        })
+
+      response = json_response(conn, 201)
+
+      assert %{
+               "attachment" => %{
+                 "content_type" => "image/png",
+                 "description" => "Timeline image",
+                 "id" => id,
+                 "key" => key,
+                 "type" => "image",
+                 "url" => url
+               }
+             } = response
+
+      assert is_binary(id)
+      assert String.starts_with?(key, "/uploads/timeline-attachments/")
+      assert String.starts_with?(url, "/uploads/timeline-attachments/")
+      assert response["media"]["url"] == url
+      assert response["media_url"] == url
+      assert response["url"] == url
+    end
+
+    test "requires a file", %{conn: conn, token: token} do
+      conn =
+        conn
+        |> auth_upload_conn(token)
+        |> post("/api/social/upload", %{})
+
+      assert %{"error" => "Media file is required"} = json_response(conn, 400)
+    end
+  end
+
+  defp upload_fixture(tmp_dir, filename, content_type, content) do
+    path = Path.join(tmp_dir, "#{System.unique_integer([:positive])}-#{filename}")
+    File.write!(path, content)
+    %Plug.Upload{path: path, filename: filename, content_type: content_type}
+  end
+
+  defp png_bytes do
+    <<137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0>>
   end
 end

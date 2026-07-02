@@ -28,9 +28,18 @@ defmodule Elektrine.AccountsFixtures do
         :allow_group_adds_from,
         :allow_direct_messages_from,
         :allow_mentions_from,
+        :birthday,
+        :show_birthday,
+        :hide_followers,
+        :hide_follows,
+        :hide_favorites,
+        :also_known_as,
+        :moved_to,
         :notify_on_new_follower,
         :notify_on_direct_message,
-        :notify_on_mention
+        :notify_on_mention,
+        :block_notifications_from_strangers,
+        :hide_notification_contents
       ])
 
     {:ok, user} =

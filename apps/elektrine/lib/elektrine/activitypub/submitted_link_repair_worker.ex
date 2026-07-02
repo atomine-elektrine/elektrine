@@ -10,7 +10,11 @@ defmodule Elektrine.ActivityPub.SubmittedLinkRepairWorker do
   use Oban.Worker,
     queue: :federation,
     max_attempts: 2,
-    unique: [period: 300, keys: [:message_id], states: [:available, :scheduled, :executing]]
+    unique: [
+      period: 300,
+      keys: [:message_id, :type],
+      states: [:available, :scheduled, :executing, :retryable]
+    ]
 
   import Ecto.Query
 

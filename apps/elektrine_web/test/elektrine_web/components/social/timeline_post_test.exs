@@ -210,6 +210,57 @@ defmodule ElektrineWeb.Components.Social.TimelinePostTest do
     assert String.trim(like_button_text) == "14"
   end
 
+  test "timeline actions add optimistic likes to cached federated likes" do
+    post = %Message{
+      id: 791,
+      activitypub_id: "https://remote.example/users/alice/statuses/791",
+      activitypub_url: "https://remote.example/@alice/791",
+      post_type: "post",
+      content: "Remote post with optimistic engagement",
+      inserted_at: ~N[2026-04-16 00:00:00],
+      media_urls: [],
+      media_metadata: %{"original_like_count" => 20},
+      like_count: 1,
+      reply_count: 0,
+      share_count: 0,
+      score: 0,
+      federated: true,
+      remote_actor: %Actor{id: 791, username: "alice", domain: "remote.example"}
+    }
+
+    html =
+      render_component(&TimelinePost.timeline_post/1,
+        post: post,
+        layout: :timeline,
+        source: "timeline",
+        current_user: %{id: 1},
+        user_likes: %{},
+        user_boosts: %{},
+        user_saves: %{},
+        user_follows: %{},
+        pending_follows: %{},
+        remote_follow_overrides: %{},
+        user_statuses: %{},
+        lemmy_counts: %{},
+        post_replies: %{},
+        post_interactions: %{post.id => %{liked: true, like_delta: 1}},
+        post_reactions_map: %{},
+        reactions: [],
+        show_follow_button: false,
+        show_post_dropdown: false,
+        clickable: false,
+        on_image_click: nil
+      )
+
+    like_button_text =
+      html
+      |> Floki.parse_fragment!()
+      |> Floki.find("#post-actions-791-like")
+      |> Floki.text()
+
+    assert String.trim(like_button_text) == "21"
+  end
+
   test "timeline actions prefer cached federated shares over stale local shares" do
     post = %Message{
       id: 790,

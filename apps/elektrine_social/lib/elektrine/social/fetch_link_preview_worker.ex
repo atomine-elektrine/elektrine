@@ -17,6 +17,8 @@ defmodule Elektrine.Social.FetchLinkPreviewWorker do
   alias Elektrine.Social.LinkPreview
   alias Elektrine.Social.LinkPreviewFetcher
 
+  @failed_retry_after_seconds 6 * 60 * 60
+
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"url" => url} = args}) do
     message_id = args["message_id"]
@@ -60,18 +62,17 @@ defmodule Elektrine.Social.FetchLinkPreviewWorker do
       %LinkPreview{status: "success"} = preview ->
         {:ok, {:exists, preview}}
 
+      %LinkPreview{status: "failed", fetched_at: %DateTime{} = fetched_at} = preview ->
+        cutoff = DateTime.add(DateTime.utc_now(), -@failed_retry_after_seconds, :second)
+
+        if DateTime.compare(fetched_at, cutoff) == :gt do
+          {:ok, {:recent_failure, preview}}
+        else
+          enqueue_preview_fetch(url, message_id)
+        end
+
       _ ->
-        # Ensure we have a pending preview record
-        ensure_pending_preview(url)
-
-        args = %{
-          "url" => url,
-          "message_id" => message_id
-        }
-
-        args
-        |> new()
-        |> Elektrine.JobQueue.insert()
+        enqueue_preview_fetch(url, message_id)
     end
   end
 
@@ -80,6 +81,18 @@ defmodule Elektrine.Social.FetchLinkPreviewWorker do
   """
   def enqueue_many(urls, message_id \\ nil) when is_list(urls) do
     Enum.map(urls, fn url -> enqueue(url, message_id) end)
+  end
+
+  defp enqueue_preview_fetch(url, message_id) do
+    # Ensure we have a pending preview record
+    ensure_pending_preview(url)
+
+    %{
+      "url" => url,
+      "message_id" => message_id
+    }
+    |> new()
+    |> Elektrine.JobQueue.insert()
   end
 
   defp ensure_pending_preview(url) do

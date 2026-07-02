@@ -120,11 +120,24 @@ defmodule Elektrine.ActivityPub.IncomingActivityWorker do
             inspect(reason)
           end
 
+        retryable? = Handler.retryable_error?(reason)
+
+        attrs =
+          if retryable? do
+            %{process_error: String.slice(error_msg, 0, 255)}
+          else
+            %{
+              processed: true,
+              processed_at: DateTime.utc_now() |> DateTime.truncate(:second),
+              process_error: String.slice("discarded: " <> error_msg, 0, 255)
+            }
+          end
+
         activity
-        |> Activity.mark_processed_changeset(%{process_error: String.slice(error_msg, 0, 255)})
+        |> Activity.mark_processed_changeset(attrs)
         |> Repo.update()
 
-        if activity.process_attempts >= @max_attempts do
+        if retryable? and activity.process_attempts >= @max_attempts do
           Logger.warning(
             "Activity #{activity.activity_id} failed after #{@max_attempts} attempts: #{error_msg}"
           )

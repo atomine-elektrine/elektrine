@@ -115,6 +115,9 @@ defmodule ElektrineWeb.Layouts do
       {ElektrineWeb.Admin.MonitoringController, :active_users} ->
         "Active Users"
 
+      {ElektrineWeb.Admin.MonitoringController, :operations} ->
+        "Operations"
+
       {ElektrineWeb.Admin.MonitoringController, :imap_users} ->
         "IMAP Users"
 

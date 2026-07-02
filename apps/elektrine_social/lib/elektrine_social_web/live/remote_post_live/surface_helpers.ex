@@ -8,6 +8,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.SurfaceHelpers do
   alias Elektrine.Paths
   alias Elektrine.Repo
   alias Elektrine.Social
+  alias ElektrineSocialWeb.Components.Social.PostUtilities
 
   def reply_dom_id(%{"_local_message_id" => message_id}) when is_integer(message_id),
     do: "message-#{message_id}"
@@ -196,7 +197,10 @@ defmodule ElektrineSocialWeb.RemotePostLive.SurfaceHelpers do
   def ancestor_interaction_target(_, _), do: nil
 
   def local_vote_display_count(message) when is_map(message) do
-    max(Map.get(message, :like_count, 0) || 0, Map.get(message, :upvotes, 0) || 0)
+    max(
+      PostUtilities.display_primary_count(message),
+      Map.get(message, :upvotes, 0) || 0
+    )
   end
 
   def local_vote_display_count(_), do: 0

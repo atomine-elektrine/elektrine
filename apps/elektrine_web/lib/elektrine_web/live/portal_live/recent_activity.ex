@@ -127,11 +127,20 @@ defmodule ElektrineWeb.PortalLive.RecentActivity do
   defp notification_app(notification) do
     case {notification.type, notification.source_type} do
       {"email_received", _} -> "Email"
+      {"follow", _} -> "Social"
+      {"mention", _} -> "Social"
+      {"reply", source} when source in ["post", "discussion"] -> "Social"
+      {"like", _} -> "Social"
+      {"boost", _} -> "Social"
+      {"reaction", _} -> "Social"
+      {"status", _} -> "Social"
+      {"poll", _} -> "Social"
+      {"update", _} -> "Social"
+      {"comment", _} -> "Social"
+      {"discussion_reply", _} -> "Social"
       {_, "message"} -> "Chat"
       {_, "post"} -> "Social"
       {_, "discussion"} -> "Social"
-      {"follow", _} -> "Social"
-      {"mention", _} -> "Social"
       _ -> "Alerts"
     end
   end
@@ -144,6 +153,13 @@ defmodule ElektrineWeb.PortalLive.RecentActivity do
       "follow" -> "hero-user-plus"
       "mention" -> "hero-at-symbol"
       "like" -> "hero-heart"
+      "boost" -> "hero-arrow-path-rounded-square"
+      "reaction" -> "hero-face-smile"
+      "status" -> "hero-rectangle-stack"
+      "poll" -> "hero-chart-bar"
+      "update" -> "hero-pencil-square"
+      "admin.sign_up" -> "hero-user-plus"
+      "admin.report" -> "hero-shield-exclamation"
       _ -> "hero-bell"
     end
   end

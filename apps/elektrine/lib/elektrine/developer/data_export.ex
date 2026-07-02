@@ -75,11 +75,23 @@ defmodule Elektrine.Developer.DataExport do
   @doc """
   Returns formats available for each export type.
   """
-  def formats_for_type("email"), do: ~w(json mbox zip)
+  def formats_for_type("email"), do: ~w(json mbox)
   def formats_for_type("contacts"), do: ~w(json vcf csv)
   def formats_for_type("calendar"), do: ~w(json ical)
+  def formats_for_type("account"), do: ~w(json)
+  def formats_for_type("social"), do: ~w(json csv)
+  def formats_for_type("chat"), do: ~w(json csv)
   def formats_for_type("full"), do: ~w(zip)
-  def formats_for_type(_), do: ~w(json csv)
+  def formats_for_type(_), do: ~w(json)
+
+  @doc """
+  Returns the default format for an export type.
+  """
+  def default_format_for_type(type) do
+    type
+    |> formats_for_type()
+    |> List.first()
+  end
 
   @doc """
   Creates a changeset for a new export.
@@ -89,6 +101,7 @@ defmodule Elektrine.Developer.DataExport do
     |> cast(attrs, [:export_type, :format, :filters, :user_id])
     |> validate_required([:export_type, :user_id])
     |> validate_inclusion(:export_type, @valid_types)
+    |> put_default_format_for_type()
     |> validate_inclusion(:format, @valid_formats)
     |> validate_format_for_type()
     |> generate_download_token()
@@ -154,10 +167,29 @@ defmodule Elektrine.Developer.DataExport do
   def downloadable?(%__MODULE__{status: "completed"} = export), do: not expired?(export)
   def downloadable?(_), do: false
 
+  defp put_default_format_for_type(changeset) do
+    export_type = get_field(changeset, :export_type)
+
+    if export_type && not format_provided?(changeset) do
+      put_change(changeset, :format, default_format_for_type(export_type))
+    else
+      changeset
+    end
+  end
+
+  defp format_provided?(%Ecto.Changeset{params: params}) when is_map(params) do
+    case Map.fetch(params, "format") do
+      {:ok, value} -> not is_nil(value)
+      :error -> not is_nil(Map.get(params, :format))
+    end
+  end
+
+  defp format_provided?(_changeset), do: false
+
   # Validate that the format is valid for the export type
   defp validate_format_for_type(changeset) do
     export_type = get_field(changeset, :export_type)
-    format = get_field(changeset, :format) || "json"
+    format = get_field(changeset, :format)
 
     if export_type && format not in formats_for_type(export_type) do
       add_error(changeset, :format, "is not valid for #{export_type} exports")

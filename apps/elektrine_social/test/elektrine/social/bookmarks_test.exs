@@ -2,7 +2,7 @@ defmodule Elektrine.Social.BookmarksTest do
   # Not async due to timing-dependent ordering tests
   use Elektrine.DataCase, async: false
 
-  alias Elektrine.Social.Bookmarks
+  alias Elektrine.Social.{BookmarkFolders, Bookmarks}
   import Elektrine.AccountsFixtures
   import Elektrine.SocialFixtures
 
@@ -32,6 +32,21 @@ defmodule Elektrine.Social.BookmarksTest do
 
       assert {:ok, _} = Bookmarks.save_post(user1.id, post.id)
       assert {:ok, _} = Bookmarks.save_post(user2.id, post.id)
+    end
+
+    test "can assign a saved post to an owned folder", %{user: user, post: post} do
+      {:ok, folder} = BookmarkFolders.create_folder(user.id, %{"name" => "Research"})
+
+      assert {:ok, saved} = Bookmarks.save_post(user.id, post.id, folder_id: folder.id)
+      assert saved.bookmark_folder_id == folder.id
+    end
+
+    test "rejects folders owned by another user", %{user: user, post: post} do
+      other_user = user_fixture()
+      {:ok, folder} = BookmarkFolders.create_folder(other_user.id, %{"name" => "Other"})
+
+      assert {:error, :not_authorized} =
+               Bookmarks.save_post(user.id, post.id, folder_id: folder.id)
     end
   end
 
@@ -150,6 +165,21 @@ defmodule Elektrine.Social.BookmarksTest do
       assert length(result) == 2
     end
 
+    test "supports id pagination options" do
+      user = user_fixture()
+      older = post_fixture()
+      newer = post_fixture()
+
+      {:ok, _} = Bookmarks.save_post(user.id, older.id)
+      {:ok, _} = Bookmarks.save_post(user.id, newer.id)
+
+      result = Bookmarks.get_saved_posts(user.id, limit: 20, before_id: newer.id)
+      assert Enum.map(result, & &1.id) == [older.id]
+
+      result = Bookmarks.get_saved_posts(user.id, limit: 20, since_id: older.id)
+      assert Enum.map(result, & &1.id) == [newer.id]
+    end
+
     test "returns empty list when user has no saved posts" do
       user = user_fixture()
       result = Bookmarks.get_saved_posts(user.id)
@@ -171,6 +201,20 @@ defmodule Elektrine.Social.BookmarksTest do
 
       result = Bookmarks.get_saved_posts(user.id)
       assert result == []
+    end
+
+    test "filters by bookmark folder" do
+      user = user_fixture()
+      {:ok, folder} = BookmarkFolders.create_folder(user.id, %{"name" => "Read later"})
+      post_in_folder = post_fixture()
+      other_post = post_fixture()
+
+      {:ok, _} = Bookmarks.save_post(user.id, post_in_folder.id, folder_id: folder.id)
+      {:ok, _} = Bookmarks.save_post(user.id, other_post.id)
+
+      result = Bookmarks.get_saved_posts(user.id, folder_id: folder.id)
+
+      assert Enum.map(result, & &1.id) == [post_in_folder.id]
     end
   end
 

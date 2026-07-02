@@ -10,6 +10,11 @@ defmodule Elektrine.Accounts.UserTest do
       assert user.notify_on_new_follower == true
       assert user.notify_on_direct_message == true
       assert user.notify_on_mention == true
+      assert user.block_notifications_from_strangers == false
+      assert user.hide_notification_contents == false
+      assert user.hide_followers == false
+      assert user.hide_follows == false
+      assert user.hide_favorites == false
     end
 
     test "changeset accepts notification preference fields" do
@@ -18,7 +23,12 @@ defmodule Elektrine.Accounts.UserTest do
       attrs = %{
         notify_on_new_follower: false,
         notify_on_direct_message: false,
-        notify_on_mention: false
+        notify_on_mention: false,
+        block_notifications_from_strangers: true,
+        hide_notification_contents: true,
+        hide_followers: true,
+        hide_follows: true,
+        hide_favorites: true
       }
 
       changeset = User.changeset(user, attrs)
@@ -27,6 +37,11 @@ defmodule Elektrine.Accounts.UserTest do
       assert get_change(changeset, :notify_on_new_follower) == false
       assert get_change(changeset, :notify_on_direct_message) == false
       assert get_change(changeset, :notify_on_mention) == false
+      assert get_change(changeset, :block_notifications_from_strangers) == true
+      assert get_change(changeset, :hide_notification_contents) == true
+      assert get_change(changeset, :hide_followers) == true
+      assert get_change(changeset, :hide_follows) == true
+      assert get_change(changeset, :hide_favorites) == true
     end
 
     test "notification preferences must be boolean" do
@@ -35,7 +50,9 @@ defmodule Elektrine.Accounts.UserTest do
       # These should be coerced to boolean
       attrs = %{
         notify_on_new_follower: "true",
-        notify_on_direct_message: "false"
+        notify_on_direct_message: "false",
+        block_notifications_from_strangers: "true",
+        hide_notification_contents: "false"
       }
 
       changeset = User.changeset(user, attrs)

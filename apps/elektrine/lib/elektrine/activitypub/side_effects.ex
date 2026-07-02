@@ -166,9 +166,21 @@ defmodule Elektrine.ActivityPub.SideEffects do
     import Ecto.Query
 
     Elektrine.Repo.update_all(
-      from(m in Elektrine.Social.Message, where: m.id == ^parent_message_id),
+      from(m in Elektrine.Social.Message,
+        where: m.id == ^parent_message_id and is_nil(m.deleted_at)
+      ),
       inc: [reply_count: 1]
     )
+
+    reply_count =
+      from(m in Elektrine.Social.Message,
+        where: m.id == ^parent_message_id,
+        select: coalesce(m.reply_count, 0)
+      )
+      |> Elektrine.Repo.one()
+      |> Kernel.||(0)
+
+    Elektrine.Social.MessageStats.upsert_counts(parent_message_id, %{reply_count: reply_count})
 
     :ok
   end

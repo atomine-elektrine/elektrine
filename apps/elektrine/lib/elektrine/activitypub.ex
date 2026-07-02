@@ -15,6 +15,7 @@ defmodule Elektrine.ActivityPub do
     Actor,
     CollectionFetcher,
     Delivery,
+    DomainDeliveryHealth,
     Fetcher,
     HTTPSignature,
     Instance,
@@ -23,9 +24,12 @@ defmodule Elektrine.ActivityPub do
     LocalReferences,
     MastodonApi,
     MRF,
+    ObjectDeliveries,
     RelaySubscription,
     RemoteFetch,
+    ReplyFetchPolicy,
     RequestReplayCache,
+    Tombstones,
     UserBlock
   }
 
@@ -752,78 +756,10 @@ defmodule Elektrine.ActivityPub do
     Repo.get_by(Activity, activity_id: activity_id)
   end
 
-  @doc """
-  Records a remote Delete receipt so later imports of the same object can be ignored.
-  """
-  def record_remote_delete_receipt(activity, actor_uri, object_id)
-      when is_map(activity) and is_binary(actor_uri) and is_binary(object_id) do
-    canonical_actor_uri = normalize_activitypub_ref(actor_uri)
-    canonical_object_id = normalize_activitypub_ref(object_id)
-
-    if is_nil(canonical_actor_uri) or is_nil(canonical_object_id) do
-      {:error, :invalid_delete_receipt}
-    else
-      existing_receipt =
-        from(a in Activity,
-          where:
-            a.local == false and a.activity_type == "Delete" and
-              a.actor_uri == ^canonical_actor_uri and a.object_id == ^canonical_object_id,
-          limit: 1
-        )
-        |> Repo.one()
-
-      if existing_receipt do
-        {:ok, existing_receipt}
-      else
-        activity_id =
-          Map.get(activity, "id") ||
-            delete_receipt_activity_id(canonical_actor_uri, canonical_object_id)
-
-        create_activity(%{
-          activity_id: activity_id,
-          activity_type: "Delete",
-          actor_uri: canonical_actor_uri,
-          object_id: canonical_object_id,
-          data: activity,
-          local: false,
-          processed: true,
-          processed_at: DateTime.utc_now() |> DateTime.truncate(:second)
-        })
-      end
-    end
-  end
-
-  def record_remote_delete_receipt(_activity, _actor_uri, _object_id),
-    do: {:error, :invalid_delete_receipt}
-
-  @doc """
-  Returns true when a previously received remote Delete applies to the actor/object pair.
-  """
-  def remote_delete_recorded?(actor_uri, object_refs) when is_binary(actor_uri) do
-    canonical_actor_uri = normalize_activitypub_ref(actor_uri)
-
-    canonical_object_refs =
-      object_refs
-      |> List.wrap()
-      |> Enum.map(&normalize_activitypub_ref/1)
-      |> Enum.reject(&is_nil/1)
-      |> Enum.uniq()
-
-    if is_binary(canonical_actor_uri) and canonical_object_refs != [] do
-      from(a in Activity,
-        where:
-          a.local == false and a.activity_type == "Delete" and a.actor_uri == ^canonical_actor_uri and
-            a.object_id in ^canonical_object_refs,
-        select: 1,
-        limit: 1
-      )
-      |> Repo.exists?()
-    else
-      false
-    end
-  end
-
-  def remote_delete_recorded?(_actor_uri, _object_refs), do: false
+  defdelegate record_remote_delete_receipt(activity, actor_uri, object_id), to: Tombstones
+  defdelegate record_remote_tombstone(activity, actor_uri, object_id), to: Tombstones
+  defdelegate remote_delete_recorded?(actor_uri, object_refs), to: Tombstones
+  defdelegate remote_tombstone_recorded?(actor_uri, object_refs), to: Tombstones
 
   @doc """
   Gets the most recent local activity for a user, type, and object.
@@ -884,31 +820,6 @@ defmodule Elektrine.ActivityPub do
     where(query, [a], fragment("?->>'content' = ?", a.data, ^content))
   end
 
-  defp delete_receipt_activity_id(actor_uri, object_id)
-       when is_binary(actor_uri) and is_binary(object_id) do
-    digest =
-      :crypto.hash(:sha256, actor_uri <> "\n" <> object_id)
-      |> Base.encode16(case: :lower)
-
-    "delete-receipt:" <> digest
-  end
-
-  defp normalize_activitypub_ref(ref) when is_binary(ref) do
-    ref
-    |> String.trim()
-    |> String.split("#", parts: 2)
-    |> hd()
-    |> String.split("?", parts: 2)
-    |> hd()
-    |> String.trim_trailing("/")
-    |> case do
-      "" -> nil
-      value -> value
-    end
-  end
-
-  defp normalize_activitypub_ref(_), do: nil
-
   defp where_public_outbox_activity(query) do
     where(
       query,
@@ -940,9 +851,15 @@ defmodule Elektrine.ActivityPub do
   """
   def create_deliveries(activity_id, inbox_urls) do
     now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+    activity = Repo.get(Activity, activity_id)
+    object_id = activity && (activity.object_id || object_id_from_activity_data(activity.data))
+
+    record_object_deliveries(object_id, activity_id, inbox_urls)
 
     deliveries =
-      Enum.map(inbox_urls, fn inbox_url ->
+      inbox_urls
+      |> deliverable_inboxes_for_activity(activity)
+      |> Enum.map(fn inbox_url ->
         %{
           activity_id: activity_id,
           inbox_url: inbox_url,
@@ -963,6 +880,22 @@ defmodule Elektrine.ActivityPub do
 
     {count, inserted}
   end
+
+  defp deliverable_inboxes_for_activity(inbox_urls, %Activity{activity_type: type})
+       when type in ["Delete", "Update"] do
+    Enum.uniq(inbox_urls)
+  end
+
+  defp deliverable_inboxes_for_activity(inbox_urls, _activity) do
+    DomainDeliveryHealth.filter_deliverable_inboxes(inbox_urls)
+  end
+
+  defp object_id_from_activity_data(%{"object" => object}) when is_binary(object), do: object
+  defp object_id_from_activity_data(%{"object" => %{"id" => id}}) when is_binary(id), do: id
+  defp object_id_from_activity_data(_), do: nil
+
+  defdelegate record_object_deliveries(object_id, activity_id, inbox_urls), to: ObjectDeliveries
+  defdelegate get_object_delivery_inboxes(object_id), to: ObjectDeliveries
 
   @doc """
   Gets a delivery by ID with its associated activity.
@@ -996,15 +929,20 @@ defmodule Elektrine.ActivityPub do
     started_at = System.monotonic_time(:millisecond)
     now = DateTime.utc_now()
 
-    delivery_ids =
+    retryable_deliveries =
       Delivery
       |> where([d], d.status == "pending")
       |> where([d], is_nil(d.next_retry_at) or d.next_retry_at <= ^now)
       |> where([d], d.attempts < 10)
       |> order_by([d], asc: d.updated_at)
       |> limit(^limit)
-      |> select([d], d.id)
+      |> select([d], {d.id, d.inbox_url})
       |> Repo.all()
+
+    delivery_ids =
+      retryable_deliveries
+      |> Enum.filter(fn {_id, inbox_url} -> DomainDeliveryHealth.deliverable_url?(inbox_url) end)
+      |> Enum.map(fn {id, _inbox_url} -> id end)
 
     Events.db_hot_path(
       :activitypub,
@@ -1020,13 +958,26 @@ defmodule Elektrine.ActivityPub do
   Marks a delivery as delivered.
   """
   def mark_delivery_delivered(delivery_id) do
-    Delivery
-    |> Repo.get(delivery_id)
-    |> Delivery.changeset(%{
-      status: "delivered",
-      last_attempt_at: DateTime.utc_now()
-    })
-    |> Repo.update()
+    case Repo.get(Delivery, delivery_id) |> Repo.preload(:activity) do
+      nil ->
+        {:error, :not_found}
+
+      delivery ->
+        result =
+          delivery
+          |> Delivery.changeset(%{
+            status: "delivered",
+            last_attempt_at: DateTime.utc_now()
+          })
+          |> Repo.update()
+
+        if match?({:ok, _}, result) do
+          DomainDeliveryHealth.record_delivery_success(delivery.inbox_url)
+          ObjectDeliveries.mark_object_delivery_delivered(delivery)
+        end
+
+        result
+    end
   end
 
   @doc """
@@ -1049,39 +1000,45 @@ defmodule Elektrine.ActivityPub do
   Marks a delivery as failed and schedules retry.
   """
   def mark_delivery_failed(delivery_id, error_message) do
-    delivery = Repo.get(Delivery, delivery_id)
-    attempts = delivery.attempts + 1
+    case Repo.get(Delivery, delivery_id) do
+      nil ->
+        {:error, :not_found}
 
-    # Exponential backoff: 5min, 15min, 1hr, 3hr, 12hr, 24hr, then give up
-    next_retry_minutes =
-      case attempts do
-        1 -> 5
-        2 -> 15
-        3 -> 60
-        4 -> 180
-        5 -> 720
-        6 -> 1440
-        _ -> nil
-      end
+      delivery ->
+        DomainDeliveryHealth.record_delivery_failure(delivery.inbox_url, error_message)
+        attempts = delivery.attempts + 1
 
-    next_retry_at =
-      if next_retry_minutes do
-        DateTime.add(DateTime.utc_now(), next_retry_minutes * 60, :second)
-      else
-        nil
-      end
+        # Exponential backoff: 5min, 15min, 1hr, 3hr, 12hr, 24hr, then give up
+        next_retry_minutes =
+          case attempts do
+            1 -> 5
+            2 -> 15
+            3 -> 60
+            4 -> 180
+            5 -> 720
+            6 -> 1440
+            _ -> nil
+          end
 
-    status = if attempts >= 10, do: "failed", else: "pending"
+        next_retry_at =
+          if next_retry_minutes do
+            DateTime.add(DateTime.utc_now(), next_retry_minutes * 60, :second)
+          else
+            nil
+          end
 
-    delivery
-    |> Delivery.changeset(%{
-      status: status,
-      attempts: attempts,
-      last_attempt_at: DateTime.utc_now(),
-      next_retry_at: next_retry_at,
-      error_message: error_message
-    })
-    |> Repo.update()
+        status = if attempts >= 10, do: "failed", else: "pending"
+
+        delivery
+        |> Delivery.changeset(%{
+          status: status,
+          attempts: attempts,
+          last_attempt_at: DateTime.utc_now(),
+          next_retry_at: next_retry_at,
+          error_message: error_message
+        })
+        |> Repo.update()
+    end
   end
 
   ## Instances
@@ -1149,14 +1106,18 @@ defmodule Elektrine.ActivityPub do
   def block_instance(domain, reason, admin_user_id) do
     case get_or_create_instance(domain) do
       {:ok, instance} ->
-        instance
-        |> Instance.changeset(%{
-          blocked: true,
-          reason: reason,
-          blocked_by_id: admin_user_id,
-          blocked_at: DateTime.utc_now()
-        })
-        |> Repo.update()
+        result =
+          instance
+          |> Instance.changeset(%{
+            blocked: true,
+            reason: reason,
+            blocked_by_id: admin_user_id,
+            blocked_at: DateTime.utc_now()
+          })
+          |> Repo.update()
+
+        notify_all_home_feeds(:instance_blocked)
+        result
 
       error ->
         error
@@ -1169,13 +1130,17 @@ defmodule Elektrine.ActivityPub do
   Blocks a remote actor or domain for a specific user.
   """
   def block_for_user(user_id, blocked_uri, type \\ "user") do
-    %UserBlock{}
-    |> UserBlock.changeset(%{
-      user_id: user_id,
-      blocked_uri: blocked_uri,
-      block_type: type
-    })
-    |> Repo.insert()
+    result =
+      %UserBlock{}
+      |> UserBlock.changeset(%{
+        user_id: user_id,
+        blocked_uri: blocked_uri,
+        block_type: type
+      })
+      |> Repo.insert()
+
+    notify_home_feed_policy_changed(user_id, :activitypub_blocked)
+    result
   end
 
   @doc """
@@ -1476,7 +1441,7 @@ defmodule Elektrine.ActivityPub do
   Returns a list of reply objects.
   """
   def fetch_remote_post_replies(post_object, opts \\ []) do
-    limit = Keyword.get(opts, :limit, 10)
+    limit = opts |> Keyword.get(:limit, 10) |> ReplyFetchPolicy.clamp_collection_limit()
     post_id = post_object["id"]
     post_url = post_object["url"] || post_id
 
@@ -1518,7 +1483,7 @@ defmodule Elektrine.ActivityPub do
             {:ok, replies}
 
           _ when replies_url != nil ->
-            fetch_replies_from_collection(replies_url, limit)
+            fetch_replies_from_collection(replies_url, limit, community_post_ref)
 
           other ->
             other
@@ -1526,7 +1491,7 @@ defmodule Elektrine.ActivityPub do
 
       # Standard ActivityPub replies collection
       replies_url != nil ->
-        case fetch_replies_from_collection(replies_url, limit) do
+        case fetch_replies_from_collection(replies_url, limit, post_id || post_url) do
           {:ok, replies} when replies != [] ->
             {:ok, replies}
 
@@ -1613,6 +1578,7 @@ defmodule Elektrine.ActivityPub do
             }
           end)
           |> supplement_mastodon_thread_replies(post_url, limit)
+          |> ReplyFetchPolicy.filter_same_host_replies(post_url)
 
         {:ok, replies}
 
@@ -1636,6 +1602,7 @@ defmodule Elektrine.ActivityPub do
     additional_replies =
       [post_url | replies]
       |> collect_supplemental_thread_replies(limit, seen_ids, [])
+      |> ReplyFetchPolicy.filter_same_host_replies(post_url)
 
     merge_unique_replies(replies, additional_replies, limit)
   end
@@ -2058,7 +2025,7 @@ defmodule Elektrine.ActivityPub do
   end
 
   # Fetch replies from standard ActivityPub collection
-  defp fetch_replies_from_collection(replies_url, limit) do
+  defp fetch_replies_from_collection(replies_url, limit, root_ref) do
     case RemoteFetch.fetch_object(replies_url) do
       {:ok, replies_data} ->
         {items, next_page} = extract_items_from_collection(replies_data)
@@ -2105,6 +2072,7 @@ defmodule Elektrine.ActivityPub do
               _ -> false
             end
           end)
+          |> ReplyFetchPolicy.filter_same_host_replies(root_ref)
 
         {:ok, replies}
 
@@ -2250,4 +2218,28 @@ defmodule Elektrine.ActivityPub do
   end
 
   defp fallback_lemmy_api_url(_), do: nil
+
+  defp notify_home_feed_policy_changed(user_id, reason) when is_integer(user_id) do
+    module = Module.concat([Elektrine, Social, HomeFeedInvalidationWorker])
+
+    if Code.ensure_loaded?(module) do
+      _ = module.clear_user(user_id, reason)
+    end
+
+    :ok
+  rescue
+    _ -> :ok
+  end
+
+  defp notify_all_home_feeds(reason) do
+    module = Module.concat([Elektrine, Social, HomeFeed])
+
+    if Code.ensure_loaded?(module) do
+      _ = module.clear_all(reason)
+    end
+
+    :ok
+  rescue
+    _ -> :ok
+  end
 end

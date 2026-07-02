@@ -78,7 +78,7 @@ defmodule ElektrineWeb.MobileChannel do
     end
 
     # Push notification count
-    notification_count = Notifications.get_unread_count(user_id)
+    notification_count = Notifications.get_visible_unread_count(user_id)
     push(socket, "notification:count", %{count: notification_count})
 
     # Push social counts
@@ -148,7 +148,7 @@ defmodule ElektrineWeb.MobileChannel do
   # Handle new notification
   @impl true
   def handle_info({:new_notification, notification}, socket) do
-    formatted = format_notification(notification)
+    formatted = format_notification(notification, socket.assigns.user_id)
 
     socket =
       socket
@@ -534,7 +534,7 @@ defmodule ElektrineWeb.MobileChannel do
 
   @impl true
   def handle_info({:social_notification, notification}, socket) do
-    formatted = format_notification(notification)
+    formatted = format_notification(notification, socket.assigns.user_id)
 
     socket =
       socket
@@ -653,7 +653,7 @@ defmodule ElektrineWeb.MobileChannel do
         %{}
       end
 
-    notification_count = Notifications.get_unread_count(user_id)
+    notification_count = Notifications.get_visible_unread_count(user_id)
 
     {:reply, {:ok, %{email_counts: counts, notification_count: notification_count}}, socket}
   end
@@ -825,7 +825,7 @@ defmodule ElektrineWeb.MobileChannel do
       %{
         follower_count: Profiles.get_follower_count(user_id),
         following_count: Profiles.get_following_count(user_id),
-        notification_count: Notifications.get_unread_count(user_id)
+        notification_count: Notifications.get_visible_unread_count(user_id)
       }}, socket}
   end
 
@@ -946,7 +946,7 @@ defmodule ElektrineWeb.MobileChannel do
   defp vpn_server_name(%{vpn_server: %{name: name}}) when is_binary(name) and name != "", do: name
   defp vpn_server_name(_), do: "VPN"
 
-  defp format_notification(notification) do
+  defp format_notification(notification, user_id) do
     %{
       id: notification.id,
       type: notification.type,
@@ -957,6 +957,7 @@ defmodule ElektrineWeb.MobileChannel do
       read: notification.read,
       inserted_at: notification.inserted_at
     }
+    |> Notifications.redact_delivery_payload(user_id)
   end
 
   defp format_chat_message(message) do

@@ -38,11 +38,17 @@ defmodule Elektrine.ActivityPub.Handlers.DeleteHandler do
           if message.federated && message.remote_actor_id do
             with {:ok, remote_actor} <- ActivityPub.get_or_fetch_actor(actor_uri),
                  true <- message.remote_actor_id == remote_actor.id do
-              message
-              |> Ecto.Changeset.change(%{
-                deleted_at: DateTime.utc_now() |> DateTime.truncate(:second)
-              })
-              |> Elektrine.Repo.update()
+              update_result =
+                message
+                |> Ecto.Changeset.change(%{
+                  deleted_at: DateTime.utc_now() |> DateTime.truncate(:second)
+                })
+                |> Elektrine.Repo.update()
+
+              case update_result do
+                {:ok, deleted_message} -> broadcast_deleted_post(deleted_message)
+                _ -> :ok
+              end
 
               case ActivityPub.record_remote_delete_receipt(activity, actor_uri, object_id) do
                 {:ok, _receipt} ->
@@ -76,4 +82,12 @@ defmodule Elektrine.ActivityPub.Handlers.DeleteHandler do
       {:ok, :invalid_delete}
     end
   end
+
+  defp broadcast_deleted_post(%{id: message_id}) when is_integer(message_id) do
+    Phoenix.PubSub.broadcast(Elektrine.PubSub, "timeline:public", {:post_deleted, message_id})
+    Phoenix.PubSub.broadcast(Elektrine.PubSub, "post:#{message_id}", {:post_deleted, message_id})
+    :ok
+  end
+
+  defp broadcast_deleted_post(_), do: :ok
 end

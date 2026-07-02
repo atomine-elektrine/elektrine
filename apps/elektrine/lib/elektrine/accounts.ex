@@ -25,10 +25,13 @@ defmodule Elektrine.Accounts do
   alias Elektrine.Platform.Modules
 
   # Import sub-context modules for delegation
+  alias Elektrine.Accounts.AccountNotes
   alias Elektrine.Accounts.Authentication
   alias Elektrine.Accounts.Blocking
+  alias Elektrine.Accounts.Endorsements
   alias Elektrine.Accounts.Moderation
   alias Elektrine.Accounts.Muting
+  alias Elektrine.Accounts.Subscriptions
   alias Elektrine.Accounts.Tracking
   alias Elektrine.Subscriptions.RegistrationCheckout
 
@@ -342,6 +345,8 @@ defmodule Elektrine.Accounts do
     |> String.replace(<<0>>, "")
   end
 
+  defp sanitize_update_value(%_{} = value), do: value
+
   defp sanitize_update_value(value) when is_map(value), do: sanitize_update_attrs(value)
 
   defp sanitize_update_value(value) when is_list(value),
@@ -509,14 +514,46 @@ defmodule Elektrine.Accounts do
   defdelegate user_blocked?(blocker_id, blocked_id), to: Blocking
   defdelegate list_blocked_users(blocker_id), to: Blocking
   defdelegate list_users_who_blocked(blocked_id), to: Blocking
+  defdelegate block_remote_actor(user_id, remote_actor_id), to: Blocking
+  defdelegate unblock_remote_actor(user_id, remote_actor_id), to: Blocking
+  defdelegate remote_actor_blocked?(user_id, remote_actor_id), to: Blocking
+  defdelegate list_blocked_remote_actors(user_id), to: Blocking
+  defdelegate mute_remote_actor(user_id, remote_actor_id), to: Blocking
+  defdelegate unmute_remote_actor(user_id, remote_actor_id), to: Blocking
+  defdelegate remote_actor_muted?(user_id, remote_actor_id), to: Blocking
+  defdelegate list_muted_remote_actors(user_id), to: Blocking
+  defdelegate block_domain(user_id, domain), to: Blocking
+  defdelegate unblock_domain(user_id, domain), to: Blocking
+  defdelegate list_blocked_domains(user_id), to: Blocking
+  defdelegate domain_blocked?(user_id, domain), to: Blocking
 
   ## Muting Functions - Delegated to Muting module
 
-  defdelegate mute_user(muter_id, muted_id, mute_notifications \\ false), to: Muting
+  defdelegate mute_user(muter_id, muted_id, mute_notifications \\ false, expires_at \\ nil),
+    to: Muting
+
   defdelegate unmute_user(muter_id, muted_id), to: Muting
   defdelegate user_muted?(muter_id, muted_id), to: Muting
   defdelegate user_muting_notifications?(muter_id, muted_id), to: Muting
   defdelegate list_muted_users(muter_id), to: Muting
+  defdelegate expire_due_mutes(now \\ Elektrine.Time.utc_now()), to: Muting
+
+  defdelegate get_account_note(source_user_id, target), to: AccountNotes, as: :get_note
+  defdelegate account_note_comment(source_user_id, target), to: AccountNotes, as: :note_comment
+  defdelegate put_account_note(source_user_id, target, comment), to: AccountNotes, as: :put_note
+
+  defdelegate endorse_account(user_id, account), to: Endorsements
+  defdelegate unendorse_account(user_id, account), to: Endorsements
+  defdelegate account_endorsed?(user_id, account), to: Endorsements
+  defdelegate list_endorsed_accounts(user_id), to: Endorsements
+  defdelegate subscribe_to_account(user_id, account), to: Subscriptions
+  defdelegate unsubscribe_from_account(user_id, account), to: Subscriptions
+  defdelegate account_subscribed?(user_id, account), to: Subscriptions
+  defdelegate notify_subscribers_for_message(message), to: Subscriptions
+
+  def import_relationships(user_id, import_type, identifiers) when is_list(identifiers) do
+    Elektrine.Accounts.AccountImportWorker.enqueue_many(user_id, import_type, identifiers)
+  end
 
   ## Moderation Functions - Delegated to Moderation module
 

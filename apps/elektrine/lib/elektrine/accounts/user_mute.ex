@@ -7,6 +7,7 @@ defmodule Elektrine.Accounts.UserMute do
     belongs_to :muter, Elektrine.Accounts.User
     belongs_to :muted, Elektrine.Accounts.User
     field :mute_notifications, :boolean, default: false
+    field :expires_at, :utc_datetime
 
     timestamps()
   end
@@ -14,7 +15,8 @@ defmodule Elektrine.Accounts.UserMute do
   @doc false
   def changeset(user_mute, attrs) do
     user_mute
-    |> cast(attrs, [:muter_id, :muted_id, :mute_notifications])
+    |> cast(attrs, [:muter_id, :muted_id, :mute_notifications, :expires_at])
+    |> update_change(:expires_at, &Elektrine.Time.truncate/1)
     |> validate_required([:muter_id, :muted_id])
     |> validate_not_self_mute()
     |> unique_constraint([:muter_id, :muted_id])

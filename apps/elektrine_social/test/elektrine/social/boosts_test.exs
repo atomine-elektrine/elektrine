@@ -3,6 +3,7 @@ defmodule Elektrine.Social.BoostsTest do
 
   alias Elektrine.Repo
   alias Elektrine.Social.Boosts
+  alias Elektrine.Social.Message
   import Elektrine.AccountsFixtures
   import Elektrine.SocialFixtures
 
@@ -80,6 +81,33 @@ defmodule Elektrine.Social.BoostsTest do
       updated_post = Repo.get!(Elektrine.Social.Message, post.id)
       assert updated_post.share_count == 2
     end
+
+    test "remote post boosts add local boosts to the remote baseline" do
+      user = user_fixture()
+
+      post =
+        post_fixture()
+        |> Ecto.Changeset.change(
+          share_count: 1,
+          media_metadata: %{"original_share_count" => 20}
+        )
+        |> Repo.update!()
+
+      assert {:ok, _} = Boosts.boost_post(user.id, post.id)
+
+      assert %Message{share_count: 21} = Repo.get!(Message, post.id)
+    end
+
+    test "does not boost deleted posts" do
+      user = user_fixture()
+
+      post =
+        post_fixture()
+        |> Ecto.Changeset.change(deleted_at: DateTime.utc_now() |> DateTime.truncate(:second))
+        |> Repo.update!()
+
+      assert {:error, :not_found} = Boosts.boost_post(user.id, post.id)
+    end
   end
 
   describe "unboost_post/2" do
@@ -104,6 +132,33 @@ defmodule Elektrine.Social.BoostsTest do
 
       updated_post = Repo.get!(Elektrine.Social.Message, post.id)
       assert updated_post.share_count == 0
+    end
+
+    test "unboosting after a remote refresh keeps the refreshed remote baseline" do
+      user = user_fixture()
+
+      post =
+        post_fixture()
+        |> Ecto.Changeset.change(
+          remote_share_count: 20,
+          remote_counts_fetched_at: DateTime.utc_now() |> DateTime.truncate(:second),
+          share_count: 20
+        )
+        |> Repo.update!()
+
+      {:ok, _} = Boosts.boost_post(user.id, post.id)
+
+      post =
+        Repo.get!(Message, post.id)
+        |> Ecto.Changeset.change(
+          remote_share_count: 21,
+          remote_counts_fetched_at: DateTime.utc_now() |> DateTime.truncate(:second),
+          share_count: 21
+        )
+        |> Repo.update!()
+
+      assert {:ok, _} = Boosts.unboost_post(user.id, post.id)
+      assert %Message{share_count: 21} = Repo.get!(Message, post.id)
     end
 
     test "unboosting a post that is not boosted is idempotent", %{user: user} do

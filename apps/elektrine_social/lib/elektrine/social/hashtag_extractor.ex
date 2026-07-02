@@ -7,8 +7,7 @@ defmodule Elektrine.Social.HashtagExtractor do
   alias Elektrine.Accounts.{BlockedUsersCache, UserMute}
   alias Elektrine.ActivityPub.{Instance, UserBlock}
   alias Elektrine.Repo
-  alias Elektrine.Social.{Hashtag, PostHashtag}
-  alias Elektrine.Social.Message
+  alias Elektrine.Social.{Hashtag, Message, PostHashtag, TimelinePagination}
 
   @doc """
   Extracts hashtags from text content.
@@ -40,14 +39,20 @@ defmodule Elektrine.Social.HashtagExtractor do
   """
   def get_posts_for_hashtag(hashtag_name, opts \\ []) do
     limit = Keyword.get(opts, :limit, 50)
-    before_id = Keyword.get(opts, :before_id)
+    pagination = TimelinePagination.opts(opts)
     user_id = Keyword.get(opts, :user_id)
     preloads = Elektrine.Social.Messages.timeline_post_preloads()
 
     blocked_user_ids =
       if user_id, do: BlockedUsersCache.get_all_blocked_user_ids(user_id), else: []
 
-    normalized_name = String.downcase(hashtag_name)
+    normalized_name = normalize_hashtag_name(hashtag_name)
+
+    any_names =
+      [normalized_name | normalize_hashtag_list(Keyword.get(opts, :any_tags, []))] |> Enum.uniq()
+
+    all_names = normalize_hashtag_list(Keyword.get(opts, :all_tags, []))
+    none_names = normalize_hashtag_list(Keyword.get(opts, :none_tags, []))
     candidate_limit = max(limit * 10, 100)
 
     query =
@@ -58,7 +63,7 @@ defmodule Elektrine.Social.HashtagExtractor do
         on: h.id == ph.hashtag_id,
         left_join: remote_actor in assoc(m, :remote_actor),
         where:
-          h.normalized_name == ^normalized_name and
+          h.normalized_name in ^any_names and
             m.visibility in ["public", "unlisted"] and
             m.is_draft != true and
             is_nil(m.deleted_at) and
@@ -75,13 +80,16 @@ defmodule Elektrine.Social.HashtagExtractor do
         }
 
     query =
-      if before_id, do: from(m in query, where: m.id < ^before_id), else: query
+      query
+      |> maybe_require_all_tags(all_names)
+      |> maybe_reject_tags(none_names)
 
     excluded_domains = compile_domain_policy(public_timeline_excluded_instance_domains())
     viewer_policy = viewer_policy(user_id)
 
     post_ids =
       query
+      |> TimelinePagination.apply(pagination)
       |> Repo.all()
       |> Enum.reject(&candidate_excluded?(&1, excluded_domains, viewer_policy))
       |> Enum.take(limit)
@@ -177,7 +185,7 @@ defmodule Elektrine.Social.HashtagExtractor do
       muted_sender_ids: muted_sender_ids,
       blocked_actor_uris:
         blocks
-        |> Enum.filter(fn {type, uri} -> type == "user" and is_binary(uri) end)
+        |> Enum.filter(fn {type, uri} -> type in ["user", "mute"] and is_binary(uri) end)
         |> Enum.map(fn {_type, uri} -> uri end)
         |> MapSet.new(),
       blocked_domains:
@@ -224,6 +232,68 @@ defmodule Elektrine.Social.HashtagExtractor do
       String.length(hashtag) <= 50 and
       Regex.match?(~r/^[a-zA-Z0-9_]+$/, hashtag)
   end
+
+  defp maybe_require_all_tags(query, []), do: query
+
+  defp maybe_require_all_tags(query, names) do
+    from(m in query,
+      where:
+        fragment(
+          """
+          (select count(distinct h_all.normalized_name)
+             from post_hashtags ph_all
+             join hashtags h_all on h_all.id = ph_all.hashtag_id
+            where ph_all.message_id = ?
+              and h_all.normalized_name = any(?)) = ?
+          """,
+          m.id,
+          type(^names, {:array, :string}),
+          ^length(names)
+        )
+    )
+  end
+
+  defp maybe_reject_tags(query, []), do: query
+
+  defp maybe_reject_tags(query, names) do
+    from(m in query,
+      where:
+        fragment(
+          """
+          not exists (
+            select 1
+              from post_hashtags ph_none
+              join hashtags h_none on h_none.id = ph_none.hashtag_id
+             where ph_none.message_id = ?
+               and h_none.normalized_name = any(?)
+          )
+          """,
+          m.id,
+          type(^names, {:array, :string})
+        )
+    )
+  end
+
+  defp normalize_hashtag_list(values) do
+    values
+    |> List.wrap()
+    |> Enum.flat_map(fn
+      value when is_binary(value) -> String.split(value, ",")
+      _value -> []
+    end)
+    |> Enum.map(&normalize_hashtag_name/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.uniq()
+  end
+
+  defp normalize_hashtag_name(name) when is_binary(name) do
+    name
+    |> String.trim()
+    |> String.trim_leading("#")
+    |> String.downcase()
+  end
+
+  defp normalize_hashtag_name(_name), do: ""
 
   defp get_or_create_hashtag(name) do
     normalized_name = String.downcase(name)

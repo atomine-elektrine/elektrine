@@ -6,6 +6,7 @@ defmodule Elektrine.ActivityPub.Fetcher do
 
   require Logger
 
+  alias Elektrine.ActivityPub.Containment
   alias Elektrine.ActivityPub.HTTPSignature
   alias Elektrine.ActivityPub.Instances
   alias Elektrine.ActivityPub.Visibility
@@ -80,6 +81,7 @@ defmodule Elektrine.ActivityPub.Fetcher do
 
   defp fetch_and_validate_object(uri, opts) do
     with {:ok, object} <- do_signed_fetch(uri, opts),
+         :ok <- Containment.validate_fetch(uri, object),
          :ok <- validate_fetched_object_identity(uri, object, opts),
          :ok <- validate_fetched_object_access(uri, object, opts) do
       {:ok, object}

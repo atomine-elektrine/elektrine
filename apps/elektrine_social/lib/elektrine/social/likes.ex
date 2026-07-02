@@ -15,6 +15,8 @@ defmodule Elektrine.Social.Likes do
   alias Elektrine.AppCache
   alias Elektrine.Repo
   alias Elektrine.Social.Message
+  alias Elektrine.Social.MessagePolicy
+  alias Elektrine.Social.MessageStats
   alias Elektrine.Social.PostLike
 
   @doc """
@@ -32,12 +34,16 @@ defmodule Elektrine.Social.Likes do
   def like_post(user_id, message_id) do
     message = get_message!(message_id)
 
-    case Repo.get_by(PostLike, user_id: user_id, message_id: message_id) do
-      %PostLike{} = like ->
-        {:ok, like}
+    if MessagePolicy.like?(user_id, message) do
+      case Repo.get_by(PostLike, user_id: user_id, message_id: message_id) do
+        %PostLike{} = like ->
+          {:ok, like}
 
-      nil ->
-        insert_like(user_id, message_id, message)
+        nil ->
+          insert_like(user_id, message_id, message)
+      end
+    else
+      {:error, :not_authorized}
     end
   end
 
@@ -142,9 +148,107 @@ defmodule Elektrine.Social.Likes do
     |> Repo.all()
   end
 
+  @doc """
+  Gets statuses liked by a user, newest like first.
+  """
+  def get_liked_posts(user_id, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 20)
+    offset = Keyword.get(opts, :offset, 0)
+    search_query = Keyword.get(opts, :search_query)
+    before_id = Keyword.get(opts, :before_id)
+    since_id = Keyword.get(opts, :since_id)
+    min_id = Keyword.get(opts, :min_id)
+    viewer_id = Keyword.get(opts, :viewer_id, user_id)
+    candidate_limit = max(limit * 5, 100)
+
+    liked_ids_query =
+      from(l in PostLike,
+        where: l.user_id == ^user_id,
+        join: m in Message,
+        on: m.id == l.message_id,
+        left_join: sender in assoc(m, :sender),
+        left_join: remote_actor in assoc(m, :remote_actor),
+        where: is_nil(m.deleted_at),
+        order_by: [desc: l.created_at, desc: l.id],
+        limit: ^candidate_limit,
+        offset: ^offset,
+        select: {m.id, l.created_at}
+      )
+
+    liked_ids_query =
+      liked_ids_query
+      |> maybe_filter_before_id(before_id)
+      |> maybe_filter_since_id(since_id)
+      |> maybe_filter_since_id(min_id)
+      |> maybe_filter_search(search_query)
+
+    id_order_pairs = Repo.all(liked_ids_query)
+    message_ids = Enum.map(id_order_pairs, fn {id, _} -> id end)
+
+    if message_ids == [] do
+      []
+    else
+      messages =
+        from(m in Message,
+          where: m.id in ^message_ids,
+          preload: [
+            sender: [:profile],
+            conversation: [],
+            link_preview: [],
+            hashtags: [],
+            remote_actor: []
+          ]
+        )
+        |> Repo.all()
+
+      id_to_order =
+        id_order_pairs
+        |> Enum.with_index()
+        |> Enum.into(%{}, fn {{id, _}, idx} -> {id, idx} end)
+
+      messages
+      |> Enum.sort_by(fn message -> Map.get(id_to_order, message.id, 999_999) end)
+      |> Enum.filter(&MessagePolicy.visible?(viewer_id, &1))
+      |> Enum.take(limit)
+    end
+  end
+
   # Private functions
 
+  defp maybe_filter_before_id(query, id) when is_integer(id) do
+    from([_like, message, _sender, _remote_actor] in query, where: message.id < ^id)
+  end
+
+  defp maybe_filter_before_id(query, _id), do: query
+
+  defp maybe_filter_since_id(query, id) when is_integer(id) do
+    from([_like, message, _sender, _remote_actor] in query, where: message.id > ^id)
+  end
+
+  defp maybe_filter_since_id(query, _id), do: query
+
+  defp maybe_filter_search(query, search_query) do
+    if Elektrine.Strings.present?(search_query) do
+      pattern = "%" <> search_query <> "%"
+
+      from([_like, message, sender, remote_actor] in query,
+        where:
+          ilike(message.content, ^pattern) or
+            (not is_nil(message.title) and ilike(message.title, ^pattern)) or
+            (not is_nil(sender.username) and ilike(sender.username, ^pattern)) or
+            (not is_nil(sender.display_name) and ilike(sender.display_name, ^pattern)) or
+            (not is_nil(remote_actor.username) and ilike(remote_actor.username, ^pattern)) or
+            (not is_nil(remote_actor.display_name) and ilike(remote_actor.display_name, ^pattern)) or
+            (not is_nil(remote_actor.domain) and ilike(remote_actor.domain, ^pattern))
+      )
+    else
+      query
+    end
+  end
+
   defp reconcile_like_count(%Message{} = message, delta) when delta in [-1, 1] do
+    message = Repo.get!(Message, message.id)
+
     current_local_like_count =
       from(l in PostLike,
         where: l.message_id == ^message.id,
@@ -169,14 +273,23 @@ defmodule Elektrine.Social.Likes do
       |> Repo.update_all([])
 
     AppCache.invalidate_social_message(message.id)
+    MessageStats.upsert_counts(message.id, %{like_count: like_count})
     result
   end
 
   defp remote_like_count_baseline(%Message{} = message) do
-    message
-    |> Map.get(:media_metadata, %{})
-    |> Map.get("original_like_count")
-    |> parse_non_negative_integer()
+    remote_count =
+      message
+      |> Map.get(:remote_like_count)
+      |> parse_non_negative_integer()
+
+    metadata_count =
+      message
+      |> Map.get(:media_metadata, %{})
+      |> Map.get("original_like_count")
+      |> parse_non_negative_integer()
+
+    max(remote_count, metadata_count)
   end
 
   defp parse_non_negative_integer(value) when is_integer(value) and value >= 0, do: value

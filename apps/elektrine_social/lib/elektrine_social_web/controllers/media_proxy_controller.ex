@@ -31,6 +31,7 @@ defmodule ElektrineSocialWeb.MediaProxyController do
     case MediaProxy.decode_url(encoded) do
       {:ok, url} ->
         with :ok <- validate_proxy_url(url),
+             false <- MediaProxy.failed?(url),
              false <- MediaProxy.blocklisted?(url) do
           fetch_and_proxy(conn, url, 0)
         else
@@ -75,22 +76,28 @@ defmodule ElektrineSocialWeb.MediaProxyController do
 
       {:ok, %Finch.Response{status: status}} ->
         Logger.warning("MediaProxy: Got #{status} for #{redacted_url(url)}")
+        MediaProxy.mark_failed(url, {:http_status, status})
         send_error(conn, 502, "Upstream error")
 
       {:error, :too_large} ->
+        MediaProxy.mark_failed(url, :too_large)
         send_error(conn, 413, "File too large")
 
       {:error, reason} ->
         Logger.warning("MediaProxy: Failed to fetch #{redacted_url(url)}: #{inspect(reason)}")
+        MediaProxy.mark_failed(url, reason)
         send_error(conn, 502, "Failed to fetch media")
     end
   end
 
-  defp proxy_response(conn, body, headers, _url) do
+  defp proxy_response(conn, body, headers, url) do
     # Check file size
     if byte_size(body) > @max_file_size do
+      MediaProxy.mark_failed(url, :too_large)
       send_error(conn, 413, "File too large")
     else
+      MediaProxy.invalidate(url)
+
       content_type =
         headers
         |> get_header("content-type")

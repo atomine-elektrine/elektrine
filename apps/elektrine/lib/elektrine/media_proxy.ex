@@ -88,7 +88,7 @@ defmodule Elektrine.MediaProxy do
         false
 
       blocklisted?(url) ->
-        # Don't proxy blocked URLs, they'll return 404
+        # Don't proxy blocked URLs, they'll return 404.
         false
 
       true ->
@@ -102,15 +102,103 @@ defmodule Elektrine.MediaProxy do
   def blocklisted?(url) when is_binary(url) do
     blocklist = get_config()[:blocklist] || []
 
-    case URI.parse(url) do
-      %URI{host: host} when is_binary(host) ->
-        Enum.any?(blocklist, fn pattern ->
-          matches_domain?(host, pattern)
-        end)
+    runtime_banned?(url) or
+      case URI.parse(url) do
+        %URI{host: host} when is_binary(host) ->
+          Enum.any?(blocklist, fn pattern ->
+            matches_domain?(host, pattern)
+          end)
 
-      _ ->
-        false
+        _ ->
+          false
+      end
+  end
+
+  @doc """
+  Returns true when a remote media URL recently failed proxy fetching.
+  """
+  def failed?(url) when is_binary(url), do: Elektrine.AppCache.media_proxy_failed?(url)
+  def failed?(_url), do: false
+
+  @doc """
+  Temporarily suppresses a remote media URL after upstream failures.
+  """
+  def mark_failed(url, reason) when is_binary(url),
+    do: Elektrine.AppCache.mark_media_proxy_failed(url, reason)
+
+  def mark_failed(_url, _reason), do: {:ok, false}
+
+  @doc """
+  Invalidates cached proxy failure state for a URL.
+  """
+  def invalidate(url) when is_binary(url),
+    do: Elektrine.AppCache.invalidate_media_proxy_failure(url)
+
+  def invalidate(_url), do: {:ok, false}
+
+  @doc """
+  Returns true when a remote media URL has a runtime admin ban.
+  """
+  def runtime_banned?(url) when is_binary(url), do: Elektrine.AppCache.media_proxy_banned?(url)
+  def runtime_banned?(_url), do: false
+
+  @doc """
+  Adds a runtime admin ban for a remote media URL.
+  """
+  def ban(url, reason \\ :admin)
+
+  def ban(url, reason) when is_binary(url) do
+    if admin_url_valid?(url) do
+      Elektrine.AppCache.ban_media_proxy_url(url, reason)
+    else
+      {:error, :invalid_url}
     end
+  end
+
+  def ban(_url, _reason), do: {:error, :invalid_url}
+
+  @doc """
+  Removes a runtime admin ban for a remote media URL.
+  """
+  def unban(url) when is_binary(url), do: Elektrine.AppCache.unban_media_proxy_url(url)
+  def unban(_url), do: {:error, :invalid_url}
+
+  @doc """
+  Clears media proxy failure state and optionally bans the URLs.
+  """
+  def purge(urls, opts \\ [])
+
+  def purge(urls, opts) when is_list(urls) do
+    ban? = Keyword.get(opts, :ban, false)
+
+    urls
+    |> Enum.map(&purge_one(&1, ban?))
+    |> Enum.reduce(%{invalidated: [], banned: [], rejected: []}, fn
+      {:invalidated, url}, acc ->
+        update_in(acc.invalidated, &[url | &1])
+
+      {:banned, url}, acc ->
+        acc |> update_in([:invalidated], &[url | &1]) |> update_in([:banned], &[url | &1])
+
+      {:rejected, url}, acc ->
+        update_in(acc.rejected, &[url | &1])
+    end)
+    |> Map.update!(:invalidated, &Enum.reverse/1)
+    |> Map.update!(:banned, &Enum.reverse/1)
+    |> Map.update!(:rejected, &Enum.reverse/1)
+  end
+
+  def purge(url, opts) when is_binary(url), do: purge([url], opts)
+  def purge(_urls, _opts), do: %{invalidated: [], banned: [], rejected: []}
+
+  @doc """
+  Lists recent failed media proxy URLs and runtime bans.
+  """
+  def cache_state(limit \\ 100) do
+    %{
+      failures: Elektrine.AppCache.list_media_proxy_failures(limit),
+      bans: Elektrine.AppCache.list_media_proxy_bans(limit)
+    }
   end
 
   @doc """
@@ -130,6 +218,34 @@ defmodule Elektrine.MediaProxy do
     signature = sign_url(url)
 
     "#{base_url()}/#{signature}/#{encoded}"
+  end
+
+  defp purge_one(url, ban?) when is_binary(url) do
+    if admin_url_valid?(url) do
+      invalidate(url)
+
+      if ban? do
+        ban(url, :admin_purge)
+        {:banned, url}
+      else
+        {:invalidated, url}
+      end
+    else
+      {:rejected, url}
+    end
+  end
+
+  defp purge_one(url, _ban?), do: {:rejected, url}
+
+  defp admin_url_valid?(url) when is_binary(url) do
+    case URI.parse(url) do
+      %URI{scheme: scheme, host: host}
+      when scheme in ["http", "https"] and is_binary(host) and byte_size(host) > 0 ->
+        not URLValidator.private_ip?(host) and not URLValidator.is_private_domain?(host)
+
+      _ ->
+        false
+    end
   end
 
   defp sign_url(url) do

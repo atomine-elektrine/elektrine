@@ -48,22 +48,28 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.Helpers do
   def apply_timeline_filter(socket), do: apply_timeline_filter(socket, false)
 
   def apply_timeline_filter(socket, force_reset?) do
+    socket
+    |> filter_timeline_posts(socket.assigns.timeline_posts)
+    |> then(&assign_filtered_posts(socket, &1, force_reset?))
+  end
+
+  def filter_timeline_posts(socket, timeline_posts) when is_list(timeline_posts) do
     filtered_posts =
       case socket.assigns.timeline_filter do
         "posts" ->
-          Enum.filter(socket.assigns.timeline_posts, fn post ->
+          Enum.filter(timeline_posts, fn post ->
             is_nil(Map.get(post, :reply_to_id)) &&
               !PostUtilities.community_post?(post)
           end)
 
         "replies" ->
-          Enum.filter(socket.assigns.timeline_posts, fn post ->
+          Enum.filter(timeline_posts, fn post ->
             !is_nil(Map.get(post, :reply_to_id)) ||
               !is_nil(get_in(post.media_metadata, ["inReplyTo"]))
           end)
 
         "media" ->
-          Enum.filter(socket.assigns.timeline_posts, fn post ->
+          Enum.filter(timeline_posts, fn post ->
             media_urls = Map.get(post, :media_urls, [])
             has_media_urls = !Enum.empty?(media_urls)
             link_preview = Map.get(post, :link_preview)
@@ -77,13 +83,13 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.Helpers do
           end)
 
         "friends" ->
-          Enum.filter(socket.assigns.timeline_posts, fn post ->
+          Enum.filter(timeline_posts, fn post ->
             post.sender_id && post.sender_id in socket.assigns.friend_ids
           end)
 
         "my_posts" ->
           if socket.assigns.current_user do
-            Enum.filter(socket.assigns.timeline_posts, fn post ->
+            Enum.filter(timeline_posts, fn post ->
               post.sender_id == socket.assigns.current_user.id
             end)
           else
@@ -91,29 +97,29 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.Helpers do
           end
 
         "trusted" ->
-          Enum.filter(socket.assigns.timeline_posts, fn post ->
+          Enum.filter(timeline_posts, fn post ->
             post.federated != true &&
               (post.sender || %{}) |> Map.get(:trust_level, 0) >= 2
           end)
 
         "communities" ->
-          Enum.filter(socket.assigns.timeline_posts, fn post ->
+          Enum.filter(timeline_posts, fn post ->
             PostUtilities.community_post?(post)
           end)
 
         "federated" ->
-          Enum.filter(socket.assigns.timeline_posts, fn post ->
+          Enum.filter(timeline_posts, fn post ->
             post.federated == true
           end)
 
         "local" ->
           # Local posts have a sender_id (local user) and no remote_actor_id
-          Enum.filter(socket.assigns.timeline_posts, fn post ->
+          Enum.filter(timeline_posts, fn post ->
             !is_nil(post.sender_id) && is_nil(post.remote_actor_id)
           end)
 
         _ ->
-          socket.assigns.timeline_posts
+          timeline_posts
       end
       |> dedupe_posts()
 
@@ -123,9 +129,10 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.Helpers do
     filtered_posts = maybe_prioritize_non_community_posts(filtered_posts, socket)
     filtered_posts = maybe_group_reply_chains(filtered_posts, socket)
     filtered_posts = dedupe_posts(filtered_posts)
-    filtered_posts = sort_timeline_posts(filtered_posts, socket.assigns[:timeline_sort])
-    assign_filtered_posts(socket, filtered_posts, force_reset?)
+    sort_timeline_posts(filtered_posts, socket.assigns[:timeline_sort])
   end
+
+  def filter_timeline_posts(_socket, _timeline_posts), do: []
 
   def sort_timeline_posts(posts, sort)
 

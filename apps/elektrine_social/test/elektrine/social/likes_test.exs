@@ -3,6 +3,7 @@ defmodule Elektrine.Social.LikesTest do
 
   alias Elektrine.Repo
   alias Elektrine.Social.Likes
+  alias Elektrine.Social.Message
   import Elektrine.AccountsFixtures
   import Elektrine.SocialFixtures
 
@@ -53,6 +54,33 @@ defmodule Elektrine.Social.LikesTest do
       updated_post = Repo.get!(Elektrine.Social.Message, post.id)
       assert updated_post.like_count == 2
     end
+
+    test "remote post likes add local likes to the remote baseline" do
+      user = user_fixture()
+
+      post =
+        post_fixture()
+        |> Ecto.Changeset.change(
+          like_count: 1,
+          media_metadata: %{"original_like_count" => 20}
+        )
+        |> Repo.update!()
+
+      assert {:ok, _} = Likes.like_post(user.id, post.id)
+
+      assert %Message{like_count: 21} = Repo.get!(Message, post.id)
+    end
+
+    test "does not like deleted posts" do
+      user = user_fixture()
+
+      post =
+        post_fixture()
+        |> Ecto.Changeset.change(deleted_at: DateTime.utc_now() |> DateTime.truncate(:second))
+        |> Repo.update!()
+
+      assert {:error, :not_authorized} = Likes.like_post(user.id, post.id)
+    end
   end
 
   describe "unlike_post/2" do
@@ -77,6 +105,48 @@ defmodule Elektrine.Social.LikesTest do
 
       updated_post = Repo.get!(Elektrine.Social.Message, post.id)
       assert updated_post.like_count == 0
+    end
+
+    test "remote post unlikes return to the remote baseline" do
+      user = user_fixture()
+
+      post =
+        post_fixture()
+        |> Ecto.Changeset.change(media_metadata: %{"original_like_count" => 20})
+        |> Repo.update!()
+
+      {:ok, _} = Likes.like_post(user.id, post.id)
+      assert %Message{like_count: 21} = Repo.get!(Message, post.id)
+
+      assert {:ok, _} = Likes.unlike_post(user.id, post.id)
+      assert %Message{like_count: 20} = Repo.get!(Message, post.id)
+    end
+
+    test "unliking after a remote refresh keeps the refreshed remote baseline" do
+      user = user_fixture()
+
+      post =
+        post_fixture()
+        |> Ecto.Changeset.change(
+          remote_like_count: 20,
+          remote_counts_fetched_at: DateTime.utc_now() |> DateTime.truncate(:second),
+          like_count: 20
+        )
+        |> Repo.update!()
+
+      {:ok, _} = Likes.like_post(user.id, post.id)
+
+      post =
+        Repo.get!(Message, post.id)
+        |> Ecto.Changeset.change(
+          remote_like_count: 21,
+          remote_counts_fetched_at: DateTime.utc_now() |> DateTime.truncate(:second),
+          like_count: 21
+        )
+        |> Repo.update!()
+
+      assert {:ok, _} = Likes.unlike_post(user.id, post.id)
+      assert %Message{like_count: 21} = Repo.get!(Message, post.id)
     end
 
     test "unliking a post that is not liked is idempotent", %{user: user} do
@@ -137,6 +207,47 @@ defmodule Elektrine.Social.LikesTest do
       user = user_fixture()
       result = Likes.list_user_likes(user.id, [])
       assert result == []
+    end
+  end
+
+  describe "get_liked_posts/2" do
+    test "returns liked posts newest like first" do
+      user = user_fixture()
+      older = post_fixture()
+      newer = post_fixture()
+
+      {:ok, _} = Likes.like_post(user.id, older.id)
+      {:ok, _} = Likes.like_post(user.id, newer.id)
+
+      assert Enum.map(Likes.get_liked_posts(user.id), & &1.id) == [newer.id, older.id]
+    end
+
+    test "supports id pagination options" do
+      user = user_fixture()
+      older = post_fixture()
+      newer = post_fixture()
+
+      {:ok, _} = Likes.like_post(user.id, older.id)
+      {:ok, _} = Likes.like_post(user.id, newer.id)
+
+      result = Likes.get_liked_posts(user.id, limit: 20, before_id: newer.id)
+      assert Enum.map(result, & &1.id) == [older.id]
+
+      result = Likes.get_liked_posts(user.id, limit: 20, since_id: older.id)
+      assert Enum.map(result, & &1.id) == [newer.id]
+    end
+
+    test "filters by search query" do
+      user = user_fixture()
+      matching = post_fixture(%{content: "needle favourite"})
+      other = post_fixture(%{content: "plain favourite"})
+
+      {:ok, _} = Likes.like_post(user.id, matching.id)
+      {:ok, _} = Likes.like_post(user.id, other.id)
+
+      assert Enum.map(Likes.get_liked_posts(user.id, search_query: "needle"), & &1.id) == [
+               matching.id
+             ]
     end
   end
 

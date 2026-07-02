@@ -439,6 +439,21 @@ defmodule Elektrine.ProfilesTest do
       user = AccountsFixtures.user_fixture()
       assert Profiles.get_followers(user.id) == []
     end
+
+    test "supports id pagination options" do
+      user = AccountsFixtures.user_fixture()
+      older = AccountsFixtures.user_fixture()
+      newer = AccountsFixtures.user_fixture()
+
+      {:ok, _} = Profiles.follow_user(older.id, user.id)
+      {:ok, _} = Profiles.follow_user(newer.id, user.id)
+
+      followers = Profiles.get_followers(user.id, before_id: newer.id)
+      assert Enum.map(followers, & &1.user.id) == [older.id]
+
+      followers = Profiles.get_followers(user.id, since_id: older.id)
+      assert Enum.map(followers, & &1.user.id) == [newer.id]
+    end
   end
 
   describe "get_following/1" do
@@ -461,6 +476,21 @@ defmodule Elektrine.ProfilesTest do
     test "returns empty list when not following anyone" do
       user = AccountsFixtures.user_fixture()
       assert Profiles.get_following(user.id) == []
+    end
+
+    test "supports id pagination options" do
+      user = AccountsFixtures.user_fixture()
+      older = AccountsFixtures.user_fixture()
+      newer = AccountsFixtures.user_fixture()
+
+      {:ok, _} = Profiles.follow_user(user.id, older.id)
+      {:ok, _} = Profiles.follow_user(user.id, newer.id)
+
+      following = Profiles.get_following(user.id, before_id: newer.id)
+      assert Enum.map(following, & &1.user.id) == [older.id]
+
+      following = Profiles.get_following(user.id, since_id: older.id)
+      assert Enum.map(following, & &1.user.id) == [newer.id]
     end
   end
 

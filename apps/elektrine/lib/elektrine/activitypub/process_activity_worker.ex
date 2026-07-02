@@ -85,6 +85,7 @@ defmodule Elektrine.ActivityPub.ProcessActivityWorker do
             outcome =
               case result do
                 :ok -> :processed
+                {:discard, _reason} -> :discarded_non_retryable
                 {:error, _reason} -> :processing_failed
               end
 
@@ -143,8 +144,15 @@ defmodule Elektrine.ActivityPub.ProcessActivityWorker do
             reason: reason
           })
 
-          {:discard, :blocked_instance}
+          {:discard, reason}
         end
+
+      {:discard, reason} ->
+        emit_handler_telemetry(activity, actor_uri, :discarded, started_at, %{
+          reason: reason
+        })
+
+        {:discard, reason}
     end
   end
 

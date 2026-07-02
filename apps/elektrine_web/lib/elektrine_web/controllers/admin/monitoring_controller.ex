@@ -2,6 +2,7 @@ defmodule ElektrineWeb.Admin.MonitoringController do
   @moduledoc "Controller for admin monitoring functions including active users,\nIMAP/POP3 access tracking, and 2FA status management.\n"
   use ElektrineWeb, :controller
   alias Elektrine.{Accounts, Repo}
+  alias ElektrineWeb.AdminSecurity
   import Ecto.Query
   plug(:put_layout, html: {ElektrineWeb.Layouts, :admin})
   plug(:assign_timezone_and_format)
@@ -247,8 +248,56 @@ defmodule ElektrineWeb.Admin.MonitoringController do
     )
   end
 
+  def operations(conn, _params) do
+    snapshot = operational_snapshot()
+
+    render(conn, :operations,
+      health: snapshot.health,
+      live: snapshot.live,
+      oban: snapshot.oban,
+      queue_pressure: snapshot.queue_pressure,
+      load_guard: snapshot.load_guard,
+      throttler: snapshot.throttler,
+      database: snapshot.database,
+      media_proxy_cache: Elektrine.MediaProxy.cache_state(25),
+      media_proxy_purge_grant:
+        AdminSecurity.issue_action_grant(
+          conn,
+          conn.assigns.current_user,
+          "POST",
+          "/pripyat/media-proxy-cache/purge"
+        ),
+      media_proxy_unban_grant:
+        AdminSecurity.issue_action_grant(
+          conn,
+          conn.assigns.current_user,
+          "POST",
+          "/pripyat/media-proxy-cache/unban"
+        )
+    )
+  end
+
   @doc "Shows system health status including CPU, memory, and Oban queue stats.\n"
   def system_health(conn, _params) do
+    snapshot = operational_snapshot()
+
+    health =
+      snapshot.health
+      |> Map.merge(%{
+        oban: snapshot.oban,
+        operational: %{
+          live: snapshot.live,
+          queue_pressure: snapshot.queue_pressure,
+          load_guard: snapshot.load_guard
+        },
+        throttler: snapshot.throttler,
+        database: snapshot.database
+      })
+
+    conn |> put_resp_content_type("application/json") |> send_resp(200, Jason.encode!(health))
+  end
+
+  defp operational_snapshot do
     scheduler_count = :erlang.system_info(:schedulers_online)
     run_queue = :erlang.statistics(:run_queue)
     cpu_stress = run_queue / scheduler_count
@@ -262,6 +311,8 @@ defmodule ElektrineWeb.Admin.MonitoringController do
     }
 
     oban_stats = get_oban_stats()
+    queue_pressure = get_oban_queue_pressure()
+    load_guard = get_load_guard_stats(queue_pressure)
 
     throttler_stats =
       try do
@@ -271,30 +322,91 @@ defmodule ElektrineWeb.Admin.MonitoringController do
       end
 
     db_stats = get_db_pool_stats()
+    live_stats = Elektrine.JobQueueMonitor.stats()
 
     health = %{
-      status: health_status(cpu_stress, oban_stats.available),
+      status: health_status(cpu_stress, oban_stats.available, load_guard.overloaded),
       cpu: %{
         schedulers: scheduler_count,
         run_queue: run_queue,
         stress: Float.round(cpu_stress, 2)
       },
       memory_mb: memory_mb,
-      oban: oban_stats,
-      throttler: throttler_stats,
-      database: db_stats,
       uptime_seconds: div(:erlang.statistics(:wall_clock) |> elem(0), 1000)
     }
 
-    conn |> put_resp_content_type("application/json") |> send_resp(200, Jason.encode!(health))
+    %{
+      health: health,
+      live: live_stats,
+      oban: oban_stats,
+      queue_pressure: queue_pressure,
+      load_guard: load_guard,
+      throttler: throttler_stats,
+      database: db_stats
+    }
   end
 
-  defp health_status(cpu_stress, oban_available) do
+  def job_queue_stats(conn, _params) do
+    queue_pressure = get_oban_queue_pressure()
+
+    payload = %{
+      live: Elektrine.JobQueueMonitor.stats(),
+      database: get_oban_stats(),
+      queue_pressure: queue_pressure,
+      load_guard: get_load_guard_stats(queue_pressure)
+    }
+
+    conn
+    |> put_resp_content_type("application/json")
+    |> send_resp(200, Jason.encode!(payload))
+  end
+
+  def media_proxy_cache(conn, params) do
+    limit =
+      params
+      |> Map.get("limit", "100")
+      |> SafeConvert.to_integer(100)
+      |> max(1)
+      |> min(500)
+
+    conn
+    |> put_resp_content_type("application/json")
+    |> send_resp(200, Jason.encode!(Elektrine.MediaProxy.cache_state(limit)))
+  end
+
+  def purge_media_proxy_cache(conn, params) do
+    result = Elektrine.MediaProxy.purge(media_proxy_urls(params), ban: truthy?(params["ban"]))
+
+    media_proxy_response(conn, result, "Media proxy cache updated.")
+  end
+
+  def unban_media_proxy_cache(conn, params) do
+    result =
+      params
+      |> media_proxy_urls()
+      |> Enum.map(fn url ->
+        case Elektrine.MediaProxy.unban(url) do
+          {:ok, _} -> {:unbanned, url}
+          _ -> {:rejected, url}
+        end
+      end)
+      |> Enum.reduce(%{unbanned: [], rejected: []}, fn
+        {:unbanned, url}, acc -> update_in(acc.unbanned, &[url | &1])
+        {:rejected, url}, acc -> update_in(acc.rejected, &[url | &1])
+      end)
+      |> Map.update!(:unbanned, &Enum.reverse/1)
+      |> Map.update!(:rejected, &Enum.reverse/1)
+
+    media_proxy_response(conn, result, "Media proxy bans updated.")
+  end
+
+  defp health_status(cpu_stress, oban_available, load_guard_overloaded) do
     cond do
+      load_guard_overloaded -> "critical"
       cpu_stress > 3.0 -> "critical"
+      oban_available > 1000 -> "critical"
       cpu_stress > 2.0 -> "warning"
       oban_available > 500 -> "warning"
-      oban_available > 1000 -> "critical"
       true -> "healthy"
     end
   end
@@ -326,10 +438,90 @@ defmodule ElektrineWeb.Admin.MonitoringController do
     _ -> %{available: 0, executing: 0, scheduled: 0, retryable: 0, completed: 0, discarded: 0}
   end
 
+  defp media_proxy_urls(params) do
+    params
+    |> Map.get("urls", Map.get(params, "url", []))
+    |> List.wrap()
+    |> Enum.map(&to_string/1)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  defp media_proxy_response(conn, result, html_message) do
+    if html_request?(conn) do
+      conn
+      |> put_flash(:info, html_message)
+      |> redirect(to: ~p"/pripyat/operations")
+    else
+      conn
+      |> put_resp_content_type("application/json")
+      |> send_resp(200, Jason.encode!(result))
+    end
+  end
+
+  defp html_request?(conn) do
+    conn
+    |> get_req_header("accept")
+    |> Enum.any?(&String.contains?(&1, "text/html"))
+  end
+
   defp get_db_pool_stats do
     pool_size = Application.get_env(:elektrine, Elektrine.Repo)[:pool_size] || 10
     %{pool_size: pool_size}
   end
+
+  defp get_oban_queue_pressure do
+    active_states = ["available", "executing", "scheduled", "retryable"]
+
+    Repo.all(
+      from(j in "oban_jobs",
+        where: j.state in ^active_states,
+        group_by: [j.queue, j.state],
+        select: {j.queue, j.state, count(j.id)}
+      ),
+      timeout: 750,
+      pool_timeout: 200
+    )
+    |> Enum.reduce(%{}, fn {queue, state, count}, acc ->
+      queue = queue || "unknown"
+      state = state || "unknown"
+
+      acc
+      |> Map.put_new(queue, empty_queue_pressure())
+      |> update_in([queue, state], &((&1 || 0) + count))
+      |> update_in([queue, "total"], &((&1 || 0) + count))
+    end)
+  rescue
+    _ -> %{}
+  end
+
+  defp empty_queue_pressure do
+    %{
+      "available" => 0,
+      "executing" => 0,
+      "scheduled" => 0,
+      "retryable" => 0,
+      "total" => 0
+    }
+  end
+
+  defp get_load_guard_stats(queue_pressure) do
+    config = Application.get_env(:elektrine, :federation_load_guard, [])
+    threshold = Keyword.get(config, :max_available_or_retryable, 50_000)
+    enabled = Keyword.get(config, :enabled, true)
+    federation = Map.get(queue_pressure, "federation", empty_queue_pressure())
+    depth = Map.get(federation, "available", 0) + Map.get(federation, "retryable", 0)
+
+    %{
+      enabled: enabled,
+      max_available_or_retryable: threshold,
+      available_or_retryable: depth,
+      overloaded: enabled and depth >= threshold
+    }
+  end
+
+  defp truthy?(value) when value in [true, "true", "1", 1, "yes", "on"], do: true
+  defp truthy?(_), do: false
 
   defp add_activity_metadata(user) do
     activities =

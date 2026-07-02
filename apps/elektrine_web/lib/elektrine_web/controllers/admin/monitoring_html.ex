@@ -6,6 +6,7 @@ defmodule ElektrineWeb.Admin.MonitoringHTML do
   use ElektrineWeb, :html
 
   # Delegate template rendering to AdminHTML since templates are in admin_html directory
+  defdelegate operations(assigns), to: ElektrineWeb.AdminHTML
   defdelegate active_users(assigns), to: ElektrineWeb.AdminHTML
   defdelegate imap_users(assigns), to: ElektrineWeb.AdminHTML
   defdelegate pop3_users(assigns), to: ElektrineWeb.AdminHTML

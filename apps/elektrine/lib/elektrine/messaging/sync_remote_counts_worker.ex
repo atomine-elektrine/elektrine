@@ -7,7 +7,11 @@ defmodule Elektrine.Messaging.SyncRemoteCountsWorker do
   use Oban.Worker,
     queue: :federation,
     max_attempts: 2,
-    unique: [period: 60, keys: [:activitypub_id], states: [:available, :scheduled, :executing]]
+    unique: [
+      period: 300,
+      keys: [:activitypub_id],
+      states: [:available, :scheduled, :executing, :retryable]
+    ]
 
   alias Elektrine.ActivityPub.RefreshCountsWorker
   alias Elektrine.Messaging

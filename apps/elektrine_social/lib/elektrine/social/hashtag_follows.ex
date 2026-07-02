@@ -7,7 +7,7 @@ defmodule Elektrine.Social.HashtagFollows do
 
   import Ecto.Query
   alias Elektrine.Repo
-  alias Elektrine.Social.{Hashtag, HashtagFollow}
+  alias Elektrine.Social.{Hashtag, HashtagFollow, HomeFeed}
 
   @doc """
   Follows a hashtag for a user.
@@ -20,9 +20,13 @@ defmodule Elektrine.Social.HashtagFollows do
     hashtag = Elektrine.Social.get_or_create_hashtag(hashtag_name)
 
     if hashtag do
-      %HashtagFollow{}
-      |> HashtagFollow.changeset(%{user_id: user_id, hashtag_id: hashtag.id})
-      |> Repo.insert(on_conflict: :nothing)
+      result =
+        %HashtagFollow{}
+        |> HashtagFollow.changeset(%{user_id: user_id, hashtag_id: hashtag.id})
+        |> Repo.insert(on_conflict: :nothing)
+
+      clear_home_feed(user_id)
+      result
     else
       {:error, :invalid_hashtag}
     end
@@ -38,10 +42,11 @@ defmodule Elektrine.Social.HashtagFollows do
       join: h in Hashtag,
       on: h.id == hf.hashtag_id,
       where: hf.user_id == ^user_id,
-      where: h.name == ^hashtag_name
+      where: h.normalized_name == ^hashtag_name or h.name == ^hashtag_name
     )
     |> Repo.delete_all()
 
+    clear_home_feed(user_id)
     :ok
   end
 
@@ -55,7 +60,7 @@ defmodule Elektrine.Social.HashtagFollows do
       join: h in Hashtag,
       on: h.id == hf.hashtag_id,
       where: hf.user_id == ^user_id,
-      where: h.name == ^hashtag_name
+      where: h.normalized_name == ^hashtag_name or h.name == ^hashtag_name
     )
     |> Repo.exists?()
   end
@@ -96,7 +101,7 @@ defmodule Elektrine.Social.HashtagFollows do
     from(hf in HashtagFollow,
       join: h in Hashtag,
       on: h.id == hf.hashtag_id,
-      where: h.name == ^hashtag_name,
+      where: h.normalized_name == ^hashtag_name or h.name == ^hashtag_name,
       select: hf.user_id
     )
     |> Repo.all()
@@ -111,7 +116,7 @@ defmodule Elektrine.Social.HashtagFollows do
     from(hf in HashtagFollow,
       join: h in Hashtag,
       on: h.id == hf.hashtag_id,
-      where: h.name == ^hashtag_name,
+      where: h.normalized_name == ^hashtag_name or h.name == ^hashtag_name,
       select: count(hf.id)
     )
     |> Repo.one() || 0
@@ -138,4 +143,7 @@ defmodule Elektrine.Social.HashtagFollows do
     |> String.trim_leading("#")
     |> String.downcase()
   end
+
+  defp clear_home_feed(user_id) when is_integer(user_id),
+    do: HomeFeed.clear(user_id, :hashtag_follow_changed)
 end

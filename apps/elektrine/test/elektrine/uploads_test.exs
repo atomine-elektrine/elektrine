@@ -61,9 +61,50 @@ defmodule Elektrine.UploadsTest do
     assert {:ok, %{key: "/uploads/chat-attachments/" <> stored_filename}} =
              Uploads.upload_chat_attachment(upload, user.id)
 
-    assert stored_filename =~ ".txt"
-    assert stored_filename =~ "file.txt"
+    assert String.ends_with?(stored_filename, ".txt")
+    refute stored_filename =~ "file"
     refute stored_filename =~ "头像"
+  end
+
+  test "stores duplicate per-user content at the same content-addressed path", %{
+    tmp_dir: tmp_dir,
+    user: user
+  } do
+    content = "same file bytes"
+    expected_hash = :crypto.hash(:sha256, content) |> Base.encode16(case: :lower)
+    upload_a = upload_fixture(tmp_dir, "first.txt", "text/plain", content)
+    upload_b = upload_fixture(tmp_dir, "second.txt", "text/plain", content)
+
+    assert {:ok, %{key: key_a, sha256: ^expected_hash}} =
+             Uploads.upload_chat_attachment(upload_a, user.id)
+
+    assert {:ok, %{key: key_b, sha256: ^expected_hash}} =
+             Uploads.upload_chat_attachment(upload_b, user.id)
+
+    assert key_a == key_b
+    assert key_a =~ "/uploads/chat-attachments/#{user.id}/#{String.slice(expected_hash, 0, 2)}/"
+    assert String.ends_with?(key_a, "#{expected_hash}.txt")
+
+    stored_files =
+      tmp_dir
+      |> Path.join("chat-attachments")
+      |> Path.join("**/*")
+      |> Path.wildcard()
+      |> Enum.reject(&File.dir?/1)
+
+    assert length(stored_files) == 1
+  end
+
+  test "returns anonymized filenames in upload metadata", %{tmp_dir: tmp_dir, user: user} do
+    content = "private receipt contents"
+    expected_hash = :crypto.hash(:sha256, content) |> Base.encode16(case: :lower)
+    upload = upload_fixture(tmp_dir, "tax-return-2026.txt", "text/plain", content)
+
+    assert {:ok, %{filename: filename, sha256: ^expected_hash}} =
+             Uploads.upload_chat_attachment(upload, user.id)
+
+    assert filename == "#{expected_hash}.txt"
+    refute filename =~ "tax-return"
   end
 
   test "private S3 attachment URLs fail closed when presigning cannot be configured" do
@@ -76,15 +117,39 @@ defmodule Elektrine.UploadsTest do
     tmp_dir: tmp_dir,
     user: user
   } do
-    assert {:ok, %{key: "/uploads/voice-messages/" <> stored_filename}} =
+    audio = <<26, 69, 223, 163, "audio">>
+    expected_hash = :crypto.hash(:sha256, audio) |> Base.encode16(case: :lower)
+    expected_filename = "#{expected_hash}.webm"
+
+    assert {:ok,
+            %{
+              key: "/uploads/voice-messages/" <> stored_filename,
+              filename: ^expected_filename
+            }} =
              Uploads.upload_voice_message(
-               <<26, 69, 223, 163, "audio">>,
-               "clip.webm",
+               audio,
+               "private-meeting.webm",
                "audio/webm",
                user.id
              )
 
     assert File.exists?(Path.join([tmp_dir, "voice-messages", stored_filename]))
+  end
+
+  test "returns anonymized filenames for voice metadata", %{user: user} do
+    audio = <<26, 69, 223, 163, "audio">>
+    expected_hash = :crypto.hash(:sha256, audio) |> Base.encode16(case: :lower)
+
+    assert {:ok, %{filename: filename, sha256: ^expected_hash}} =
+             Uploads.upload_voice_message(
+               audio,
+               "secret-note.webm",
+               "audio/webm",
+               user.id
+             )
+
+    assert filename == "#{expected_hash}.webm"
+    refute filename =~ "secret"
   end
 
   test "rejects voice messages with disallowed MIME types", %{tmp_dir: tmp_dir, user: user} do

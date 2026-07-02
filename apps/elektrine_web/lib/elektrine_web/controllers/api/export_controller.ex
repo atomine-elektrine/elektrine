@@ -37,14 +37,13 @@ defmodule ElektrineWeb.API.ExportController do
 
   Params:
     - type: One of "email", "social", "chat", "contacts", "calendar", "account", "full"
-    - format: One of "json", "csv", "mbox", "vcf", "ical", "zip" (optional, defaults to "json")
+    - format: One of "json", "csv", "mbox", "vcf", "ical", "zip" (optional)
     - filters: Optional map of filters (e.g., date range)
   """
   def create(conn, params) do
     user = conn.assigns[:current_user]
 
     export_type = params["type"] || params["export_type"]
-    format = params["format"] || "json"
     filters = params["filters"] || %{}
 
     if is_nil(export_type) do
@@ -52,7 +51,7 @@ defmodule ElektrineWeb.API.ExportController do
     else
       attrs = %{
         export_type: export_type,
-        format: format,
+        format: params["format"],
         filters: filters
       }
 
@@ -232,7 +231,7 @@ defmodule ElektrineWeb.API.ExportController do
       item_count: export.item_count,
       download_count: export.download_count,
       download_url: download_url(export),
-      authenticated_download_url: "/api/ext/v1/exports/#{export.id}/download",
+      authenticated_download_url: authenticated_download_url(export),
       expires_at: export.expires_at,
       started_at: export.started_at,
       completed_at: export.completed_at,
@@ -241,12 +240,14 @@ defmodule ElektrineWeb.API.ExportController do
     }
   end
 
-  # Generate download URL only for completed exports
-  defp download_url(%DataExport{status: "completed", id: id}) do
-    "/api/ext/v1/exports/#{id}/download"
+  defp download_url(export), do: authenticated_download_url(export)
+
+  # Generate download URLs only when the file is actually downloadable.
+  defp authenticated_download_url(%DataExport{id: id} = export) do
+    if DataExport.downloadable?(export), do: "/api/ext/v1/exports/#{id}/download"
   end
 
-  defp download_url(_), do: nil
+  defp authenticated_download_url(_), do: nil
 
   # Format changeset errors for JSON response
   defp format_changeset_errors(changeset) do

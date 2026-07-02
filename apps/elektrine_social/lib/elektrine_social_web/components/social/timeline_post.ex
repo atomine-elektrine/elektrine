@@ -237,7 +237,10 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
     post_state = current_post_interaction_state(assigns.post_interactions, post)
 
     display_like_count = max(base_like_count + Map.get(post_state, :like_delta, 0), 0)
-    display_boost_count = max(base_share_count(post) + Map.get(post_state, :boost_delta, 0), 0)
+
+    display_boost_count =
+      max(PostUtilities.display_share_count(post) + Map.get(post_state, :boost_delta, 0), 0)
+
     is_liked = Map.get(post_state, :liked, current_post_flag(assigns.user_likes, post))
     is_boosted = Map.get(post_state, :boosted, current_post_flag(assigns.user_boosts, post))
 
@@ -1286,47 +1289,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
     [post.id, Integer.to_string(post.id), post.activitypub_id, post.activitypub_url]
     |> Enum.reject(&is_nil/1)
   end
-
-  defp base_share_count(post) when is_map(post) do
-    metadata = Map.get(post, :media_metadata) || Map.get(post, "media_metadata") || %{}
-
-    [
-      Map.get(post, :share_count),
-      Map.get(post, "share_count"),
-      Map.get(metadata, "original_share_count"),
-      Map.get(metadata, "share_count"),
-      Map.get(metadata, "shares_count"),
-      Map.get(metadata, "reblogs_count"),
-      Map.get(metadata, "reblog_count"),
-      get_in(metadata, ["remote_engagement", "shares"]),
-      get_in(metadata, ["remote_engagement", "reblogs"]),
-      collection_total_items(Map.get(post, "shares")),
-      collection_total_items(Map.get(post, "sharesCount")),
-      collection_total_items(Map.get(metadata, "shares")),
-      collection_total_items(Map.get(metadata, "reblogs")),
-      Map.get(post, "announcesCount")
-    ]
-    |> Enum.map(&normalize_count/1)
-    |> Enum.max(fn -> 0 end)
-  end
-
-  defp collection_total_items(%{} = collection) do
-    Map.get(collection, "totalItems") || Map.get(collection, :totalItems) ||
-      Map.get(collection, "total_items") || Map.get(collection, :total_items)
-  end
-
-  defp collection_total_items(_), do: 0
-
-  defp normalize_count(value) when is_integer(value), do: max(value, 0)
-
-  defp normalize_count(value) when is_binary(value) do
-    case Integer.parse(String.trim(value)) do
-      {parsed, _} -> max(parsed, 0)
-      _ -> 0
-    end
-  end
-
-  defp normalize_count(_), do: 0
 
   # Lemmy/Reddit style layout with vote column
   defp render_lemmy_layout(assigns) do

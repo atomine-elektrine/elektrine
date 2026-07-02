@@ -260,14 +260,16 @@ defmodule ElektrineWeb.PortalLive.Attention do
   defp priority_rank("medium"), do: 1
   defp priority_rank(_priority), do: 2
 
+  @social_notification_types ~w(follow mention like boost reaction status poll update comment discussion_reply)
+
   defp notification_source(notification) do
     case {notification.type, notification.source_type} do
       {"email_received", _} -> "email"
+      {"reply", source} when source in ["post", "discussion"] -> "social"
+      {type, _} when type in @social_notification_types -> "social"
       {_, "message"} -> "chat"
       {_, "post"} -> "social"
       {_, "discussion"} -> "social"
-      {"follow", _} -> "social"
-      {"mention", _} -> "social"
       _ -> "system"
     end
   end
@@ -310,6 +312,13 @@ defmodule ElektrineWeb.PortalLive.Attention do
       "follow" -> "hero-user-plus"
       "mention" -> "hero-at-symbol"
       "like" -> "hero-heart"
+      "boost" -> "hero-arrow-path-rounded-square"
+      "reaction" -> "hero-face-smile"
+      "status" -> "hero-rectangle-stack"
+      "poll" -> "hero-chart-bar"
+      "update" -> "hero-pencil-square"
+      "admin.sign_up" -> "hero-user-plus"
+      "admin.report" -> "hero-shield-exclamation"
       _ -> "hero-bell"
     end
   end

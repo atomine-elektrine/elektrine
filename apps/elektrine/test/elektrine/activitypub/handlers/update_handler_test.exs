@@ -176,6 +176,16 @@ defmodule Elektrine.ActivityPub.Handlers.UpdateHandlerTest do
         "summary" => "Updated CW",
         "sensitive" => true,
         "url" => "#{object_id}/rendered",
+        "formerRepresentations" => %{
+          "type" => "OrderedCollection",
+          "orderedItems" => [
+            %{
+              "type" => "Note",
+              "content" => "<p>Original content</p>",
+              "updated" => "2026-06-30T00:00:00Z"
+            }
+          ]
+        },
         "likes" => %{"totalItems" => 7},
         "replies" => %{"totalItems" => 8},
         "shares" => %{"totalItems" => 9},
@@ -215,6 +225,15 @@ defmodule Elektrine.ActivityPub.Handlers.UpdateHandlerTest do
     assert updated_message.media_metadata["alt_texts"] == %{"0" => "New alt"}
     assert updated_message.media_metadata["boosted_by"] == "keep-me"
     refute Map.has_key?(updated_message.media_metadata, "community_actor_uri")
+    assert updated_message.media_metadata["formerRepresentations"]["type"] == "OrderedCollection"
+
+    assert [
+             %{"content" => "<p>Original content</p>", "updated" => "2026-06-30T00:00:00Z"}
+           ] = updated_message.media_metadata["formerRepresentations"]["orderedItems"]
+
+    assert [%{"content" => "Original content"} | _] =
+             updated_message.media_metadata["activitypub_edit_history"]
+
     assert Enum.map(updated_message.hashtags, & &1.normalized_name) == ["newtag"]
 
     assert Social.get_hashtag_by_normalized_name("oldtag").use_count == 0

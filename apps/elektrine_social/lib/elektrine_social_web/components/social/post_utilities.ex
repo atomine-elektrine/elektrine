@@ -676,23 +676,33 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
   def get_display_counts(post, lemmy_counts, post_replies) do
     post_lemmy_counts = Map.get(lemmy_counts, post.activitypub_id)
     loaded_replies = Map.get(post_replies, post.id, [])
-    cached_reply_count = cached_reply_count(post)
-
     display_like_count = display_primary_count(post, post_lemmy_counts)
-
-    display_comment_count =
-      cond do
-        post_lemmy_counts ->
-          max(length(loaded_replies), post_lemmy_counts.comments || cached_reply_count)
-
-        loaded_replies != [] ->
-          max(length(loaded_replies), cached_reply_count)
-
-        true ->
-          cached_reply_count
-      end
+    display_comment_count = display_reply_count(post, post_lemmy_counts, loaded_replies)
 
     {display_like_count || 0, display_comment_count || 0}
+  end
+
+  @doc """
+  Returns the visible reply/comment count for a post.
+  """
+  @spec display_reply_count(map(), map() | nil, list()) :: integer()
+  def display_reply_count(post, post_counts \\ nil, loaded_replies \\ []) do
+    cached_reply_count = cached_reply_count(post)
+    loaded_count = if is_list(loaded_replies), do: length(loaded_replies), else: 0
+
+    cond do
+      is_map(post_counts) && is_integer(Map.get(post_counts, :comments)) ->
+        Enum.max([loaded_count, Map.get(post_counts, :comments), cached_reply_count])
+
+      is_map(post_counts) && is_integer(Map.get(post_counts, "comments")) ->
+        Enum.max([loaded_count, Map.get(post_counts, "comments"), cached_reply_count])
+
+      loaded_count > 0 ->
+        max(loaded_count, cached_reply_count)
+
+      true ->
+        cached_reply_count
+    end
   end
 
   defp cached_reply_count(post) when is_map(post) do
@@ -700,6 +710,9 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
 
     [
       parse_non_negative_count(Map.get(post, :reply_count) || Map.get(post, "reply_count")),
+      parse_non_negative_count(
+        Map.get(post, :remote_reply_count) || Map.get(post, "remote_reply_count")
+      ),
       parse_non_negative_count(metadata["original_reply_count"]),
       parse_non_negative_count(metadata["reply_count"]),
       parse_non_negative_count(metadata["replies_count"]),
@@ -761,6 +774,9 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
 
     [
       parse_non_negative_count(Map.get(post, :like_count) || Map.get(post, "like_count")),
+      parse_non_negative_count(
+        Map.get(post, :remote_like_count) || Map.get(post, "remote_like_count")
+      ),
       parse_non_negative_count(metadata["original_like_count"]),
       parse_non_negative_count(metadata["like_count"]),
       parse_non_negative_count(metadata["likes_count"]),
@@ -787,6 +803,145 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
   end
 
   defp cached_like_count(_), do: 0
+
+  @doc """
+  Returns the visible share/repost/boost count for a post.
+  """
+  @spec display_share_count(map()) :: integer()
+  def display_share_count(post) when is_map(post) do
+    metadata = Map.get(post, :media_metadata) || Map.get(post, "media_metadata") || %{}
+
+    [
+      parse_non_negative_count(Map.get(post, :share_count) || Map.get(post, "share_count")),
+      parse_non_negative_count(
+        Map.get(post, :remote_share_count) || Map.get(post, "remote_share_count")
+      ),
+      parse_non_negative_count(metadata["original_share_count"]),
+      parse_non_negative_count(metadata["share_count"]),
+      parse_non_negative_count(metadata["shares_count"]),
+      parse_non_negative_count(metadata["reblogs_count"]),
+      parse_non_negative_count(metadata["reblog_count"]),
+      parse_non_negative_count(get_in(metadata, ["remote_engagement", "shares"])),
+      parse_non_negative_count(get_in(metadata, ["remote_engagement", "reblogs"])),
+      extract_count_from_collection(Map.get(post, :shares) || Map.get(post, "shares")),
+      extract_count_from_collection(Map.get(post, :sharesCount) || Map.get(post, "sharesCount")),
+      extract_count_from_collection(
+        Map.get(post, :announcesCount) || Map.get(post, "announcesCount")
+      ),
+      extract_count_from_collection(metadata["shares"]),
+      extract_count_from_collection(metadata["reblogs"])
+    ]
+    |> Enum.max(fn -> 0 end)
+  end
+
+  def display_share_count(_), do: 0
+
+  @doc """
+  Returns where the displayed engagement count came from.
+
+  Remote posts can carry a remote baseline plus local interactions after import. When the visible
+  count is greater than the remote baseline, it is treated as mixed.
+  """
+  @spec engagement_count_source(map(), :like | :reply | :share | :quote) ::
+          :none | :local | :remote | :mixed
+  def engagement_count_source(post, kind) when is_map(post) do
+    remote_count = remote_count_for_source(post, kind)
+    display_count = display_count_for_source(post, kind)
+
+    cond do
+      display_count <= 0 ->
+        :none
+
+      remote_count > 0 and display_count > remote_count ->
+        :mixed
+
+      remote_count > 0 ->
+        :remote
+
+      true ->
+        :local
+    end
+  end
+
+  def engagement_count_source(_, _), do: :none
+
+  defp display_count_for_source(post, :like), do: display_primary_count(post)
+  defp display_count_for_source(post, :reply), do: display_reply_count(post)
+  defp display_count_for_source(post, :share), do: display_share_count(post)
+
+  defp display_count_for_source(post, :quote) do
+    metadata = Map.get(post, :media_metadata) || Map.get(post, "media_metadata") || %{}
+
+    [
+      parse_non_negative_count(Map.get(post, :quote_count) || Map.get(post, "quote_count")),
+      parse_non_negative_count(
+        Map.get(post, :remote_quote_count) || Map.get(post, "remote_quote_count")
+      ),
+      parse_non_negative_count(metadata["quotes_count"]),
+      parse_non_negative_count(metadata["quote_count"]),
+      parse_non_negative_count(get_in(metadata, ["remote_engagement", "quotes"]))
+    ]
+    |> Enum.max(fn -> 0 end)
+  end
+
+  defp display_count_for_source(_, _), do: 0
+
+  defp remote_count_for_source(post, :like) do
+    metadata = Map.get(post, :media_metadata) || Map.get(post, "media_metadata") || %{}
+
+    [
+      parse_non_negative_count(
+        Map.get(post, :remote_like_count) || Map.get(post, "remote_like_count")
+      ),
+      parse_non_negative_count(metadata["original_like_count"]),
+      parse_non_negative_count(get_in(metadata, ["remote_engagement", "likes"])),
+      parse_non_negative_count(get_in(metadata, ["remote_engagement", "favourites"])),
+      parse_non_negative_count(get_in(metadata, ["remote_engagement", "favorites"]))
+    ]
+    |> Enum.max(fn -> 0 end)
+  end
+
+  defp remote_count_for_source(post, :reply) do
+    metadata = Map.get(post, :media_metadata) || Map.get(post, "media_metadata") || %{}
+
+    [
+      parse_non_negative_count(
+        Map.get(post, :remote_reply_count) || Map.get(post, "remote_reply_count")
+      ),
+      parse_non_negative_count(metadata["original_reply_count"]),
+      parse_non_negative_count(get_in(metadata, ["remote_engagement", "replies"]))
+    ]
+    |> Enum.max(fn -> 0 end)
+  end
+
+  defp remote_count_for_source(post, :share) do
+    metadata = Map.get(post, :media_metadata) || Map.get(post, "media_metadata") || %{}
+
+    [
+      parse_non_negative_count(
+        Map.get(post, :remote_share_count) || Map.get(post, "remote_share_count")
+      ),
+      parse_non_negative_count(metadata["original_share_count"]),
+      parse_non_negative_count(get_in(metadata, ["remote_engagement", "shares"])),
+      parse_non_negative_count(get_in(metadata, ["remote_engagement", "reblogs"]))
+    ]
+    |> Enum.max(fn -> 0 end)
+  end
+
+  defp remote_count_for_source(post, :quote) do
+    metadata = Map.get(post, :media_metadata) || Map.get(post, "media_metadata") || %{}
+
+    [
+      parse_non_negative_count(
+        Map.get(post, :remote_quote_count) || Map.get(post, "remote_quote_count")
+      ),
+      parse_non_negative_count(metadata["quotes_count"]),
+      parse_non_negative_count(get_in(metadata, ["remote_engagement", "quotes"]))
+    ]
+    |> Enum.max(fn -> 0 end)
+  end
+
+  defp remote_count_for_source(_, _), do: 0
 
   defp vote_counts_available?(counts) when is_map(counts) do
     non_zero_integer?(Map.get(counts, :upvotes)) || non_zero_integer?(Map.get(counts, :downvotes))

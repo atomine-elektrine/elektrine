@@ -28,6 +28,7 @@ defmodule Elektrine.AppCache do
   # WebFinger lookups cached longer since they rarely change
   @webfinger_ttl :timer.hours(6)
   @webfinger_negative_ttl :timer.minutes(15)
+  @media_proxy_negative_ttl :timer.minutes(15)
   # Passkey challenges - short TTL for security (5 minutes)
   @passkey_challenge_ttl :timer.minutes(5)
   alias Elektrine.Telemetry.Events
@@ -316,6 +317,88 @@ defmodule Elektrine.AppCache do
     end
   end
 
+  @doc """
+  Returns true if a proxied media URL recently failed upstream fetching.
+  """
+  def media_proxy_failed?(url) when is_binary(url) do
+    case get_with_telemetry({:media_proxy_failed, url}) do
+      {:ok, nil} -> false
+      {:ok, _reason} -> true
+      _ -> false
+    end
+  end
+
+  def media_proxy_failed?(_url), do: false
+
+  @doc """
+  Temporarily records a failed proxied media URL to avoid hammering remote hosts.
+  """
+  def mark_media_proxy_failed(url, reason) when is_binary(url) do
+    put_with_telemetry({:media_proxy_failed, url}, reason, ttl: @media_proxy_negative_ttl)
+  end
+
+  def mark_media_proxy_failed(_url, _reason), do: {:ok, false}
+
+  @doc """
+  Clears cached media proxy failure state after a successful fetch or admin invalidation.
+  """
+  def invalidate_media_proxy_failure(url) when is_binary(url) do
+    delete_with_telemetry({:media_proxy_failed, url})
+  end
+
+  def invalidate_media_proxy_failure(_url), do: {:ok, false}
+
+  @doc """
+  Returns true if an admin has temporarily banned a media proxy URL.
+  """
+  def media_proxy_banned?(url) when is_binary(url) do
+    case get_with_telemetry({:media_proxy_banned, url}) do
+      {:ok, nil} -> false
+      {:ok, _metadata} -> true
+      _ -> false
+    end
+  end
+
+  def media_proxy_banned?(_url), do: false
+
+  @doc """
+  Adds a runtime media proxy ban. Persistent policy still belongs in config blocklists.
+  """
+  def ban_media_proxy_url(url, reason \\ :admin)
+
+  def ban_media_proxy_url(url, reason) when is_binary(url) do
+    put_with_telemetry(
+      {:media_proxy_banned, url},
+      %{reason: inspect(reason), inserted_at: DateTime.utc_now()},
+      ttl: :timer.hours(24)
+    )
+  end
+
+  def ban_media_proxy_url(_url, _reason), do: {:ok, false}
+
+  @doc """
+  Removes a runtime media proxy ban.
+  """
+  def unban_media_proxy_url(url) when is_binary(url) do
+    delete_with_telemetry({:media_proxy_banned, url})
+  end
+
+  def unban_media_proxy_url(_url), do: {:ok, false}
+
+  @doc """
+  Lists recent media proxy failure cache entries.
+  """
+  def list_media_proxy_failures(limit \\ 100) do
+    list_media_proxy_entries(:media_proxy_failed, limit)
+  end
+
+  @doc """
+  Lists runtime media proxy bans.
+  """
+  def list_media_proxy_bans(limit \\ 100) do
+    list_media_proxy_entries(:media_proxy_banned, limit)
+  end
+
   # Platform stats caching (for home page, public pages)
 
   @doc """
@@ -586,6 +669,26 @@ defmodule Elektrine.AppCache do
   end
 
   defp matches_pattern?(_, _), do: false
+
+  defp list_media_proxy_entries(prefix, limit) do
+    {:ok, keys} = keys_with_telemetry()
+
+    keys
+    |> Enum.filter(fn
+      {^prefix, url} when is_binary(url) -> true
+      _ -> false
+    end)
+    |> Enum.take(limit)
+    |> Enum.map(fn {^prefix, url} = key ->
+      value =
+        case get_with_telemetry(key) do
+          {:ok, metadata} -> metadata
+          _ -> nil
+        end
+
+      %{url: url, metadata: value}
+    end)
+  end
 
   defp fetch_with_telemetry(key, fetch_fn) do
     result = Cachex.fetch(@cache_name, key, fetch_fn)

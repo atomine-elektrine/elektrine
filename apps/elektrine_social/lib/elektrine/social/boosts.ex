@@ -15,6 +15,8 @@ defmodule Elektrine.Social.Boosts do
   alias Elektrine.AppCache
   alias Elektrine.Repo
   alias Elektrine.Social.Message
+  alias Elektrine.Social.MessagePolicy
+  alias Elektrine.Social.MessageStats
   alias Elektrine.Social.PostBoost
 
   @doc """
@@ -32,7 +34,7 @@ defmodule Elektrine.Social.Boosts do
     original =
       get_message!(message_id) |> Repo.preload([:sender, :conversation, :remote_actor])
 
-    if public_reshareable_message?(original) do
+    if MessagePolicy.boost?(user_id, original) && public_reshareable_message?(original) do
       # Validate: Don't allow boosting empty posts (must have content OR media)
       has_content = Elektrine.Strings.present?(original.content)
       has_media = original.media_urls && original.media_urls != []
@@ -71,8 +73,9 @@ defmodule Elektrine.Social.Boosts do
                visibility: "public",
                comment: ""
              ) do
-          {:ok, _share_post} ->
+          {:ok, share_post} ->
             # Successfully created boost post
+            _ = Elektrine.Social.HomeFeedFanoutWorker.enqueue(share_post.id)
             :ok
 
           {:error, reason} ->
@@ -120,6 +123,16 @@ defmodule Elektrine.Social.Boosts do
             safe_broadcast_share_count_update(message_id)
 
             # Delete the timeline shared post (if exists)
+            share_post_ids =
+              from(m in Message,
+                where:
+                  m.sender_id == ^user_id and
+                    m.shared_message_id == ^message_id and
+                    is_nil(m.deleted_at),
+                select: m.id
+              )
+              |> Repo.all()
+
             from(m in Message,
               where:
                 m.sender_id == ^user_id and
@@ -127,6 +140,10 @@ defmodule Elektrine.Social.Boosts do
                   is_nil(m.deleted_at)
             )
             |> Repo.update_all(set: [deleted_at: Elektrine.Time.utc_now()])
+
+            Enum.each(share_post_ids, fn share_post_id ->
+              _ = Elektrine.Social.HomeFeedInvalidationWorker.remove_message(share_post_id)
+            end)
 
             # Federate the unboost (Undo Announce)
             Elektrine.Async.run(fn ->
@@ -175,7 +192,7 @@ defmodule Elektrine.Social.Boosts do
     quoted = get_message!(quoted_message_id)
 
     cond do
-      not can_quote_message?(quoted, user_id) ->
+      not MessagePolicy.quote?(user_id, quoted) or not can_quote_message?(quoted, user_id) ->
         {:error, :not_found}
 
       not Elektrine.Strings.present?(content) ->
@@ -202,12 +219,16 @@ defmodule Elektrine.Social.Boosts do
           {:ok, quote_post} ->
             # Increment quote count on the quoted message
             from(m in Message,
-              where: m.id == ^quoted_message_id,
+              where: m.id == ^quoted_message_id and is_nil(m.deleted_at),
               update: [inc: [quote_count: 1]]
             )
             |> Repo.update_all([])
 
             AppCache.invalidate_social_message(quoted_message_id)
+
+            MessageStats.upsert_counts(quoted_message_id, %{
+              quote_count: quote_count(quoted_message_id)
+            })
 
             # Federate the quote post if user has federation enabled
             Elektrine.Async.run(fn ->
@@ -242,9 +263,11 @@ defmodule Elektrine.Social.Boosts do
     end
   end
 
-  defp public_reshareable_message?(%Message{visibility: visibility}) do
+  defp public_reshareable_message?(%Message{visibility: visibility, deleted_at: nil}) do
     visibility in ["public", "unlisted"]
   end
+
+  defp public_reshareable_message?(_), do: false
 
   @doc """
   Checks if a user has boosted a post.
@@ -254,6 +277,17 @@ defmodule Elektrine.Social.Boosts do
       where: b.user_id == ^user_id and b.message_id == ^message_id
     )
     |> Repo.exists?()
+  end
+
+  @doc """
+  Returns the message IDs boosted by a user from a candidate list.
+  """
+  def list_user_boosts(user_id, message_ids) when is_list(message_ids) do
+    from(b in PostBoost,
+      where: b.user_id == ^user_id and b.message_id in ^message_ids,
+      select: b.message_id
+    )
+    |> Repo.all()
   end
 
   defp safe_broadcast_share_count_update(message_id) do
@@ -268,6 +302,8 @@ defmodule Elektrine.Social.Boosts do
   end
 
   defp reconcile_share_count(%Message{} = message, delta) when delta in [-1, 1] do
+    message = Repo.get!(Message, message.id)
+
     current_local_boost_count =
       from(b in PostBoost,
         where: b.message_id == ^message.id,
@@ -292,14 +328,23 @@ defmodule Elektrine.Social.Boosts do
       |> Repo.update_all([])
 
     AppCache.invalidate_social_message(message.id)
+    MessageStats.upsert_counts(message.id, %{share_count: share_count})
     result
   end
 
   defp remote_share_count_baseline(%Message{} = message) do
-    message
-    |> Map.get(:media_metadata, %{})
-    |> Map.get("original_share_count")
-    |> parse_non_negative_integer()
+    remote_count =
+      message
+      |> Map.get(:remote_share_count)
+      |> parse_non_negative_integer()
+
+    metadata_count =
+      message
+      |> Map.get(:media_metadata, %{})
+      |> Map.get("original_share_count")
+      |> parse_non_negative_integer()
+
+    max(remote_count, metadata_count)
   end
 
   defp parse_non_negative_integer(value) when is_integer(value) and value >= 0, do: value
@@ -321,6 +366,12 @@ defmodule Elektrine.Social.Boosts do
       share_count: message.share_count || 0,
       reply_count: message.reply_count || 0
     })
+  end
+
+  defp quote_count(message_id) do
+    from(m in Message, where: m.id == ^message_id, select: coalesce(m.quote_count, 0))
+    |> Repo.one()
+    |> Kernel.||(0)
   end
 
   defp get_message!(message_id) do

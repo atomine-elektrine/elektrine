@@ -18,6 +18,7 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
   alias Elektrine.Repo
   alias Elektrine.Social
   alias Elektrine.StaticSites
+  alias Elektrine.Vault
   alias ElektrineWeb.Plugs.APIAuth
 
   setup do
@@ -630,36 +631,29 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
       conn = get(conn, "/api/ext/v1/nerve/entries")
 
       assert %{"data" => data} = json_response(conn, 200)
-      assert data["nerve_configured"] == false
-      assert is_nil(data["nerve_verifier"])
+      assert data["master_configured"] == false
+      assert is_nil(data["master_wrapped_dek"])
       assert data["entries"] == []
     end
 
-    test "Nerve list returns encrypted verifier metadata when configured", %{
+    test "Nerve list returns wrapped master key material when configured", %{
       conn: conn
     } do
       user = user_fixture()
 
-      assert {:ok, _settings} =
-               Nerve.setup_nerve(user.id, %{
-                 encrypted_verifier: %{
-                   version: 1,
-                   algorithm: "AES-GCM",
-                   kdf: "PBKDF2-SHA256",
-                   iterations: 210_000,
-                   salt: Base.encode64(<<0::128>>),
-                   iv: Base.encode64(<<0::96>>),
-                   ciphertext: Base.encode64(<<1, 2, 3, 4>>)
-                 }
+      assert {:ok, _master_key} =
+               Vault.setup(user.id, %{
+                 "wrapped_dek" => valid_client_payload(),
+                 "wrapped_dek_recovery" => valid_client_payload()
                })
 
       conn = with_pat(conn, user.id, ["read:nerve"])
       conn = get(conn, "/api/ext/v1/nerve/entries")
 
       assert %{"data" => data} = json_response(conn, 200)
-      assert data["nerve_configured"] == true
-      assert data["nerve_verifier"]["algorithm"] == "AES-GCM"
-      assert data["nerve_verifier"]["kdf"] == "PBKDF2-SHA256"
+      assert data["master_configured"] == true
+      assert data["master_wrapped_dek"]["algorithm"] == "AES-GCM"
+      assert data["master_wrapped_dek"]["kdf"] == "PBKDF2-SHA256"
     end
 
     test "Nerve endpoints reject standard account auth tokens", %{conn: conn} do
@@ -690,13 +684,8 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
       assert error["code"] == "invalid_token_format"
     end
 
-    test "Nerve delete nerve endpoint removes verifier and entries", %{conn: conn} do
+    test "Nerve delete nerve endpoint removes entries", %{conn: conn} do
       user = user_fixture()
-
-      assert {:ok, _settings} =
-               Nerve.setup_nerve(user.id, %{
-                 encrypted_verifier: valid_client_payload()
-               })
 
       assert {:ok, _entry} =
                Nerve.create_entry(user.id, %{
@@ -712,9 +701,8 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
         |> delete("/api/ext/v1/nerve")
 
       assert %{"data" => data} = json_response(delete_conn, 200)
-      assert data["message"] == "Nerve deleted"
+      assert data["message"] == "Nerve entries deleted"
       assert data["deleted_entries"] == 1
-      assert data["nerve_configured"] == false
 
       list_conn =
         build_conn()
@@ -722,7 +710,6 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
         |> get("/api/ext/v1/nerve/entries")
 
       assert %{"data" => list_data} = json_response(list_conn, 200)
-      assert list_data["nerve_configured"] == false
       assert list_data["entries"] == []
     end
 
@@ -749,11 +736,6 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
 
     test "Nerve update endpoint updates an existing entry", %{conn: conn} do
       user = user_fixture()
-
-      assert {:ok, _settings} =
-               Nerve.setup_nerve(user.id, %{
-                 encrypted_verifier: valid_client_payload()
-               })
 
       assert {:ok, entry} =
                Nerve.create_entry(user.id, %{

@@ -30,6 +30,18 @@ defmodule Elektrine.DeveloperTokensTest do
       assert Enum.sort(token.scopes) == ["read:nerve", "write:nerve"]
     end
 
+    test "accepts dedicated moderation scopes" do
+      user = user_fixture()
+
+      assert {:ok, token} =
+               Developer.create_api_token(user.id, %{
+                 name: "moderation-token",
+                 scopes: ["read:moderation", "write:moderation"]
+               })
+
+      assert Enum.sort(token.scopes) == ["read:moderation", "write:moderation"]
+    end
+
     test "enforces the maximum number of active tokens per user" do
       user = user_fixture()
 

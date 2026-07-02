@@ -44,13 +44,18 @@ defmodule ElektrineSocialWeb.ActivityPub.ActorRequest do
         moved_to: canonical_actor_uri
       }
     else
-      aliases = actor_alias_uris(user, canonical_base_url, legacy_base_url)
+      aliases =
+        user
+        |> actor_alias_uris(canonical_base_url, legacy_base_url)
+        |> append_configured_aliases(user)
 
-      if aliases == [] do
-        %{base_url: base_url}
-      else
-        %{base_url: base_url, also_known_as: aliases}
-      end
+      %{
+        base_url: base_url,
+        also_known_as: aliases,
+        moved_to: user.moved_to
+      }
+      |> Enum.reject(fn {_key, value} -> value in [nil, []] end)
+      |> Map.new()
     end
   end
 
@@ -91,6 +96,15 @@ defmodule ElektrineSocialWeb.ActivityPub.ActorRequest do
     |> Enum.reject(&(is_nil(&1) or &1 == canonical_actor_uri))
     |> Enum.uniq()
   end
+
+  defp append_configured_aliases(aliases, %{also_known_as: configured})
+       when is_list(configured) do
+    (aliases ++ configured)
+    |> Enum.reject(&(is_nil(&1) or &1 == ""))
+    |> Enum.uniq()
+  end
+
+  defp append_configured_aliases(aliases, _user), do: aliases
 
   defp username_alias_uri(user, base_url) do
     canonical_identifier = ActivityPub.actor_identifier(user)

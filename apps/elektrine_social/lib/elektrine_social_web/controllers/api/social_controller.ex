@@ -911,10 +911,33 @@ defmodule ElektrineSocialWeb.API.SocialController do
   POST /api/social/upload
   Uploads media for posts.
   """
-  def upload_media(conn, %{"file" => _upload}) do
+  def upload_media(conn, %{"file" => %Plug.Upload{} = upload} = params) do
+    user = conn.assigns[:current_user]
+
+    case Uploads.upload_timeline_attachment(upload, user.id) do
+      {:ok, metadata} ->
+        media = format_uploaded_media(metadata, params)
+
+        conn
+        |> put_status(:created)
+        |> json(%{
+          media: media,
+          attachment: media,
+          media_url: media.url,
+          url: media.url
+        })
+
+      {:error, reason} ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{error: format_upload_error(reason)})
+    end
+  end
+
+  def upload_media(conn, _params) do
     conn
-    |> put_status(:not_implemented)
-    |> json(%{error: "Media upload not yet implemented"})
+    |> put_status(:bad_request)
+    |> json(%{error: "Media file is required"})
   end
 
   # MARK: - Private Helpers
@@ -1042,6 +1065,45 @@ defmodule ElektrineSocialWeb.API.SocialController do
       is_reposted: Social.user_boosted?(current_user_id, post.id)
     }
   end
+
+  defp format_uploaded_media(metadata, params) do
+    key = metadata[:key] || metadata["key"]
+    content_type = metadata[:content_type] || metadata["content_type"]
+    filename = metadata[:filename] || metadata["filename"]
+    size = metadata[:size] || metadata["size"]
+
+    %{
+      id: media_id(key),
+      key: key,
+      url: Uploads.attachment_url(key),
+      filename: filename,
+      content_type: content_type,
+      size: size,
+      type: media_kind(content_type, key),
+      description: params["description"] || params["alt"] || params["alt_text"]
+    }
+  end
+
+  defp media_id(key) when is_binary(key), do: Base.url_encode64(key, padding: false)
+  defp media_id(_key), do: nil
+
+  defp media_kind("image/" <> _, _key), do: "image"
+  defp media_kind("video/" <> _, _key), do: "video"
+  defp media_kind("audio/" <> _, _key), do: "audio"
+
+  defp media_kind(_content_type, key) when is_binary(key) do
+    case String.downcase(Path.extname(key)) do
+      ext when ext in [".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif"] -> "image"
+      ext when ext in [".mp4", ".mov", ".m4v", ".webm"] -> "video"
+      ext when ext in [".mp3", ".m4a", ".ogg", ".wav", ".flac"] -> "audio"
+      _ -> "unknown"
+    end
+  end
+
+  defp media_kind(_content_type, _key), do: "unknown"
+
+  defp format_upload_error({type, message}) when is_binary(message), do: "#{type}: #{message}"
+  defp format_upload_error(reason), do: inspect(reason)
 
   defp format_author(nil), do: nil
 

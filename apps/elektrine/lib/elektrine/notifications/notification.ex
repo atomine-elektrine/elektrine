@@ -23,6 +23,7 @@ defmodule Elektrine.Notifications.Notification do
 
     field :source_type, :string
     field :source_id, :integer
+    field :group_key, :string
 
     field :metadata, :map, default: %{}
 
@@ -43,6 +44,7 @@ defmodule Elektrine.Notifications.Notification do
       :actor_id,
       :source_type,
       :source_id,
+      :group_key,
       :metadata,
       :read_at,
       :seen_at,
@@ -56,6 +58,13 @@ defmodule Elektrine.Notifications.Notification do
       "reply",
       "follow",
       "like",
+      "boost",
+      "reaction",
+      "status",
+      "poll",
+      "update",
+      "admin.sign_up",
+      "admin.report",
       "comment",
       "discussion_reply",
       "email_received",

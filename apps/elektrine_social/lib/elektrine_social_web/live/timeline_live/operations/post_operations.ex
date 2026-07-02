@@ -13,6 +13,9 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
   alias ElektrineSocialWeb.TimelineLive.ReplyContextPreviews
   alias ElektrineWeb.AdminSecurity
 
+  @load_more_page_size 20
+  @load_more_max_batches 8
+
   @starter_pack_drafts [
     {"Introduce yourself",
      "A quick intro post: who you are, what you're into, and what kind of people you'd like to meet here."},
@@ -809,7 +812,6 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
   defp do_handle_load_more(socket) do
     current_posts = socket.assigns.timeline_posts
     search_query = socket.assigns[:search_query] || ""
-    session_context = socket.assigns[:session_context] || %{}
 
     before_id =
       if Enum.empty?(current_posts) do
@@ -818,195 +820,8 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
         List.last(current_posts).id
       end
 
-    current_user = socket.assigns[:current_user]
     timeline_view = socket.assigns.timeline_filter || "all"
-
-    more_posts =
-      case timeline_view do
-        "replies" ->
-          Social.get_federated_replies(
-            limit: 20,
-            before_id: before_id,
-            user_id: current_user && current_user.id,
-            search_query: search_query,
-            source_filter: socket.assigns.current_filter
-          )
-
-        "friends" ->
-          if current_user do
-            Social.get_friends_timeline(current_user.id,
-              limit: 20,
-              before_id: before_id,
-              search_query: search_query
-            )
-          else
-            []
-          end
-
-        "my_posts" ->
-          if current_user do
-            Social.get_user_timeline_posts(current_user.id,
-              limit: 20,
-              before_id: before_id,
-              viewer_id: current_user.id,
-              search_query: search_query
-            )
-          else
-            []
-          end
-
-        "trusted" ->
-          Social.get_trusted_timeline(
-            limit: 20,
-            before_id: before_id,
-            user_id: current_user && current_user.id,
-            search_query: search_query
-          )
-
-        "communities" ->
-          source_filter = socket.assigns.current_filter || "all"
-
-          if current_user do
-            Social.get_public_community_posts(
-              limit: 20,
-              before_id: before_id,
-              user_id: current_user.id,
-              search_query: search_query,
-              source_filter: source_filter
-            )
-          else
-            Social.get_public_community_posts(
-              limit: 20,
-              before_id: before_id,
-              search_query: search_query,
-              source_filter: source_filter
-            )
-          end
-
-        _ ->
-          case socket.assigns.current_filter do
-            "home" ->
-              if current_user do
-                Social.get_combined_feed(
-                  current_user.id,
-                  limit: 20,
-                  before_id: before_id,
-                  search_query: search_query
-                )
-              else
-                Social.get_public_timeline(
-                  limit: 20,
-                  before_id: before_id,
-                  search_query: search_query
-                )
-              end
-
-            "for_you" ->
-              if current_user do
-                current_ids = MapSet.new(Enum.map(current_posts, & &1.id))
-
-                Recommendations.get_for_you_feed(current_user.id,
-                  limit: length(current_posts) + 20,
-                  session_context: session_context
-                )
-                |> Helpers.filter_posts_by_search_query(search_query)
-                |> Enum.reject(fn post -> MapSet.member?(current_ids, post.id) end)
-                |> Enum.take(20)
-              else
-                Social.get_public_timeline(
-                  limit: 20,
-                  before_id: before_id,
-                  search_query: search_query
-                )
-              end
-
-            "all" ->
-              if current_user do
-                Social.get_public_timeline(
-                  limit: 20,
-                  before_id: before_id,
-                  user_id: current_user.id,
-                  search_query: search_query
-                )
-              else
-                Social.get_public_timeline(
-                  limit: 20,
-                  before_id: before_id,
-                  search_query: search_query
-                )
-              end
-
-            "following" ->
-              if current_user do
-                Social.get_combined_feed(
-                  current_user.id,
-                  limit: 20,
-                  before_id: before_id,
-                  search_query: search_query
-                )
-              else
-                Social.get_public_timeline(
-                  limit: 20,
-                  before_id: before_id,
-                  search_query: search_query
-                )
-              end
-
-            "explore" ->
-              if current_user do
-                Social.get_public_timeline(
-                  limit: 20,
-                  before_id: before_id,
-                  user_id: current_user.id,
-                  search_query: search_query
-                )
-              else
-                Social.get_public_timeline(
-                  limit: 20,
-                  before_id: before_id,
-                  search_query: search_query
-                )
-              end
-
-            "local" ->
-              if current_user do
-                Social.get_local_timeline(
-                  limit: 20,
-                  before_id: before_id,
-                  user_id: current_user.id,
-                  search_query: search_query
-                )
-              else
-                Social.get_local_timeline(
-                  limit: 20,
-                  before_id: before_id,
-                  search_query: search_query
-                )
-              end
-
-            "federated" ->
-              Social.get_public_federated_posts(
-                limit: 20,
-                before_id: before_id,
-                user_id: current_user && current_user.id,
-                search_query: search_query
-              )
-
-            "saved" ->
-              if current_user do
-                Social.get_saved_posts(current_user.id,
-                  limit: 20,
-                  offset: length(current_posts),
-                  search_query: search_query
-                )
-              else
-                []
-              end
-
-            _ ->
-              []
-          end
-      end
+    {more_posts, no_more_posts} = load_more_until_visible(socket, current_posts, before_id)
 
     merged_lemmy_counts =
       Map.merge(
@@ -1047,7 +862,6 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
       end
 
     merged_post_replies = Map.merge(socket.assigns.post_replies || %{}, new_post_replies)
-    no_more_posts = Enum.empty?(more_posts)
     updated_timeline_posts = Helpers.dedupe_posts(current_posts ++ more_posts)
 
     updated_gap_marker_ids =
@@ -1103,10 +917,289 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
     |> assign(:post_replies, merged_post_replies)
     |> assign(:timeline_posts, updated_timeline_posts)
     |> assign(:timeline_gap_marker_ids, updated_gap_marker_ids)
-    |> Helpers.apply_timeline_filter()
+    |> Helpers.apply_timeline_filter(true)
     |> maybe_queue_reply_context_preview_fetch(more_posts)
     |> maybe_schedule_background_refresh_jobs(more_posts)
     |> maybe_schedule_reply_ingestion_jobs(more_posts)
+  end
+
+  defp load_more_until_visible(socket, current_posts, before_id) do
+    previous_visible_ids = MapSet.new(socket.assigns[:filtered_post_ids] || [])
+
+    do_load_more_until_visible(
+      socket,
+      current_posts,
+      before_id,
+      [],
+      previous_visible_ids,
+      @load_more_max_batches
+    )
+  end
+
+  defp do_load_more_until_visible(
+         _socket,
+         _current_posts,
+         _before_id,
+         accumulated,
+         _visible_ids,
+         0
+       ) do
+    {accumulated, Enum.empty?(accumulated)}
+  end
+
+  defp do_load_more_until_visible(
+         socket,
+         current_posts,
+         before_id,
+         accumulated,
+         previous_visible_ids,
+         batches_left
+       ) do
+    page = fetch_more_posts(socket, before_id, current_posts, accumulated)
+
+    if page == [] do
+      {accumulated, true}
+    else
+      accumulated = Helpers.dedupe_posts(accumulated ++ page)
+      candidate_posts = Helpers.dedupe_posts(current_posts ++ accumulated)
+
+      candidate_visible_ids =
+        socket
+        |> Helpers.filter_timeline_posts(candidate_posts)
+        |> Enum.map(& &1.id)
+        |> MapSet.new()
+
+      if MapSet.difference(candidate_visible_ids, previous_visible_ids) |> MapSet.size() > 0 do
+        {accumulated, false}
+      else
+        next_before_id = page |> List.last() |> Map.get(:id)
+
+        do_load_more_until_visible(
+          socket,
+          current_posts,
+          next_before_id,
+          accumulated,
+          previous_visible_ids,
+          batches_left - 1
+        )
+      end
+    end
+  end
+
+  defp fetch_more_posts(socket, before_id, current_posts, accumulated_posts) do
+    current_user = socket.assigns[:current_user]
+    timeline_view = socket.assigns.timeline_filter || "all"
+    search_query = socket.assigns[:search_query] || ""
+    session_context = socket.assigns[:session_context] || %{}
+    source_filter = socket.assigns.current_filter || "all"
+    loaded_posts = Helpers.dedupe_posts(current_posts ++ accumulated_posts)
+
+    case timeline_view do
+      "replies" ->
+        Social.get_federated_replies(
+          limit: @load_more_page_size,
+          before_id: before_id,
+          user_id: current_user && current_user.id,
+          search_query: search_query,
+          source_filter: source_filter
+        )
+
+      "friends" ->
+        if current_user do
+          Social.get_friends_timeline(current_user.id,
+            limit: @load_more_page_size,
+            before_id: before_id,
+            search_query: search_query
+          )
+        else
+          []
+        end
+
+      "my_posts" ->
+        if current_user do
+          Social.get_user_timeline_posts(current_user.id,
+            limit: @load_more_page_size,
+            before_id: before_id,
+            viewer_id: current_user.id,
+            search_query: search_query
+          )
+        else
+          []
+        end
+
+      "trusted" ->
+        Social.get_trusted_timeline(
+          limit: @load_more_page_size,
+          before_id: before_id,
+          user_id: current_user && current_user.id,
+          search_query: search_query
+        )
+
+      "communities" ->
+        if current_user do
+          Social.get_public_community_posts(
+            limit: @load_more_page_size,
+            before_id: before_id,
+            user_id: current_user.id,
+            search_query: search_query,
+            source_filter: source_filter
+          )
+        else
+          Social.get_public_community_posts(
+            limit: @load_more_page_size,
+            before_id: before_id,
+            search_query: search_query,
+            source_filter: source_filter
+          )
+        end
+
+      _ ->
+        fetch_more_posts_for_source_filter(
+          socket.assigns.current_filter,
+          current_user,
+          before_id,
+          search_query,
+          session_context,
+          loaded_posts
+        )
+    end
+  end
+
+  defp fetch_more_posts_for_source_filter(
+         "home",
+         current_user,
+         before_id,
+         search_query,
+         _session_context,
+         _loaded_posts
+       ) do
+    if current_user do
+      Social.get_combined_feed(current_user.id,
+        limit: @load_more_page_size,
+        before_id: before_id,
+        search_query: search_query
+      )
+    else
+      Social.get_public_timeline(
+        limit: @load_more_page_size,
+        before_id: before_id,
+        search_query: search_query
+      )
+    end
+  end
+
+  defp fetch_more_posts_for_source_filter(
+         "for_you",
+         current_user,
+         before_id,
+         search_query,
+         session_context,
+         loaded_posts
+       ) do
+    if current_user do
+      current_ids = MapSet.new(Enum.map(loaded_posts, & &1.id))
+
+      Recommendations.get_for_you_feed(current_user.id,
+        limit: length(loaded_posts) + @load_more_page_size,
+        session_context: session_context
+      )
+      |> Helpers.filter_posts_by_search_query(search_query)
+      |> Enum.reject(fn post -> MapSet.member?(current_ids, post.id) end)
+      |> Enum.take(@load_more_page_size)
+    else
+      Social.get_public_timeline(
+        limit: @load_more_page_size,
+        before_id: before_id,
+        search_query: search_query
+      )
+    end
+  end
+
+  defp fetch_more_posts_for_source_filter(
+         filter,
+         current_user,
+         before_id,
+         search_query,
+         _session_context,
+         loaded_posts
+       ) do
+    case filter do
+      "all" ->
+        get_public_timeline_page(current_user, before_id, search_query)
+
+      "following" ->
+        if current_user do
+          Social.get_combined_feed(current_user.id,
+            limit: @load_more_page_size,
+            before_id: before_id,
+            search_query: search_query
+          )
+        else
+          Social.get_public_timeline(
+            limit: @load_more_page_size,
+            before_id: before_id,
+            search_query: search_query
+          )
+        end
+
+      "explore" ->
+        get_public_timeline_page(current_user, before_id, search_query)
+
+      "local" ->
+        if current_user do
+          Social.get_local_timeline(
+            limit: @load_more_page_size,
+            before_id: before_id,
+            user_id: current_user.id,
+            search_query: search_query
+          )
+        else
+          Social.get_local_timeline(
+            limit: @load_more_page_size,
+            before_id: before_id,
+            search_query: search_query
+          )
+        end
+
+      "federated" ->
+        Social.get_public_federated_posts(
+          limit: @load_more_page_size,
+          before_id: before_id,
+          user_id: current_user && current_user.id,
+          search_query: search_query
+        )
+
+      "saved" ->
+        if current_user do
+          Social.get_saved_posts(current_user.id,
+            limit: @load_more_page_size,
+            offset: length(loaded_posts),
+            search_query: search_query
+          )
+        else
+          []
+        end
+
+      _ ->
+        []
+    end
+  end
+
+  defp get_public_timeline_page(current_user, before_id, search_query) do
+    if current_user do
+      Social.get_public_timeline(
+        limit: @load_more_page_size,
+        before_id: before_id,
+        user_id: current_user.id,
+        search_query: search_query
+      )
+    else
+      Social.get_public_timeline(
+        limit: @load_more_page_size,
+        before_id: before_id,
+        search_query: search_query
+      )
+    end
   end
 
   defp special_timeline_view?(view) do

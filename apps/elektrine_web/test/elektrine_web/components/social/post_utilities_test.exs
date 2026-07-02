@@ -313,4 +313,61 @@ defmodule ElektrineWeb.Components.Social.PostUtilitiesTest do
 
     assert PostUtilities.get_display_counts(post, %{}, %{}) == {14, 6}
   end
+
+  test "display_share_count/1 prefers cached federated shares over stale local shares" do
+    post = %{
+      share_count: 2,
+      media_metadata: %{
+        "original_share_count" => 18,
+        "remote_engagement" => %{"reblogs" => 16}
+      }
+    }
+
+    assert PostUtilities.display_share_count(post) == 18
+  end
+
+  test "display_reply_count/3 prefers cached federated replies over stale local replies" do
+    post = %{
+      reply_count: 1,
+      media_metadata: %{
+        "original_reply_count" => 12,
+        "remote_engagement" => %{"replies" => 10}
+      }
+    }
+
+    assert PostUtilities.display_reply_count(post) == 12
+    assert PostUtilities.display_reply_count(post, nil, [:loaded_reply]) == 12
+  end
+
+  test "engagement_count_source/2 identifies local, remote, mixed, and empty counts" do
+    assert PostUtilities.engagement_count_source(%{like_count: 3}, :like) == :local
+
+    assert PostUtilities.engagement_count_source(
+             %{like_count: 20, remote_like_count: 20},
+             :like
+           ) == :remote
+
+    assert PostUtilities.engagement_count_source(
+             %{like_count: 21, remote_like_count: 20},
+             :like
+           ) == :mixed
+
+    assert PostUtilities.engagement_count_source(%{like_count: 0}, :like) == :none
+  end
+
+  test "engagement_count_source/2 reads remote metadata fallbacks" do
+    post = %{
+      share_count: 18,
+      media_metadata: %{"original_share_count" => 18}
+    }
+
+    assert PostUtilities.engagement_count_source(post, :share) == :remote
+
+    post = %{
+      quote_count: 3,
+      media_metadata: %{"remote_engagement" => %{"quotes" => 2}}
+    }
+
+    assert PostUtilities.engagement_count_source(post, :quote) == :mixed
+  end
 end

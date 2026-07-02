@@ -115,7 +115,7 @@ defmodule ElektrineWeb.NotificationsDropdownLive do
                           <div class="flex-1 min-w-0">
                             <%= if notification.actor do %>
                               <p class="font-medium text-xs text-base-content/70 truncate">
-                                <%= if notification.type in ["follow", "mention", "like", "comment", "discussion_reply", "reply"] do %>
+                                <%= if notification.type in ["follow", "mention", "like", "boost", "reaction", "status", "poll", "update", "comment", "discussion_reply", "reply"] do %>
                                   @{notification.actor.handle || notification.actor.username}
                                 <% else %>
                                   {notification.actor.username}
@@ -389,7 +389,7 @@ defmodule ElektrineWeb.NotificationsDropdownLive do
   defp load_notifications(socket) do
     if socket.assigns.current_user do
       notifications = Notifications.list_notifications(socket.assigns.current_user.id, limit: 20)
-      unread_count = Notifications.get_unread_count(socket.assigns.current_user.id)
+      unread_count = Notifications.get_visible_unread_count(socket.assigns.current_user.id)
 
       socket
       |> assign(:notifications, notifications)
@@ -409,9 +409,16 @@ defmodule ElektrineWeb.NotificationsDropdownLive do
       "reply" -> "hero-chat-bubble-left-right"
       "follow" -> "hero-user-plus"
       "like" -> "hero-heart"
+      "boost" -> "hero-arrow-path-rounded-square"
+      "reaction" -> "hero-face-smile"
+      "status" -> "hero-rectangle-stack"
+      "poll" -> "hero-chart-bar"
+      "update" -> "hero-pencil-square"
       "comment" -> "hero-chat-bubble-bottom-center"
       "discussion_reply" -> "hero-chat-bubble-bottom-center-text"
       "email_received" -> "hero-envelope"
+      "admin.sign_up" -> "hero-user-plus"
+      "admin.report" -> "hero-shield-exclamation"
       "system" -> "hero-information-circle"
       _ -> "hero-bell"
     end

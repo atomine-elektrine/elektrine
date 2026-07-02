@@ -141,6 +141,8 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
                 upsert_federated_poll(message.id, object, payload.options)
               end
 
+              enqueue_home_feed_fanout(message.id)
+
               if payload.hashtags != [] do
                 Async.run(fn -> sync_message_hashtags(message.id, payload.hashtags) end)
               end
@@ -413,6 +415,8 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
         if attrs.visibility in ["public", "unlisted"] do
           case Messaging.create_federated_message(attrs) do
             {:ok, message} ->
+              enqueue_home_feed_fanout(message.id)
+
               handle_post_create_tasks(
                 message,
                 remote_actor,
@@ -525,6 +529,14 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
           {:new_public_post, reloaded_message}
         )
     end
+  end
+
+  defp enqueue_home_feed_fanout(message_id) when is_integer(message_id) do
+    module = Module.concat([Elektrine.Social, HomeFeedFanoutWorker])
+    _ = module.enqueue(message_id)
+    :ok
+  rescue
+    _ -> :ok
   end
 
   defp maybe_store_missing_reply_parent(message, remote_actor) do
@@ -834,11 +846,22 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
   end
 
   defp get_message_by_id(id) do
-    case Messaging.get_message(id) do
+    case Messaging.get_message(parse_message_id(id)) do
       nil -> {:error, :message_not_found}
       message -> {:ok, message}
     end
   rescue
     Ecto.Query.CastError -> {:error, :message_not_found}
   end
+
+  defp parse_message_id(id) when is_integer(id), do: id
+
+  defp parse_message_id(id) when is_binary(id) do
+    case Integer.parse(id) do
+      {parsed, ""} -> parsed
+      _ -> id
+    end
+  end
+
+  defp parse_message_id(id), do: id
 end

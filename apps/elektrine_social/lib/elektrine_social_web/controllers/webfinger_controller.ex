@@ -212,7 +212,7 @@ defmodule ElektrineSocialWeb.WebFingerController do
       |> Enum.reject(&is_nil/1)
 
     aliases =
-      [canonical_actor_url, actor_url, profile_url]
+      [canonical_actor_url, actor_url, profile_url | account_aliases(user)]
       |> Enum.reject(&is_nil/1)
       |> Enum.uniq()
 
@@ -250,6 +250,9 @@ defmodule ElektrineSocialWeb.WebFingerController do
       render_jrd(conn, canonical_subject, aliases, links)
     end
   end
+
+  defp account_aliases(%{also_known_as: aliases}) when is_list(aliases), do: aliases
+  defp account_aliases(_), do: []
 
   # Check if client prefers XML format
   defp wants_xml?(conn) do

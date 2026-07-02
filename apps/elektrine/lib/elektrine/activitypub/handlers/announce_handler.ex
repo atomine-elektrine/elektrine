@@ -235,7 +235,7 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandler do
 
     with :ok <- CreateHandler.validate_object_author(actual_object, original_actor_uri),
          false <-
-           ActivityPub.remote_delete_recorded?(original_actor_uri, [
+           ActivityPub.remote_tombstone_recorded?(original_actor_uri, [
              actual_object["id"],
              actual_object["url"]
            ]) do

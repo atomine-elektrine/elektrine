@@ -143,16 +143,33 @@ defmodule Elektrine.ActivityPub.Handler do
     not non_retryable_error?(reason)
   end
 
+  def retryable_error?({:validation_failed, _}), do: false
+  def retryable_error?({:rejected, _}), do: false
+  def retryable_error?({:key_fetch_failed, _}), do: true
+
   def retryable_error?(_reason), do: true
 
   def non_retryable_error?(reason)
       when reason in [
+             :actor_mismatch,
+             :blocked,
+             :blocked_instance,
+             :domain_unreachable,
              :handle_like_failed,
              :handle_dislike_failed,
+             :invalid,
+             :invalid_activity,
+             :invalid_signature,
+             :local_fetch_containment_failed,
+             :mrf_rejected,
+             :origin_containment_failed,
              :fetch_failed,
              :http_error,
              :not_found,
-             :unauthorized
+             :object_id_mismatch,
+             :unauthorized,
+             :unauthorized_fetch,
+             :unsafe_url
            ] do
     true
   end

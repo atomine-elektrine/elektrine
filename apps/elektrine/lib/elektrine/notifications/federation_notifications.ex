@@ -21,6 +21,7 @@ defmodule Elektrine.Notifications.FederationNotifications do
         url: remote_actor_profile_path(actor),
         source_type: "activitypub_actor",
         source_id: actor.id,
+        metadata: %{remote_actor_id: actor.id},
         priority: "normal"
       })
     end
@@ -43,6 +44,7 @@ defmodule Elektrine.Notifications.FederationNotifications do
           url: remote_actor_profile_path(actor),
           source_type: "activitypub_actor",
           source_id: actor.id,
+          metadata: %{remote_actor_id: actor.id},
           priority: "normal"
         })
     end
@@ -64,6 +66,7 @@ defmodule Elektrine.Notifications.FederationNotifications do
         url: Elektrine.Paths.post_path(message_id),
         source_type: "message",
         source_id: message_id,
+        metadata: %{remote_actor_id: actor.id},
         priority: "low"
       })
     end
@@ -85,6 +88,7 @@ defmodule Elektrine.Notifications.FederationNotifications do
         url: Elektrine.Paths.post_path(message_id),
         source_type: "message",
         source_id: message_id,
+        metadata: %{remote_actor_id: actor.id},
         priority: "low"
       })
     end
@@ -106,6 +110,7 @@ defmodule Elektrine.Notifications.FederationNotifications do
         url: Elektrine.Paths.post_path(message_id),
         source_type: "message",
         source_id: message_id,
+        metadata: %{remote_actor_id: actor.id},
         priority: "normal"
       })
     end
@@ -131,6 +136,7 @@ defmodule Elektrine.Notifications.FederationNotifications do
         url: Notifications.resolve_message_notification_url(message_id, "reply"),
         source_type: "message",
         source_id: message_id,
+        metadata: %{remote_actor_id: actor.id},
         priority: "normal"
       })
     end
@@ -151,6 +157,7 @@ defmodule Elektrine.Notifications.FederationNotifications do
         url: Notifications.resolve_message_notification_url(message_id, "mention"),
         source_type: "message",
         source_id: message_id,
+        metadata: %{remote_actor_id: actor.id},
         priority: "normal"
       })
     end

@@ -952,6 +952,7 @@ defmodule Elektrine.Profiles do
               # Create notification for the followed user
               follower = Elektrine.Accounts.get_user!(follower_id)
               Elektrine.Notifications.notify_follow(followed_id, follower)
+              notify_home_feed_policy_changed(follower_id, :followed)
 
               Elektrine.Async.run(fn ->
                 _ = Elektrine.Bluesky.OutboundWorker.enqueue_follow(follower_id, followed_id)
@@ -1008,6 +1009,7 @@ defmodule Elektrine.Profiles do
           _ = Elektrine.Bluesky.OutboundWorker.enqueue_unfollow(follower_id, followed_id)
         end)
 
+        notify_home_feed_policy_changed(follower_id, :unfollowed)
         {:ok, :unfollowed}
 
       {0, _} ->
@@ -1026,6 +1028,18 @@ defmodule Elektrine.Profiles do
       f.follower_id == ^follower_id and f.followed_id == ^followed_id and f.pending == false
     )
     |> Repo.exists?()
+  end
+
+  defp notify_home_feed_policy_changed(user_id, reason) when is_integer(user_id) do
+    module = Module.concat([Elektrine, Social, HomeFeedInvalidationWorker])
+
+    if Code.ensure_loaded?(module) do
+      _ = module.clear_user(user_id, reason)
+    end
+
+    :ok
+  rescue
+    _ -> :ok
   end
 
   @doc """
@@ -1057,12 +1071,70 @@ defmodule Elektrine.Profiles do
   end
 
   @doc """
+  Get local accounts the viewer follows that also follow the target user.
+  """
+  def get_familiar_followers(target_user_id, viewer_id, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 20)
+
+    Follow
+    |> where(
+      [target_follow],
+      target_follow.followed_id == ^target_user_id and target_follow.pending == false and
+        not is_nil(target_follow.follower_id)
+    )
+    |> join(:inner, [target_follow], viewer_follow in Follow,
+      on:
+        viewer_follow.follower_id == ^viewer_id and
+          viewer_follow.followed_id == target_follow.follower_id and
+          viewer_follow.pending == false
+    )
+    |> join(:inner, [target_follow, _viewer_follow], user in User,
+      on: user.id == target_follow.follower_id
+    )
+    |> where(
+      [target_follow, _viewer_follow, _user],
+      target_follow.follower_id != ^target_user_id and target_follow.follower_id != ^viewer_id
+    )
+    |> order_by([target_follow], desc: target_follow.inserted_at)
+    |> limit(^limit)
+    |> select([_target_follow, _viewer_follow, user], user)
+    |> Repo.all()
+  end
+
+  @doc """
+  Removes a follower from a local account.
+  """
+  def remove_follower(followed_id, follower_id)
+      when is_integer(followed_id) and is_integer(follower_id) and followed_id != follower_id do
+    {count, _} =
+      Follow
+      |> where(
+        [f],
+        f.followed_id == ^followed_id and f.follower_id == ^follower_id and
+          is_nil(f.remote_actor_id)
+      )
+      |> Repo.delete_all()
+
+    if count > 0 do
+      notify_home_feed_policy_changed(follower_id, :removed_follower)
+      {:ok, :removed}
+    else
+      {:ok, :not_following}
+    end
+  end
+
+  def remove_follower(_followed_id, _follower_id), do: {:error, :invalid_follower}
+
+  @doc """
   Get followers for a user (includes both local and remote followers).
   Only returns accepted follows (pending == false).
   """
   def get_followers(user_id, opts \\ []) do
     limit = Keyword.get(opts, :limit, 20)
     offset = Keyword.get(opts, :offset, 0)
+    before_id = Keyword.get(opts, :before_id)
+    since_id = Keyword.get(opts, :since_id)
+    min_id = Keyword.get(opts, :min_id)
 
     # Get local followers (only accepted)
     local_followers =
@@ -1099,6 +1171,7 @@ defmodule Elektrine.Profiles do
     # Combine and sort
     (local_followers ++ remote_followers)
     |> Enum.sort_by(& &1.followed_at, {:desc, NaiveDateTime})
+    |> filter_follow_account_ids(before_id, since_id || min_id)
     |> Enum.drop(offset)
     |> Enum.take(limit)
   end
@@ -1110,6 +1183,9 @@ defmodule Elektrine.Profiles do
   def get_following(user_id, opts \\ []) do
     limit = Keyword.get(opts, :limit, 20)
     offset = Keyword.get(opts, :offset, 0)
+    before_id = Keyword.get(opts, :before_id)
+    since_id = Keyword.get(opts, :since_id)
+    min_id = Keyword.get(opts, :min_id)
 
     # Get local users being followed (only accepted)
     local_following =
@@ -1147,9 +1223,32 @@ defmodule Elektrine.Profiles do
     # Combine and sort
     (local_following ++ remote_following)
     |> Enum.sort_by(& &1.followed_at, {:desc, NaiveDateTime})
+    |> filter_follow_account_ids(before_id, since_id || min_id)
     |> Enum.drop(offset)
     |> Enum.take(limit)
   end
+
+  defp filter_follow_account_ids(entries, before_id, since_id) do
+    entries
+    |> filter_before_account_id(before_id)
+    |> filter_since_account_id(since_id)
+  end
+
+  defp filter_before_account_id(entries, id) when is_integer(id) do
+    Enum.filter(entries, &(follow_account_id(&1) < id))
+  end
+
+  defp filter_before_account_id(entries, _id), do: entries
+
+  defp filter_since_account_id(entries, id) when is_integer(id) do
+    Enum.filter(entries, &(follow_account_id(&1) > id))
+  end
+
+  defp filter_since_account_id(entries, _id), do: entries
+
+  defp follow_account_id(%{user: %{id: id}}), do: id
+  defp follow_account_id(%{remote_actor: %{id: id}}), do: id
+  defp follow_account_id(_entry), do: 0
 
   @doc """
   Get follower count for a user (includes both local and remote).
@@ -1541,6 +1640,7 @@ defmodule Elektrine.Profiles do
 
           maybe_join_remote_group_mirror(follower_id, remote_actor)
           maybe_trigger_community_fetch(remote_actor)
+          notify_home_feed_policy_changed(follower_id, :followed_remote_actor)
 
           {:ok, follow}
 
@@ -1633,6 +1733,7 @@ defmodule Elektrine.Profiles do
 
       # Send Undo to remote inbox
       Elektrine.ActivityPub.Publisher.publish(undo_activity, follower, [remote_actor.inbox_url])
+      notify_home_feed_policy_changed(follower_id, :unfollowed_remote_actor)
 
       {:ok, :unfollowed}
     else
@@ -1660,6 +1761,39 @@ defmodule Elektrine.Profiles do
     |> where(
       [f],
       f.followed_id == ^user_id and f.pending == true and not is_nil(f.remote_actor_id)
+    )
+    |> join(:inner, [f], a in Elektrine.ActivityPub.Actor, on: f.remote_actor_id == a.id)
+    |> select([f, a], %{
+      id: f.id,
+      remote_actor: a,
+      activitypub_id: f.activitypub_id,
+      inserted_at: f.inserted_at
+    })
+    |> order_by([f], desc: f.inserted_at)
+    |> Repo.all()
+  end
+
+  @doc """
+  Counts pending follow requests for a user.
+  """
+  def count_pending_follow_requests(user_id) do
+    Follow
+    |> where(
+      [f],
+      f.followed_id == ^user_id and f.pending == true and not is_nil(f.remote_actor_id)
+    )
+    |> Repo.aggregate(:count, :id)
+  end
+
+  @doc """
+  Gets pending outgoing follow requests from a local user to remote actors.
+  """
+  def get_pending_outgoing_follow_requests(user_id) do
+    Follow
+    |> where(
+      [f],
+      f.follower_id == ^user_id and f.pending == true and not is_nil(f.remote_actor_id) and
+        is_nil(f.followed_id)
     )
     |> join(:inner, [f], a in Elektrine.ActivityPub.Actor, on: f.remote_actor_id == a.id)
     |> select([f, a], %{
@@ -1713,7 +1847,7 @@ defmodule Elektrine.Profiles do
     Phoenix.PubSub.broadcast(
       Elektrine.PubSub,
       "user:#{user_id}",
-      {:friend_requests_updated, length(get_pending_follow_requests(user_id))}
+      {:friend_requests_updated, count_pending_follow_requests(user_id)}
     )
   end
 

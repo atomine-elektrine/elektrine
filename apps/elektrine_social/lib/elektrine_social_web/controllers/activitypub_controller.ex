@@ -9,6 +9,7 @@ defmodule ElektrineSocialWeb.ActivityPubController do
   alias Elektrine.ActivityPub.Builder
   alias Elektrine.ActivityPub.InboxQueue
   alias Elektrine.ActivityPub.ObjectValidator
+  alias Elektrine.ActivityPub.SignatureRetryWorker
   alias Elektrine.Domains
   alias Elektrine.Messaging
   alias Elektrine.Profiles
@@ -253,6 +254,8 @@ defmodule ElektrineSocialWeb.ActivityPubController do
               "Inbox rejected: #{format_error(reason)} from #{format_actor_ref(actor_uri)}"
             )
 
+            SignatureRetryWorker.enqueue_if_retryable(activity, actor_uri, conn, user, reason)
+
             total_time = System.monotonic_time(:millisecond) - start_time
             Events.federation(:inbox, :signature, :failure, total_time, %{reason: reason})
 
@@ -298,13 +301,10 @@ defmodule ElektrineSocialWeb.ActivityPubController do
 
   defp actor_domain(_), do: "unknown"
 
-  defp verified_signature_actor_domain(conn) do
-    SignatureActorVerifier.verified_actor_domain(conn)
-  end
+  defp verified_signature_actor_domain(conn),
+    do: SignatureActorVerifier.verified_actor_domain(conn)
 
-  defp get_client_ip(conn) do
-    ElektrineWeb.ClientIP.client_ip(conn)
-  end
+  defp get_client_ip(conn), do: ElektrineWeb.ClientIP.client_ip(conn)
 
   @doc """
   Returns the outbox collection for a user.
@@ -500,7 +500,7 @@ defmodule ElektrineSocialWeb.ActivityPubController do
 
       user ->
         # Get the message
-        case Elektrine.Messaging.get_message(id) do
+        case get_activitypub_status_message(id) do
           nil ->
             conn
             |> put_status(:not_found)
@@ -525,6 +525,15 @@ defmodule ElektrineSocialWeb.ActivityPubController do
         end
     end
   end
+
+  defp get_activitypub_status_message(id) when is_binary(id) do
+    case Integer.parse(id) do
+      {parsed_id, ""} -> Messaging.get_message(parsed_id)
+      _ -> nil
+    end
+  end
+
+  defp get_activitypub_status_message(_id), do: nil
 
   @doc """
   Returns an OrderedCollection of posts with a specific hashtag.

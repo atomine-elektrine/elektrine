@@ -17,7 +17,7 @@ defmodule Elektrine.ActivityPub.UserBlock do
     user_block
     |> cast(attrs, [:user_id, :blocked_uri, :block_type])
     |> validate_required([:user_id, :blocked_uri])
-    |> validate_inclusion(:block_type, ["user", "domain"])
+    |> validate_inclusion(:block_type, ["user", "domain", "mute"])
     |> unique_constraint([:user_id, :blocked_uri])
   end
 end

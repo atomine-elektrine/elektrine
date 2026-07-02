@@ -153,6 +153,56 @@ defmodule ElektrineSocialWeb.RemoteUserLive.ShowTest do
     assert updated_socket.assigns.modal_image_index == 0
   end
 
+  test "navigates between remote profile media posts" do
+    actor = %{id: 123, username: "remote-user"}
+
+    first_post = %{
+      id: 1,
+      activitypub_id: "https://remote.example/posts/1",
+      media_urls: ["https://remote.example/media/one.jpg"]
+    }
+
+    text_post = %{
+      id: 2,
+      activitypub_id: "https://remote.example/posts/2",
+      media_urls: []
+    }
+
+    second_post = %{
+      id: 3,
+      activitypub_id: "https://remote.example/posts/3",
+      media_urls: [
+        "https://remote.example/media/two-a.jpg",
+        "https://remote.example/media/two-b.jpg"
+      ]
+    }
+
+    socket =
+      %Phoenix.LiveView.Socket{
+        assigns: %{
+          __changed__: %{},
+          local_posts: [first_post, text_post, second_post],
+          remote_actor: actor,
+          modal_post: Map.put(first_post, :remote_actor, actor),
+          modal_images: first_post.media_urls,
+          modal_image_url: hd(first_post.media_urls),
+          modal_image_index: 0
+        }
+      }
+
+    assert {:noreply, next_socket} = Show.handle_event("next_media_post", %{}, socket)
+    assert next_socket.assigns.modal_post.id == second_post.id
+    assert next_socket.assigns.modal_post.remote_actor == actor
+    assert next_socket.assigns.modal_images == second_post.media_urls
+    assert next_socket.assigns.modal_image_url == hd(second_post.media_urls)
+    assert next_socket.assigns.modal_image_index == 0
+
+    assert {:noreply, prev_socket} = Show.handle_event("prev_media_post", %{}, next_socket)
+    assert prev_socket.assigns.modal_post.id == first_post.id
+    assert prev_socket.assigns.modal_images == first_post.media_urls
+    assert prev_socket.assigns.modal_image_url == hd(first_post.media_urls)
+  end
+
   test "sort_posts normalizes remote collection totals for top and hot sorts" do
     low_score_post = %{
       "id" => "https://remote.example/posts/low",

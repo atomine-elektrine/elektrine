@@ -1,5 +1,5 @@
 defmodule ElektrineSocialWeb.MediaProxyControllerTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   alias Elektrine.MediaProxy
   alias ElektrineSocialWeb.MediaProxyController
@@ -21,5 +21,39 @@ defmodule ElektrineSocialWeb.MediaProxyControllerTest do
     refute MediaProxyController.inline_safe_content_type?("image/png\r\nx-evil: yes")
     refute MediaProxyController.inline_safe_content_type?("video/")
     refute MediaProxyController.inline_safe_content_type?("")
+  end
+
+  test "purges failed media proxy URLs and can add a runtime ban" do
+    url = "https://remote.example/media/#{System.unique_integer([:positive])}.png"
+
+    refute MediaProxy.failed?(url)
+    refute MediaProxy.runtime_banned?(url)
+
+    assert {:ok, true} = MediaProxy.mark_failed(url, :not_found)
+    assert MediaProxy.failed?(url)
+
+    assert %{invalidated: [^url], banned: [], rejected: []} = MediaProxy.purge([url])
+    refute MediaProxy.failed?(url)
+    refute MediaProxy.runtime_banned?(url)
+
+    assert %{invalidated: [^url], banned: [^url], rejected: []} =
+             MediaProxy.purge([url], ban: true)
+
+    assert MediaProxy.runtime_banned?(url)
+    assert MediaProxy.blocklisted?(url)
+
+    state = MediaProxy.cache_state()
+    assert Enum.any?(state.bans, &(&1.url == url))
+
+    assert {:ok, true} = MediaProxy.unban(url)
+    refute MediaProxy.runtime_banned?(url)
+  end
+
+  test "purge rejects malformed or private media proxy URLs" do
+    assert %{invalidated: [], banned: [], rejected: rejected} =
+             MediaProxy.purge(["notaurl", "http://127.0.0.1/private.png"], ban: true)
+
+    assert "notaurl" in rejected
+    assert "http://127.0.0.1/private.png" in rejected
   end
 end

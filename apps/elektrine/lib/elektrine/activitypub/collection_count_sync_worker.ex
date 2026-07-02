@@ -6,13 +6,17 @@ defmodule Elektrine.ActivityPub.CollectionCountSyncWorker do
   use Oban.Worker,
     queue: :federation,
     max_attempts: 2,
-    unique: [period: 300, keys: [:message_id], states: [:available, :scheduled, :executing]]
+    unique: [
+      period: 300,
+      keys: [:message_id],
+      states: [:available, :scheduled, :executing, :retryable]
+    ]
 
   import Ecto.Query
 
   alias Elektrine.ActivityPub.CollectionFetcher
   alias Elektrine.Repo
-  alias Elektrine.Social.Message
+  alias Elektrine.Social.{EngagementCounts, Message, MessageStats}
 
   def enqueue(message_id, post) when is_integer(message_id) and is_map(post) do
     %{
@@ -41,18 +45,33 @@ defmodule Elektrine.ActivityPub.CollectionCountSyncWorker do
       |> Enum.max(fn -> 0 end)
 
     if like_count > 0 || reply_count > 0 do
+      fetched_at = DateTime.utc_now() |> DateTime.truncate(:second)
+      remote_like_count = EngagementCounts.nullable_remote_count(like_count)
+      remote_reply_count = EngagementCounts.nullable_remote_count(reply_count)
+
       Repo.update_all(
         from(m in Message,
           where: m.id == ^message_id,
           update: [
             set: [
               like_count: fragment("GREATEST(like_count, ?)", ^like_count),
-              reply_count: fragment("GREATEST(reply_count, ?)", ^reply_count)
+              reply_count: fragment("GREATEST(reply_count, ?)", ^reply_count),
+              remote_like_count: ^remote_like_count,
+              remote_reply_count: ^remote_reply_count,
+              remote_counts_fetched_at: ^fetched_at
             ]
           ]
         ),
         []
       )
+
+      MessageStats.upsert_counts(message_id, %{
+        like_count: like_count,
+        reply_count: reply_count,
+        remote_like_count: remote_like_count,
+        remote_reply_count: remote_reply_count,
+        remote_counts_fetched_at: fetched_at
+      })
     end
 
     :ok

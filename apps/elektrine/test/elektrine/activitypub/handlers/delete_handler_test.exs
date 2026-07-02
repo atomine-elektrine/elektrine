@@ -6,7 +6,7 @@ defmodule Elektrine.ActivityPub.Handlers.DeleteHandlerTest do
   end
 
   alias Elektrine.ActivityPub
-  alias Elektrine.ActivityPub.Actor
+  alias Elektrine.ActivityPub.{Actor, Tombstone}
   alias Elektrine.ActivityPub.Handlers.{CreateHandler, DeleteHandler}
   alias Elektrine.Messaging
   alias Elektrine.Repo
@@ -34,8 +34,12 @@ defmodule Elektrine.ActivityPub.Handlers.DeleteHandlerTest do
       "object" => object_url
     }
 
+    Phoenix.PubSub.subscribe(Elektrine.PubSub, "timeline:public")
+
     assert {:ok, :deleted} = DeleteHandler.handle(activity, author.uri, nil)
     assert Repo.get!(Message, message.id).deleted_at
+    assert_receive {:post_deleted, deleted_message_id}
+    assert deleted_message_id == message.id
   end
 
   test "records delete receipts for unknown objects so later Create imports are ignored" do
@@ -53,6 +57,7 @@ defmodule Elektrine.ActivityPub.Handlers.DeleteHandlerTest do
              DeleteHandler.handle(delete_activity, author.uri, nil)
 
     assert ActivityPub.remote_delete_recorded?(author.uri, object_id)
+    assert Repo.get_by(Tombstone, actor_uri: author.uri, object_id: object_id)
 
     create_activity = %{
       "id" => "https://remote.server/creates/#{System.unique_integer([:positive])}",

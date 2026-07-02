@@ -46,7 +46,7 @@ defmodule Elektrine.ActivityPub.Publisher do
       end
 
     # Create delivery records and enqueue delivery jobs.
-    unique_inboxes = Enum.uniq(inbox_urls)
+    unique_inboxes = delivery_inboxes_for_activity(activity, inbox_urls)
     ActivityPub.create_deliveries(activity_record.id, unique_inboxes)
 
     {:ok, activity_record}
@@ -76,7 +76,7 @@ defmodule Elektrine.ActivityPub.Publisher do
       end
 
     # Create delivery records and enqueue delivery jobs.
-    unique_inboxes = Enum.uniq(inbox_urls)
+    unique_inboxes = delivery_inboxes_for_activity(activity, inbox_urls)
     ActivityPub.create_deliveries(activity_record.id, unique_inboxes)
 
     {:ok, activity_record}
@@ -85,6 +85,17 @@ defmodule Elektrine.ActivityPub.Publisher do
   defp get_object_id(%{"object" => object}) when is_binary(object), do: object
   defp get_object_id(%{"object" => %{"id" => id}}), do: id
   defp get_object_id(_), do: nil
+
+  defp delivery_inboxes_for_activity(%{"type" => type} = activity, inbox_urls)
+       when type in ["Delete", "Update"] do
+    activity
+    |> get_object_id()
+    |> ActivityPub.get_object_delivery_inboxes()
+    |> Kernel.++(inbox_urls)
+    |> Enum.uniq()
+  end
+
+  defp delivery_inboxes_for_activity(_activity, inbox_urls), do: Enum.uniq(inbox_urls)
 
   @doc """
   Delivers an activity to a specific inbox.

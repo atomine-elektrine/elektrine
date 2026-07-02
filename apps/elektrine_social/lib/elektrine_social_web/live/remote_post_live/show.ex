@@ -21,6 +21,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     CachedPostFields,
     Counts,
     DiscussionSource,
+    DisplayCounts,
     Interactions,
     Navigation,
     Polls,
@@ -1805,7 +1806,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
   defp sync_local_message_platform_counts(%{id: message_id} = local_message, counts, metadata)
        when is_integer(message_id) do
-    {count_updates, updated_message} = merge_platform_count_updates(local_message, counts)
+    {count_updates, updated_message} =
+      DisplayCounts.merge_platform_count_updates(local_message, counts)
 
     merged_metadata =
       local_message.media_metadata
@@ -1850,20 +1852,6 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   defp sync_local_message_platform_counts(local_message, _counts, _metadata), do: local_message
-
-  defp merge_platform_count_updates(local_message, counts) do
-    [:like_count, :reply_count, :share_count, :quote_count, :upvotes, :downvotes, :score]
-    |> Enum.reduce({[], local_message}, fn field, {updates, message} ->
-      platform_count = Map.get(counts, field)
-      current_count = Map.get(message, field, 0) || 0
-
-      if is_integer(platform_count) and platform_count > current_count do
-        {[{field, platform_count} | updates], Map.put(message, field, platform_count)}
-      else
-        {updates, message}
-      end
-    end)
-  end
 
   defp maybe_put_metadata_update(updates, true, metadata),
     do: [{:media_metadata, metadata} | updates]

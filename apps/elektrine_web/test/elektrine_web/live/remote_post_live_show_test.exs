@@ -52,6 +52,17 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
     refute fallback.avatar_url
   end
 
+  test "remote detail helper prefers cached remote likes over stale local likes" do
+    message = %Message{
+      like_count: 1,
+      upvotes: 0,
+      score: 0,
+      media_metadata: %{"original_like_count" => 20}
+    }
+
+    assert SurfaceHelpers.local_vote_display_count(message) == 20
+  end
+
   test "renders custom emoji in remote comment author display name" do
     actor =
       %Actor{}

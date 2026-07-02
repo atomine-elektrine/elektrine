@@ -4,28 +4,45 @@ defmodule Elektrine.Reports do
   """
 
   import Ecto.Query, warn: false
+  alias Elektrine.Accounts
   alias Elektrine.Accounts.TrustLevel
+  alias Elektrine.Accounts.User
+  alias Elektrine.Messaging
+  alias Elektrine.Messaging.ChatMessage
+  alias Elektrine.Notifications
   alias Elektrine.Repo
   alias Elektrine.Reports.Report
   alias Elektrine.Social.{Conversation, Message}
+  alias Elektrine.Telemetry.Events
 
   @doc """
   Creates a report for any reportable entity with spam prevention.
   """
   def create_report(attrs \\ %{}) do
-    with :ok <- validate_report_rate_limit(attrs[:reporter_id]),
-         :ok <- validate_not_spam_reporting(attrs[:reporter_id]),
+    reporter_id = report_attr(attrs, :reporter_id)
+
+    with :ok <- validate_report_rate_limit(reporter_id),
+         :ok <- validate_not_spam_reporting(reporter_id),
          {:ok, report} <- do_create_report(attrs) do
       maybe_record_report_creation(report)
+      notify_admins_of_report(report)
+      emit_report_event(:create, :success, report_metadata(report))
       {:ok, report}
     else
       {:error, :rate_limited} ->
+        emit_report_event(:create, :failure, report_failure_metadata(attrs, :rate_limited))
         {:error, :rate_limited}
 
       {:error, :spam_detected} ->
+        emit_report_event(:create, :failure, report_failure_metadata(attrs, :spam_detected))
         {:error, :spam_detected}
 
+      {:error, %Ecto.Changeset{}} = error ->
+        emit_report_event(:create, :failure, report_failure_metadata(attrs, :invalid))
+        error
+
       error ->
+        emit_report_event(:create, :failure, report_failure_metadata(attrs, :unknown))
         error
     end
   end
@@ -151,9 +168,26 @@ defmodule Elektrine.Reports do
     |> case do
       {:ok, updated_report} = result ->
         maybe_record_report_resolution(report, updated_report)
+        emit_report_event(:review, :success, report_review_metadata(report, updated_report))
         result
 
+      {:error, %Ecto.Changeset{} = changeset} = error ->
+        emit_report_event(
+          :review,
+          :failure,
+          report_metadata(report)
+          |> Map.merge(%{reason: :invalid, errors: length(changeset.errors)})
+        )
+
+        error
+
       error ->
+        emit_report_event(
+          :review,
+          :failure,
+          Map.merge(report_metadata(report), %{reason: :unknown})
+        )
+
         error
     end
   end
@@ -170,6 +204,75 @@ defmodule Elektrine.Reports do
     }
 
     review_report(report, attrs)
+  end
+
+  @doc """
+  Resolves a report and applies the selected moderation action when it has a
+  concrete side effect.
+  """
+  def resolve_report(%Report{} = report, %User{} = reviewer, attrs \\ %{}) do
+    attrs =
+      attrs
+      |> atomize_review_attrs()
+      |> Map.merge(%{status: "resolved", reviewed_by_id: reviewer.id})
+
+    action = Map.get(attrs, :action_taken)
+
+    case apply_resolution_action(report, reviewer, action) do
+      :ok ->
+        emit_report_event(
+          :action,
+          :success,
+          report_metadata(report)
+          |> Map.merge(%{action: normalize_report_action(action), reviewer_id: reviewer.id})
+        )
+
+        review_report(report, attrs)
+
+      {:error, reason} = error ->
+        emit_report_event(
+          :action,
+          :failure,
+          report_metadata(report)
+          |> Map.merge(%{
+            action: normalize_report_action(action),
+            reviewer_id: reviewer.id,
+            reason: reason
+          })
+        )
+
+        error
+    end
+  end
+
+  @doc """
+  Reopens a reviewed report and clears review metadata.
+  """
+  def reopen_report(%Report{} = report) do
+    report
+    |> Report.review_changeset(%{
+      status: "pending",
+      reviewed_by_id: nil,
+      reviewed_at: nil,
+      resolution_notes: nil,
+      action_taken: nil
+    })
+    |> Repo.update()
+    |> case do
+      {:ok, updated_report} = result ->
+        emit_report_event(:reopen, :success, report_review_metadata(report, updated_report))
+        result
+
+      {:error, %Ecto.Changeset{} = changeset} = error ->
+        emit_report_event(
+          :reopen,
+          :failure,
+          report_metadata(report)
+          |> Map.merge(%{reason: :invalid, errors: length(changeset.errors)})
+        )
+
+        error
+    end
   end
 
   @doc """
@@ -254,6 +357,199 @@ defmodule Elektrine.Reports do
 
   defp filter_by_reporter(query, reporter_id) do
     where(query, [r], r.reporter_id == ^reporter_id)
+  end
+
+  defp notify_admins_of_report(%Report{} = report) do
+    admin_ids =
+      User
+      |> where([u], u.is_admin == true and u.banned == false and u.suspended == false)
+      |> select([u], u.id)
+      |> Repo.all()
+
+    case admin_ids do
+      [] ->
+        :ok
+
+      ids ->
+        {:ok, _count} =
+          Notifications.create_bulk_notifications(ids, %{
+            type: "system",
+            title: "New report",
+            body: report_notification_body(report),
+            url: "/pripyat/reports",
+            icon: "hero-flag",
+            priority: report_notification_priority(report.priority),
+            actor_id: report.reporter_id,
+            source_type: "report",
+            source_id: report.id,
+            metadata: %{
+              "report_id" => report.id,
+              "reportable_type" => report.reportable_type,
+              "reportable_id" => report.reportable_id,
+              "reason" => report.reason,
+              "priority" => report.priority
+            }
+          })
+
+        :ok
+    end
+  end
+
+  defp report_notification_body(%Report{} = report) do
+    "A #{report.reason || "policy"} report was filed for #{report.reportable_type || "content"} ##{report.reportable_id}."
+  end
+
+  defp report_notification_priority("critical"), do: "urgent"
+  defp report_notification_priority("high"), do: "high"
+  defp report_notification_priority(_), do: "normal"
+
+  defp atomize_review_attrs(attrs) when is_map(attrs) do
+    Enum.reduce(attrs, %{}, fn
+      {"status", value}, acc -> Map.put(acc, :status, value)
+      {"priority", value}, acc -> Map.put(acc, :priority, value)
+      {"reviewed_by_id", value}, acc -> Map.put(acc, :reviewed_by_id, value)
+      {"reviewed_at", value}, acc -> Map.put(acc, :reviewed_at, value)
+      {"resolution_notes", value}, acc -> Map.put(acc, :resolution_notes, value)
+      {"action_taken", value}, acc -> Map.put(acc, :action_taken, value)
+      {key, value}, acc when is_atom(key) -> Map.put(acc, key, value)
+      {_key, _value}, acc -> acc
+    end)
+  end
+
+  defp apply_resolution_action(_report, _reviewer, action)
+       when action in [nil, "", "warned", "no_action"],
+       do: :ok
+
+  defp apply_resolution_action(%Report{} = report, %User{} = reviewer, "content_removed") do
+    if report.reportable_type == "message" and is_integer(report.reportable_id) do
+      case Messaging.admin_delete_message(report.reportable_id, reviewer) do
+        {:ok, _message} -> :ok
+        {:error, :already_deleted} -> :ok
+        {:error, reason} -> {:error, reason}
+      end
+    else
+      {:error, :unsupported_report_target}
+    end
+  end
+
+  defp apply_resolution_action(%Report{} = report, _reviewer, "suspended") do
+    with {:ok, user} <- report_target_user(report) do
+      suspended_until = DateTime.utc_now() |> DateTime.add(7, :day) |> DateTime.truncate(:second)
+
+      case Accounts.suspend_user(user, %{
+             suspended_until: suspended_until,
+             suspension_reason: "Suspended via report ##{report.id}"
+           }) do
+        {:ok, _user} -> :ok
+        {:error, reason} -> {:error, reason}
+      end
+    end
+  end
+
+  defp apply_resolution_action(%Report{} = report, _reviewer, "banned") do
+    with {:ok, user} <- report_target_user(report) do
+      case Accounts.ban_user(user, %{banned_reason: "Banned via report ##{report.id}"}) do
+        {:ok, _user} -> :ok
+        {:error, reason} -> {:error, reason}
+      end
+    end
+  end
+
+  defp apply_resolution_action(_report, _reviewer, _action), do: {:error, :invalid_action}
+
+  defp report_target_user(%Report{reportable_type: "user", reportable_id: user_id})
+       when is_integer(user_id) and user_id > 0 do
+    fetch_report_target_user(user_id)
+  end
+
+  defp report_target_user(%Report{reportable_type: "message", reportable_id: message_id})
+       when is_integer(message_id) and message_id > 0 do
+    case Repo.get(Message, message_id) || Repo.get(ChatMessage, message_id) do
+      %{sender_id: sender_id} when is_integer(sender_id) -> fetch_report_target_user(sender_id)
+      _message -> {:error, :target_user_not_found}
+    end
+  end
+
+  defp report_target_user(%Report{} = report) do
+    report.metadata
+    |> metadata_value("account_id")
+    |> parse_report_int()
+    |> case do
+      user_id when is_integer(user_id) and user_id > 0 -> fetch_report_target_user(user_id)
+      _ -> {:error, :target_user_not_found}
+    end
+  end
+
+  defp fetch_report_target_user(user_id) do
+    case Repo.get(User, user_id) do
+      %User{} = user -> {:ok, user}
+      nil -> {:error, :target_user_not_found}
+    end
+  end
+
+  defp metadata_value(metadata, key) when is_map(metadata) do
+    Map.get(metadata, key) || Map.get(metadata, metadata_atom_key(key))
+  end
+
+  defp metadata_value(_metadata, _key), do: nil
+
+  defp metadata_atom_key("account_id"), do: :account_id
+  defp metadata_atom_key("status_ids"), do: :status_ids
+  defp metadata_atom_key("forward"), do: :forward
+  defp metadata_atom_key("rule_ids"), do: :rule_ids
+  defp metadata_atom_key(_key), do: nil
+
+  defp parse_report_int(value) when is_integer(value), do: value
+
+  defp parse_report_int(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {int, ""} -> int
+      _ -> nil
+    end
+  end
+
+  defp parse_report_int(_value), do: nil
+
+  defp report_attr(attrs, key) when is_map(attrs) do
+    Map.get(attrs, key) || Map.get(attrs, Atom.to_string(key))
+  end
+
+  defp report_metadata(%Report{} = report) do
+    %{
+      report_id: report.id,
+      reporter_id: report.reporter_id,
+      reportable_type: report.reportable_type,
+      reportable_id: report.reportable_id,
+      reason: report.reason,
+      priority: report.priority,
+      status: report.status,
+      action: normalize_report_action(report.action_taken)
+    }
+  end
+
+  defp report_review_metadata(%Report{} = report, %Report{} = updated_report) do
+    report_metadata(updated_report)
+    |> Map.merge(%{
+      previous_status: report.status,
+      previous_action: normalize_report_action(report.action_taken),
+      reviewer_id: updated_report.reviewed_by_id
+    })
+  end
+
+  defp report_failure_metadata(attrs, reason) when is_map(attrs) do
+    %{
+      reporter_id: report_attr(attrs, :reporter_id),
+      reportable_type: report_attr(attrs, :reportable_type),
+      reportable_id: report_attr(attrs, :reportable_id),
+      reason: reason
+    }
+  end
+
+  defp normalize_report_action(action) when action in [nil, ""], do: :none
+  defp normalize_report_action(action), do: action
+
+  defp emit_report_event(operation, outcome, metadata) do
+    Events.report(operation, outcome, metadata)
   end
 
   defp normalize_page(page) when is_integer(page) and page > 0, do: page

@@ -12,6 +12,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
   alias Elektrine.Social
   alias Elektrine.Social.Messages, as: MessagingMessages
   alias Elektrine.Utils.SafeConvert
+  alias ElektrineSocialWeb.Components.Social.PostUtilities
 
   # Recursive component to render nested replies
   attr :reply, :map, required: true
@@ -622,14 +623,9 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
         true ->
           case Social.unlike_post(user_id, message_id) do
             {:ok, _} ->
-              updated_post = %{
-                socket.assigns.post
-                | like_count: max(0, socket.assigns.post.like_count - 1)
-              }
-
               {:noreply,
                socket
-               |> assign(:post, updated_post)
+               |> assign(:post, reload_interaction_post(socket.assigns.post))
                |> assign(:liked_by_user, false)}
 
             {:error, _} ->
@@ -639,14 +635,9 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
         false ->
           case Social.like_post(user_id, message_id) do
             {:ok, _} ->
-              updated_post = %{
-                socket.assigns.post
-                | like_count: socket.assigns.post.like_count + 1
-              }
-
               {:noreply,
                socket
-               |> assign(:post, updated_post)
+               |> assign(:post, reload_interaction_post(socket.assigns.post))
                |> assign(:liked_by_user, true)}
 
             {:error, _} ->
@@ -1077,6 +1068,17 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
         {:ok, post, replies, total_count}
     end
   end
+
+  defp reload_interaction_post(%{id: post_id} = fallback) when is_integer(post_id) do
+    post_preloads = MessagingMessages.timeline_post_preloads()
+
+    case Elektrine.Repo.get(Elektrine.Social.Message, post_id) do
+      nil -> fallback
+      post -> Elektrine.Repo.preload(post, post_preloads)
+    end
+  end
+
+  defp reload_interaction_post(fallback), do: fallback
 
   # Get all nested replies recursively
   defp get_all_nested_replies(post_id, visited \\ MapSet.new()) do

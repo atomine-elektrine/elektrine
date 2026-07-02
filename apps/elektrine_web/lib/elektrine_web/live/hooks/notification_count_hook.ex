@@ -23,7 +23,7 @@ defmodule ElektrineWeb.Live.Hooks.NotificationCountHook do
             Phoenix.PubSub.subscribe(Elektrine.PubSub, "user:#{user.id}:notification_count")
           end
 
-          count = Elektrine.Notifications.get_unread_count(user.id)
+          count = Elektrine.Notifications.get_visible_unread_count(user.id)
 
           socket =
             socket
@@ -84,7 +84,7 @@ defmodule ElektrineWeb.Live.Hooks.NotificationCountHook do
   end
 
   defp handle_notification_info(:notification_updated, socket) do
-    count = Elektrine.Notifications.get_unread_count(socket.assigns.current_user.id)
+    count = Elektrine.Notifications.get_visible_unread_count(socket.assigns.current_user.id)
 
     {:cont,
      socket

@@ -1210,7 +1210,7 @@ defmodule Elektrine.Drive do
 
   defp generate_storage_key(user_id, filename) do
     random = :crypto.strong_rand_bytes(16) |> Base.url_encode64(padding: false)
-    sanitized = sanitize_storage_filename(filename)
+    sanitized = anonymized_storage_filename(filename)
     "cloud-files/#{user_id}/#{random}/#{sanitized}"
   end
 
@@ -1227,6 +1227,21 @@ defmodule Elektrine.Drive do
   end
 
   defp sanitize_storage_filename(_), do: "file"
+
+  defp anonymized_storage_filename(filename) do
+    extension =
+      filename
+      |> sanitize_storage_filename()
+      |> Path.extname()
+      |> String.downcase()
+      |> case do
+        "" -> ".bin"
+        ext -> ext
+      end
+
+    random = :crypto.strong_rand_bytes(16) |> Base.url_encode64(padding: false)
+    random <> extension
+  end
 
   defp local_storage_path(storage_key) when is_binary(storage_key) do
     uploads_dir =

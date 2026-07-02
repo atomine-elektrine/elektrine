@@ -9,9 +9,13 @@ defmodule Elektrine.ActivityPub.RepliesIngestWorker do
   use Oban.Worker,
     queue: :federation,
     max_attempts: 2,
-    unique: [period: 300, keys: [:message_id], states: [:available, :scheduled, :executing]]
+    unique: [
+      period: 300,
+      keys: [:message_id],
+      states: [:available, :scheduled, :executing, :retryable]
+    ]
 
-  alias Elektrine.ActivityPub.RepliesFetcher
+  alias Elektrine.ActivityPub.{FederationLoadGuard, RepliesFetcher}
 
   @doc """
   Enqueue a reply ingestion job for a local message id.
@@ -26,11 +30,15 @@ defmodule Elektrine.ActivityPub.RepliesIngestWorker do
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"message_id" => message_id}}) do
-    case RepliesFetcher.fetch_replies_for_message(message_id) do
-      {:ok, _count} -> :ok
-      {:error, :message_not_found} -> {:discard, :message_not_found}
-      {:error, :no_activitypub_id} -> {:discard, :no_activitypub_id}
-      {:error, reason} -> {:error, reason}
+    if FederationLoadGuard.skip_nonessential?(__MODULE__) do
+      {:discard, :federation_overloaded}
+    else
+      case RepliesFetcher.fetch_replies_for_message(message_id) do
+        {:ok, _count} -> :ok
+        {:error, :message_not_found} -> {:discard, :message_not_found}
+        {:error, :no_activitypub_id} -> {:discard, :no_activitypub_id}
+        {:error, reason} -> {:error, reason}
+      end
     end
   end
 end

@@ -27,6 +27,7 @@ defmodule ElektrineWeb.Platform.Integrations do
   @social_saved_item_module :"Elixir.Elektrine.Social.SavedItem"
   @social_link_preview_fetcher_module :"Elixir.Elektrine.Social.LinkPreviewFetcher"
   @social_recommendations_module :"Elixir.Elektrine.Social.Recommendations"
+  @social_hashtag_follows_module :"Elixir.Elektrine.Social.HashtagFollows"
   @vpn_module :"Elixir.Elektrine.VPN"
   @nerve_module :"Elixir.Elektrine.Nerve"
   @nerve_entry_module :"Elixir.Elektrine.Nerve.NerveEntry"
@@ -459,8 +460,76 @@ defmodule ElektrineWeb.Platform.Integrations do
     call_optional(:social, @social_module, :get_user_poll_votes, [poll_id, user_id], [])
   end
 
+  def social_list_followed_hashtags(user_id) do
+    call_optional(:social, @social_hashtag_follows_module, :list_followed_hashtags, [user_id], [])
+  end
+
+  def social_get_hashtag_by_normalized_name(name) do
+    call_optional(:social, @social_module, :get_hashtag_by_normalized_name, [name], nil)
+  end
+
+  def social_search_hashtags(query, limit \\ 10) do
+    call_optional(:social, @social_module, :search_hashtags, [query, limit], [])
+  end
+
+  def social_trending_hashtags(opts \\ []) do
+    call_optional(:social, @social_module, :get_trending_hashtags, [opts], [])
+  end
+
+  def social_follow_hashtag(user_id, name) do
+    call_optional(
+      :social,
+      @social_hashtag_follows_module,
+      :follow_hashtag,
+      [user_id, name],
+      {:error, :unavailable}
+    )
+  end
+
+  def social_unfollow_hashtag(user_id, name) do
+    call_optional(
+      :social,
+      @social_hashtag_follows_module,
+      :unfollow_hashtag,
+      [user_id, name],
+      :ok
+    )
+  end
+
+  def social_following_hashtag?(user_id, name) do
+    call_optional(:social, @social_hashtag_follows_module, :following?, [user_id, name], false)
+  end
+
+  def social_count_hashtag_followers(name) do
+    call_optional(:social, @social_hashtag_follows_module, :count_followers, [name], 0)
+  end
+
+  def social_get_posts_for_hashtag(name, opts \\ []) do
+    call_optional(:social, @social_module, :get_posts_for_hashtag, [name, opts], [])
+  end
+
+  def social_combined_feed(user_id, opts \\ []) do
+    call_optional(:social, @social_module, :get_combined_feed, [user_id, opts], [])
+  end
+
+  def social_direct_timeline(user_id, opts \\ []) do
+    call_optional(:social, @social_module, :get_direct_timeline, [user_id, opts], [])
+  end
+
+  def social_public_timeline(opts \\ []) do
+    call_optional(:social, @social_module, :get_public_timeline, [opts], [])
+  end
+
+  def social_local_timeline(opts \\ []) do
+    call_optional(:social, @social_module, :get_local_timeline, [opts], [])
+  end
+
   def social_user_liked_ids(user_id, message_ids) do
     social_message_ids(@social_post_like_module, user_id, message_ids)
+  end
+
+  def social_liked_posts(user_id, opts \\ []) do
+    call_optional(:social, @social_module, :get_liked_posts, [user_id, opts], [])
   end
 
   def social_user_boosted_ids(user_id, message_ids) do
@@ -469,6 +538,10 @@ defmodule ElektrineWeb.Platform.Integrations do
 
   def social_user_saved_ids(user_id, message_ids) do
     social_message_ids(@social_saved_item_module, user_id, message_ids)
+  end
+
+  def social_saved_posts(user_id, opts \\ []) do
+    call_optional(:social, @social_module, :get_saved_posts, [user_id, opts], [])
   end
 
   def profile_timeline_posts(user_id, opts \\ []) do

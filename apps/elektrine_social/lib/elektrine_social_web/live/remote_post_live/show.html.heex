@@ -406,13 +406,18 @@
                   detail_message_interaction(@post_interactions, @local_message)
 
                 stats_like_count =
-                  max(
-                    (@local_message.like_count || 0) +
-                      Map.get(stats_interaction_state, :like_delta, 0),
-                    0
+                  DisplayCounts.local_message_display_like_count(
+                    @local_message,
+                    @lemmy_counts,
+                    Map.get(stats_interaction_state, :like_delta, 0)
                   )
 
-                stats_comment_count = max(length(@replies), @local_message.reply_count || 0) %>
+                stats_comment_count =
+                  DisplayCounts.local_message_display_reply_count(
+                    @local_message,
+                    @lemmy_counts,
+                    @replies
+                  ) %>
                 <span>
                   <span
                     id={"remote-local-post-#{@local_message.id}-stats-like-count"}
@@ -448,7 +453,13 @@
               is_boosted = Map.get(post_state, :boosted, false)
               like_delta = Map.get(post_state, :like_delta, 0)
               boost_delta = Map.get(post_state, :boost_delta, 0)
-              reply_count = max(length(@replies), @local_message.reply_count || 0) %>
+
+              reply_count =
+                DisplayCounts.local_message_display_reply_count(
+                  @local_message,
+                  @lemmy_counts,
+                  @replies
+                ) %>
               <div class="flex flex-wrap items-center gap-2 pt-3 mt-3 border-t border-base-300">
                 <.post_actions
                   post_id={local_post_id}
@@ -456,9 +467,17 @@
                   current_user={@current_user}
                   is_liked={is_liked}
                   is_boosted={is_boosted}
-                  like_count={max((@local_message.like_count || 0) + like_delta, 0)}
+                  like_count={
+                    DisplayCounts.local_message_display_like_count(
+                      @local_message,
+                      @lemmy_counts,
+                      like_delta
+                    )
+                  }
                   comment_count={reply_count}
-                  boost_count={max((@local_message.share_count || 0) + boost_delta, 0)}
+                  boost_count={
+                    DisplayCounts.local_message_display_share_count(@local_message, boost_delta)
+                  }
                   is_saved={detail_message_saved?(@user_saves, @local_message)}
                   on_comment="toggle_reply_form"
                   show_quote={false}
@@ -1146,7 +1165,11 @@
                           # Prefer the local cached message count for interactive surfaces so
                           # remote API refreshes don't overwrite recent local likes/unlikes.
                           @local_message ->
-                            (@local_message.like_count || 0) + like_delta
+                            DisplayCounts.local_message_display_like_count(
+                              @local_message,
+                              @lemmy_counts,
+                              like_delta
+                            )
 
                           is_map(lemmy) and is_integer(Map.get(lemmy, :score)) ->
                             Map.get(lemmy, :score) + like_delta
@@ -1176,7 +1199,10 @@
                           # Prefer the local cached message count for interactive surfaces so
                           # remote API refreshes don't overwrite recent local boosts/unboosts.
                           @local_message ->
-                            (@local_message.share_count || 0) + boost_delta
+                            DisplayCounts.local_message_display_share_count(
+                              @local_message,
+                              boost_delta
+                            )
 
                           is_map(fresh_remote_counts) and
                               is_integer(fresh_remote_counts[:reblogs_count]) ->
@@ -1216,7 +1242,11 @@
 
                           # Use local message count directly (no delta - it's already up to date from database)
                           @local_message ->
-                            @local_message.reply_count || 0
+                            DisplayCounts.local_message_display_reply_count(
+                              @local_message,
+                              @lemmy_counts,
+                              @replies
+                            )
 
                           true ->
                             max(
@@ -1731,11 +1761,7 @@ modal_is_liked = Map.get(modal_interaction, :liked, false)
 modal_like_delta = Map.get(modal_interaction, :like_delta, 0)
 
 base_like_count =
-  cond do
-    @modal_post && is_integer(Map.get(@modal_post, :like_count)) -> @modal_post.like_count
-    @modal_post && is_integer(Map.get(@modal_post, :score)) -> @modal_post.score
-    true -> 0
-  end
+  if @modal_post, do: DisplayCounts.local_message_display_like_count(@modal_post), else: 0
 
 modal_like_count = base_like_count + modal_like_delta %>
 <.image_modal

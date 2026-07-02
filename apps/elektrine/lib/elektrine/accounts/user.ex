@@ -58,6 +58,13 @@ defmodule Elektrine.Accounts.User do
     field :unique_id, :string
     field :handle_changed_at, :utc_datetime
     field :built_in_subdomain_mode, :string, default: "path"
+    field :birthday, :date
+    field :show_birthday, :boolean, default: false
+    field :hide_followers, :boolean, default: false
+    field :hide_follows, :boolean, default: false
+    field :hide_favorites, :boolean, default: false
+    field :also_known_as, {:array, :string}, default: []
+    field :moved_to, :string
 
     # Privacy Settings
     field :allow_group_adds_from, :string, default: "everyone"
@@ -77,6 +84,8 @@ defmodule Elektrine.Accounts.User do
     field :notify_on_email_received, :boolean, default: true
     field :notify_on_discussion_reply, :boolean, default: true
     field :notify_on_comment, :boolean, default: true
+    field :block_notifications_from_strangers, :boolean, default: false
+    field :hide_notification_contents, :boolean, default: false
 
     # Storage Tracking
     field :storage_used_bytes, :integer, default: 0
@@ -336,6 +345,8 @@ defmodule Elektrine.Accounts.User do
       :notify_on_email_received,
       :notify_on_discussion_reply,
       :notify_on_comment,
+      :block_notifications_from_strangers,
+      :hide_notification_contents,
       :locale,
       :timezone,
       :time_format,
@@ -347,6 +358,13 @@ defmodule Elektrine.Accounts.User do
       :onboarding_step,
       :activitypub_manually_approve_followers,
       :built_in_subdomain_mode,
+      :birthday,
+      :show_birthday,
+      :hide_followers,
+      :hide_follows,
+      :hide_favorites,
+      :also_known_as,
+      :moved_to,
       :bluesky_enabled,
       :bluesky_identifier,
       :bluesky_app_password,
@@ -389,6 +407,9 @@ defmodule Elektrine.Accounts.User do
     |> validate_inclusion(:built_in_subdomain_mode, @built_in_subdomain_modes)
     |> validate_inclusion(:locale, ~w(en zh), message: "is not a supported locale")
     |> validate_inclusion(:time_format, ~w(12 24), message: "must be 12 or 24")
+    |> validate_birthday()
+    |> normalize_account_migration_metadata()
+    |> validate_account_migration_metadata()
     |> Elektrine.Theme.validate_overrides(:theme_overrides)
     |> validate_preferred_email_domain(user)
     |> validate_bluesky_settings()
@@ -467,6 +488,10 @@ defmodule Elektrine.Accounts.User do
       :timezone,
       :time_format,
       :built_in_subdomain_mode,
+      :birthday,
+      :show_birthday,
+      :also_known_as,
+      :moved_to,
       :verified,
       :banned,
       :banned_reason,
@@ -490,6 +515,9 @@ defmodule Elektrine.Accounts.User do
     )
     |> validate_inclusion(:locale, ["en", "zh"])
     |> validate_inclusion(:time_format, ["12", "24"])
+    |> validate_birthday()
+    |> normalize_account_migration_metadata()
+    |> validate_account_migration_metadata()
     |> validate_length(:banned_reason, max: 500)
     |> validate_length(:suspension_reason, max: 500)
     |> validate_number(:trust_level, greater_than_or_equal_to: 0, less_than_or_equal_to: 4)
@@ -1353,6 +1381,96 @@ defmodule Elektrine.Accounts.User do
       message: "cannot contain control characters"
     )
   end
+
+  defp validate_birthday(changeset) do
+    validate_change(changeset, :birthday, fn :birthday, birthday ->
+      if Date.compare(birthday, Date.utc_today()) == :gt do
+        [birthday: "cannot be in the future"]
+      else
+        []
+      end
+    end)
+  end
+
+  defp normalize_account_migration_metadata(changeset) do
+    changeset
+    |> normalize_moved_to()
+    |> normalize_also_known_as()
+  end
+
+  defp normalize_moved_to(changeset) do
+    case get_change(changeset, :moved_to) do
+      nil ->
+        changeset
+
+      value ->
+        put_change(changeset, :moved_to, normalize_account_uri(value))
+    end
+  end
+
+  defp normalize_also_known_as(changeset) do
+    case get_change(changeset, :also_known_as) do
+      nil ->
+        changeset
+
+      values when is_list(values) ->
+        values =
+          values
+          |> Enum.map(&normalize_account_uri/1)
+          |> Enum.reject(&is_nil/1)
+          |> Enum.uniq()
+
+        put_change(changeset, :also_known_as, values)
+
+      _ ->
+        add_error(changeset, :also_known_as, "must be a list")
+    end
+  end
+
+  defp normalize_account_uri(value) when is_binary(value) do
+    value = String.trim(value)
+    if value == "", do: nil, else: value
+  end
+
+  defp normalize_account_uri(_), do: nil
+
+  defp validate_account_migration_metadata(changeset) do
+    changeset
+    |> validate_length(:moved_to, max: 2048)
+    |> validate_length(:also_known_as, max: 10)
+    |> validate_change(:moved_to, fn :moved_to, value ->
+      account_uri_errors(:moved_to, value)
+    end)
+    |> validate_change(:also_known_as, fn :also_known_as, values ->
+      if Enum.all?(values, &(account_uri_errors(:also_known_as, &1) == [])) do
+        []
+      else
+        [also_known_as: "must contain only http(s) URLs or acct: identifiers"]
+      end
+    end)
+  end
+
+  defp account_uri_errors(_field, nil), do: []
+
+  defp account_uri_errors(field, "acct:" <> rest) do
+    case String.split(rest, "@", parts: 2) do
+      [name, domain] when name != "" and domain != "" -> []
+      _ -> [{field, "must be a valid acct: identifier"}]
+    end
+  end
+
+  defp account_uri_errors(field, value) when is_binary(value) do
+    case URI.parse(value) do
+      %URI{scheme: scheme, host: host, userinfo: nil}
+      when scheme in ["http", "https"] and host not in [nil, ""] ->
+        []
+
+      _ ->
+        [{field, "must be an http(s) URL or acct: identifier"}]
+    end
+  end
+
+  defp account_uri_errors(field, _value), do: [{field, "must be a string"}]
 
   # Validate unique_id format
   defp validate_unique_id(changeset) do

@@ -488,8 +488,8 @@ defmodule Elektrine.Accounts.RecoveryEmailVerification do
         else
           result =
             user
+            |> User.recovery_email_changeset(%{recovery_email: email})
             |> Ecto.Changeset.change(%{
-              recovery_email: email,
               recovery_email_verified: false,
               recovery_email_verification_token: nil,
               recovery_email_verification_sent_at: nil

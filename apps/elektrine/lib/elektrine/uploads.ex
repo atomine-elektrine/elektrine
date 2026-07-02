@@ -157,7 +157,7 @@ defmodule Elektrine.Uploads do
             {:ok,
              %{
                key: key,
-               filename: upload.filename,
+               filename: anonymized_filename_from_key(key),
                content_type: upload.content_type,
                size: cropped_size
              }}
@@ -350,13 +350,7 @@ defmodule Elektrine.Uploads do
 
         case upload_result do
           {:ok, key} ->
-            {:ok,
-             %{
-               key: key,
-               filename: upload.filename,
-               content_type: upload.content_type,
-               size: file_size
-             }}
+            {:ok, build_upload_result_metadata(upload, upload_to_use.path, key, file_size)}
 
           error ->
             error
@@ -410,6 +404,7 @@ defmodule Elektrine.Uploads do
 
   defp store_voice_message(audio_binary, filename, mime_type, user_id) do
     file_size = byte_size(audio_binary)
+    content_hash = sha256_hex(audio_binary)
 
     upload_result =
       case get_config(:adapter) do
@@ -419,7 +414,14 @@ defmodule Elektrine.Uploads do
 
     case upload_result do
       {:ok, key} ->
-        {:ok, %{key: key, filename: filename, content_type: mime_type, size: file_size}}
+        {:ok,
+         %{
+           key: key,
+           filename: anonymized_filename(filename, content_hash),
+           content_type: mime_type,
+           size: file_size,
+           sha256: content_hash
+         }}
 
       error ->
         error
@@ -429,13 +431,14 @@ defmodule Elektrine.Uploads do
   defp upload_binary_local(binary, filename, user_id, folder) do
     uploads_dir = get_config(:uploads_dir) || "priv/static/uploads"
     target_dir = Path.join(uploads_dir, folder)
-    File.mkdir_p!(target_dir)
-    safe_filename = sanitize_filename(filename)
-    unique_filename = "#{user_id}_#{System.unique_integer([:positive])}_#{safe_filename}"
-    filepath = Path.join(target_dir, unique_filename)
+    content_hash = sha256_hex(binary)
+    relative_path = content_addressed_relative_path(content_hash, filename, user_id)
+    filepath = Path.join(target_dir, relative_path)
 
-    case File.write(filepath, binary) do
-      :ok -> {:ok, "/uploads/#{folder}/#{unique_filename}"}
+    with :ok <- File.mkdir_p(Path.dirname(filepath)),
+         :ok <- write_if_missing(filepath, binary) do
+      {:ok, "/uploads/#{folder}/#{relative_path}"}
+    else
       {:error, reason} -> {:error, reason}
     end
   end
@@ -443,9 +446,8 @@ defmodule Elektrine.Uploads do
   defp upload_binary_s3(binary, filename, mime_type, user_id, folder) do
     bucket = get_config(:bucket)
     _endpoint = get_config(:endpoint) || raise "S3_ENDPOINT not configured"
-    safe_filename = sanitize_filename(filename)
-    unique_filename = "#{user_id}_#{System.unique_integer([:positive])}_#{safe_filename}"
-    key = "#{folder}/#{unique_filename}"
+    content_hash = sha256_hex(binary)
+    key = "#{folder}/#{content_addressed_relative_path(content_hash, filename, user_id)}"
 
     case ExAws.S3.put_object(bucket, key, binary, s3_put_options(key, mime_type))
          |> ExAws.request() do
@@ -455,11 +457,14 @@ defmodule Elektrine.Uploads do
   end
 
   defp build_upload_result_metadata(upload, upload_path, key, file_size) do
+    content_hash = file_sha256(upload_path)
+
     %{
       key: key,
-      filename: upload.filename,
+      filename: anonymized_filename(upload.filename, content_hash),
       content_type: upload.content_type,
-      size: file_size
+      size: file_size,
+      sha256: content_hash
     }
     |> maybe_put_image_dimensions(upload_path, upload.content_type)
   end
@@ -515,13 +520,7 @@ defmodule Elektrine.Uploads do
 
         case upload_result do
           {:ok, key} ->
-            {:ok,
-             %{
-               key: key,
-               filename: upload.filename,
-               content_type: upload.content_type,
-               size: file_size
-             }}
+            {:ok, build_upload_result_metadata(upload, upload_to_use.path, key, file_size)}
 
           error ->
             error
@@ -784,13 +783,14 @@ defmodule Elektrine.Uploads do
   defp upload_local(%Plug.Upload{} = upload, user_id, folder) do
     uploads_dir = get_config(:uploads_dir) || "priv/static/uploads"
     target_dir = Path.join(uploads_dir, folder)
-    File.mkdir_p!(target_dir)
-    safe_filename = sanitize_filename(upload.filename)
-    filename = "#{user_id}_#{System.unique_integer([:positive])}_#{safe_filename}"
-    filepath = Path.join(target_dir, filename)
+    content_hash = file_sha256(upload.path)
+    relative_path = content_addressed_relative_path(content_hash, upload.filename, user_id)
+    filepath = Path.join(target_dir, relative_path)
 
-    case File.cp(upload.path, filepath) do
-      :ok -> {:ok, "/uploads/#{folder}/#{filename}"}
+    with :ok <- File.mkdir_p(Path.dirname(filepath)),
+         :ok <- copy_if_missing(upload.path, filepath) do
+      {:ok, "/uploads/#{folder}/#{relative_path}"}
+    else
       {:error, reason} -> {:error, reason}
     end
   end
@@ -798,13 +798,14 @@ defmodule Elektrine.Uploads do
   defp upload_s3(%Plug.Upload{} = upload, user_id, folder) do
     bucket = get_config(:bucket)
     _endpoint = get_config(:endpoint) || raise "S3_ENDPOINT not configured"
-    safe_filename = sanitize_filename(upload.filename)
-    filename = "#{user_id}_#{System.unique_integer([:positive])}_#{safe_filename}"
-    key = "#{folder}/#{filename}"
 
     case File.read(upload.path) do
       {:ok, file_content} ->
         content_type = upload.content_type || MIME.from_path(upload.filename)
+        content_hash = sha256_hex(file_content)
+
+        key =
+          "#{folder}/#{content_addressed_relative_path(content_hash, upload.filename, user_id)}"
 
         case ExAws.S3.put_object(bucket, key, file_content, s3_put_options(key, content_type))
              |> ExAws.request() do
@@ -1397,6 +1398,60 @@ defmodule Elektrine.Uploads do
 
   defp sanitize_filename(_) do
     "file"
+  end
+
+  defp content_addressed_relative_path(content_hash, filename, user_id)
+       when is_binary(content_hash) do
+    filename = content_hash <> upload_extension(filename)
+
+    Path.join([
+      to_string(user_id),
+      binary_part(content_hash, 0, 2),
+      binary_part(content_hash, 2, 2),
+      binary_part(content_hash, 4, 2),
+      filename
+    ])
+  end
+
+  defp upload_extension(filename) do
+    filename
+    |> sanitize_filename()
+    |> Path.extname()
+    |> String.downcase()
+    |> case do
+      "" -> ".bin"
+      ext -> ext
+    end
+  end
+
+  defp anonymized_filename(filename, content_hash) when is_binary(content_hash) do
+    content_hash <> upload_extension(filename)
+  end
+
+  defp anonymized_filename_from_key(key) when is_binary(key) do
+    key
+    |> Path.basename()
+    |> sanitize_filename()
+  end
+
+  defp file_sha256(path) when is_binary(path) do
+    path
+    |> File.read!()
+    |> sha256_hex()
+  end
+
+  defp sha256_hex(binary) when is_binary(binary) do
+    binary
+    |> then(&:crypto.hash(:sha256, &1))
+    |> Base.encode16(case: :lower)
+  end
+
+  defp copy_if_missing(source, destination) do
+    if File.exists?(destination), do: :ok, else: File.cp(source, destination)
+  end
+
+  defp write_if_missing(destination, binary) do
+    if File.exists?(destination), do: :ok, else: File.write(destination, binary)
   end
 
   defp sanitized_filename_root(name) do

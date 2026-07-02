@@ -294,13 +294,24 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandler do
   end
 
   defp get_message_by_id(id) do
-    case Messaging.get_message(id) do
+    case Messaging.get_message(parse_message_id(id)) do
       nil -> {:error, :message_not_found}
       message -> {:ok, message}
     end
   rescue
     Ecto.Query.CastError -> {:error, :message_not_found}
   end
+
+  defp parse_message_id(id) when is_integer(id), do: id
+
+  defp parse_message_id(id) when is_binary(id) do
+    case Integer.parse(id) do
+      {parsed, ""} -> parsed
+      _ -> id
+    end
+  end
+
+  defp parse_message_id(id), do: id
 
   # For remote EmojiReact races, try to fetch/cache the target object if we don't
   # already have it locally.

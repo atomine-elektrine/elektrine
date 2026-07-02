@@ -155,7 +155,47 @@ defmodule ElektrineWeb.Components.Social.PostUtilities do
         @component_module,
         :get_display_counts,
         [post, lemmy_counts, post_replies],
-        %{}
+        {0, 0}
+      )
+
+  def display_primary_count(post, post_counts \\ nil),
+    do:
+      OptionalModule.call(
+        :social,
+        @component_module,
+        :display_primary_count,
+        [post, post_counts],
+        0
+      )
+
+  def display_reply_count(post, post_counts \\ nil, loaded_replies \\ []),
+    do:
+      OptionalModule.call(
+        :social,
+        @component_module,
+        :display_reply_count,
+        [post, post_counts, loaded_replies],
+        0
+      )
+
+  def display_share_count(post),
+    do:
+      OptionalModule.call(
+        :social,
+        @component_module,
+        :display_share_count,
+        [post],
+        0
+      )
+
+  def engagement_count_source(post, kind),
+    do:
+      OptionalModule.call(
+        :social,
+        @component_module,
+        :engagement_count_source,
+        [post, kind],
+        :none
       )
 
   def get_post_click_event(post) do

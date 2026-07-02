@@ -35,6 +35,8 @@ defmodule Elektrine.Developer.ApiToken do
   - `write:proofs` - Create, check, and delete identity proofs
   - `read:static_site` - Read static site deployment status
   - `write:static_site` - Deploy static site files
+  - `read:moderation` - Read moderation queues and reports
+  - `write:moderation` - Resolve, dismiss, and reopen reports
   - `export` - Trigger and download data exports
   - `webhook` - Manage webhook subscriptions
   """
@@ -53,6 +55,7 @@ defmodule Elektrine.Developer.ApiToken do
     read:dns write:dns
     read:proofs write:proofs
     read:static_site write:static_site
+    read:moderation write:moderation
     export webhook
   )
   @token_presets [
@@ -116,6 +119,12 @@ defmodule Elektrine.Developer.ApiToken do
       name: "Static site deploy",
       description: "Deploy static site files from CI/CD.",
       scopes: ["read:static_site", "write:static_site"]
+    },
+    %{
+      id: "moderation_tools",
+      name: "Moderation tools",
+      description: "Review reports and perform moderation actions.",
+      scopes: ["read:moderation", "write:moderation"]
     }
   ]
 
@@ -225,6 +234,10 @@ defmodule Elektrine.Developer.ApiToken do
       "Static Site" => [
         {"read:static_site", "Read static site deployment status"},
         {"write:static_site", "Deploy static site files"}
+      ],
+      "Moderation" => [
+        {"read:moderation", "Read moderation queues and reports"},
+        {"write:moderation", "Resolve, dismiss, and reopen reports"}
       ],
       "Developer" => [
         {"export", "Trigger and download data exports"},

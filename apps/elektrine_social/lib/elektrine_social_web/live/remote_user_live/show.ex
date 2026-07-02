@@ -17,6 +17,7 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
   alias ElektrineSocialWeb.Components.Social.PostUtilities
   alias ElektrineSocialWeb.RemotePostLive.SurfaceHelpers
   alias ElektrineSocialWeb.RemoteUserLive.ActorLookup
+  alias ElektrineSocialWeb.RemoteUserLive.MediaModal
   alias ElektrineWeb.Live.PostInteractions
 
   import ElektrineSocialWeb.Components.Platform.ENav
@@ -2165,13 +2166,11 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
   end
 
   def handle_event("next_media_post", _params, socket) do
-    # Not implemented for remote user profiles
-    {:noreply, socket}
+    MediaModal.navigate_to_media_post(socket, :next)
   end
 
   def handle_event("prev_media_post", _params, socket) do
-    # Not implemented for remote user profiles
-    {:noreply, socket}
+    MediaModal.navigate_to_media_post(socket, :prev)
   end
 
   def handle_event("navigate_to_post", %{"post_id" => post_id}, socket) do

@@ -6,7 +6,8 @@ defmodule Elektrine.Notifications do
   require Logger
 
   import Ecto.Query, warn: false
-  alias Elektrine.Accounts.{UserBlock, UserMute}
+  alias Elektrine.Accounts.{User, UserBlock, UserMute}
+  alias Elektrine.ActivityPub.Actor
   alias Elektrine.Messaging
   alias Elektrine.Notifications.Notification
   alias Elektrine.Repo
@@ -18,65 +19,97 @@ defmodule Elektrine.Notifications do
   """
   def create_notification(attrs \\ %{}) do
     started_at = System.monotonic_time(:millisecond)
+    attrs = put_default_group_key(attrs)
 
-    notification =
-      %Notification{}
-      |> Notification.changeset(attrs)
-      |> Repo.insert()
+    if notification_policy_allowed?(attrs) do
+      notification =
+        %Notification{}
+        |> Notification.changeset(attrs)
+        |> Repo.insert()
 
-    case notification do
-      {:ok, notif} ->
-        # Invalidate notification cache
-        Elektrine.AppCache.invalidate_notification_cache(notif.user_id)
+      case notification do
+        {:ok, notif} ->
+          # Invalidate notification cache
+          Elektrine.AppCache.invalidate_notification_cache(notif.user_id)
 
-        # Broadcast to user's notification channel
-        Phoenix.PubSub.broadcast(
-          Elektrine.PubSub,
-          "user:#{notif.user_id}:notifications",
-          {:new_notification, notif}
-        )
+          # Broadcast to user's notification channel
+          Phoenix.PubSub.broadcast(
+            Elektrine.PubSub,
+            "user:#{notif.user_id}:notifications",
+            {:new_notification, notif}
+          )
 
-        # Also broadcast count update
-        new_count = get_unread_count(notif.user_id)
+          # Also broadcast count update
+          new_count = get_visible_unread_count(notif.user_id)
 
-        Events.db_hot_path(
-          :notifications,
-          :create_notification,
-          System.monotonic_time(:millisecond) - started_at,
-          %{user_id: notif.user_id, type: notif.type}
-        )
+          Events.db_hot_path(
+            :notifications,
+            :create_notification,
+            System.monotonic_time(:millisecond) - started_at,
+            %{user_id: notif.user_id, type: notif.type}
+          )
 
-        Phoenix.PubSub.broadcast(
-          Elektrine.PubSub,
-          "user:#{notif.user_id}:notification_count",
-          {:notification_count_updated, new_count}
-        )
+          Phoenix.PubSub.broadcast(
+            Elektrine.PubSub,
+            "user:#{notif.user_id}:notification_count",
+            {:notification_count_updated, new_count}
+          )
 
-        # Send push notification if user is offline
-        if Elektrine.Push.should_send_push?(notif.user_id) do
-          Elektrine.Push.notify_user(notif.user_id, %{
-            title: notif.title,
-            body: notif.body,
-            badge: new_count,
-            data: %{
-              type: notif.type,
-              url: notif.url,
-              source_type: notif.source_type,
-              source_id: notif.source_id,
-              notification_id: notif.id
-            }
-          })
-        end
+          push_payload =
+            notif
+            |> push_payload(new_count)
+            |> maybe_redact_push_payload(notif.user_id)
 
-        Elektrine.Async.run(fn ->
-          maybe_emit_developer_webhook(notif, new_count)
-        end)
+          # Send push notification if user is offline
+          if Elektrine.Push.should_send_push?(notif.user_id) do
+            Elektrine.Push.notify_user(notif.user_id, push_payload)
+            Elektrine.Push.notify_web_user(notif.user_id, push_payload)
+          end
 
-        {:ok, notif}
+          Elektrine.Async.run(fn ->
+            maybe_emit_developer_webhook(notif, new_count)
+          end)
 
-      {:error, changeset} = error ->
-        Logger.error("Failed to create notification: #{inspect(changeset.errors)}")
-        error
+          {:ok, notif}
+
+        {:error, changeset} = error ->
+          Logger.error("Failed to create notification: #{inspect(changeset.errors)}")
+          error
+      end
+    else
+      {:ok, :notification_filtered}
+    end
+  end
+
+  defp put_default_group_key(attrs) when is_map(attrs) do
+    case Map.get(attrs, :group_key) || Map.get(attrs, "group_key") do
+      value when is_binary(value) and value != "" ->
+        attrs
+
+      _ ->
+        Map.put(attrs, :group_key, notification_group_key(attrs))
+    end
+  end
+
+  defp notification_group_key(attrs) do
+    type = Map.get(attrs, :type) || Map.get(attrs, "type")
+    source_type = Map.get(attrs, :source_type) || Map.get(attrs, "source_type")
+    source_id = Map.get(attrs, :source_id) || Map.get(attrs, "source_id")
+    actor_id = Map.get(attrs, :actor_id) || Map.get(attrs, "actor_id")
+
+    cond do
+      type in ["like", "boost", "reaction"] and source_type in ["message", "post", "discussion"] and
+          not is_nil(source_id) ->
+        "social:#{type}:#{source_type}:#{source_id}"
+
+      type == "follow" and not is_nil(actor_id) ->
+        "social:follow:#{actor_id}"
+
+      source_type in ["message", "post", "discussion"] and not is_nil(source_id) ->
+        "social:#{type}:#{source_type}:#{source_id}"
+
+      true ->
+        nil
     end
   end
 
@@ -84,21 +117,35 @@ defmodule Elektrine.Notifications do
   Creates a notification for multiple users.
   """
   def create_bulk_notifications(user_ids, attrs) do
+    now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+
     notifications =
-      Enum.map(user_ids, fn user_id ->
+      user_ids
+      |> Enum.uniq()
+      |> Enum.map(fn user_id ->
         attrs
         |> Map.put(:user_id, user_id)
-        |> Map.put(:inserted_at, DateTime.utc_now())
-        |> Map.put(:updated_at, DateTime.utc_now())
+        |> put_default_group_key()
+        |> Map.put(:inserted_at, now)
+        |> Map.put(:updated_at, now)
       end)
+      |> Enum.filter(&notification_policy_allowed?/1)
 
-    {count, _} = Repo.insert_all(Notification, notifications)
-    unique_user_ids = Enum.uniq(user_ids)
+    {count, _} =
+      case notifications do
+        [] -> {0, nil}
+        _ -> Repo.insert_all(Notification, notifications)
+      end
 
-    Enum.each(unique_user_ids, &Elektrine.AppCache.invalidate_notification_cache/1)
+    delivered_user_ids =
+      notifications
+      |> Enum.map(&(Map.get(&1, :user_id) || Map.get(&1, "user_id")))
+      |> Enum.uniq()
+
+    Enum.each(delivered_user_ids, &Elektrine.AppCache.invalidate_notification_cache/1)
 
     # Broadcast to all users
-    Enum.each(unique_user_ids, fn user_id ->
+    Enum.each(delivered_user_ids, fn user_id ->
       Phoenix.PubSub.broadcast(
         Elektrine.PubSub,
         "user:#{user_id}:notifications",
@@ -135,9 +182,21 @@ defmodule Elektrine.Notifications do
             # Group emails by sender (actor_id)
             {:email, n.actor_id}
 
-          type when type in ["like", "mention", "comment", "discussion_reply", "reply"] ->
+          type
+          when type in [
+                 "like",
+                 "boost",
+                 "reaction",
+                 "status",
+                 "poll",
+                 "update",
+                 "mention",
+                 "comment",
+                 "discussion_reply",
+                 "reply"
+               ] ->
             # Group social activity by target source/post so multiple actors collapse into
-            # Mastodon-style "X and N others" notification groups.
+            # a compact "X and N others" notification group.
             {:social, type, n.source_type, n.source_id || n.url || n.id}
 
           _ ->
@@ -185,6 +244,63 @@ defmodule Elektrine.Notifications do
     groups
   end
 
+  @doc """
+  Gets grouped notifications with stable API group keys.
+  """
+  def list_notification_groups(user_id, opts \\ []) do
+    user_id
+    |> list_grouped_notifications(opts)
+    |> Enum.map(&put_api_group_key/1)
+  end
+
+  @doc """
+  Gets one notification group by its API group key.
+  """
+  def get_notification_group(user_id, group_key, opts \\ [])
+
+  def get_notification_group(user_id, group_key, opts) when is_binary(group_key) do
+    user_id
+    |> list_notification_groups(Keyword.put(opts, :limit, 200))
+    |> Enum.find(&(Map.get(&1, :group_key) == group_key))
+    |> case do
+      nil -> {:error, :not_found}
+      group -> {:ok, group}
+    end
+  end
+
+  def get_notification_group(_user_id, _group_key, _opts), do: {:error, :not_found}
+
+  @doc """
+  Lists unique actors represented in a notification group.
+  """
+  def list_notification_group_accounts(user_id, group_key) do
+    case get_notification_group(user_id, group_key) do
+      {:ok, group} -> notification_group_actors(group)
+      {:error, :not_found} -> []
+    end
+  end
+
+  @doc """
+  Dismisses all notifications in a group.
+  """
+  def dismiss_notification_group(user_id, group_key) do
+    with {:ok, group} <- get_notification_group(user_id, group_key) do
+      group
+      |> notification_group_notifications()
+      |> Enum.map(& &1.id)
+      |> dismiss_notifications(user_id)
+    end
+  end
+
+  @doc """
+  Counts unread notification groups, not raw notification rows.
+  """
+  def get_unread_group_count(user_id, opts \\ []) do
+    user_id
+    |> list_notification_groups(Keyword.put(opts, :filter, :unread))
+    |> length()
+  end
+
   defp extract_conversation_id(url) when is_binary(url) do
     case Regex.run(~r/\/chat\/(\d+)/, url) do
       [_, id] -> parse_positive_integer(id)
@@ -200,6 +316,9 @@ defmodule Elektrine.Notifications do
       _ -> nil
     end
   end
+
+  defp parse_positive_integer(value) when is_integer(value) and value > 0, do: value
+  defp parse_positive_integer(_value), do: nil
 
   defp build_chat_group(notifs, conversation_id) do
     sorted = Enum.sort_by(notifs, & &1.inserted_at, :desc)
@@ -223,7 +342,10 @@ defmodule Elektrine.Notifications do
       latest_at: latest.inserted_at,
       latest_notification: latest,
       actors:
-        notifs |> Enum.map(& &1.actor) |> Enum.uniq_by(&(&1 && &1.id)) |> Enum.reject(&is_nil/1)
+        notifs
+        |> Enum.map(&notification_actor/1)
+        |> Enum.reject(&is_nil/1)
+        |> Enum.uniq_by(&notification_actor_key/1)
     }
   end
 
@@ -239,7 +361,7 @@ defmodule Elektrine.Notifications do
       unread_count: unread_count,
       latest_at: latest.inserted_at,
       latest_notification: latest,
-      sender: latest.actor
+      sender: notification_actor(latest)
     }
   end
 
@@ -260,11 +382,85 @@ defmodule Elektrine.Notifications do
       latest_notification: latest,
       actors:
         notifs
-        |> Enum.map(& &1.actor)
+        |> Enum.map(&notification_actor/1)
         |> Enum.reject(&is_nil/1)
-        |> Enum.uniq_by(& &1.id)
+        |> Enum.uniq_by(&notification_actor_key/1)
     }
   end
+
+  defp put_api_group_key(%{type: :chat_group, conversation_id: conversation_id} = group) do
+    Map.put(group, :group_key, "chat:conversation:#{conversation_id}")
+  end
+
+  defp put_api_group_key(%{type: :email_group, sender: %{id: actor_id}} = group) do
+    Map.put(group, :group_key, "email:actor:#{actor_id}")
+  end
+
+  defp put_api_group_key(%{type: :email_group, latest_notification: notification} = group) do
+    Map.put(group, :group_key, notification_group_key_or_ungrouped(notification))
+  end
+
+  defp put_api_group_key(%{type: :social_group, latest_notification: notification} = group) do
+    Map.put(group, :group_key, notification_group_key_or_ungrouped(notification))
+  end
+
+  defp put_api_group_key(%{type: :single, notification: notification} = group) do
+    Map.put(group, :group_key, notification_group_key_or_ungrouped(notification))
+  end
+
+  defp put_api_group_key(group), do: group
+
+  defp notification_group_key_or_ungrouped(%Notification{group_key: group_key})
+       when is_binary(group_key) and group_key != "",
+       do: group_key
+
+  defp notification_group_key_or_ungrouped(%Notification{} = notification) do
+    notification_group_key(Map.from_struct(notification)) || "ungrouped-#{notification.id}"
+  end
+
+  defp notification_group_notifications(%{notifications: notifications})
+       when is_list(notifications),
+       do: notifications
+
+  defp notification_group_notifications(%{notification: %Notification{} = notification}),
+    do: [notification]
+
+  defp notification_group_notifications(_group), do: []
+
+  defp notification_group_actors(group) do
+    group
+    |> notification_group_notifications()
+    |> Enum.map(&notification_actor/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq_by(&notification_actor_key/1)
+  end
+
+  @doc """
+  Resolves the local or remote actor represented by a notification.
+  """
+  def notification_actor(%Notification{actor: %User{} = actor}), do: actor
+
+  def notification_actor(%Notification{} = notification) do
+    notification
+    |> remote_actor_id()
+    |> case do
+      id when is_integer(id) -> Repo.get(Actor, id)
+      _ -> nil
+    end
+  end
+
+  def notification_actor(_notification), do: nil
+
+  defp remote_actor_id(%Notification{metadata: metadata}) when is_map(metadata) do
+    metadata
+    |> Map.get(:remote_actor_id, Map.get(metadata, "remote_actor_id"))
+    |> parse_positive_integer()
+  end
+
+  defp remote_actor_id(_notification), do: nil
+
+  defp notification_actor_key(%User{id: id}), do: {:user, id}
+  defp notification_actor_key(%Actor{id: id}), do: {:remote_actor, id}
 
   @doc """
   Gets notifications for a user.
@@ -274,12 +470,13 @@ defmodule Elektrine.Notifications do
     offset = Keyword.get(opts, :offset, 0)
     filter = Keyword.get(opts, :filter, :all)
     source_filter = Keyword.get(opts, :source_filter, "all")
+    fetch_limit = limit * 3
 
     query =
       from(n in Notification,
         where: n.user_id == ^user_id and is_nil(n.dismissed_at),
         order_by: [desc: n.inserted_at],
-        limit: ^limit,
+        limit: ^fetch_limit,
         offset: ^offset,
         preload: [:actor]
       )
@@ -296,7 +493,37 @@ defmodule Elektrine.Notifications do
 
     query
     |> Repo.all()
+    |> Enum.filter(&notification_policy_allowed?/1)
+    |> Enum.take(limit)
     |> resolve_legacy_message_notification_urls()
+  end
+
+  @doc """
+  Gets one visible notification for a user.
+  """
+  def get_notification(notification_id, user_id) do
+    query =
+      from(n in Notification,
+        where: n.id == ^notification_id and n.user_id == ^user_id and is_nil(n.dismissed_at),
+        preload: [:actor],
+        limit: 1
+      )
+      |> apply_actor_safety_filter(user_id)
+
+    case Repo.one(query) do
+      %Notification{} = notification ->
+        if notification_policy_allowed?(notification) do
+          notification
+          |> List.wrap()
+          |> resolve_legacy_message_notification_urls()
+          |> List.first()
+        else
+          nil
+        end
+
+      nil ->
+        nil
+    end
   end
 
   defp apply_actor_safety_filter(query, user_id) do
@@ -330,12 +557,22 @@ defmodule Elektrine.Notifications do
         where(
           query,
           [n],
-          n.type in ["mention", "like", "comment", "discussion_reply"] or
+          n.type in [
+            "mention",
+            "like",
+            "boost",
+            "reaction",
+            "status",
+            "poll",
+            "update",
+            "comment",
+            "discussion_reply"
+          ] or
             (n.type == "reply" and n.source_type != "message")
         )
 
       "system" ->
-        where(query, [n], n.type == "system")
+        where(query, [n], n.type in ["system", "admin.sign_up", "admin.report"])
 
       _ ->
         query
@@ -400,6 +637,18 @@ defmodule Elektrine.Notifications do
   end
 
   @doc """
+  Gets unread notification count after applying current notification policy.
+  """
+  def get_visible_unread_count(user_id) do
+    Notification
+    |> where([n], n.user_id == ^user_id and is_nil(n.read_at) and is_nil(n.dismissed_at))
+    |> preload([:actor])
+    |> apply_actor_safety_filter(user_id)
+    |> Repo.all()
+    |> Enum.count(&notification_policy_allowed?/1)
+  end
+
+  @doc """
   Gets unseen notification count for a user.
   """
   def get_unseen_count(user_id) do
@@ -439,7 +688,7 @@ defmodule Elektrine.Notifications do
     )
 
     # Broadcast count update
-    new_count = get_unread_count(user_id)
+    new_count = get_visible_unread_count(user_id)
 
     Phoenix.PubSub.broadcast(
       Elektrine.PubSub,
@@ -449,6 +698,57 @@ defmodule Elektrine.Notifications do
 
     :ok
   end
+
+  @doc """
+  Marks all visible notifications up to and including an id as read.
+  """
+  def mark_as_read_up_to(user_id, max_id) when is_integer(max_id) and max_id > 0 do
+    now = Elektrine.Time.utc_now()
+
+    unread_notifications =
+      from(n in Notification,
+        where:
+          n.user_id == ^user_id and
+            n.id <= ^max_id and
+            is_nil(n.read_at) and
+            is_nil(n.dismissed_at)
+      )
+      |> Repo.all()
+
+    sync_notification_sources_as_read(user_id, unread_notifications)
+
+    {count, _} =
+      from(n in Notification,
+        where:
+          n.user_id == ^user_id and
+            n.id <= ^max_id and
+            is_nil(n.read_at) and
+            is_nil(n.dismissed_at)
+      )
+      |> Repo.update_all(set: [read_at: now, seen_at: now])
+
+    if count > 0 do
+      Elektrine.AppCache.invalidate_notification_cache(user_id)
+
+      Phoenix.PubSub.broadcast(
+        Elektrine.PubSub,
+        "user:#{user_id}:notifications",
+        :notification_updated
+      )
+
+      new_count = get_visible_unread_count(user_id)
+
+      Phoenix.PubSub.broadcast(
+        Elektrine.PubSub,
+        "user:#{user_id}:notification_count",
+        {:notification_count_updated, new_count}
+      )
+    end
+
+    {:ok, count}
+  end
+
+  def mark_as_read_up_to(_user_id, _max_id), do: {:ok, 0}
 
   @doc """
   Marks notifications as read by source.
@@ -479,7 +779,7 @@ defmodule Elektrine.Notifications do
           :notification_updated
         )
 
-        new_count = get_unread_count(user_id)
+        new_count = get_visible_unread_count(user_id)
 
         Phoenix.PubSub.broadcast(
           Elektrine.PubSub,
@@ -523,7 +823,7 @@ defmodule Elektrine.Notifications do
           :notification_updated
         )
 
-        new_count = get_unread_count(user_id)
+        new_count = get_visible_unread_count(user_id)
 
         Phoenix.PubSub.broadcast(
           Elektrine.PubSub,
@@ -686,7 +986,7 @@ defmodule Elektrine.Notifications do
     # If it was unread, broadcast count update
     if was_unread do
       Elektrine.AppCache.invalidate_notification_cache(user_id)
-      new_count = get_unread_count(user_id)
+      new_count = get_visible_unread_count(user_id)
 
       Phoenix.PubSub.broadcast(
         Elektrine.PubSub,
@@ -726,6 +1026,64 @@ defmodule Elektrine.Notifications do
 
     :ok
   end
+
+  @doc """
+  Dismisses multiple notifications for a user.
+  """
+  def dismiss_notifications(notification_ids, user_id) when is_list(notification_ids) do
+    ids =
+      notification_ids
+      |> Enum.map(&parse_notification_id/1)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+
+    if ids == [] do
+      {:ok, 0}
+    else
+      now = Elektrine.Time.utc_now()
+
+      {count, _} =
+        from(n in Notification,
+          where:
+            n.id in ^ids and n.user_id == ^user_id and
+              is_nil(n.dismissed_at)
+        )
+        |> Repo.update_all(set: [dismissed_at: now])
+
+      if count > 0 do
+        Elektrine.AppCache.invalidate_notification_cache(user_id)
+
+        Phoenix.PubSub.broadcast(
+          Elektrine.PubSub,
+          "user:#{user_id}:notifications",
+          :notifications_dismissed
+        )
+
+        new_count = get_visible_unread_count(user_id)
+
+        Phoenix.PubSub.broadcast(
+          Elektrine.PubSub,
+          "user:#{user_id}:notification_count",
+          {:notification_count_updated, new_count}
+        )
+      end
+
+      {:ok, count}
+    end
+  end
+
+  def dismiss_notifications(_notification_ids, _user_id), do: {:ok, 0}
+
+  defp parse_notification_id(value) when is_integer(value) and value > 0, do: value
+
+  defp parse_notification_id(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {id, ""} when id > 0 -> id
+      _ -> nil
+    end
+  end
+
+  defp parse_notification_id(_value), do: nil
 
   defp query_unread_count(user_id) do
     from(n in Notification,
@@ -1029,4 +1387,66 @@ defmodule Elektrine.Notifications do
   defp notification_webhook_event("like"), do: "post.liked"
   defp notification_webhook_event("follow"), do: "follow.new"
   defp notification_webhook_event(_), do: nil
+
+  defp push_payload(%Notification{} = notif, badge) do
+    %{
+      title: notif.title,
+      body: notif.body,
+      badge: badge,
+      icon: notif.icon,
+      type: notif.type,
+      actor_id: notif.actor_id,
+      data: %{
+        type: notif.type,
+        url: notif.url,
+        source_type: notif.source_type,
+        source_id: notif.source_id,
+        notification_id: notif.id
+      }
+    }
+  end
+
+  @doc """
+  Redacts notification delivery payload content when the recipient has enabled
+  private notification previews.
+  """
+  def redact_delivery_payload(payload, user_id) when is_map(payload) do
+    maybe_redact_push_payload(payload, user_id)
+  end
+
+  def redact_delivery_payload(payload, _user_id), do: payload
+
+  defp maybe_redact_push_payload(payload, user_id) do
+    case notification_content_hidden?(user_id) do
+      true ->
+        payload
+        |> Map.put(:title, "New notification")
+        |> Map.put(:body, "Open Elektrine to view it.")
+
+      false ->
+        payload
+    end
+  end
+
+  defp notification_content_hidden?(user_id) when is_integer(user_id) do
+    User
+    |> where([u], u.id == ^user_id)
+    |> select([u], u.hide_notification_contents)
+    |> Repo.one()
+    |> Kernel.==(true)
+  end
+
+  defp notification_content_hidden?(_user_id), do: false
+
+  defp notification_policy_allowed?(attrs) when is_map(attrs) do
+    module = Module.concat([Elektrine.Social, NotificationPolicy])
+
+    if Code.ensure_loaded?(module) do
+      module.should_deliver?(attrs)
+    else
+      true
+    end
+  rescue
+    _ -> true
+  end
 end

@@ -316,6 +316,11 @@ defmodule ElektrineWeb.AdminHTML do
         label: "System",
         items: [
           %{
+            label: "Operations",
+            path: "/pripyat/operations",
+            icon: "hero-chart-bar-square"
+          },
+          %{
             label: "Audit Log",
             path: "/pripyat/audit-logs",
             icon: "hero-clipboard-document-list"

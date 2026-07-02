@@ -114,6 +114,9 @@ defmodule ElektrineWeb.Telemetry do
         tags: [:type, :outcome]
       ),
       counter("elektrine.cache.request.count", tags: [:cache, :op, :result]),
+      counter("elektrine.reports.operation.count",
+        tags: [:operation, :outcome, :reason, :action, :status, :reportable_type]
+      ),
       counter("elektrine.api.request.count", tags: [:status_class, :endpoint_group, :method]),
       summary("elektrine.api.request.duration",
         unit: {:millisecond, :millisecond},

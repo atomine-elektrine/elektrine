@@ -23,6 +23,7 @@ defmodule Elektrine.Messaging.ChatConversations do
   @doc "Returns chat conversations for a user."
   def list_conversations(user_id, opts \\ []) do
     limit = Keyword.get(opts, :limit, 50)
+    type = Keyword.get(opts, :type)
 
     query =
       from(c in ChatConversation,
@@ -30,9 +31,10 @@ defmodule Elektrine.Messaging.ChatConversations do
         on: c.id == cm.conversation_id and cm.user_id == ^user_id,
         where: is_nil(cm.left_at),
         order_by: [desc: cm.pinned, desc: c.last_message_at, desc: c.updated_at],
-        limit: ^limit,
         preload: [members: [user: [:profile]]]
       )
+      |> maybe_filter_conversation_type(type)
+      |> maybe_limit_conversations(limit)
 
     conversations = Repo.all(query)
     conversation_ids = Enum.map(conversations, & &1.id)
@@ -53,6 +55,18 @@ defmodule Elektrine.Messaging.ChatConversations do
     end)
     |> filter_blocked_conversations(user_id)
   end
+
+  defp maybe_filter_conversation_type(query, type) when type in ["dm", "group", "channel"] do
+    from(c in query, where: c.type == ^type)
+  end
+
+  defp maybe_filter_conversation_type(query, _type), do: query
+
+  defp maybe_limit_conversations(query, limit) when is_integer(limit) and limit > 0 do
+    from(c in query, limit: ^limit)
+  end
+
+  defp maybe_limit_conversations(query, _limit), do: query
 
   def get_conversation!(id, user_id) do
     query =

@@ -529,7 +529,7 @@
                   class={[
                     "btn btn-sm min-h-10 px-3 rounded-full border border-base-300",
                     if(@current_filter == "home",
-                      do: "btn-secondary border-secondary",
+                      do: "btn-primary border-primary",
                       else: "bg-base-200 text-base-content hover:bg-base-300"
                     )
                   ]}
@@ -545,7 +545,7 @@
                   class={[
                     "btn btn-sm min-h-10 px-3 rounded-full border border-base-300",
                     if(@current_filter == "for_you",
-                      do: "btn-secondary border-secondary",
+                      do: "btn-primary border-primary",
                       else: "bg-base-200 text-base-content hover:bg-base-300"
                     )
                   ]}
@@ -563,7 +563,7 @@
                 class={[
                   "btn btn-sm min-h-10 px-3 rounded-full border border-base-300",
                   if(@current_filter == "explore",
-                    do: "btn-secondary border-secondary",
+                    do: "btn-primary border-primary",
                     else: "bg-base-200 text-base-content hover:bg-base-300"
                   )
                 ]}
@@ -579,7 +579,7 @@
                 class={[
                   "btn btn-sm min-h-10 px-3 rounded-full border border-base-300",
                   if(@current_filter == "local",
-                    do: "btn-secondary border-secondary",
+                    do: "btn-primary border-primary",
                     else: "bg-base-200 text-base-content hover:bg-base-300"
                   )
                 ]}
@@ -595,7 +595,7 @@
                 class={[
                   "btn btn-sm min-h-10 px-3 rounded-full border border-base-300",
                   if(@current_filter == "federated",
-                    do: "btn-secondary border-secondary",
+                    do: "btn-primary border-primary",
                     else: "bg-base-200 text-base-content hover:bg-base-300"
                   )
                 ]}
@@ -612,7 +612,7 @@
                   class={[
                     "btn btn-sm min-h-10 px-3 rounded-full border border-base-300",
                     if(@current_filter == "saved",
-                      do: "btn-secondary border-secondary",
+                      do: "btn-primary border-primary",
                       else: "bg-base-200 text-base-content hover:bg-base-300"
                     )
                   ]}
@@ -628,7 +628,7 @@
                   class={[
                     "btn btn-sm min-h-10 px-3 rounded-full border border-base-300",
                     if(@current_filter == "rss",
-                      do: "btn-secondary border-secondary",
+                      do: "btn-primary border-primary",
                       else: "bg-base-200 text-base-content hover:bg-base-300"
                     )
                   ]}
@@ -1011,7 +1011,7 @@
                   class={[
                     "btn btn-sm min-h-10 px-3 rounded-full border border-base-300",
                     if(@timeline_filter == "all",
-                      do: "btn-secondary border-secondary",
+                      do: "btn-primary border-primary",
                       else: "bg-base-200 text-base-content hover:bg-base-300"
                     )
                   ]}
@@ -1027,7 +1027,7 @@
                   class={[
                     "btn btn-sm min-h-10 px-3 rounded-full border border-base-300",
                     if(@timeline_filter == "posts",
-                      do: "btn-secondary border-secondary",
+                      do: "btn-primary border-primary",
                       else: "bg-base-200 text-base-content hover:bg-base-300"
                     )
                   ]}
@@ -1043,7 +1043,7 @@
                   class={[
                     "btn btn-sm min-h-10 px-3 rounded-full border border-base-300",
                     if(@timeline_filter == "replies",
-                      do: "btn-secondary border-secondary",
+                      do: "btn-primary border-primary",
                       else: "bg-base-200 text-base-content hover:bg-base-300"
                     )
                   ]}
@@ -1059,7 +1059,7 @@
                   class={[
                     "btn btn-sm min-h-10 px-3 rounded-full border border-base-300",
                     if(@timeline_filter == "media",
-                      do: "btn-secondary border-secondary",
+                      do: "btn-primary border-primary",
                       else: "bg-base-200 text-base-content hover:bg-base-300"
                     )
                   ]}
@@ -1075,7 +1075,7 @@
                   class={[
                     "btn btn-sm min-h-10 px-3 rounded-full border border-base-300",
                     if(@timeline_filter == "communities",
-                      do: "btn-secondary border-secondary",
+                      do: "btn-primary border-primary",
                       else: "bg-base-200 text-base-content hover:bg-base-300"
                     )
                   ]}
@@ -1095,7 +1095,7 @@
                       class={[
                         "btn btn-sm min-h-10 px-3 rounded-full border border-base-300",
                         if(@timeline_filter == "friends",
-                          do: "btn-secondary border-secondary",
+                          do: "btn-primary border-primary",
                           else: "bg-base-200 text-base-content hover:bg-base-300"
                         )
                       ]}
@@ -1113,7 +1113,7 @@
                     class={[
                       "btn btn-sm min-h-10 px-3 rounded-full border border-base-300",
                       if(@timeline_filter == "my_posts",
-                        do: "btn-secondary border-secondary",
+                        do: "btn-primary border-primary",
                         else: "bg-base-200 text-base-content hover:bg-base-300"
                       )
                     ]}
@@ -1129,7 +1129,7 @@
                     class={[
                       "btn btn-sm min-h-10 px-3 rounded-full border border-base-300",
                       if(@timeline_filter == "trusted",
-                        do: "btn-secondary border-secondary",
+                        do: "btn-primary border-primary",
                         else: "bg-base-200 text-base-content hover:bg-base-300"
                       )
                     ]}
@@ -1700,7 +1700,7 @@
       current_user={@current_user}
       can_like={true}
       is_liked={@modal_post && Map.get(@user_likes || %{}, @modal_post.id, false)}
-      like_count={(@modal_post && @modal_post.like_count) || 0}
+      like_count={if @modal_post, do: PostUtilities.display_primary_count(@modal_post), else: 0}
     />
     <!-- Scroll to Top Button -->
     <button

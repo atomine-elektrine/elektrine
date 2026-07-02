@@ -143,7 +143,17 @@ defmodule Elektrine.Developer.ExportWorker do
       {:ok, account_count} =
         AccountExporter.export(user_id, Path.join(temp_dir, "account.json"), "json", filters)
 
+      write_relationship_import_files(temp_dir)
+
       total_count = email_count + social_count + chat_count + account_count
+
+      write_full_export_manifest(temp_dir, user_id, filters, %{
+        email: email_count,
+        social: social_count,
+        chat: chat_count,
+        account: account_count,
+        total: total_count
+      })
 
       # Create zip archive
       files =
@@ -159,6 +169,112 @@ defmodule Elektrine.Developer.ExportWorker do
     after
       # Clean up temp directory
       _ = File.rm_rf(temp_dir)
+    end
+  end
+
+  defp write_relationship_import_files(temp_dir) do
+    account_path = Path.join(temp_dir, "account.json")
+
+    with {:ok, account_json} <- File.read(account_path),
+         {:ok, %{"relationships" => %{"import_lists" => import_lists}}} <-
+           Jason.decode(account_json) do
+      [
+        {"following_accounts.csv", "Account address", Map.get(import_lists, "follows", [])},
+        {"blocked_accounts.csv", "Account address", Map.get(import_lists, "blocks", [])},
+        {"muted_accounts.csv", "Account address", Map.get(import_lists, "mutes", [])},
+        {"blocked_domains.csv", "Domain", Map.get(import_lists, "domain_blocks", [])}
+      ]
+      |> Enum.each(fn {filename, header, values} ->
+        File.write!(Path.join(temp_dir, filename), import_csv(header, values))
+      end)
+    else
+      _ -> :ok
+    end
+  end
+
+  defp write_full_export_manifest(temp_dir, user_id, filters, counts) do
+    manifest = %{
+      schema_version: 1,
+      export_type: "full",
+      user_id: user_id,
+      generated_at: DateTime.utc_now() |> DateTime.truncate(:second),
+      counts: counts,
+      filters: filters || %{},
+      files: export_file_manifest(temp_dir),
+      relationship_imports: %{
+        follows: %{
+          path: "following_accounts.csv",
+          type: "follows",
+          field: "file",
+          header: "Account address"
+        },
+        blocks: %{
+          path: "blocked_accounts.csv",
+          type: "blocks",
+          field: "file",
+          header: "Account address"
+        },
+        mutes: %{
+          path: "muted_accounts.csv",
+          type: "mutes",
+          field: "file",
+          header: "Account address"
+        },
+        domain_blocks: %{
+          path: "blocked_domains.csv",
+          type: "domain_blocks",
+          field: "file",
+          header: "Domain"
+        }
+      }
+    }
+
+    File.write!(
+      Path.join(temp_dir, "export_manifest.json"),
+      Jason.encode!(manifest, pretty: true)
+    )
+  end
+
+  defp export_file_manifest(temp_dir) do
+    temp_dir
+    |> File.ls!()
+    |> Enum.sort()
+    |> Enum.map(fn file ->
+      path = Path.join(temp_dir, file)
+      stat = File.stat!(path)
+
+      %{
+        path: file,
+        bytes: stat.size,
+        content_type: content_type_for_export_file(file)
+      }
+    end)
+  end
+
+  defp content_type_for_export_file(file) do
+    case Path.extname(file) do
+      ".json" -> "application/json"
+      ".csv" -> "text/csv"
+      _ -> "application/octet-stream"
+    end
+  end
+
+  defp import_csv(header, values) do
+    rows =
+      values
+      |> Enum.filter(&is_binary/1)
+      |> Enum.map(&escape_csv/1)
+
+    [header | rows]
+    |> Enum.join("\n")
+    |> Kernel.<>("\n")
+  end
+
+  defp escape_csv(value) do
+    if String.contains?(value, [",", "\"", "\n", "\r"]) do
+      "\"" <> String.replace(value, "\"", "\"\"") <> "\""
+    else
+      value
     end
   end
 end

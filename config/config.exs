@@ -91,6 +91,8 @@ config :elektrine, Oban,
        {"0 * * * *", Elektrine.Jobs.DeactivateExpiredAnnouncementsWorker},
        # Clean up old failed deliveries daily at 3 AM
        {"0 3 * * *", Elektrine.ActivityPub.DeliveryCleanupWorker},
+       # Prune federation cache/bookkeeping tables while preserving tombstones longer
+       {"25 3 * * *", Elektrine.ActivityPub.FederationCleanupWorker},
        # Auto-promote users based on trust level requirements daily
        {"0 3 * * *", Elektrine.Jobs.AutoPromoteEligibleUsersWorker},
        # Re-enqueue pending federation deliveries when next_retry_at is due
@@ -124,6 +126,23 @@ config :elektrine, Oban,
        # Refresh counts for recently interacted federated posts every 30 minutes
        {"*/30 * * * *", Elektrine.ActivityPub.RefreshCountsWorker,
         args: %{"type" => "refresh_interacted"}},
+       # Reconcile cached engagement counters from local rows and remote baselines daily
+       {"10 4 * * *", Elektrine.Social.EngagementCountRepairWorker,
+        args: %{"limit" => 50_000, "batch_size" => 500}},
+       # Refresh stale remote actor metadata in bounded batches
+       {"37 */6 * * *", Elektrine.ActivityPub.ActorRefreshWorker,
+        args: %{"type" => "stale", "limit" => 200}},
+       # Re-probe unreachable domains once their backoff window has elapsed
+       {"*/15 * * * *", Elektrine.ActivityPub.ReachabilityWorker,
+        args: %{"type" => "due", "limit" => 100}},
+       # Final refresh of remote polls after close so cached totals settle
+       {"*/10 * * * *", Elektrine.ActivityPub.FetchRemotePollWorker,
+        args: %{"type" => "final_due", "limit" => 100}},
+       # Revalidate stale successful link previews in bounded batches
+       {"12 */6 * * *", Elektrine.Social.LinkPreviewRefreshWorker,
+        args: %{"limit" => 100, "max_age_days" => 7}},
+       # Prune expired auth/support data and stale failed previews
+       {"40 3 * * *", Elektrine.Social.ExpiredDataCleanupWorker},
        # Poll Bluesky notifications for mirrored post replies/mentions
        {"*/2 * * * *", Elektrine.Bluesky.InboundPollWorker},
        # Archive/prune federation event/outbox data daily
@@ -144,6 +163,10 @@ config :elektrine_social, :iftas_blocklist,
   threshold: 66,
   url: nil,
   api_key: nil
+
+config :elektrine, :federation_load_guard,
+  enabled: true,
+  max_available_or_retryable: 50_000
 
 # Explicitly use UTC-only timezone database to avoid breaking DateTime.add
 # Timezone conversions use Tzdata explicitly in shift_zone/3

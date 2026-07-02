@@ -12,6 +12,7 @@ defmodule Elektrine.ActivityPub.Outbox do
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.{Builder, Mentions, Publisher, RemoteFetch}
   alias Elektrine.Bluesky.OutboundWorker
+  alias Elektrine.Messaging.{FederatedBoost, FederatedLike}
   alias Elektrine.Repo
   alias Elektrine.Social.Message
 
@@ -529,16 +530,90 @@ defmodule Elektrine.ActivityPub.Outbox do
 
   defp update_delete_inboxes(message, user_id, create_activity) do
     case delivery_inboxes_for_activity(create_activity) do
-      [] -> fanout_inboxes_for_post(message, user_id)
+      [] -> delete_fanout_inboxes(message, fanout_inboxes_for_post(message, user_id))
       inboxes -> inboxes
     end
   end
 
   defp community_update_delete_inboxes(message, community_actor_id, create_activity) do
     case delivery_inboxes_for_activity(create_activity) do
-      [] -> community_post_inboxes(message, community_actor_id)
+      [] -> delete_fanout_inboxes(message, community_post_inboxes(message, community_actor_id))
       inboxes -> inboxes
     end
+  end
+
+  defp delete_fanout_inboxes(%Message{} = message, base_inboxes) do
+    (base_inboxes ++ remote_interaction_inboxes_for_message(message))
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+  end
+
+  defp remote_interaction_inboxes_for_message(%Message{id: message_id})
+       when is_integer(message_id) do
+    [
+      remote_reply_inboxes(message_id),
+      remote_quote_inboxes(message_id),
+      remote_federated_like_inboxes(message_id),
+      remote_federated_boost_inboxes(message_id)
+    ]
+    |> List.flatten()
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+  end
+
+  defp remote_interaction_inboxes_for_message(_), do: []
+
+  defp remote_reply_inboxes(message_id) do
+    from(m in Message,
+      join: a in ActivityPub.Actor,
+      on: a.id == m.remote_actor_id,
+      where: m.reply_to_id == ^message_id and is_nil(m.deleted_at),
+      select: {a.inbox_url, a.metadata}
+    )
+    |> Repo.all()
+    |> actor_inboxes()
+  end
+
+  defp remote_quote_inboxes(message_id) do
+    from(m in Message,
+      join: a in ActivityPub.Actor,
+      on: a.id == m.remote_actor_id,
+      where: m.quoted_message_id == ^message_id and is_nil(m.deleted_at),
+      select: {a.inbox_url, a.metadata}
+    )
+    |> Repo.all()
+    |> actor_inboxes()
+  end
+
+  defp remote_federated_like_inboxes(message_id) do
+    from(l in FederatedLike,
+      join: a in ActivityPub.Actor,
+      on: a.id == l.remote_actor_id,
+      where: l.message_id == ^message_id,
+      select: {a.inbox_url, a.metadata}
+    )
+    |> Repo.all()
+    |> actor_inboxes()
+  end
+
+  defp remote_federated_boost_inboxes(message_id) do
+    from(b in FederatedBoost,
+      join: a in ActivityPub.Actor,
+      on: a.id == b.remote_actor_id,
+      where: b.message_id == ^message_id,
+      select: {a.inbox_url, a.metadata}
+    )
+    |> Repo.all()
+    |> actor_inboxes()
+  end
+
+  defp actor_inboxes(rows) do
+    rows
+    |> Enum.map(fn {inbox_url, metadata} ->
+      get_in(metadata || %{}, ["endpoints", "sharedInbox"]) || inbox_url
+    end)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
   end
 
   defp delivery_inboxes_for_activity(nil), do: []

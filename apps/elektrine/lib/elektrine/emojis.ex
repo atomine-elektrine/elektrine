@@ -96,6 +96,16 @@ defmodule Elektrine.Emojis do
   end
 
   @doc """
+  Lists picker-visible custom emojis with safe image URLs for public API clients.
+  """
+  def list_public_picker_emojis do
+    list_picker_emojis()
+    |> Enum.filter(fn emoji ->
+      match?({:ok, _safe_url}, CustomEmoji.validate_image_url(emoji.image_url))
+    end)
+  end
+
+  @doc """
   Lists all custom emojis from a specific instance.
   """
   def list_instance_emojis(instance_domain) do

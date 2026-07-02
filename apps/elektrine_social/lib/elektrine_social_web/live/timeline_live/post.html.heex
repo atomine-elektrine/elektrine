@@ -76,7 +76,9 @@
           </div>
           <div class="flex items-center gap-2">
             <.icon name="hero-chat-bubble-left" class="w-4 h-4" />
-            <span>{@total_reply_count} replies</span>
+            <span>
+              {max(@total_reply_count, PostUtilities.display_reply_count(@post))} replies
+            </span>
           </div>
           <div class="flex items-center gap-2">
             <.icon name="hero-clock" class="w-4 h-4" />
@@ -471,8 +473,8 @@
                 value_name="message_id"
                 current_user={@current_user}
                 is_liked={@liked_by_user}
-                like_count={@post.like_count}
-                comment_count={@total_reply_count}
+                like_count={PostUtilities.display_primary_count(@post)}
+                comment_count={max(@total_reply_count, PostUtilities.display_reply_count(@post))}
                 quote_count={@post.quote_count || 0}
                 on_comment="toggle_reply_form"
                 on_quote="quote_post"
@@ -736,7 +738,7 @@
 <!-- Full-size Image Modal -->
   <% # Use @post directly since it gets updated on like/unlike
   modal_is_liked = assigns[:liked_by_user] || false
-  modal_like_count = @post.like_count || 0 %>
+  modal_like_count = PostUtilities.display_primary_count(@post) %>
   <.image_modal
     show={@show_image_modal}
     image_url={@modal_image_url}

@@ -7,6 +7,7 @@ defmodule ElektrineSocialWeb.Components.Social.EmbeddedPost do
   import ElektrineWeb.CoreComponents
   import ElektrineWeb.HtmlHelpers
   alias Elektrine.AccountIdentifiers
+  alias ElektrineSocialWeb.Components.Social.PostUtilities
   alias ElektrineWeb.Platform.Integrations
 
   @doc """
@@ -229,11 +230,13 @@ defmodule ElektrineSocialWeb.Components.Social.EmbeddedPost do
         
     <!-- Original Post Stats -->
         <div class="flex items-center gap-4 mt-3 text-xs opacity-60">
-          <%= if @shared_message.like_count && @shared_message.like_count > 0 do %>
-            <span>{@shared_message.like_count} likes</span>
+          <% display_like_count = PostUtilities.display_primary_count(@shared_message)
+          display_reply_count = PostUtilities.display_reply_count(@shared_message) %>
+          <%= if display_like_count > 0 do %>
+            <span>{display_like_count} likes</span>
           <% end %>
-          <%= if @shared_message.reply_count && @shared_message.reply_count > 0 do %>
-            <span>{@shared_message.reply_count} replies</span>
+          <%= if display_reply_count > 0 do %>
+            <span>{display_reply_count} replies</span>
           <% end %>
         </div>
       </div>
