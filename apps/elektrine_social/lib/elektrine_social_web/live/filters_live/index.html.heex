@@ -1,0 +1,239 @@
+<div class="mx-auto max-w-7xl px-4 pb-2 sm:px-6 lg:px-8">
+  <.e_nav active_tab="filters" current_user={@current_user} />
+
+  <div class="flex flex-col gap-4 lg:flex-row lg:gap-6">
+    <div class="flex-1 min-w-0 order-first">
+      <div class="card panel-card overflow-hidden">
+        <div class="border-b border-base-300 p-4 sm:p-5">
+          <ElektrineWeb.Components.Platform.ENav.product_header
+            title="Filters"
+            description="Hide or flag posts by keyword, domain, account, and more across your feeds."
+          >
+            <:actions>
+              <a href="#filter-form-panel" class="btn btn-secondary btn-sm lg:hidden">
+                <.icon name="hero-plus" class="w-4 h-4 mr-2" /> New Filter
+              </a>
+            </:actions>
+          </ElektrineWeb.Components.Platform.ENav.product_header>
+        </div>
+
+        <div class="p-4 sm:p-5">
+          <%= if @filters != [] do %>
+            <div class="space-y-3">
+              <%= for filter <- @filters do %>
+                <div class={[
+                  "rounded-lg border p-4",
+                  if(@editing_filter_id == filter.id,
+                    do: "border-secondary",
+                    else: "border-base-300"
+                  )
+                ]}>
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0 flex-1">
+                      <div class="flex flex-wrap items-center gap-2">
+                        <span class="badge badge-outline badge-sm">
+                          {kind_label(filter.kind)}
+                        </span>
+                        <%= if filter.value do %>
+                          <span class="font-semibold text-base truncate">{filter.value}</span>
+                        <% end %>
+                        <span class={[
+                          "badge badge-sm",
+                          if(filter.action == "warn", do: "badge-warning", else: "badge-error")
+                        ]}>
+                          {if filter.action == "warn", do: "Warn", else: "Hide"}
+                        </span>
+                        <%= if filter.whole_word do %>
+                          <span class="badge badge-ghost badge-sm">Whole word</span>
+                        <% end %>
+                      </div>
+
+                      <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs opacity-60">
+                        <span>
+                          <%= if filter.contexts == [] do %>
+                            Applies everywhere
+                          <% else %>
+                            {filter.contexts |> Enum.map(&context_label/1) |> Enum.join(", ")}
+                          <% end %>
+                        </span>
+                        <span>{expires_label(filter.expires_at)}</span>
+                      </div>
+                    </div>
+
+                    <div class="flex flex-shrink-0 items-center gap-1">
+                      <button
+                        phx-click="edit_filter"
+                        phx-value-filter_id={filter.id}
+                        class="btn btn-ghost btn-sm btn-circle"
+                        aria-label="Edit filter"
+                        type="button"
+                      >
+                        <.icon name="hero-pencil" class="w-4 h-4" />
+                      </button>
+                      <button
+                        phx-click="delete_filter"
+                        phx-value-filter_id={filter.id}
+                        class="btn btn-ghost btn-sm btn-circle"
+                        data-confirm="Delete this filter?"
+                        aria-label="Delete filter"
+                        type="button"
+                      >
+                        <.icon name="hero-trash" class="w-4 h-4 text-error" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          <% else %>
+            <.empty_state
+              icon="hero-funnel"
+              title="No filters yet"
+              description="Create a filter to hide or flag posts you don't want to see."
+            />
+          <% end %>
+        </div>
+      </div>
+    </div>
+
+    <.sticky_sidebar
+      id="filter-form-panel"
+      class="order-last w-full flex-shrink-0 space-y-4 lg:w-80"
+    >
+      <div class="card panel-card">
+        <div class="card-body p-4 space-y-4">
+          <div class="flex items-start justify-between gap-2">
+            <div>
+              <h2 class="font-semibold">
+                {if @editing_filter_id, do: "Edit Filter", else: "Create Filter"}
+              </h2>
+              <p class="text-sm opacity-70">
+                Filtered posts are hidden or flagged in your feeds.
+              </p>
+            </div>
+            <%= if @editing_filter_id do %>
+              <button phx-click="cancel_edit_filter" class="btn btn-ghost btn-xs" type="button">
+                Cancel
+              </button>
+            <% end %>
+          </div>
+
+          <.form
+            id="filter-form"
+            for={%{}}
+            phx-change="update_filter_form"
+            phx-submit="save_filter"
+            class="space-y-4"
+          >
+            <div>
+              <label class="label">
+                <span class="label-text">Type</span>
+              </label>
+              <div class="select select-bordered w-full">
+                <select name="kind">
+                  <%= for {value, label} <- @kind_options do %>
+                    <option value={value} selected={@filter_kind == value}>{label}</option>
+                  <% end %>
+                </select>
+              </div>
+            </div>
+
+            <%= if value_required?(@filter_kind) do %>
+              <div>
+                <label class="label">
+                  <span class="label-text">Value</span>
+                </label>
+                <input
+                  type="text"
+                  name="value"
+                  value={@filter_value}
+                  placeholder={value_placeholder(@filter_kind)}
+                  class="input input-bordered w-full"
+                  maxlength="500"
+                  required
+                />
+              </div>
+
+              <%= if @filter_kind == "keyword" do %>
+                <label class="label cursor-pointer justify-start gap-3">
+                  <input
+                    type="checkbox"
+                    name="whole_word"
+                    class="checkbox checkbox-sm"
+                    checked={@filter_whole_word}
+                  />
+                  <span class="label-text">Match whole word only</span>
+                </label>
+              <% end %>
+            <% end %>
+
+            <div>
+              <label class="label">
+                <span class="label-text">Contexts</span>
+              </label>
+              <div class="space-y-1 rounded-lg border border-base-300 p-3">
+                <%= for {value, label} <- @context_options do %>
+                  <label class="label cursor-pointer justify-start gap-3 py-1">
+                    <input
+                      type="checkbox"
+                      name="contexts[]"
+                      value={value}
+                      class="checkbox checkbox-sm"
+                      checked={value in @filter_contexts}
+                    />
+                    <span class="label-text">{label}</span>
+                  </label>
+                <% end %>
+              </div>
+              <p class="mt-1 text-xs opacity-60">
+                Leave all unchecked to apply everywhere.
+              </p>
+            </div>
+
+            <div>
+              <label class="label">
+                <span class="label-text">Action</span>
+              </label>
+              <div class="select select-bordered w-full">
+                <select name="action">
+                  <option value="hide" selected={@filter_action == "hide"}>
+                    Hide completely
+                  </option>
+                  <option value="warn" selected={@filter_action == "warn"}>
+                    Show with warning
+                  </option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label class="label">
+                <span class="label-text">Expires</span>
+              </label>
+              <div class="select select-bordered w-full">
+                <select name="expires">
+                  <%= if @editing_filter_id do %>
+                    <option value="keep" selected={@filter_expires == "keep"}>
+                      Keep current expiration
+                    </option>
+                  <% end %>
+                  <%= for {value, label} <- @duration_options do %>
+                    <option value={value} selected={@filter_expires == value}>{label}</option>
+                  <% end %>
+                </select>
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-secondary w-full">
+              <%= if @editing_filter_id do %>
+                <.icon name="hero-check" class="w-4 h-4 mr-2" /> Update Filter
+              <% else %>
+                <.icon name="hero-plus" class="w-4 h-4 mr-2" /> Create Filter
+              <% end %>
+            </button>
+          </.form>
+        </div>
+      </div>
+    </.sticky_sidebar>
+  </div>
+</div>

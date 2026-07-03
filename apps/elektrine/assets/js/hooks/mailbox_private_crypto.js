@@ -409,10 +409,12 @@ export function lockedStatusText(unlockMode) {
 }
 
 export function unlockSecretLabel(unlockMode) {
+  if (unlockMode === MASTER_MODE) return "master passphrase"
   return unlockMode === "account_password" ? "account password" : "mailbox passphrase"
 }
 
 export function unlockSecretPlaceholder(unlockMode) {
+  if (unlockMode === MASTER_MODE) return "Master passphrase"
   return unlockMode === "account_password" ? "Account password" : "Mailbox passphrase"
 }
 

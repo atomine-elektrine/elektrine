@@ -1910,6 +1910,14 @@ defmodule ElektrineWeb.Router do
     post("/profiles/:handle/friend-request/accept", ProfileController, :accept_friend_request)
     delete("/profiles/:handle/friend-request", ProfileController, :cancel_friend_request)
     delete("/profiles/:handle/friend", ProfileController, :unfriend)
+
+    # Post-notification subscription / endorsement / private note actions
+    # (static-page form fallbacks for the LiveView bell/star/note buttons)
+    post("/profiles/:handle/subscribe", ProfileController, :subscribe)
+    delete("/profiles/:handle/subscribe", ProfileController, :unsubscribe)
+    post("/profiles/:handle/endorse", ProfileController, :endorse)
+    delete("/profiles/:handle/endorse", ProfileController, :unendorse)
+    post("/profiles/:handle/note", ProfileController, :save_account_note)
   end
 
   # Profile page - Renders static HTML profile

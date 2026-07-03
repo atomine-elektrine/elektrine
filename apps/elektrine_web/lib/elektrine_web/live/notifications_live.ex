@@ -2,6 +2,7 @@ defmodule ElektrineWeb.NotificationsLive do
   use ElektrineWeb, :live_view
   alias Elektrine.Notifications
   alias Elektrine.Platform.ENav, as: PlatformENav
+  alias Elektrine.Push
   alias Elektrine.Utils.SafeConvert
   import ElektrineWeb.Components.Platform.ENav
   import ElektrineWeb.Components.User.Avatar
@@ -50,7 +51,23 @@ defmodule ElektrineWeb.NotificationsLive do
      |> assign(:filter, :all)
      |> assign(:source_filter, "all")
      |> assign(:notification_stats, default_notification_stats())
-     |> assign(:loading_more, false)}
+     |> assign(:loading_more, false)
+     |> assign_web_push_defaults()}
+  end
+
+  defp assign_web_push_defaults(socket) do
+    vapid_key = web_push_public_key()
+
+    socket
+    |> assign(:web_push_vapid_key, vapid_key)
+    |> assign(:web_push_state, if(vapid_key, do: :unknown, else: :unavailable))
+    |> assign(:web_push_busy, false)
+  end
+
+  defp web_push_public_key do
+    :elektrine
+    |> Application.get_env(:push, [])
+    |> Keyword.get(:web_push_public_key)
   end
 
   @impl true
@@ -192,6 +209,103 @@ defmodule ElektrineWeb.NotificationsLive do
       {:noreply, socket}
     end
   end
+
+  def handle_event("enable_web_push", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:web_push_busy, true)
+     |> push_event("web_push_subscribe", %{})}
+  end
+
+  def handle_event("disable_web_push", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:web_push_busy, true)
+     |> push_event("web_push_unsubscribe", %{})}
+  end
+
+  def handle_event("web_push_state", params, socket) do
+    {:noreply, assign(socket, :web_push_state, web_push_state_from_report(socket, params))}
+  end
+
+  def handle_event("web_push_subscribed", %{"subscription" => subscription}, socket) do
+    user = socket.assigns.current_user
+
+    socket =
+      case Push.upsert_web_subscription(user.id, %{"subscription" => subscription}) do
+        {:ok, _subscription} ->
+          socket
+          |> assign(:web_push_state, :enabled)
+          |> put_flash(:info, "Browser push notifications enabled.")
+
+        {:error, _reason} ->
+          socket
+          |> assign(:web_push_state, :disabled)
+          |> put_flash(:error, "Could not save the browser push subscription.")
+      end
+
+    {:noreply, assign(socket, :web_push_busy, false)}
+  end
+
+  def handle_event("web_push_unsubscribed", params, socket) do
+    user = socket.assigns.current_user
+    endpoint = params["endpoint"]
+
+    if is_binary(endpoint) do
+      Push.delete_web_subscription_by_endpoint(user.id, endpoint)
+    end
+
+    {:noreply,
+     socket
+     |> assign(:web_push_state, :disabled)
+     |> assign(:web_push_busy, false)
+     |> put_flash(:info, "Browser push notifications disabled.")}
+  end
+
+  def handle_event("web_push_error", params, socket) do
+    {state, message} =
+      case params["reason"] do
+        "permission_denied" ->
+          {:denied, "Notification permission was denied in this browser."}
+
+        _other ->
+          {socket.assigns.web_push_state, "Browser push notification setup failed."}
+      end
+
+    {:noreply,
+     socket
+     |> assign(:web_push_state, state)
+     |> assign(:web_push_busy, false)
+     |> put_flash(:error, message)}
+  end
+
+  defp web_push_state_from_report(socket, params) do
+    cond do
+      is_nil(socket.assigns.web_push_vapid_key) -> :unavailable
+      params["supported"] != true -> :unsupported
+      params["subscribed"] == true -> :enabled
+      params["permission"] == "denied" -> :denied
+      true -> :disabled
+    end
+  end
+
+  defp web_push_state_description(:enabled),
+    do: "Push notifications are on for this browser."
+
+  defp web_push_state_description(:disabled),
+    do: "Get notified in this browser even when Elektrine is closed."
+
+  defp web_push_state_description(:denied),
+    do: "Notifications are blocked in this browser's settings."
+
+  defp web_push_state_description(:unsupported),
+    do: "This browser does not support push notifications."
+
+  defp web_push_state_description(:unavailable),
+    do: "Push notifications are not configured on this server."
+
+  defp web_push_state_description(_state),
+    do: "Checking this browser's push notification status..."
 
   defp event_id(value) do
     case SafeConvert.parse_id(value) do

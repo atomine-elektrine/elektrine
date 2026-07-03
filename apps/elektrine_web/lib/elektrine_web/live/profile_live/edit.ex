@@ -5,6 +5,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
   alias Elektrine.Domains
   alias Elektrine.Profiles
   alias Elektrine.Profiles.UserProfile
+  alias Elektrine.Repo
   alias Elektrine.StaticSites
   alias Elektrine.Theme
   alias ElektrineWeb.GitHubWebhooks
@@ -880,7 +881,6 @@ defmodule ElektrineWeb.ProfileLive.Edit do
         |> convert_checkbox_to_boolean_if_present("use_discord_avatar")
         |> convert_checkbox_to_boolean_if_present("hide_view_counter")
         |> convert_checkbox_to_boolean_if_present("hide_uid")
-        |> convert_checkbox_to_boolean_if_present("hide_followers")
         |> convert_checkbox_to_boolean_if_present("hide_avatar")
         |> convert_checkbox_to_boolean_if_present("hide_timeline")
         |> convert_checkbox_to_boolean_if_present("hide_community_posts")
@@ -890,6 +890,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
         |> convert_checkbox_to_boolean_if_present("typewriter_effect")
         |> convert_checkbox_to_boolean_if_present("typewriter_title")
         |> convert_checkbox_to_boolean_if_present("pattern_animated")
+        |> convert_checkbox_to_boolean_if_present("show_birthday")
 
       # Convert empty string font_family to nil for "System Default"
       profile_params =
@@ -900,15 +901,37 @@ defmodule ElektrineWeb.ProfileLive.Edit do
           profile_params
         end
 
-      result = Profiles.upsert_user_profile(socket.assigns.user.id, profile_params)
+      # Birthday fields live on the user, not the profile
+      {user_params, profile_params} = Map.split(profile_params, ["birthday", "show_birthday"])
+
+      # Apply both writes atomically: a birthday validation error must not
+      # drop the profile edits, and a failed profile upsert must not leave a
+      # committed (and federated) user update behind. Side effects are safe
+      # here: Accounts.update_user only fires username-history/mailbox/actor
+      # federation side effects on username or avatar changes, which cannot
+      # occur for birthday params, and Profiles federation only writes
+      # activity/delivery rows, which roll back with the transaction.
+      result =
+        Repo.transaction(fn ->
+          with {:ok, updated_user} <-
+                 maybe_update_user_settings(socket.assigns.user, user_params),
+               {:ok, _updated_profile} <-
+                 Profiles.upsert_user_profile(socket.assigns.user.id, profile_params) do
+            updated_user
+          else
+            {:error, changeset} -> Repo.rollback(changeset)
+          end
+        end)
 
       case result do
-        {:ok, _updated_profile} ->
+        {:ok, updated_user} ->
           # Force reload profile with links
           refreshed_profile = Profiles.get_user_profile(socket.assigns.user.id)
 
           {:noreply,
            socket
+           |> assign(:user, updated_user)
+           |> assign(:current_user, updated_user)
            |> assign(:profile, refreshed_profile)
            |> assign(:profile_save_status, "Saved")
            |> push_event("profile_updated", %{})}
@@ -1288,6 +1311,14 @@ defmodule ElektrineWeb.ProfileLive.Edit do
       {:error, _reason} ->
         {:noreply, notify_error(socket, "Failed to create file")}
     end
+  end
+
+  defp maybe_update_user_settings(user, user_params) when map_size(user_params) == 0 do
+    {:ok, user}
+  end
+
+  defp maybe_update_user_settings(user, user_params) do
+    Accounts.update_user(user, user_params)
   end
 
   defp upload_in_progress?(socket, upload_names) when is_list(upload_names) do

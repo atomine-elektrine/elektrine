@@ -1289,6 +1289,167 @@
                   <% end %>
                 <% end %>
               <% else %>
+                <!-- Bookmark Folders (when Saved filter is active) -->
+                <%= if @current_filter == "saved" && @current_user do %>
+                  <div class="mb-4 space-y-3">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        phx-click="select_bookmark_folder"
+                        phx-value-folder_id=""
+                        class={[
+                          "btn btn-sm min-h-10 px-3 rounded-full border border-base-300",
+                          if(is_nil(@selected_bookmark_folder_id),
+                            do: "btn-primary border-primary",
+                            else: "bg-base-200 text-base-content hover:bg-base-300"
+                          )
+                        ]}
+                      >
+                        <.icon name="hero-bookmark" class="w-4 h-4 mr-1" /> All Saved
+                      </button>
+                      <%= for folder <- @bookmark_folders do %>
+                        <button
+                          type="button"
+                          phx-click="select_bookmark_folder"
+                          phx-value-folder_id={folder.id}
+                          class={[
+                            "btn btn-sm min-h-10 px-3 rounded-full border border-base-300",
+                            if(@selected_bookmark_folder_id == folder.id,
+                              do: "btn-primary border-primary",
+                              else: "bg-base-200 text-base-content hover:bg-base-300"
+                            )
+                          ]}
+                        >
+                          <%= if folder.emoji do %>
+                            <span class="mr-1">{folder.emoji}</span>
+                          <% else %>
+                            <.icon name="hero-folder" class="w-4 h-4 mr-1" />
+                          <% end %>
+                          {folder.name}
+                        </button>
+                      <% end %>
+                      <button
+                        type="button"
+                        phx-click="toggle_bookmark_folder_manager"
+                        class="btn btn-ghost btn-sm"
+                        aria-expanded={to_string(@show_bookmark_folder_manager)}
+                      >
+                        <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> Manage Folders
+                      </button>
+                    </div>
+
+                    <%= if @show_bookmark_folder_manager do %>
+                      <div class="rounded-lg border border-base-300 p-3 space-y-3">
+                        <.form
+                          id="create-bookmark-folder-form"
+                          for={%{}}
+                          phx-submit="create_bookmark_folder"
+                          class="flex flex-wrap items-center gap-2"
+                        >
+                          <input
+                            type="text"
+                            name="emoji"
+                            placeholder="Emoji"
+                            class="input input-bordered input-sm w-20"
+                            maxlength="32"
+                            autocomplete="off"
+                          />
+                          <input
+                            type="text"
+                            name="name"
+                            placeholder="New folder name"
+                            class="input input-bordered input-sm flex-1 min-w-[10rem]"
+                            maxlength="120"
+                            autocomplete="off"
+                            required
+                          />
+                          <button type="submit" class="btn btn-secondary btn-sm">
+                            <.icon name="hero-plus" class="w-4 h-4 mr-1" /> Add Folder
+                          </button>
+                        </.form>
+
+                        <%= if @bookmark_folders != [] do %>
+                          <div class="divide-y divide-base-300">
+                            <%= for folder <- @bookmark_folders do %>
+                              <div class="py-2">
+                                <%= if @editing_bookmark_folder_id == folder.id do %>
+                                  <.form
+                                    id={"edit-bookmark-folder-form-#{folder.id}"}
+                                    for={%{}}
+                                    phx-submit="update_bookmark_folder"
+                                    class="flex flex-wrap items-center gap-2"
+                                  >
+                                    <input type="hidden" name="folder_id" value={folder.id} />
+                                    <input
+                                      type="text"
+                                      name="emoji"
+                                      value={folder.emoji}
+                                      placeholder="Emoji"
+                                      class="input input-bordered input-sm w-20"
+                                      maxlength="32"
+                                      autocomplete="off"
+                                    />
+                                    <input
+                                      type="text"
+                                      name="name"
+                                      value={folder.name}
+                                      class="input input-bordered input-sm flex-1 min-w-[10rem]"
+                                      maxlength="120"
+                                      autocomplete="off"
+                                      required
+                                    />
+                                    <button type="submit" class="btn btn-secondary btn-xs">
+                                      Save
+                                    </button>
+                                    <button
+                                      type="button"
+                                      phx-click="cancel_edit_bookmark_folder"
+                                      class="btn btn-ghost btn-xs"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </.form>
+                                <% else %>
+                                  <div class="flex items-center justify-between gap-2 text-sm">
+                                    <span class="truncate">
+                                      <%= if folder.emoji do %>
+                                        <span class="mr-1">{folder.emoji}</span>
+                                      <% end %>
+                                      {folder.name}
+                                    </span>
+                                    <div class="flex flex-shrink-0 items-center gap-1">
+                                      <button
+                                        type="button"
+                                        phx-click="edit_bookmark_folder"
+                                        phx-value-folder_id={folder.id}
+                                        class="btn btn-ghost btn-xs"
+                                      >
+                                        Rename
+                                      </button>
+                                      <button
+                                        type="button"
+                                        phx-click="delete_bookmark_folder"
+                                        phx-value-folder_id={folder.id}
+                                        data-confirm="Delete this folder? Saved items in it are kept under All Saved."
+                                        class="btn btn-ghost btn-xs text-error"
+                                      >
+                                        Delete
+                                      </button>
+                                    </div>
+                                  </div>
+                                <% end %>
+                              </div>
+                            <% end %>
+                          </div>
+                        <% else %>
+                          <p class="text-sm opacity-60">
+                            No folders yet. Create one to organize saved items.
+                          </p>
+                        <% end %>
+                      </div>
+                    <% end %>
+                  </div>
+                <% end %>
                 <!-- Saved RSS Items (when Saved filter is active) -->
                 <%= if @current_filter == "saved" && !Enum.empty?(@rss_items) do %>
                   <div class="mb-4">
@@ -1369,6 +1530,63 @@
                         loading_remote_replies={@loading_remote_replies}
                         remote_reply_errors={@remote_reply_errors}
                       />
+
+                      <%= if @current_filter == "saved" && @current_user do %>
+                        <% item_folder_id = Map.get(@saved_item_folders, post.id)
+
+                        item_folder =
+                          Enum.find(@bookmark_folders, &(&1.id == item_folder_id)) %>
+                        <div class="mt-2 flex items-center justify-end">
+                          <div class="dropdown dropdown-end">
+                            <label tabindex="0" class="btn btn-ghost btn-xs gap-1">
+                              <.icon name="hero-folder" class="w-3.5 h-3.5" />
+                              <%= if item_folder do %>
+                                <%= if item_folder.emoji do %>
+                                  <span>{item_folder.emoji}</span>
+                                <% end %>
+                                {item_folder.name}
+                              <% else %>
+                                Move to folder
+                              <% end %>
+                              <.icon name="hero-chevron-down" class="w-3 h-3" />
+                            </label>
+                            <ul
+                              tabindex="0"
+                              class="dropdown-content z-30 menu p-2 rounded-box w-52"
+                            >
+                              <li>
+                                <button
+                                  type="button"
+                                  phx-click="move_saved_item"
+                                  phx-value-message_id={post.id}
+                                  phx-value-folder_id=""
+                                  class={is_nil(item_folder_id) && "active"}
+                                >
+                                  <.icon name="hero-bookmark" class="w-4 h-4" /> No folder
+                                </button>
+                              </li>
+                              <%= for folder <- @bookmark_folders do %>
+                                <li>
+                                  <button
+                                    type="button"
+                                    phx-click="move_saved_item"
+                                    phx-value-message_id={post.id}
+                                    phx-value-folder_id={folder.id}
+                                    class={item_folder_id == folder.id && "active"}
+                                  >
+                                    <%= if folder.emoji do %>
+                                      <span>{folder.emoji}</span>
+                                    <% else %>
+                                      <.icon name="hero-folder" class="w-4 h-4" />
+                                    <% end %>
+                                    {folder.name}
+                                  </button>
+                                </li>
+                              <% end %>
+                            </ul>
+                          </div>
+                        </div>
+                      <% end %>
                     </div>
                   <% end %>
                 </div>

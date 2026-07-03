@@ -132,7 +132,7 @@
                   </p>
 
                   <p class="text-xs text-base-content/60" data-private-mailbox-status>
-                    {gettext("Mailbox locked.")}
+                    {private_mailbox_locked_status(@mailbox)}
                   </p>
                 </div>
 
@@ -143,13 +143,7 @@
                   <input
                     type="password"
                     class="input input-bordered input-sm w-full sm:w-64"
-                    placeholder={
-                      case Elektrine.Email.Mailbox.private_storage_unlock_mode(@mailbox) do
-                        "account_password" -> gettext("Account password")
-                        "master" -> gettext("Master passphrase")
-                        _ -> gettext("Mailbox passphrase")
-                      end
-                    }
+                    placeholder={private_mailbox_unlock_placeholder(@mailbox)}
                     data-private-mailbox-passphrase
                   />
                   <div class="flex gap-2">

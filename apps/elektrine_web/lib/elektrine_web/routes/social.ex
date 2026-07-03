@@ -236,6 +236,7 @@ defmodule ElektrineWeb.Routes.Social do
         live("/post", ElektrineSocialWeb.RemotePostLive.Show, :show)
         live("/post/:post_id", ElektrineSocialWeb.RemotePostLive.Show, :show)
         live("/hashtag/:hashtag", ElektrineSocialWeb.HashtagLive.Show, :show)
+        live("/filters", ElektrineSocialWeb.FiltersLive.Index, :index)
         live("/lists", ElektrineSocialWeb.ListLive.Index, :index)
         live("/lists/:id", ElektrineSocialWeb.ListLive.Show, :show)
         live("/gallery", ElektrineSocialWeb.GalleryLive.Index, :index)

@@ -376,6 +376,30 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
     end
   end
 
+  def handle_event("mute_thread", %{"message_id" => message_id}, socket) do
+    handle_thread_mute(socket, message_id, :mute)
+  end
+
+  def handle_event("unmute_thread", %{"message_id" => message_id}, socket) do
+    handle_thread_mute(socket, message_id, :unmute)
+  end
+
+  def handle_event("mute_user", %{"user_id" => user_id} = params, socket) do
+    handle_user_mute(socket, user_id, :mute, params["duration"])
+  end
+
+  def handle_event("unmute_user", %{"user_id" => user_id}, socket) do
+    handle_user_mute(socket, user_id, :unmute, nil)
+  end
+
+  def handle_event("mute_remote_actor", %{"actor_id" => actor_id}, socket) do
+    handle_remote_actor_mute(socket, actor_id, :mute)
+  end
+
+  def handle_event("unmute_remote_actor", %{"actor_id" => actor_id}, socket) do
+    handle_remote_actor_mute(socket, actor_id, :unmute)
+  end
+
   def handle_event("report_post", %{"message_id" => message_id}, socket) do
     message_id = event_id(message_id)
     post = Enum.find(socket.assigns.timeline_posts, &(&1.id == message_id))
@@ -424,22 +448,11 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
 
       cond do
         special_timeline_view?(filter) ->
-          load_ref = System.unique_integer([:positive, :monotonic])
-          send(self(), {:load_view_data, load_ref, socket.assigns.current_filter, filter})
-
           {:noreply,
            socket
            |> assign(:filter_dropdown_open, false)
-           |> assign(:timeline_load_ref, load_ref)
-           |> assign(:timeline_filter, filter)
-           |> assign(:timeline_posts, [])
-           |> assign(:filtered_posts, [])
-           |> assign(:filtered_post_ids, [])
            |> assign(:queued_posts, [])
-           |> assign(:loading_timeline, true)
-           |> assign(:loading_more, false)
-           |> assign(:no_more_posts, false)
-           |> stream(:timeline_filtered_posts, [], reset: true)
+           |> Helpers.queue_timeline_reload(socket.assigns.current_filter, filter)
            |> push_patch(to: path)}
 
         special_timeline_view?(current_view) &&
@@ -821,7 +834,9 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
       end
 
     timeline_view = socket.assigns.timeline_filter || "all"
-    {more_posts, no_more_posts} = load_more_until_visible(socket, current_posts, before_id)
+
+    {more_posts, no_more_posts, saved_cursor} =
+      load_more_until_visible(socket, current_posts, before_id)
 
     merged_lemmy_counts =
       Map.merge(
@@ -917,6 +932,8 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
     |> assign(:post_replies, merged_post_replies)
     |> assign(:timeline_posts, updated_timeline_posts)
     |> assign(:timeline_gap_marker_ids, updated_gap_marker_ids)
+    |> maybe_assign_saved_scroll_cursor(saved_cursor)
+    |> maybe_merge_saved_item_folders(more_posts)
     |> Helpers.apply_timeline_filter(true)
     |> maybe_queue_reply_context_preview_fetch(more_posts)
     |> maybe_schedule_background_refresh_jobs(more_posts)
@@ -926,10 +943,13 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
   defp load_more_until_visible(socket, current_posts, before_id) do
     previous_visible_ids = MapSet.new(socket.assigns[:filtered_post_ids] || [])
 
+    saved_cursor =
+      if saved_keyset_load_more?(socket), do: socket.assigns[:saved_scroll_cursor]
+
     do_load_more_until_visible(
       socket,
       current_posts,
-      before_id,
+      {before_id, saved_cursor},
       [],
       previous_visible_ids,
       @load_more_max_batches
@@ -939,26 +959,29 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
   defp do_load_more_until_visible(
          _socket,
          _current_posts,
-         _before_id,
+         {_before_id, saved_cursor},
          accumulated,
          _visible_ids,
          0
        ) do
-    {accumulated, Enum.empty?(accumulated)}
+    {accumulated, Enum.empty?(accumulated), saved_cursor}
   end
 
   defp do_load_more_until_visible(
          socket,
          current_posts,
-         before_id,
+         {before_id, saved_cursor},
          accumulated,
          previous_visible_ids,
          batches_left
        ) do
-    page = fetch_more_posts(socket, before_id, current_posts, accumulated)
+    {page, next_saved_cursor} =
+      fetch_more_posts(socket, before_id, saved_cursor, current_posts, accumulated)
+
+    next_saved_cursor = next_saved_cursor || saved_cursor
 
     if page == [] do
-      {accumulated, true}
+      {accumulated, true, next_saved_cursor}
     else
       accumulated = Helpers.dedupe_posts(accumulated ++ page)
       candidate_posts = Helpers.dedupe_posts(current_posts ++ accumulated)
@@ -970,14 +993,14 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
         |> MapSet.new()
 
       if MapSet.difference(candidate_visible_ids, previous_visible_ids) |> MapSet.size() > 0 do
-        {accumulated, false}
+        {accumulated, false, next_saved_cursor}
       else
         next_before_id = page |> List.last() |> Map.get(:id)
 
         do_load_more_until_visible(
           socket,
           current_posts,
-          next_before_id,
+          {next_before_id, next_saved_cursor},
           accumulated,
           previous_visible_ids,
           batches_left - 1
@@ -986,7 +1009,49 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
     end
   end
 
-  defp fetch_more_posts(socket, before_id, current_posts, accumulated_posts) do
+  # Keyset pagination applies to the saved source filter whenever load-more is
+  # served by fetch_more_posts_for_source_filter (i.e. not a special view).
+  defp saved_keyset_load_more?(socket) do
+    socket.assigns.current_filter == "saved" &&
+      !special_timeline_view?(socket.assigns.timeline_filter || "all")
+  end
+
+  # Only the saved keyset path yields a cursor; keep the existing assign
+  # (reset by Helpers.queue_timeline_reload) for every other load path.
+  defp maybe_assign_saved_scroll_cursor(socket, nil), do: socket
+
+  defp maybe_assign_saved_scroll_cursor(socket, saved_cursor) do
+    assign(socket, :saved_scroll_cursor, saved_cursor)
+  end
+
+  # Appended saved posts need folder membership entries so the folder badge
+  # and move-to-folder menu render correctly (mirrors assign_saved_item_folders
+  # on the initial load).
+  defp maybe_merge_saved_item_folders(socket, more_posts) do
+    user = socket.assigns[:current_user]
+
+    if user && socket.assigns.current_filter == "saved" && more_posts != [] do
+      message_ids =
+        more_posts
+        |> Enum.map(& &1.id)
+        |> Enum.filter(&is_integer/1)
+
+      assign(
+        socket,
+        :saved_item_folders,
+        Map.merge(
+          socket.assigns[:saved_item_folders] || %{},
+          Social.saved_item_folder_map(user.id, message_ids)
+        )
+      )
+    else
+      socket
+    end
+  end
+
+  # Returns {page, next_saved_cursor}. next_saved_cursor is non-nil only for
+  # the saved keyset load-more path; every other path pages by before_id.
+  defp fetch_more_posts(socket, before_id, saved_cursor, current_posts, accumulated_posts) do
     current_user = socket.assigns[:current_user]
     timeline_view = socket.assigns.timeline_filter || "all"
     search_query = socket.assigns[:search_query] || ""
@@ -996,72 +1061,98 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
 
     case timeline_view do
       "replies" ->
-        Social.get_federated_replies(
-          limit: @load_more_page_size,
-          before_id: before_id,
-          user_id: current_user && current_user.id,
-          search_query: search_query,
-          source_filter: source_filter
-        )
+        {Social.get_federated_replies(
+           limit: @load_more_page_size,
+           before_id: before_id,
+           user_id: current_user && current_user.id,
+           search_query: search_query,
+           source_filter: source_filter
+         ), nil}
 
       "friends" ->
         if current_user do
-          Social.get_friends_timeline(current_user.id,
-            limit: @load_more_page_size,
-            before_id: before_id,
-            search_query: search_query
-          )
+          {Social.get_friends_timeline(current_user.id,
+             limit: @load_more_page_size,
+             before_id: before_id,
+             search_query: search_query
+           ), nil}
         else
-          []
+          {[], nil}
         end
 
       "my_posts" ->
         if current_user do
-          Social.get_user_timeline_posts(current_user.id,
-            limit: @load_more_page_size,
-            before_id: before_id,
-            viewer_id: current_user.id,
-            search_query: search_query
-          )
+          {Social.get_user_timeline_posts(current_user.id,
+             limit: @load_more_page_size,
+             before_id: before_id,
+             viewer_id: current_user.id,
+             search_query: search_query
+           ), nil}
         else
-          []
+          {[], nil}
         end
 
       "trusted" ->
-        Social.get_trusted_timeline(
-          limit: @load_more_page_size,
-          before_id: before_id,
-          user_id: current_user && current_user.id,
-          search_query: search_query
-        )
+        {Social.get_trusted_timeline(
+           limit: @load_more_page_size,
+           before_id: before_id,
+           user_id: current_user && current_user.id,
+           search_query: search_query
+         ), nil}
 
       "communities" ->
         if current_user do
-          Social.get_public_community_posts(
-            limit: @load_more_page_size,
-            before_id: before_id,
-            user_id: current_user.id,
-            search_query: search_query,
-            source_filter: source_filter
-          )
+          {Social.get_public_community_posts(
+             limit: @load_more_page_size,
+             before_id: before_id,
+             user_id: current_user.id,
+             search_query: search_query,
+             source_filter: source_filter
+           ), nil}
         else
-          Social.get_public_community_posts(
-            limit: @load_more_page_size,
-            before_id: before_id,
-            search_query: search_query,
-            source_filter: source_filter
-          )
+          {Social.get_public_community_posts(
+             limit: @load_more_page_size,
+             before_id: before_id,
+             search_query: search_query,
+             source_filter: source_filter
+           ), nil}
         end
 
       _ ->
         fetch_more_posts_for_source_filter(
-          socket.assigns.current_filter,
+          source_filter,
           current_user,
           before_id,
           search_query,
           session_context,
-          loaded_posts
+          loaded_posts,
+          saved_cursor: saved_cursor,
+          bookmark_folder_id: socket.assigns[:selected_bookmark_folder_id]
         )
+    end
+  end
+
+  # Each clause returns {page, next_saved_cursor}; only the "saved" clause
+  # paginates by keyset cursor (saved order), so it is the only one that
+  # produces a non-nil cursor.
+  defp fetch_more_posts_for_source_filter(
+         "saved",
+         current_user,
+         _before_id,
+         search_query,
+         _session_context,
+         _loaded_posts,
+         paging
+       ) do
+    if current_user do
+      Social.get_saved_posts_with_cursor(current_user.id,
+        limit: @load_more_page_size,
+        cursor: Keyword.get(paging, :saved_cursor),
+        search_query: search_query,
+        bookmark_folder_id: Keyword.get(paging, :bookmark_folder_id)
+      )
+    else
+      {[], nil}
     end
   end
 
@@ -1071,20 +1162,21 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
          before_id,
          search_query,
          _session_context,
-         _loaded_posts
+         _loaded_posts,
+         _paging
        ) do
     if current_user do
-      Social.get_combined_feed(current_user.id,
-        limit: @load_more_page_size,
-        before_id: before_id,
-        search_query: search_query
-      )
+      {Social.get_combined_feed(current_user.id,
+         limit: @load_more_page_size,
+         before_id: before_id,
+         search_query: search_query
+       ), nil}
     else
-      Social.get_public_timeline(
-        limit: @load_more_page_size,
-        before_id: before_id,
-        search_query: search_query
-      )
+      {Social.get_public_timeline(
+         limit: @load_more_page_size,
+         before_id: before_id,
+         search_query: search_query
+       ), nil}
     end
   end
 
@@ -1094,24 +1186,28 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
          before_id,
          search_query,
          session_context,
-         loaded_posts
+         loaded_posts,
+         _paging
        ) do
     if current_user do
       current_ids = MapSet.new(Enum.map(loaded_posts, & &1.id))
 
-      Recommendations.get_for_you_feed(current_user.id,
-        limit: length(loaded_posts) + @load_more_page_size,
-        session_context: session_context
-      )
-      |> Helpers.filter_posts_by_search_query(search_query)
-      |> Enum.reject(fn post -> MapSet.member?(current_ids, post.id) end)
-      |> Enum.take(@load_more_page_size)
+      posts =
+        Recommendations.get_for_you_feed(current_user.id,
+          limit: length(loaded_posts) + @load_more_page_size,
+          session_context: session_context
+        )
+        |> Helpers.filter_posts_by_search_query(search_query)
+        |> Enum.reject(fn post -> MapSet.member?(current_ids, post.id) end)
+        |> Enum.take(@load_more_page_size)
+
+      {posts, nil}
     else
-      Social.get_public_timeline(
-        limit: @load_more_page_size,
-        before_id: before_id,
-        search_query: search_query
-      )
+      {Social.get_public_timeline(
+         limit: @load_more_page_size,
+         before_id: before_id,
+         search_query: search_query
+       ), nil}
     end
   end
 
@@ -1121,68 +1217,61 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
          before_id,
          search_query,
          _session_context,
-         loaded_posts
+         _loaded_posts,
+         _paging
        ) do
-    case filter do
-      "all" ->
-        get_public_timeline_page(current_user, before_id, search_query)
+    posts =
+      case filter do
+        "all" ->
+          get_public_timeline_page(current_user, before_id, search_query)
 
-      "following" ->
-        if current_user do
-          Social.get_combined_feed(current_user.id,
+        "following" ->
+          if current_user do
+            Social.get_combined_feed(current_user.id,
+              limit: @load_more_page_size,
+              before_id: before_id,
+              search_query: search_query
+            )
+          else
+            Social.get_public_timeline(
+              limit: @load_more_page_size,
+              before_id: before_id,
+              search_query: search_query
+            )
+          end
+
+        "explore" ->
+          get_public_timeline_page(current_user, before_id, search_query)
+
+        "local" ->
+          if current_user do
+            Social.get_local_timeline(
+              limit: @load_more_page_size,
+              before_id: before_id,
+              user_id: current_user.id,
+              search_query: search_query
+            )
+          else
+            Social.get_local_timeline(
+              limit: @load_more_page_size,
+              before_id: before_id,
+              search_query: search_query
+            )
+          end
+
+        "federated" ->
+          Social.get_public_federated_posts(
             limit: @load_more_page_size,
             before_id: before_id,
+            user_id: current_user && current_user.id,
             search_query: search_query
           )
-        else
-          Social.get_public_timeline(
-            limit: @load_more_page_size,
-            before_id: before_id,
-            search_query: search_query
-          )
-        end
 
-      "explore" ->
-        get_public_timeline_page(current_user, before_id, search_query)
-
-      "local" ->
-        if current_user do
-          Social.get_local_timeline(
-            limit: @load_more_page_size,
-            before_id: before_id,
-            user_id: current_user.id,
-            search_query: search_query
-          )
-        else
-          Social.get_local_timeline(
-            limit: @load_more_page_size,
-            before_id: before_id,
-            search_query: search_query
-          )
-        end
-
-      "federated" ->
-        Social.get_public_federated_posts(
-          limit: @load_more_page_size,
-          before_id: before_id,
-          user_id: current_user && current_user.id,
-          search_query: search_query
-        )
-
-      "saved" ->
-        if current_user do
-          Social.get_saved_posts(current_user.id,
-            limit: @load_more_page_size,
-            offset: length(loaded_posts),
-            search_query: search_query
-          )
-        else
+        _ ->
           []
-        end
+      end
 
-      _ ->
-        []
-    end
+    {posts, nil}
   end
 
   defp get_public_timeline_page(current_user, before_id, search_query) do
@@ -1268,6 +1357,132 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
       {:ok, id} -> id
       {:error, :invalid_id} -> 0
     end
+  end
+
+  defp handle_thread_mute(socket, message_id, action) do
+    user = socket.assigns[:current_user]
+    message_id = event_id(message_id)
+
+    post =
+      Enum.find(socket.assigns.timeline_posts, &(&1.id == message_id)) ||
+        Elektrine.Repo.get(Elektrine.Social.Message, message_id)
+
+    cond do
+      is_nil(user) ->
+        {:noreply, put_flash(socket, :error, "You must be signed in to mute conversations")}
+
+      is_nil(post) ->
+        {:noreply, put_flash(socket, :error, "Post not found")}
+
+      action == :mute ->
+        case Elektrine.Social.ThreadMutes.mute_thread(user.id, post) do
+          {:ok, _} ->
+            {:noreply,
+             socket
+             |> Helpers.touch_interaction_posts(message_id)
+             |> put_flash(:info, "Conversation muted")}
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Failed to mute conversation")}
+        end
+
+      true ->
+        _ = Elektrine.Social.ThreadMutes.unmute_thread(user.id, post)
+
+        {:noreply,
+         socket
+         |> Helpers.touch_interaction_posts(message_id)
+         |> put_flash(:info, "Conversation unmuted")}
+    end
+  end
+
+  defp handle_user_mute(socket, user_id, action, duration) do
+    user = socket.assigns[:current_user]
+    target_id = event_id(user_id)
+
+    cond do
+      is_nil(user) ->
+        {:noreply, put_flash(socket, :error, "You must be signed in to mute users")}
+
+      target_id <= 0 || target_id == user.id ->
+        {:noreply, socket}
+
+      action == :mute ->
+        case Elektrine.Accounts.mute_user(user.id, target_id, false, mute_duration(duration)) do
+          {:ok, _} ->
+            {:noreply,
+             socket
+             |> touch_posts_by_sender(target_id)
+             |> put_flash(:info, mute_user_flash(duration))}
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Failed to mute user")}
+        end
+
+      true ->
+        _ = Elektrine.Accounts.unmute_user(user.id, target_id)
+
+        {:noreply,
+         socket
+         |> touch_posts_by_sender(target_id)
+         |> put_flash(:info, "User unmuted")}
+    end
+  end
+
+  defp handle_remote_actor_mute(socket, actor_id, action) do
+    user = socket.assigns[:current_user]
+    actor_id = event_id(actor_id)
+
+    cond do
+      is_nil(user) ->
+        {:noreply, put_flash(socket, :error, "You must be signed in to mute users")}
+
+      action == :mute ->
+        case Elektrine.Accounts.mute_remote_actor(user.id, actor_id) do
+          {:ok, _} ->
+            {:noreply,
+             socket
+             |> Helpers.refresh_posts_for_remote_actor(actor_id)
+             |> put_flash(:info, "User muted")}
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Failed to mute user")}
+        end
+
+      true ->
+        _ = Elektrine.Accounts.unmute_remote_actor(user.id, actor_id)
+
+        {:noreply,
+         socket
+         |> Helpers.refresh_posts_for_remote_actor(actor_id)
+         |> put_flash(:info, "User unmuted")}
+    end
+  end
+
+  defp touch_posts_by_sender(socket, sender_id) do
+    post_ids =
+      socket.assigns[:filtered_posts]
+      |> Kernel.||([])
+      |> Enum.filter(&(&1.sender_id == sender_id))
+      |> Enum.map(& &1.id)
+
+    Helpers.touch_filtered_posts(socket, post_ids)
+  end
+
+  defp mute_duration(duration) when is_binary(duration) do
+    case Integer.parse(duration) do
+      {seconds, ""} when seconds > 0 -> seconds
+      _ -> nil
+    end
+  end
+
+  defp mute_duration(_duration), do: nil
+
+  defp mute_user_flash(duration) do
+    ElektrineSocialWeb.Components.Social.TimelinePost.mute_duration_options()
+    |> Enum.find_value("User muted", fn {value, label} ->
+      if value == duration && value != "", do: "User muted #{String.downcase(label)}"
+    end)
   end
 
   defp timeline_rate_limit_identifier(socket, action) do

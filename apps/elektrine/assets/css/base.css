@@ -92,52 +92,228 @@ a[href],
 }
 
 /* ==========================================================================
-   FONT SYSTEM - Self-hosted Inter
+   FONT SYSTEM - Self-hosted Geist (text), Geist Mono (mono), Geist Pixel (display)
    ========================================================================== */
 
 @font-face {
-  font-family: 'Inter';
-  font-weight: 300;
-  font-style: normal;
+  font-family: 'Geist';
+  font-weight: 100 900;
+  font-style: italic;
   font-display: swap;
-  src: url('/fonts/Inter-Light.woff2') format('woff2');
+  src: url('/fonts/Geist-Italic-cyrillic-ext.woff2') format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
 }
 
 @font-face {
-  font-family: 'Inter';
+  font-family: 'Geist';
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+  src: url('/fonts/Geist-Italic-cyrillic.woff2') format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+
+@font-face {
+  font-family: 'Geist';
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+  src: url('/fonts/Geist-Italic-vietnamese.woff2') format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+
+@font-face {
+  font-family: 'Geist';
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+  src: url('/fonts/Geist-Italic-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Geist';
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+  src: url('/fonts/Geist-Italic-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Geist';
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  src: url('/fonts/Geist-cyrillic-ext.woff2') format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+
+@font-face {
+  font-family: 'Geist';
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  src: url('/fonts/Geist-cyrillic.woff2') format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+
+@font-face {
+  font-family: 'Geist';
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  src: url('/fonts/Geist-vietnamese.woff2') format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+
+@font-face {
+  font-family: 'Geist';
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  src: url('/fonts/Geist-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Geist';
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  src: url('/fonts/Geist-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Geist Mono';
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+  src: url('/fonts/GeistMono-Italic-cyrillic-ext.woff2') format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+
+@font-face {
+  font-family: 'Geist Mono';
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+  src: url('/fonts/GeistMono-Italic-cyrillic.woff2') format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+
+@font-face {
+  font-family: 'Geist Mono';
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+  src: url('/fonts/GeistMono-Italic-symbols2.woff2') format('woff2');
+  unicode-range: U+2000-2001, U+2004-2008, U+200A, U+23B8-23BD, U+2500-259F;
+}
+
+@font-face {
+  font-family: 'Geist Mono';
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+  src: url('/fonts/GeistMono-Italic-vietnamese.woff2') format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+
+@font-face {
+  font-family: 'Geist Mono';
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+  src: url('/fonts/GeistMono-Italic-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Geist Mono';
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+  src: url('/fonts/GeistMono-Italic-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Geist Mono';
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  src: url('/fonts/GeistMono-cyrillic-ext.woff2') format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+
+@font-face {
+  font-family: 'Geist Mono';
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  src: url('/fonts/GeistMono-cyrillic.woff2') format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+
+@font-face {
+  font-family: 'Geist Mono';
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  src: url('/fonts/GeistMono-symbols2.woff2') format('woff2');
+  unicode-range: U+2000-2001, U+2004-2008, U+200A, U+23B8-23BD, U+2500-259F;
+}
+
+@font-face {
+  font-family: 'Geist Mono';
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  src: url('/fonts/GeistMono-vietnamese.woff2') format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+
+@font-face {
+  font-family: 'Geist Mono';
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  src: url('/fonts/GeistMono-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Geist Mono';
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  src: url('/fonts/GeistMono-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Geist Pixel';
   font-weight: 400;
   font-style: normal;
   font-display: swap;
-  src: url('/fonts/Inter-Regular.woff2') format('woff2');
+  src: url('/fonts/GeistPixel-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 
 @font-face {
-  font-family: 'Inter';
-  font-weight: 500;
+  font-family: 'Geist Pixel';
+  font-weight: 400;
   font-style: normal;
   font-display: swap;
-  src: url('/fonts/Inter-Medium.woff2') format('woff2');
-}
-
-@font-face {
-  font-family: 'Inter';
-  font-weight: 600;
-  font-style: normal;
-  font-display: swap;
-  src: url('/fonts/Inter-SemiBold.woff2') format('woff2');
-}
-
-@font-face {
-  font-family: 'Inter';
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-  src: url('/fonts/Inter-Bold.woff2') format('woff2');
+  src: url('/fonts/GeistPixel-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
 @layer base {
   html {
-    font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+    font-family: 'Geist', ui-sans-serif, system-ui, -apple-system, sans-serif;
   }
 
   h1,
@@ -187,9 +363,9 @@ html[data-theme="dark"],
   --surface-floating-bg-fallback: color-mix(in srgb, var(--color-base-200) 78%, #202c38 22%);
   --surface-floating-bg: var(--color-base-300);
   --surface-floating-bg-no-blur: color-mix(in srgb, var(--color-base-200) 78%, #202c38 22%);
-  --surface-floating-border: color-mix(in srgb, var(--color-base-300) 86%, #92abc9 14%);
+  --surface-floating-border: color-mix(in srgb, var(--color-base-300) 80%, var(--color-base-content) 20%);
   --surface-floating-blur: 0px;
-  --surface-floating-shadow: 0 22px 46px -30px rgba(6, 12, 24, 0.5);
+  --surface-floating-shadow: 0 22px 46px -30px rgba(6, 12, 24, 0.5), 0 0 0 1px color-mix(in srgb, var(--color-base-content) 8%, transparent);
   --surface-modal-bg-fallback: color-mix(in srgb, var(--color-base-200) 72%, #24303d 28%);
   --surface-modal-bg: var(--color-base-300);
   --surface-modal-bg-no-blur: color-mix(in srgb, var(--color-base-200) 72%, #24303d 28%);
@@ -378,8 +554,8 @@ html[data-theme="dark"],
   --surface-panel-shadow: 0 24px 54px -36px rgba(2, 12, 30, 0.88), 0 0 0 1px color-mix(in srgb, var(--color-primary) 10%, transparent);
   --surface-floating-bg-fallback: color-mix(in srgb, var(--color-base-200) 88%, #25252c 12%);
   --surface-floating-bg-no-blur: color-mix(in srgb, var(--color-base-200) 88%, #25252c 12%);
-  --surface-floating-border: color-mix(in srgb, var(--color-base-300) 66%, var(--color-info) 34%);
-  --surface-floating-shadow: 0 26px 58px -34px rgba(2, 12, 30, 0.92), 0 0 0 1px color-mix(in srgb, var(--color-info) 10%, transparent);
+  --surface-floating-border: color-mix(in srgb, var(--color-base-300) 80%, var(--color-base-content) 20%);
+  --surface-floating-shadow: 0 26px 58px -34px rgba(2, 12, 30, 0.92), 0 0 0 1px color-mix(in srgb, var(--color-base-content) 8%, transparent);
   --surface-modal-bg-fallback: color-mix(in srgb, var(--color-base-200) 84%, #2a2a31 16%);
   --surface-modal-bg-no-blur: color-mix(in srgb, var(--color-base-200) 84%, #2a2a31 16%);
   --surface-modal-border: color-mix(in srgb, var(--color-base-300) 62%, var(--color-primary) 38%);
@@ -441,4 +617,21 @@ body.grid-purple {
     filter: drop-shadow(0 0 16px rgba(95, 135, 184, 0.12))
       drop-shadow(0 3px 10px rgba(0, 0, 0, 0.28));
   }
+}
+
+/* Home poster page: the global scrollbar styling uses a transparent
+   track, which Firefox paints as a near-black strip; next to the
+   full-bleed hero it reads as a stray vertical line (invisible on
+   dark pages, obvious here). Hide the scrollbar on this page — wheel,
+   keyboard, and touch scrolling are unaffected — and drop daisyUI's
+   reserved root gutter so no strip is left behind. */
+:root:has(#home-poster-art) {
+  --page-scroll-gutter: auto;
+  scrollbar-gutter: auto;
+  scrollbar-width: none;
+  background: #05070a;
+}
+
+:root:has(#home-poster-art)::-webkit-scrollbar {
+  display: none;
 }

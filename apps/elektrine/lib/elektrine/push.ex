@@ -253,6 +253,22 @@ defmodule Elektrine.Push do
   def delete_web_subscription(_user_id), do: {:error, :not_found}
 
   @doc """
+  Deletes the user's browser Web Push subscription matching the given endpoint.
+  """
+  def delete_web_subscription_by_endpoint(user_id, endpoint)
+      when is_integer(user_id) and is_binary(endpoint) do
+    case Repo.get_by(WebSubscription,
+           user_id: user_id,
+           endpoint_hash: web_push_endpoint_hash(endpoint)
+         ) do
+      nil -> {:error, :not_found}
+      %WebSubscription{} = subscription -> Repo.delete(subscription)
+    end
+  end
+
+  def delete_web_subscription_by_endpoint(_user_id, _endpoint), do: {:error, :not_found}
+
+  @doc """
   Lists enabled browser Web Push subscriptions for a user.
   """
   def list_web_subscriptions(user_id) when is_integer(user_id) do
@@ -299,6 +315,15 @@ defmodule Elektrine.Push do
       :ok ->
         record_web_push_success(subscription)
         :ok
+
+      {:error, :subscription_gone} ->
+        # The push service reported 404/410: the browser subscription no
+        # longer exists, so retrying is pointless.
+        subscription
+        |> Ecto.Changeset.change(%{enabled: false, last_error: "subscription_gone"})
+        |> Repo.update()
+
+        {:error, :subscription_gone}
 
       {:error, reason} ->
         record_web_push_failure(subscription, inspect(reason))

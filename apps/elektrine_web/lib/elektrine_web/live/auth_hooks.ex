@@ -25,6 +25,7 @@ defmodule ElektrineWeb.Live.AuthHooks do
     ElektrineEmailWeb.EmailLive.Show,
     ElektrineWeb.FriendsLive,
     ElektrineWeb.DriveLive,
+    ElektrineSocialWeb.FiltersLive.Index,
     ElektrineSocialWeb.ListLive.Index,
     ElektrineSocialWeb.ListLive.Show,
     ElektrineWeb.NotificationsLive,

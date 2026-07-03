@@ -518,7 +518,9 @@ defmodule ElektrineEmailWeb.UserSettingsEmail do
                   </div>
 
                   <p class="text-xs text-base-content/70" data-private-mailbox-status>
-                    {gettext("Mailbox locked.")}
+                    {ElektrineEmailWeb.EmailLive.EmailHelpers.private_mailbox_locked_status(
+                      @private_mailbox_unlock_mode
+                    )}
                   </p>
                 </div>
 

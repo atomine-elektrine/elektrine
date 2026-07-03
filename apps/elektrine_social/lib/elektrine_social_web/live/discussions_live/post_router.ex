@@ -143,6 +143,24 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostRouter do
       "copy_discussion_link" ->
         UIOperations.handle_event(event_name, params, socket)
 
+      "mute_thread" ->
+        UIOperations.handle_event(event_name, params, socket)
+
+      "unmute_thread" ->
+        UIOperations.handle_event(event_name, params, socket)
+
+      "mute_user" ->
+        UIOperations.handle_event(event_name, params, socket)
+
+      "unmute_user" ->
+        UIOperations.handle_event(event_name, params, socket)
+
+      "mute_remote_actor" ->
+        UIOperations.handle_event(event_name, params, socket)
+
+      "unmute_remote_actor" ->
+        UIOperations.handle_event(event_name, params, socket)
+
       "copy_link" ->
         UIOperations.handle_event(event_name, params, socket)
 

@@ -6,6 +6,7 @@ defmodule ElektrineWeb.UserSettingsLive do
   alias Elektrine.Developer
   alias Elektrine.Developer.ApiToken
   alias Elektrine.Platform.Modules
+  alias Elektrine.Profiles
   alias Elektrine.RSS
   alias Elektrine.Utils.SafeConvert
   alias ElektrineWeb.Platform.Integrations
@@ -35,6 +36,9 @@ defmodule ElektrineWeb.UserSettingsLive do
     "allow_friend_requests_from",
     "profile_visibility",
     "default_post_visibility",
+    "hide_followers",
+    "hide_follows",
+    "hide_favorites",
     "notify_on_new_follower",
     "notify_on_direct_message",
     "notify_on_mention",
@@ -43,6 +47,8 @@ defmodule ElektrineWeb.UserSettingsLive do
     "notify_on_email_received",
     "notify_on_discussion_reply",
     "notify_on_comment",
+    "block_notifications_from_strangers",
+    "hide_notification_contents",
     "locale",
     "timezone",
     "time_format",
@@ -1028,6 +1034,7 @@ defmodule ElektrineWeb.UserSettingsLive do
 
     case other_result do
       {:ok, _updated_user} ->
+        sync_legacy_profile_hide_followers(socket.assigns.user.id, final_params)
         updated_user = Accounts.get_user!(socket.assigns.user.id)
         old_recovery_email = socket.assigns.user.recovery_email
 
@@ -1080,6 +1087,18 @@ defmodule ElektrineWeb.UserSettingsLive do
          |> assign(:aliases, aliases)
          |> assign(:profile_notice, "Settings updated")
          |> notify_info("Settings updated")}
+    end
+  end
+
+  # Keeps the legacy per-profile hide_followers flag (enforced on profile show)
+  # in sync with the user-level setting.
+  defp sync_legacy_profile_hide_followers(user_id, params) do
+    case Map.fetch(params, "hide_followers") do
+      {:ok, value} when is_boolean(value) ->
+        Profiles.upsert_user_profile(user_id, %{hide_followers: value})
+
+      _ ->
+        :ok
     end
   end
 
@@ -1380,8 +1399,14 @@ defmodule ElektrineWeb.UserSettingsLive do
       "notify_on_like",
       "notify_on_email_received",
       "notify_on_discussion_reply",
-      "notify_on_comment"
+      "notify_on_comment",
+      "block_notifications_from_strangers",
+      "hide_notification_contents"
     ]
+  end
+
+  defp checkbox_fields_for_tab("privacy") do
+    ["hide_followers", "hide_follows", "hide_favorites"]
   end
 
   defp checkbox_fields_for_tab("federation") do

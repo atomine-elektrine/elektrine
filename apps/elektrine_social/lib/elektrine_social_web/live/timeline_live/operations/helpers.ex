@@ -44,6 +44,35 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.Helpers do
 
   def normalize_timeline_sort(_), do: "new"
 
+  @doc """
+  Canonical timeline reset used whenever timeline data must be reloaded from
+  scratch (filter/view/search/bookmark-folder changes).
+
+  Clears all timeline state that an in-flight load or hydration could
+  otherwise repopulate (including the hydration ref, gap markers, and the
+  saved-view scroll cursor), bumps the load ref, and queues an async
+  `{:load_view_data, ...}` message handled by the timeline LiveView.
+  """
+  def queue_timeline_reload(socket, filter, timeline_view) do
+    load_ref = System.unique_integer([:positive, :monotonic])
+    send(self(), {:load_view_data, load_ref, filter, timeline_view})
+
+    socket
+    |> assign(:timeline_load_ref, load_ref)
+    |> assign(:timeline_hydration_ref, nil)
+    |> assign(:current_filter, filter)
+    |> assign(:timeline_filter, timeline_view)
+    |> assign(:timeline_posts, [])
+    |> assign(:filtered_posts, [])
+    |> assign(:filtered_post_ids, [])
+    |> assign(:timeline_gap_marker_ids, MapSet.new())
+    |> assign(:saved_scroll_cursor, nil)
+    |> assign(:loading_timeline, true)
+    |> assign(:loading_more, false)
+    |> assign(:no_more_posts, false)
+    |> stream(:timeline_filtered_posts, [], reset: true)
+  end
+
   # Apply timeline filter to socket
   def apply_timeline_filter(socket), do: apply_timeline_filter(socket, false)
 

@@ -53,6 +53,48 @@
             <p class="mt-1 text-2xl font-semibold">{length(@filtered_notifications)}</p>
           </div>
         </div>
+
+        <div
+          id="web-push-control"
+          phx-hook="WebPushManager"
+          data-vapid-public-key={@web_push_vapid_key}
+          class="surface-subtle flex flex-wrap items-center justify-between gap-3 rounded-lg p-3"
+        >
+          <div class="flex items-start gap-3">
+            <.icon name="hero-bell-alert" class="mt-0.5 h-5 w-5 text-base-content/70" />
+            <div>
+              <p class="text-sm font-medium">Browser push notifications</p>
+              <p class="text-xs text-base-content/65">
+                {web_push_state_description(@web_push_state)}
+              </p>
+            </div>
+          </div>
+
+          <%= case @web_push_state do %>
+            <% :enabled -> %>
+              <button
+                phx-click="disable_web_push"
+                disabled={@web_push_busy}
+                class="btn btn-sm btn-surface"
+              >
+                <.icon name="hero-bell-slash" class="mr-2 h-4 w-4" /> Disable
+              </button>
+            <% :disabled -> %>
+              <button
+                phx-click="enable_web_push"
+                disabled={@web_push_busy}
+                class="btn btn-secondary btn-sm"
+              >
+                <.icon name="hero-bell-alert" class="mr-2 h-4 w-4" /> Enable
+              </button>
+            <% :denied -> %>
+              <span class="badge badge-warning badge-sm">Blocked</span>
+            <% :unknown -> %>
+              <span class="badge badge-ghost badge-sm">Checking...</span>
+            <% _ -> %>
+              <span class="badge badge-ghost badge-sm">Unavailable</span>
+          <% end %>
+        </div>
       </div>
     </section>
 

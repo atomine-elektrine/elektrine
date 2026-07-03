@@ -123,6 +123,7 @@ defmodule ElektrineWeb.ProfileLive.Show do
             (profile.links != nil || profile.description != nil || profile.background_url != nil)
 
         user_number = Accounts.get_user_number(user)
+        cached_counts = Elektrine.AppCache.get_user_stats(:profile_counts, user.id) || %{}
 
         {:ok,
          socket
@@ -134,14 +135,19 @@ defmodule ElektrineWeb.ProfileLive.Show do
          |> assign(:user_number, user_number)
          |> assign(:profile, profile)
          |> assign(:user_badges, [])
-         |> assign(:follower_count, 0)
-         |> assign(:following_count, 0)
+         |> assign(:follower_count, cached_counts[:follower_count] || 0)
+         |> assign(:following_count, cached_counts[:following_count] || 0)
          |> assign(:is_following, false)
          |> assign(:friend_status, %{
            are_friends: false,
            pending_request: false,
            sent_request: false
          })
+         |> assign(:is_subscribed, false)
+         |> assign(:is_endorsed, false)
+         |> assign(:account_note, "")
+         |> assign(:show_account_note, false)
+         |> assign(:endorsed_accounts, [])
          |> assign(:discord_data, nil)
          |> assign(:links, links)
          |> assign(:is_custom, is_custom)
@@ -491,6 +497,108 @@ defmodule ElektrineWeb.ProfileLive.Show do
      |> put_flash(:info, "Profile link copied to clipboard!")}
   end
 
+  @impl true
+  def handle_event("toggle_subscription", _params, socket) do
+    current_user = socket.assigns[:current_user]
+    profile_user = socket.assigns.user
+
+    if current_user && current_user.id != profile_user.id do
+      if socket.assigns.is_subscribed do
+        case Accounts.unsubscribe_from_account(current_user.id, profile_user) do
+          {:ok, _} ->
+            {:noreply,
+             socket
+             |> assign(:is_subscribed, false)
+             |> put_flash(:info, "Post notifications turned off")}
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Failed to update notifications")}
+        end
+      else
+        case Accounts.subscribe_to_account(current_user.id, profile_user) do
+          {:ok, _} ->
+            {:noreply,
+             socket
+             |> assign(:is_subscribed, true)
+             |> put_flash(
+               :info,
+               "You'll be notified when #{profile_user.handle || profile_user.username} posts"
+             )}
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Failed to update notifications")}
+        end
+      end
+    else
+      {:noreply, push_navigate(socket, to: Elektrine.Paths.login_path())}
+    end
+  end
+
+  @impl true
+  def handle_event("toggle_endorsement", _params, socket) do
+    current_user = socket.assigns[:current_user]
+    profile_user = socket.assigns.user
+
+    if current_user && current_user.id != profile_user.id do
+      if socket.assigns.is_endorsed do
+        case Accounts.unendorse_account(current_user.id, profile_user) do
+          {:ok, _} ->
+            {:noreply,
+             socket
+             |> assign(:is_endorsed, false)
+             |> put_flash(:info, "Removed from your featured accounts")}
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Failed to update featured accounts")}
+        end
+      else
+        case Accounts.endorse_account(current_user.id, profile_user) do
+          {:ok, _} ->
+            {:noreply,
+             socket
+             |> assign(:is_endorsed, true)
+             |> put_flash(:info, "Featured on your profile")}
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Failed to update featured accounts")}
+        end
+      end
+    else
+      {:noreply, push_navigate(socket, to: Elektrine.Paths.login_path())}
+    end
+  end
+
+  @impl true
+  def handle_event("toggle_account_note", _params, socket) do
+    if socket.assigns[:current_user] do
+      {:noreply, assign(socket, :show_account_note, !socket.assigns.show_account_note)}
+    else
+      {:noreply, push_navigate(socket, to: Elektrine.Paths.login_path())}
+    end
+  end
+
+  @impl true
+  def handle_event("save_account_note", %{"comment" => comment}, socket) do
+    current_user = socket.assigns[:current_user]
+    profile_user = socket.assigns.user
+
+    if current_user && current_user.id != profile_user.id do
+      case Accounts.put_account_note(current_user.id, {:user, profile_user.id}, comment) do
+        {:ok, note} ->
+          {:noreply,
+           socket
+           |> assign(:account_note, note.comment || "")
+           |> assign(:show_account_note, false)
+           |> put_flash(:info, "Note saved")}
+
+        {:error, _} ->
+          {:noreply, put_flash(socket, :error, "Failed to save note")}
+      end
+    else
+      {:noreply, push_navigate(socket, to: Elektrine.Paths.login_path())}
+    end
+  end
+
   def handle_event(
         "open_image_modal",
         %{"images" => images_json, "index" => index} = params,
@@ -620,16 +728,23 @@ defmodule ElektrineWeb.ProfileLive.Show do
 
     stats_task =
       Task.async(fn ->
-        {Profiles.get_follower_count(user_id), Profiles.get_following_count(user_id)}
+        {Profiles.get_follower_count(user_id), Profiles.get_following_count(user_id),
+         Accounts.list_endorsed_accounts(user_id)}
       end)
+
+    profile_user = socket.assigns.user
 
     relationship_task =
       Task.async(fn ->
         if current_user && current_user.id != user_id do
           {Profiles.following?(current_user.id, user_id),
-           Elektrine.Friends.get_relationship_status(current_user.id, user_id)}
+           Elektrine.Friends.get_relationship_status(current_user.id, user_id),
+           Accounts.account_subscribed?(current_user.id, profile_user),
+           Accounts.account_endorsed?(current_user.id, profile_user),
+           Accounts.account_note_comment(current_user.id, {:user, user_id})}
         else
-          {false, %{are_friends: false, pending_request: false, sent_request: false}}
+          {false, %{are_friends: false, pending_request: false, sent_request: false}, false,
+           false, ""}
         end
       end)
 
@@ -645,8 +760,16 @@ defmodule ElektrineWeb.ProfileLive.Show do
       end)
 
     {timeline_posts, pinned_posts, discussion_posts} = Task.await(posts_task, 10_000)
-    {follower_count, following_count} = Task.await(stats_task, 5000)
-    {is_following, friend_status} = Task.await(relationship_task, 5000)
+    {follower_count, following_count, endorsed_accounts} = Task.await(stats_task, 5000)
+
+    Elektrine.AppCache.cache_user_stats(:profile_counts, user_id, %{
+      follower_count: follower_count,
+      following_count: following_count
+    })
+
+    {is_following, friend_status, is_subscribed, is_endorsed, account_note} =
+      Task.await(relationship_task, 5000)
+
     user_badges = Task.await(badges_task, 5000)
     discord_data = Task.await(discord_task, 5000)
 
@@ -666,6 +789,10 @@ defmodule ElektrineWeb.ProfileLive.Show do
      |> assign(:following_count, following_count)
      |> assign(:is_following, is_following)
      |> assign(:friend_status, friend_status)
+     |> assign(:is_subscribed, is_subscribed)
+     |> assign(:is_endorsed, is_endorsed)
+     |> assign(:account_note, account_note)
+     |> assign(:endorsed_accounts, endorsed_accounts)
      |> assign(:user_badges, user_badges)
      |> assign(:discord_data, discord_data)
      |> assign(:loading_profile, false)}

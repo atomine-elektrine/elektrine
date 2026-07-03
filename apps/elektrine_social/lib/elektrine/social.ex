@@ -61,8 +61,11 @@ defmodule Elektrine.Social do
   defdelegate list_user_saved_posts(user_id, message_ids), to: Elektrine.Social.Bookmarks
   defdelegate list_user_saved_rss_items(user_id, rss_item_ids), to: Elektrine.Social.Bookmarks
   defdelegate get_saved_posts(user_id, opts \\ []), to: Elektrine.Social.Bookmarks
+  defdelegate get_saved_posts_with_cursor(user_id, opts \\ []), to: Elektrine.Social.Bookmarks
   defdelegate get_saved_rss_items(user_id, opts \\ []), to: Elektrine.Social.Bookmarks
   defdelegate count_saved_posts(user_id), to: Elektrine.Social.Bookmarks
+  defdelegate saved_post_cursor(user_id, message_id), to: Elektrine.Social.Bookmarks
+  defdelegate saved_item_folder_map(user_id, message_ids), to: Elektrine.Social.Bookmarks
 
   defdelegate list_bookmark_folders(user_id),
     to: Elektrine.Social.BookmarkFolders,

@@ -181,6 +181,10 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
                    |> assign(:nested_reply_content, "")
                    |> assign(:show_report_modal, false)
                    |> assign(:liked_by_user, user && Social.user_liked_post?(user.id, post_id))
+                   |> assign(
+                     :thread_muted,
+                     (user && Elektrine.Social.ThreadMutes.muted?(user.id, post)) || false
+                   )
                    |> assign(:report_type, nil)
                    |> assign(:report_id, nil)
                    |> assign(:report_metadata, %{})

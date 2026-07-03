@@ -149,6 +149,27 @@
                           <.icon name="hero-link" class="w-4 h-4" /> Copy Link
                         </button>
                       </li>
+                      <%= if @thread_muted do %>
+                        <li>
+                          <button
+                            phx-click="unmute_thread"
+                            phx-value-message_id={@post.id}
+                            type="button"
+                          >
+                            <.icon name="hero-bell" class="w-4 h-4" /> Unmute Conversation
+                          </button>
+                        </li>
+                      <% else %>
+                        <li>
+                          <button
+                            phx-click="mute_thread"
+                            phx-value-message_id={@post.id}
+                            type="button"
+                          >
+                            <.icon name="hero-bell-slash" class="w-4 h-4" /> Mute Conversation
+                          </button>
+                        </li>
+                      <% end %>
 
                       <%= if @post.sender_id == @current_user.id do %>
                         <div class="divider my-1"></div>
@@ -174,6 +195,10 @@
                             <.icon name="hero-flag" class="w-4 h-4" /> Report Post
                           </button>
                         </li>
+                        <ElektrineSocialWeb.Components.Social.TimelinePost.mute_user_items
+                          post={@post}
+                          current_user={@current_user}
+                        />
                       <% end %>
                       
 <!-- Moderator Actions -->

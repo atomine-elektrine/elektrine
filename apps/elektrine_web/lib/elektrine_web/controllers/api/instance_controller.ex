@@ -263,7 +263,8 @@ defmodule ElektrineWeb.API.InstanceController do
         }
       },
       stats: %{mau: metadata.active_user_count},
-      vapid_public_key: nil
+      vapid_public_key:
+        Application.get_env(:elektrine, :push, []) |> Keyword.get(:web_push_public_key)
     }
   end
 

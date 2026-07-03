@@ -211,6 +211,30 @@ defmodule ElektrineSocialWeb.HashtagLive.Show do
     end
   end
 
+  def handle_event("mute_thread", %{"message_id" => message_id}, socket) do
+    handle_thread_mute(socket, message_id, :mute)
+  end
+
+  def handle_event("unmute_thread", %{"message_id" => message_id}, socket) do
+    handle_thread_mute(socket, message_id, :unmute)
+  end
+
+  def handle_event("mute_user", %{"user_id" => user_id} = params, socket) do
+    handle_user_mute(socket, user_id, :mute, params["duration"])
+  end
+
+  def handle_event("unmute_user", %{"user_id" => user_id}, socket) do
+    handle_user_mute(socket, user_id, :unmute, nil)
+  end
+
+  def handle_event("mute_remote_actor", %{"actor_id" => actor_id}, socket) do
+    handle_remote_actor_mute(socket, actor_id, :mute)
+  end
+
+  def handle_event("unmute_remote_actor", %{"actor_id" => actor_id}, socket) do
+    handle_remote_actor_mute(socket, actor_id, :unmute)
+  end
+
   def handle_event("react_to_post", %{"post_id" => post_id, "emoji" => emoji}, socket) do
     if socket.assigns[:current_user] do
       case parse_positive_int(post_id) do
@@ -859,6 +883,84 @@ defmodule ElektrineSocialWeb.HashtagLive.Show do
     do: shared_message
 
   defp hashtag_shared_message(_), do: nil
+
+  defp handle_thread_mute(socket, message_id, action) do
+    user = socket.assigns[:current_user]
+
+    with %{id: user_id} <- user,
+         {:ok, message_id} <- parse_positive_int(message_id),
+         %Elektrine.Social.Message{} = post <-
+           Enum.find(socket.assigns.posts, &(&1.id == message_id)) ||
+             Elektrine.Repo.get(Elektrine.Social.Message, message_id) do
+      case action do
+        :mute ->
+          case Elektrine.Social.ThreadMutes.mute_thread(user_id, post) do
+            {:ok, _} -> {:noreply, put_flash(socket, :info, "Conversation muted")}
+            {:error, _} -> {:noreply, put_flash(socket, :error, "Failed to mute conversation")}
+          end
+
+        :unmute ->
+          _ = Elektrine.Social.ThreadMutes.unmute_thread(user_id, post)
+          {:noreply, put_flash(socket, :info, "Conversation unmuted")}
+      end
+    else
+      nil when is_nil(user) ->
+        {:noreply, put_flash(socket, :error, "You must be signed in to mute conversations")}
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "Post not found")}
+    end
+  end
+
+  defp handle_user_mute(socket, user_id, action, duration) do
+    user = socket.assigns[:current_user]
+
+    with %{id: muter_id} <- user,
+         {:ok, target_id} when target_id != muter_id <- parse_positive_int(user_id) do
+      case action do
+        :mute ->
+          expires_in =
+            case Integer.parse(to_string(duration)) do
+              {seconds, ""} when seconds > 0 -> seconds
+              _ -> nil
+            end
+
+          case Elektrine.Accounts.mute_user(muter_id, target_id, false, expires_in) do
+            {:ok, _} -> {:noreply, put_flash(socket, :info, "User muted")}
+            {:error, _} -> {:noreply, put_flash(socket, :error, "Failed to mute user")}
+          end
+
+        :unmute ->
+          _ = Elektrine.Accounts.unmute_user(muter_id, target_id)
+          {:noreply, put_flash(socket, :info, "User unmuted")}
+      end
+    else
+      nil -> {:noreply, put_flash(socket, :error, "You must be signed in to mute users")}
+      _ -> {:noreply, socket}
+    end
+  end
+
+  defp handle_remote_actor_mute(socket, actor_id, action) do
+    user = socket.assigns[:current_user]
+
+    with %{id: muter_id} <- user,
+         {:ok, actor_id} <- parse_positive_int(actor_id) do
+      case action do
+        :mute ->
+          case Elektrine.Accounts.mute_remote_actor(muter_id, actor_id) do
+            {:ok, _} -> {:noreply, put_flash(socket, :info, "User muted")}
+            {:error, _} -> {:noreply, put_flash(socket, :error, "Failed to mute user")}
+          end
+
+        :unmute ->
+          _ = Elektrine.Accounts.unmute_remote_actor(muter_id, actor_id)
+          {:noreply, put_flash(socket, :info, "User unmuted")}
+      end
+    else
+      nil -> {:noreply, put_flash(socket, :error, "You must be signed in to mute users")}
+      _ -> {:noreply, socket}
+    end
+  end
 
   defp parse_positive_int(value) when is_integer(value) and value > 0, do: {:ok, value}
 
