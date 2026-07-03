@@ -331,6 +331,15 @@ email_auto_suppression_enabled =
 
 config :elektrine, :email_auto_suppression, email_auto_suppression_enabled
 
+# Native push notifications (APNs/FCM) and browser Web Push (VAPID).
+# Generate VAPID keys with: Elektrine.Push.WebPushClient.generate_vapid_keys/0
+config :elektrine, :push,
+  enabled: parse_bool_env.("PUSH_ENABLED", false),
+  apns_topic: System.get_env("PUSH_APNS_TOPIC") || "com.elektrine.app",
+  web_push_public_key: System.get_env("WEB_PUSH_PUBLIC_KEY"),
+  web_push_private_key: System.get_env("WEB_PUSH_PRIVATE_KEY"),
+  web_push_subject: System.get_env("WEB_PUSH_SUBJECT")
+
 # Configure the Haraka mail adapter whenever the email module is enabled.
 runtime_primary_domain =
   System.get_env("PRIMARY_DOMAIN") ||

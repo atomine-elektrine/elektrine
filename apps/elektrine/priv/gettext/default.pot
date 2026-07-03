@@ -2674,7 +2674,7 @@ msgstr ""
 
 #: lib/elektrine_web/controllers/page_html/home.html.heex:243
 #, elixir-autogen, elixir-format
-msgid "The internet is shifting. AI-generated content is everywhere, and it's getting harder to tell what's real. Most platforms optimize for viral reach and follower counts—metrics that mean nothing when bots can fake them."
+msgid "The internet is shifting. AI-generated content is everywhere, and it's getting harder to tell what's real. Most platforms optimize for viral reach and follower counts, metrics that mean nothing when bots can fake them."
 msgstr ""
 
 #: lib/elektrine_web/controllers/page_html/home.html.heex:102
@@ -2821,7 +2821,7 @@ msgstr ""
 
 #: lib/elektrine_web/controllers/page_html/home.html.heex:246
 #, elixir-autogen, elixir-format
-msgid "Z is designed around smaller circles of people you actually know and trust. We're building reputation systems based on your interactions with your community—who you talk to, who vouches for you, your actual contribution history. Public moderation logs, AI content labels, and trust networks instead of algorithmic feeds. Think less 'going viral' and more 'building credibility with people who matter.' The internet works better when trust is local, not global."
+msgid "Z is designed around smaller circles of people you actually know and trust. We're building reputation systems based on your interactions with your community: who you talk to, who vouches for you, your actual contribution history. Public moderation logs, AI content labels, and trust networks instead of algorithmic feeds. Think less 'going viral' and more 'building credibility with people who matter.' The internet works better when trust is local, not global."
 msgstr ""
 
 #: lib/elektrine_web/live/email_live/home.html.heex:778
@@ -3063,7 +3063,7 @@ msgstr ""
 
 #: lib/elektrine_web/controllers/page_html/home.html.heex:120
 #, elixir-autogen, elixir-format
-msgid "Elektrine provides email and VPN services built from the ground up with Elixir—custom SMTP/IMAP servers, MTA components, spam filtering, and webmail. Z is the social platform layer with real-time chat, timelines, communities, and photo galleries. Everything runs on the same account."
+msgid "Elektrine provides email and VPN services built from the ground up with Elixir: custom SMTP/IMAP servers, MTA components, spam filtering, and webmail. Z is the social platform layer with real-time chat, timelines, communities, and photo galleries. Everything runs on the same account."
 msgstr ""
 
 #: lib/elektrine_web/controllers/page_html/home.html.heex:219

@@ -1,5 +1,5 @@
 /**
- * MailboxPrivateStorage hook — drives the lock/unlock/setup UI for a mailbox's
+ * MailboxPrivateStorage hook: drives the lock/unlock/setup UI for a mailbox's
  * zero-knowledge private storage. The crypto and key-management primitives live
  * in ./mailbox_private_crypto; the public names that other modules import from
  * here are re-exported below so their imports keep working unchanged.
@@ -74,6 +74,8 @@ export const MailboxPrivateStorage = {
     // auto-unlock both depend on it.
     this.renderSetupModeState()
     if (vaultSession.isUnlocked()) {
+      this.autoUnlockFailed = false
+      this.renderLockState()
       void this.maybeAutoUnlock()
     } else if (this.unlockMode === MASTER_MODE && this.mailboxId) {
       clearPrivateKey(this.mailboxId)
@@ -272,6 +274,21 @@ export const MailboxPrivateStorage = {
     })
   },
 
+  // True when an auto-unlock is about to run for this panel (the master vault
+  // is already unlocked in this tab). Used to render a quiet "unlocking" state
+  // instead of flashing the passphrase prompt on load, then swapping it out.
+  autoUnlockPending() {
+    return (
+      !this.autoUnlockSuppressed &&
+      !this.autoUnlockFailed &&
+      this.configured &&
+      this.unlockMode === MASTER_MODE &&
+      !!this.wrappedKeyPayload &&
+      !!this.verifierPayload &&
+      vaultSession.isUnlocked()
+    )
+  },
+
   renderLockState() {
     const hasUnlockedKey = this.mailboxId && getStoredPrivateKey(this.mailboxId)
 
@@ -284,6 +301,12 @@ export const MailboxPrivateStorage = {
     if (!this.configured) {
       this.setStatusText("Private storage not configured.")
       this.renderUnlockPanels(false)
+      return
+    }
+
+    if (this.autoUnlockPending()) {
+      this.setStatusText("Unlocking private mailbox…")
+      this.renderUnlockPanels(true)
       return
     }
 
@@ -312,9 +335,12 @@ export const MailboxPrivateStorage = {
           this.wrappedKeyPayload,
           this.verifierPayload
         )
+        this.autoUnlockFailed = false
         this.renderLockState()
       } catch (_error) {
-        // master key mismatch or transient error; stay locked
+        // master key mismatch or transient error; fall back to the manual prompt
+        this.autoUnlockFailed = true
+        this.renderLockState()
       }
 
       return

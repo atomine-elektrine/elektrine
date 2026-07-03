@@ -323,6 +323,133 @@ defmodule ElektrineWeb.ProfileControllerTest do
     end
   end
 
+  describe "profile HTML subscribe/endorse/note actions" do
+    test "subscribe redirects unauthenticated users to login", %{conn: conn, user: user} do
+      conn = post(conn, "/profiles/#{user.handle}/subscribe")
+
+      assert redirected_to(conn) == "/login"
+      assert get_session(conn, :user_return_to) == "/#{user.handle}"
+    end
+
+    test "subscribe redirects back to the profile", %{conn: conn, user: target_user} do
+      viewer = AccountsFixtures.user_fixture()
+
+      conn =
+        conn
+        |> log_in_user(viewer)
+        |> post("/profiles/#{target_user.handle}/subscribe")
+
+      assert redirected_to(conn) == "/#{target_user.handle}"
+
+      assert Phoenix.Flash.get(conn.assigns.flash, :info) ==
+               "You'll be notified when #{target_user.handle} posts"
+
+      assert Elektrine.Accounts.account_subscribed?(viewer.id, target_user)
+    end
+
+    test "unsubscribe redirects back to the profile", %{conn: conn, user: target_user} do
+      viewer = AccountsFixtures.user_fixture()
+      {:ok, _} = Elektrine.Accounts.subscribe_to_account(viewer.id, target_user)
+
+      conn =
+        conn
+        |> log_in_user(viewer)
+        |> delete("/profiles/#{target_user.handle}/subscribe")
+
+      assert redirected_to(conn) == "/#{target_user.handle}"
+      assert Phoenix.Flash.get(conn.assigns.flash, :info) == "Post notifications turned off"
+      refute Elektrine.Accounts.account_subscribed?(viewer.id, target_user)
+    end
+
+    test "endorse redirects back to the profile", %{conn: conn, user: target_user} do
+      viewer = AccountsFixtures.user_fixture()
+
+      conn =
+        conn
+        |> log_in_user(viewer)
+        |> post("/profiles/#{target_user.handle}/endorse")
+
+      assert redirected_to(conn) == "/#{target_user.handle}"
+      assert Phoenix.Flash.get(conn.assigns.flash, :info) == "Featured on your profile"
+      assert Elektrine.Accounts.account_endorsed?(viewer.id, target_user)
+    end
+
+    test "unendorse redirects back to the profile", %{conn: conn, user: target_user} do
+      viewer = AccountsFixtures.user_fixture()
+      {:ok, _} = Elektrine.Accounts.endorse_account(viewer.id, target_user)
+
+      conn =
+        conn
+        |> log_in_user(viewer)
+        |> delete("/profiles/#{target_user.handle}/endorse")
+
+      assert redirected_to(conn) == "/#{target_user.handle}"
+
+      assert Phoenix.Flash.get(conn.assigns.flash, :info) ==
+               "Removed from your featured accounts"
+
+      refute Elektrine.Accounts.account_endorsed?(viewer.id, target_user)
+    end
+
+    test "static profile page renders subscribe/endorse/note forms for logged-in viewers", %{
+      conn: conn,
+      user: target_user
+    } do
+      viewer = AccountsFixtures.user_fixture()
+
+      conn =
+        conn
+        |> log_in_user(viewer)
+        |> get("/#{target_user.handle}")
+
+      assert conn.status == 200
+      assert conn.resp_body =~ "/profiles/#{target_user.handle}/subscribe"
+      assert conn.resp_body =~ "/profiles/#{target_user.handle}/endorse"
+      assert conn.resp_body =~ "/profiles/#{target_user.handle}/note"
+      assert conn.resp_body =~ "Add private note"
+    end
+
+    test "moved account still shows unfollow for existing followers but no new actions", %{
+      conn: conn,
+      user: target_user
+    } do
+      viewer = AccountsFixtures.user_fixture()
+      Profiles.follow_user(viewer.id, target_user.id)
+
+      {:ok, _user} =
+        target_user
+        |> Ecto.Changeset.change(moved_to: "https://elsewhere.example/users/gone")
+        |> Repo.update()
+
+      conn =
+        conn
+        |> log_in_user(viewer)
+        |> get("/#{target_user.handle}")
+
+      assert conn.status == 200
+      # Unfollow form still renders (existing relationship)
+      assert conn.resp_body =~ "/profiles/#{target_user.handle}/follow"
+      assert conn.resp_body =~ ~s(name="_method" value="delete")
+      # New friend requests are not offered for moved accounts
+      refute conn.resp_body =~ "Add Friend"
+    end
+
+    test "saving a note redirects back to the profile", %{conn: conn, user: target_user} do
+      viewer = AccountsFixtures.user_fixture()
+
+      conn =
+        conn
+        |> log_in_user(viewer)
+        |> post("/profiles/#{target_user.handle}/note", %{"comment" => "Met at ElixirConf"})
+
+      assert redirected_to(conn) == "/#{target_user.handle}"
+      assert Phoenix.Flash.get(conn.assigns.flash, :info) == "Note saved"
+
+      assert Elektrine.Accounts.account_note_comment(viewer.id, {:user, target_user.id}) ==
+               "Met at ElixirConf"
+    end
+  end
+
   describe "profile visibility" do
     test "public profile is accessible to anonymous users", %{conn: conn, user: user} do
       conn = get(conn, "/#{user.handle}")

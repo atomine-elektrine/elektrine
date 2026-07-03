@@ -80,6 +80,7 @@ defmodule ElektrineWeb.MixProject do
       ElektrineEmailWeb.EmailLive.Settings,
       ElektrineEmailWeb.EmailLive.Show,
       ElektrineSocialWeb.ExternalInteractionController,
+      ElektrineSocialWeb.FiltersLive.Index,
       ElektrineSocialWeb.GalleryLive.Index,
       ElektrineEmailWeb.HarakaWebhookController,
       ElektrineSocialWeb.HashtagLive.Show,

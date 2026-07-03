@@ -35,6 +35,7 @@ import {
   NotificationDropdown,
 } from "./notification_hooks";
 import { NotificationVisibility } from "./notification_visibility";
+import { WebPushManager } from "./web_push_hook";
 
 // UI hooks
 import {
@@ -144,6 +145,7 @@ export const Hooks = {
   NotificationHandler,
   NotificationDropdown,
   NotificationVisibility,
+  WebPushManager,
 
   // UI
   CopyEmail,

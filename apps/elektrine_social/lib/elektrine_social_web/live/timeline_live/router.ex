@@ -4,7 +4,10 @@ defmodule ElektrineSocialWeb.TimelineLive.Router do
   This module acts as a dispatcher to keep the main LiveView clean.
   """
 
+  require Logger
+
   alias ElektrineSocialWeb.TimelineLive.Operations.{
+    BookmarkFolderOperations,
     ImageOperations,
     NavigationOperations,
     PostOperations,
@@ -15,346 +18,152 @@ defmodule ElektrineSocialWeb.TimelineLive.Router do
     VotingOperations
   }
 
+  @operation_events %{
+    # NavigationOperations
+    "navigate_to_embedded_post" => NavigationOperations,
+    "navigate_to_gallery_post" => NavigationOperations,
+    "navigate_to_origin" => NavigationOperations,
+    "navigate_to_post" => NavigationOperations,
+    "navigate_to_profile" => NavigationOperations,
+    "navigate_to_remote_post" => NavigationOperations,
+    "navigate_to_remote_profile" => NavigationOperations,
+    "open_external_link" => NavigationOperations,
+    "open_external_post" => NavigationOperations,
+    # PostOperations
+    "autosave_draft" => PostOperations,
+    "close_filter_dropdown" => PostOperations,
+    "copy_post_link" => PostOperations,
+    "create_post" => PostOperations,
+    "delete_draft" => PostOperations,
+    "delete_post" => PostOperations,
+    "delete_post_admin" => PostOperations,
+    "edit_draft" => PostOperations,
+    "filter_timeline" => PostOperations,
+    "hide_drafts" => PostOperations,
+    "load-more" => PostOperations,
+    "load_more_posts" => PostOperations,
+    "load_queued_posts" => PostOperations,
+    "mute_remote_actor" => PostOperations,
+    "mute_thread" => PostOperations,
+    "mute_user" => PostOperations,
+    "publish_draft" => PostOperations,
+    "report_post" => PostOperations,
+    "save_draft" => PostOperations,
+    "seed_starter_pack" => PostOperations,
+    "set_filter" => PostOperations,
+    "set_software_filter" => PostOperations,
+    "show_drafts" => PostOperations,
+    "toggle_content_warning" => PostOperations,
+    "toggle_filter_dropdown" => PostOperations,
+    "toggle_hide_boosts" => PostOperations,
+    "toggle_hide_replies" => PostOperations,
+    "toggle_post_composer" => PostOperations,
+    "unmute_remote_actor" => PostOperations,
+    "unmute_thread" => PostOperations,
+    "unmute_user" => PostOperations,
+    "update_content_warning" => PostOperations,
+    "update_post_content" => PostOperations,
+    "update_post_content_live" => PostOperations,
+    "update_post_title" => PostOperations,
+    "update_scheduled_at" => PostOperations,
+    "update_visibility" => PostOperations,
+    "view_post" => PostOperations,
+    # ImageOperations
+    "cancel_upload" => ImageOperations,
+    "clear_pending_images" => ImageOperations,
+    "close_image_modal" => ImageOperations,
+    "close_image_upload" => ImageOperations,
+    "next_image" => ImageOperations,
+    "next_media_post" => ImageOperations,
+    "open_image_modal" => ImageOperations,
+    "open_image_upload" => ImageOperations,
+    "prev_image" => ImageOperations,
+    "prev_media_post" => ImageOperations,
+    "upload_timeline_images" => ImageOperations,
+    "validate_timeline_upload" => ImageOperations,
+    # VotingOperations
+    "boost_post" => VotingOperations,
+    "close_quote_modal" => VotingOperations,
+    "downvote_post" => VotingOperations,
+    "like_post" => VotingOperations,
+    "quote_post" => VotingOperations,
+    "react_to_post" => VotingOperations,
+    "save_post" => VotingOperations,
+    "save_rss_item" => VotingOperations,
+    "submit_quote" => VotingOperations,
+    "toggle_modal_like" => VotingOperations,
+    "unboost_post" => VotingOperations,
+    "undownvote_post" => VotingOperations,
+    "unlike_post" => VotingOperations,
+    "unsave_post" => VotingOperations,
+    "unsave_rss_item" => VotingOperations,
+    "update_quote_content" => VotingOperations,
+    "vote_poll" => VotingOperations,
+    "vote_remote_poll" => VotingOperations,
+    # BookmarkFolderOperations
+    "cancel_edit_bookmark_folder" => BookmarkFolderOperations,
+    "create_bookmark_folder" => BookmarkFolderOperations,
+    "delete_bookmark_folder" => BookmarkFolderOperations,
+    "edit_bookmark_folder" => BookmarkFolderOperations,
+    "move_saved_item" => BookmarkFolderOperations,
+    "select_bookmark_folder" => BookmarkFolderOperations,
+    "toggle_bookmark_folder_manager" => BookmarkFolderOperations,
+    "update_bookmark_folder" => BookmarkFolderOperations,
+    # SocialOperations
+    "discuss_privately" => SocialOperations,
+    "follow_remote_user" => SocialOperations,
+    "follow_suggested_people" => SocialOperations,
+    "import_starter_rss_feeds" => SocialOperations,
+    "preview_remote_user" => SocialOperations,
+    "refresh_suggestions" => SocialOperations,
+    "toggle_follow" => SocialOperations,
+    "toggle_follow_remote" => SocialOperations,
+    # ReplyOperations
+    "cancel_reply" => ReplyOperations,
+    "create_timeline_reply" => ReplyOperations,
+    "load_remote_replies" => ReplyOperations,
+    "show_reply_form" => ReplyOperations,
+    "show_reply_to_reply_form" => ReplyOperations,
+    "update_reply_content" => ReplyOperations,
+    "view_original_context" => ReplyOperations,
+    # UIOperations
+    "clear_search" => UIOperations,
+    "close_dropdown" => UIOperations,
+    "close_report_modal" => UIOperations,
+    "search_timeline" => UIOperations,
+    "stop_event" => UIOperations,
+    "stop_propagation" => UIOperations,
+    "toggle_mobile_filters" => UIOperations,
+    # TrackingOperations
+    "hide_post" => TrackingOperations,
+    "not_interested" => TrackingOperations,
+    "record_dismissal" => TrackingOperations,
+    "record_dwell_time" => TrackingOperations,
+    "record_dwell_times" => TrackingOperations,
+    "restore_session_continuity" => TrackingOperations,
+    "update_session_context" => TrackingOperations
+  }
+
+  @presence_events ~w(auto_away_timeout user_activity device_detected connection_changed)
+
   @doc """
   Routes an event to the appropriate operation module based on the event name.
   Returns {:noreply, socket} tuple.
   """
-  def route_event(event_name, params, socket) do
-    case event_name do
-      # Navigation Operations
-      "navigate_to_post" ->
-        NavigationOperations.handle_event(event_name, params, socket)
-
-      "navigate_to_gallery_post" ->
-        NavigationOperations.handle_event(event_name, params, socket)
-
-      "navigate_to_embedded_post" ->
-        NavigationOperations.handle_event(event_name, params, socket)
-
-      "open_external_link" ->
-        NavigationOperations.handle_event(event_name, params, socket)
-
-      "open_external_post" ->
-        NavigationOperations.handle_event(event_name, params, socket)
-
-      "navigate_to_origin" ->
-        NavigationOperations.handle_event(event_name, params, socket)
-
-      "navigate_to_profile" ->
-        NavigationOperations.handle_event(event_name, params, socket)
-
-      "navigate_to_remote_profile" ->
-        NavigationOperations.handle_event(event_name, params, socket)
-
-      "navigate_to_remote_post" ->
-        NavigationOperations.handle_event(event_name, params, socket)
-
-      # Post Operations
-      "toggle_post_composer" ->
-        PostOperations.handle_event(event_name, params, socket)
-
-      "update_post_title" ->
-        PostOperations.handle_event(event_name, params, socket)
-
-      "update_visibility" ->
-        PostOperations.handle_event(event_name, params, socket)
-
-      "update_scheduled_at" ->
-        PostOperations.handle_event(event_name, params, socket)
-
-      "toggle_content_warning" ->
-        PostOperations.handle_event(event_name, params, socket)
-
-      "update_content_warning" ->
-        PostOperations.handle_event(event_name, params, socket)
-
-      "update_post_content" ->
-        PostOperations.handle_event(event_name, params, socket)
-
-      "update_post_content_live" ->
-        PostOperations.handle_event(event_name, params, socket)
-
-      "autosave_draft" ->
-        PostOperations.handle_event(event_name, params, socket)
-
-      "load_queued_posts" ->
-        PostOperations.handle_event(event_name, params, socket)
-
-      "create_post" ->
-        PostOperations.handle_event(event_name, params, socket)
-
-      "delete_post" ->
-        PostOperations.handle_event(event_name, params, socket)
-
-      "delete_post_admin" ->
-        PostOperations.handle_event(event_name, params, socket)
-
-      "view_post" ->
-        PostOperations.handle_event(event_name, params, socket)
-
-      "copy_post_link" ->
-        PostOperations.handle_event(event_name, params, socket)
-
-      "report_post" ->
-        PostOperations.handle_event(event_name, params, socket)
-
-      "load_more_posts" ->
-        PostOperations.handle_event(event_name, params, socket)
-
-      "load-more" ->
-        PostOperations.handle_event(event_name, params, socket)
-
-      "filter_timeline" ->
-        PostOperations.handle_event(event_name, params, socket)
-
-      "toggle_filter_dropdown" ->
-        PostOperations.handle_event(event_name, params, socket)
-
-      "close_filter_dropdown" ->
-        PostOperations.handle_event(event_name, params, socket)
-
-      "set_filter" ->
-        PostOperations.handle_event(event_name, params, socket)
-
-      "set_software_filter" ->
-        PostOperations.handle_event(event_name, params, socket)
-
-      "toggle_hide_boosts" ->
-        PostOperations.handle_event(event_name, params, socket)
-
-      "toggle_hide_replies" ->
-        PostOperations.handle_event(event_name, params, socket)
-
-      # Draft Operations
-      "save_draft" ->
-        PostOperations.handle_event(event_name, params, socket)
-
-      "edit_draft" ->
-        PostOperations.handle_event(event_name, params, socket)
-
-      "publish_draft" ->
-        PostOperations.handle_event(event_name, params, socket)
-
-      "delete_draft" ->
-        PostOperations.handle_event(event_name, params, socket)
-
-      "show_drafts" ->
-        PostOperations.handle_event(event_name, params, socket)
-
-      "hide_drafts" ->
-        PostOperations.handle_event(event_name, params, socket)
-
-      "seed_starter_pack" ->
-        PostOperations.handle_event(event_name, params, socket)
-
-      # Image Operations
-      "cancel_upload" ->
-        ImageOperations.handle_event(event_name, params, socket)
-
-      "open_image_upload" ->
-        ImageOperations.handle_event(event_name, params, socket)
-
-      "close_image_upload" ->
-        ImageOperations.handle_event(event_name, params, socket)
-
-      "clear_pending_images" ->
-        ImageOperations.handle_event(event_name, params, socket)
-
-      "open_image_modal" ->
-        ImageOperations.handle_event(event_name, params, socket)
-
-      "close_image_modal" ->
-        ImageOperations.handle_event(event_name, params, socket)
-
-      "next_image" ->
-        ImageOperations.handle_event(event_name, params, socket)
-
-      "prev_image" ->
-        ImageOperations.handle_event(event_name, params, socket)
-
-      "next_media_post" ->
-        ImageOperations.handle_event(event_name, params, socket)
-
-      "prev_media_post" ->
-        ImageOperations.handle_event(event_name, params, socket)
-
-      "validate_timeline_upload" ->
-        ImageOperations.handle_event(event_name, params, socket)
-
-      "upload_timeline_images" ->
-        ImageOperations.handle_event(event_name, params, socket)
-
-      # Voting Operations
-      "like_post" ->
-        VotingOperations.handle_event(event_name, params, socket)
-
-      "unlike_post" ->
-        VotingOperations.handle_event(event_name, params, socket)
-
-      "downvote_post" ->
-        VotingOperations.handle_event(event_name, params, socket)
-
-      "undownvote_post" ->
-        VotingOperations.handle_event(event_name, params, socket)
-
-      "boost_post" ->
-        VotingOperations.handle_event(event_name, params, socket)
-
-      "unboost_post" ->
-        VotingOperations.handle_event(event_name, params, socket)
-
-      "vote_poll" ->
-        VotingOperations.handle_event(event_name, params, socket)
-
-      "vote_remote_poll" ->
-        VotingOperations.handle_event(event_name, params, socket)
-
-      "react_to_post" ->
-        VotingOperations.handle_event(event_name, params, socket)
-
-      "toggle_modal_like" ->
-        VotingOperations.handle_event(event_name, params, socket)
-
-      "save_post" ->
-        VotingOperations.handle_event(event_name, params, socket)
-
-      "unsave_post" ->
-        VotingOperations.handle_event(event_name, params, socket)
-
-      "save_rss_item" ->
-        VotingOperations.handle_event(event_name, params, socket)
-
-      "unsave_rss_item" ->
-        VotingOperations.handle_event(event_name, params, socket)
-
-      "quote_post" ->
-        VotingOperations.handle_event(event_name, params, socket)
-
-      "close_quote_modal" ->
-        VotingOperations.handle_event(event_name, params, socket)
-
-      "update_quote_content" ->
-        VotingOperations.handle_event(event_name, params, socket)
-
-      "submit_quote" ->
-        VotingOperations.handle_event(event_name, params, socket)
-
-      # Social/Follow Operations
-      "refresh_suggestions" ->
-        SocialOperations.handle_event(event_name, params, socket)
-
-      "toggle_follow" ->
-        SocialOperations.handle_event(event_name, params, socket)
-
-      "preview_remote_user" ->
-        SocialOperations.handle_event(event_name, params, socket)
-
-      "follow_remote_user" ->
-        SocialOperations.handle_event(event_name, params, socket)
-
-      "toggle_follow_remote" ->
-        SocialOperations.handle_event(event_name, params, socket)
-
-      "follow_suggested_people" ->
-        SocialOperations.handle_event(event_name, params, socket)
-
-      "import_starter_rss_feeds" ->
-        SocialOperations.handle_event(event_name, params, socket)
-
-      "discuss_privately" ->
-        SocialOperations.handle_event(event_name, params, socket)
-
-      # Reply Operations
-      "show_reply_form" ->
-        ReplyOperations.handle_event(event_name, params, socket)
-
-      "cancel_reply" ->
-        ReplyOperations.handle_event(event_name, params, socket)
-
-      "show_reply_to_reply_form" ->
-        ReplyOperations.handle_event(event_name, params, socket)
-
-      "create_timeline_reply" ->
-        ReplyOperations.handle_event(event_name, params, socket)
-
-      "load_remote_replies" ->
-        ReplyOperations.handle_event(event_name, params, socket)
-
-      "update_reply_content" ->
-        ReplyOperations.handle_event(event_name, params, socket)
-
-      "view_original_context" ->
-        ReplyOperations.handle_event(event_name, params, socket)
-
-      # UI Operations
-      "stop_event" ->
-        UIOperations.handle_event(event_name, params, socket)
-
-      "close_dropdown" ->
-        UIOperations.handle_event(event_name, params, socket)
-
-      "close_report_modal" ->
-        UIOperations.handle_event(event_name, params, socket)
-
-      "stop_propagation" ->
-        UIOperations.handle_event(event_name, params, socket)
-
-      "search_timeline" ->
-        UIOperations.handle_event(event_name, params, socket)
-
-      "clear_search" ->
-        UIOperations.handle_event(event_name, params, socket)
-
-      "toggle_mobile_filters" ->
-        UIOperations.handle_event(event_name, params, socket)
-
-      # Tracking/Recommendations Operations
-      "record_dwell_time" ->
-        TrackingOperations.handle_event(event_name, params, socket)
-
-      "record_dwell_times" ->
-        TrackingOperations.handle_event(event_name, params, socket)
-
-      "record_dismissal" ->
-        TrackingOperations.handle_event(event_name, params, socket)
-
-      "update_session_context" ->
-        TrackingOperations.handle_event(event_name, params, socket)
-
-      "restore_session_continuity" ->
-        TrackingOperations.handle_event(event_name, params, socket)
-
-      "not_interested" ->
-        TrackingOperations.handle_event(event_name, params, socket)
-
-      "hide_post" ->
-        TrackingOperations.handle_event(event_name, params, socket)
-
-      # Presence Events - delegate to shared handler
-      "auto_away_timeout" ->
-        ElektrineWeb.Live.Hooks.PresenceEvents.handle_presence_event(event_name, params, socket)
-
-      "user_activity" ->
-        ElektrineWeb.Live.Hooks.PresenceEvents.handle_presence_event(event_name, params, socket)
-
-      "device_detected" ->
-        ElektrineWeb.Live.Hooks.PresenceEvents.handle_presence_event(event_name, params, socket)
-
-      "connection_changed" ->
-        ElektrineWeb.Live.Hooks.PresenceEvents.handle_presence_event(event_name, params, socket)
-
-      # Empty event - ignore silently (can happen from event bubbling)
-      "" ->
-        {:noreply, socket}
-
-      nil ->
-        {:noreply, socket}
-
-      # Unknown event - log warning
-      _ ->
-        require Logger
-        Logger.warning("Unknown event in TimelineLive.Index: #{event_name}")
-        {:noreply, socket}
-    end
+  def route_event(event_name, params, socket) when is_map_key(@operation_events, event_name) do
+    @operation_events[event_name].handle_event(event_name, params, socket)
+  end
+
+  def route_event(event_name, params, socket) when event_name in @presence_events do
+    ElektrineWeb.Live.Hooks.PresenceEvents.handle_presence_event(event_name, params, socket)
+  end
+
+  def route_event(event_name, _params, socket) when event_name in [nil, ""] do
+    {:noreply, socket}
+  end
+
+  def route_event(event_name, _params, socket) do
+    Logger.warning("Unknown event in TimelineLive.Index: #{event_name}")
+    {:noreply, socket}
   end
 end

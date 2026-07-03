@@ -1307,6 +1307,50 @@
                   </span>
                 </div>
               </div>
+              <!-- Social Graph Privacy -->
+              <div class="space-y-3">
+                <label class="label">
+                  <span class="label-text font-medium">{gettext("Social graph privacy")}</span>
+                </label>
+
+                <label class="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="user_hide_followers"
+                    name="user[hide_followers]"
+                    value="true"
+                    checked={Ecto.Changeset.get_field(@changeset, :hide_followers) == true}
+                    class="checkbox checkbox-primary"
+                  /> <span class="label-text">{gettext("Hide my followers list")}</span>
+                </label>
+                <label class="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="user_hide_follows"
+                    name="user[hide_follows]"
+                    value="true"
+                    checked={Ecto.Changeset.get_field(@changeset, :hide_follows) == true}
+                    class="checkbox checkbox-primary"
+                  /> <span class="label-text">{gettext("Hide who I follow")}</span>
+                </label>
+                <label class="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="user_hide_favorites"
+                    name="user[hide_favorites]"
+                    value="true"
+                    checked={Ecto.Changeset.get_field(@changeset, :hide_favorites) == true}
+                    class="checkbox checkbox-primary"
+                  /> <span class="label-text">{gettext("Hide my favorites")}</span>
+                </label>
+                <div class="label">
+                  <span class="text-xs text-base-content/60">
+                    {gettext(
+                      "Hidden lists are only visible to you. Hiding followers also hides follower counts on your profile page."
+                    )}
+                  </span>
+                </div>
+              </div>
 
               <div class="card-actions justify-end mt-4 sm:mt-6">
                 <.button class="btn-primary w-full sm:w-auto">{gettext("Save Changes")}</.button>
@@ -1697,6 +1741,42 @@
                   />
                   <span class="label-text">
                     {gettext("Notify me when someone comments on my timeline post")}
+                  </span>
+                </label>
+              </div>
+              <!-- Notification Privacy -->
+              <div class="space-y-3">
+                <div class="divider my-2">{gettext("Notification Privacy")}</div>
+
+                <label class="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="user_block_notifications_from_strangers"
+                    name="user[block_notifications_from_strangers]"
+                    value="true"
+                    checked={
+                      Ecto.Changeset.get_field(@changeset, :block_notifications_from_strangers) ==
+                        true
+                    }
+                    class="checkbox checkbox-primary"
+                  />
+                  <span class="label-text">
+                    {gettext("Block notifications from people I don't follow")}
+                  </span>
+                </label>
+                <label class="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="user_hide_notification_contents"
+                    name="user[hide_notification_contents]"
+                    value="true"
+                    checked={
+                      Ecto.Changeset.get_field(@changeset, :hide_notification_contents) == true
+                    }
+                    class="checkbox checkbox-primary"
+                  />
+                  <span class="label-text">
+                    {gettext("Hide message contents in notifications")}
                   </span>
                 </label>
               </div>

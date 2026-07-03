@@ -218,6 +218,73 @@ defmodule Elektrine.Social.BookmarksTest do
     end
   end
 
+  describe "get_saved_posts_with_cursor/2" do
+    test "pages by keyset cursor without skipping after an unsave" do
+      user = user_fixture()
+      posts = for _ <- 1..5, do: post_fixture()
+      for post <- posts, do: {:ok, _} = Bookmarks.save_post(user.id, post.id)
+
+      {page1, cursor1} = Bookmarks.get_saved_posts_with_cursor(user.id, limit: 2)
+      assert length(page1) == 2
+      assert cursor1 == Bookmarks.saved_post_cursor(user.id, List.last(page1).id)
+
+      # Unsaving an already-loaded post must not shift the continuation
+      # (this is where offset pagination skipped items).
+      {:ok, _} = Bookmarks.unsave_post(user.id, hd(page1).id)
+
+      {page2, cursor2} = Bookmarks.get_saved_posts_with_cursor(user.id, limit: 2, cursor: cursor1)
+
+      {page3, _cursor3} =
+        Bookmarks.get_saved_posts_with_cursor(user.id, limit: 2, cursor: cursor2)
+
+      paged_ids = Enum.map(page1 ++ page2 ++ page3, & &1.id)
+
+      # No duplicates and nothing skipped: every saved post is seen exactly once.
+      assert length(paged_ids) == 5
+      assert Enum.sort(paged_ids) == posts |> Enum.map(& &1.id) |> Enum.sort()
+    end
+
+    test "returns nil cursor for an empty page" do
+      user = user_fixture()
+      assert {[], nil} = Bookmarks.get_saved_posts_with_cursor(user.id)
+    end
+
+    test "breaks inserted_at ties by message id" do
+      user = user_fixture()
+      posts = for _ <- 1..4, do: post_fixture()
+      # Saved in the same second, so inserted_at ties are expected.
+      for post <- posts, do: {:ok, _} = Bookmarks.save_post(user.id, post.id)
+
+      {page1, cursor} = Bookmarks.get_saved_posts_with_cursor(user.id, limit: 2)
+      {page2, _} = Bookmarks.get_saved_posts_with_cursor(user.id, limit: 2, cursor: cursor)
+
+      ids = Enum.map(page1 ++ page2, & &1.id)
+      assert Enum.sort(ids) == posts |> Enum.map(& &1.id) |> Enum.sort()
+      assert length(Enum.uniq(ids)) == 4
+    end
+  end
+
+  describe "saved_item_folder_map/2" do
+    test "maps message ids to folder ids for the user's saved items" do
+      user = user_fixture()
+      other_user = user_fixture()
+      {:ok, folder} = BookmarkFolders.create_folder(user.id, %{"name" => "Read later"})
+      in_folder = post_fixture()
+      no_folder = post_fixture()
+      not_saved = post_fixture()
+
+      {:ok, _} = Bookmarks.save_post(user.id, in_folder.id, folder_id: folder.id)
+      {:ok, _} = Bookmarks.save_post(user.id, no_folder.id)
+      {:ok, _} = Bookmarks.save_post(other_user.id, not_saved.id)
+
+      result =
+        Bookmarks.saved_item_folder_map(user.id, [in_folder.id, no_folder.id, not_saved.id])
+
+      assert result == %{in_folder.id => folder.id, no_folder.id => nil}
+      assert Bookmarks.saved_item_folder_map(user.id, []) == %{}
+    end
+  end
+
   describe "count_saved_posts/1" do
     test "returns count of saved posts" do
       user = user_fixture()

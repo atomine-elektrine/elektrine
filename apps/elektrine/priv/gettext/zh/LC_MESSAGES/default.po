@@ -2670,7 +2670,7 @@ msgstr "屏幕共享"
 
 #: lib/elektrine_web/controllers/page_html/home.html.heex:243
 #, elixir-autogen, elixir-format
-msgid "The internet is shifting. AI-generated content is everywhere, and it's getting harder to tell what's real. Most platforms optimize for viral reach and follower counts—metrics that mean nothing when bots can fake them."
+msgid "The internet is shifting. AI-generated content is everywhere, and it's getting harder to tell what's real. Most platforms optimize for viral reach and follower counts, metrics that mean nothing when bots can fake them."
 msgstr "互联网正在转变。AI 生成的内容无处不在，越来越难分辨真伪。大多数平台优化的是病毒式传播和粉丝数量——当机器人可以伪造这些指标时，它们就变得毫无意义。"
 
 #: lib/elektrine_web/controllers/page_html/home.html.heex:102
@@ -2817,7 +2817,7 @@ msgstr "Z 个人资料"
 
 #: lib/elektrine_web/controllers/page_html/home.html.heex:246
 #, elixir-autogen, elixir-format
-msgid "Z is designed around smaller circles of people you actually know and trust. We're building reputation systems based on your interactions with your community—who you talk to, who vouches for you, your actual contribution history. Public moderation logs, AI content labels, and trust networks instead of algorithmic feeds. Think less 'going viral' and more 'building credibility with people who matter.' The internet works better when trust is local, not global."
+msgid "Z is designed around smaller circles of people you actually know and trust. We're building reputation systems based on your interactions with your community: who you talk to, who vouches for you, your actual contribution history. Public moderation logs, AI content labels, and trust networks instead of algorithmic feeds. Think less 'going viral' and more 'building credibility with people who matter.' The internet works better when trust is local, not global."
 msgstr "Z 致力于围绕你真正认识和信任的小圈子进行设计。我们正在构建基于你与社区互动的声誉体系——包括你与谁交流、谁为你背书，以及你的实际贡献记录。我们采用公开的内容管理日志、AI 内容标签和信任网络，而不是算法推荐的信息流。与其追求“病毒式传播”，我们更重视在重要的人群中建立信誉。互联网在本地化的信任机制下运作得更好，而不是依靠全球性的泛化信任。"
 
 #: lib/elektrine_web/live/email_live/home.html.heex:778
@@ -3058,7 +3058,7 @@ msgstr "讨论帖"
 
 #: lib/elektrine_web/controllers/page_html/home.html.heex:120
 #, elixir-autogen, elixir-format
-msgid "Elektrine provides email and VPN services built from the ground up with Elixir—custom SMTP/IMAP servers, MTA components, spam filtering, and webmail. Z is the social platform layer with real-time chat, timelines, communities, and photo galleries. Everything runs on the same account."
+msgid "Elektrine provides email and VPN services built from the ground up with Elixir: custom SMTP/IMAP servers, MTA components, spam filtering, and webmail. Z is the social platform layer with real-time chat, timelines, communities, and photo galleries. Everything runs on the same account."
 msgstr "Elektrine 提供基于 Elixir 从头构建的电子邮件和 VPN 服务——自定义 SMTP/IMAP 服务器、MTA 组件、垃圾邮件过滤和网页邮箱。Z 是社交平台层，包含实时聊天、动态、社区和相册。所有功能均使用同一个账户。"
 
 #: lib/elektrine_web/controllers/page_html/home.html.heex:219

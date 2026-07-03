@@ -766,6 +766,21 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
             <.icon name="hero-link" class="w-4 h-4" /> Copy Link
           </button>
         </li>
+        <%= if is_struct(@post, Elektrine.Social.Message) do %>
+          <%= if Elektrine.Social.ThreadMutes.muted?(@current_user.id, @post) do %>
+            <li>
+              <button phx-click="unmute_thread" phx-value-message_id={@post.id} type="button">
+                <.icon name="hero-bell" class="w-4 h-4" /> Unmute Conversation
+              </button>
+            </li>
+          <% else %>
+            <li>
+              <button phx-click="mute_thread" phx-value-message_id={@post.id} type="button">
+                <.icon name="hero-bell-slash" class="w-4 h-4" /> Mute Conversation
+              </button>
+            </li>
+          <% end %>
+        <% end %>
         
     <!-- Owner Actions -->
         <%= if @current_user && !@post.federated && @post.sender && @post.sender.id == @current_user.id do %>
@@ -798,6 +813,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
               <.icon name="hero-eye-slash" class="w-4 h-4" /> Hide Post
             </button>
           </li>
+          <.mute_user_items post={@post} current_user={@current_user} />
         <% end %>
         
     <!-- Admin Actions -->
@@ -821,6 +837,93 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       </ul>
     </div>
     """
+  end
+
+  # Mute user menu entries for the post dropdown.
+  attr :post, :map, required: true
+  attr :current_user, :map, required: true
+
+  def mute_user_items(assigns) do
+    ~H"""
+    <%= cond do %>
+      <% is_nil(@current_user) -> %>
+      <% local_mute_target(@post, @current_user) -> %>
+        <% sender = @post.sender %>
+        <%= if Elektrine.Accounts.user_muted?(@current_user.id, sender.id) do %>
+          <li>
+            <button phx-click="unmute_user" phx-value-user_id={sender.id} type="button">
+              <.icon name="hero-speaker-wave" class="w-4 h-4" />
+              Unmute @{sender.handle || sender.username}
+            </button>
+          </li>
+        <% else %>
+          <li>
+            <details>
+              <summary>
+                <.icon name="hero-speaker-x-mark" class="w-4 h-4" />
+                Mute @{sender.handle || sender.username}
+              </summary>
+              <ul>
+                <%= for {duration, label} <- mute_duration_options() do %>
+                  <li>
+                    <button
+                      phx-click="mute_user"
+                      phx-value-user_id={sender.id}
+                      phx-value-duration={duration}
+                      type="button"
+                    >
+                      {label}
+                    </button>
+                  </li>
+                <% end %>
+              </ul>
+            </details>
+          </li>
+        <% end %>
+      <% remote_mute_target(@post) -> %>
+        <% actor = @post.remote_actor %>
+        <%= if Elektrine.Accounts.remote_actor_muted?(@current_user.id, actor.id) do %>
+          <li>
+            <button phx-click="unmute_remote_actor" phx-value-actor_id={actor.id} type="button">
+              <.icon name="hero-speaker-wave" class="w-4 h-4" />
+              Unmute @{actor.username}@{actor.domain}
+            </button>
+          </li>
+        <% else %>
+          <li>
+            <button phx-click="mute_remote_actor" phx-value-actor_id={actor.id} type="button">
+              <.icon name="hero-speaker-x-mark" class="w-4 h-4" />
+              Mute @{actor.username}@{actor.domain}
+            </button>
+          </li>
+        <% end %>
+      <% true -> %>
+    <% end %>
+    """
+  end
+
+  def mute_duration_options do
+    [
+      {"1800", "For 30 minutes"},
+      {"3600", "For 1 hour"},
+      {"86400", "For 1 day"},
+      {"604800", "For 1 week"},
+      {"", "Until I unmute"}
+    ]
+  end
+
+  defp local_mute_target(post, current_user) do
+    sender = Map.get(post, :sender)
+
+    is_map(sender) && !match?(%Ecto.Association.NotLoaded{}, sender) &&
+      is_integer(Map.get(sender, :id)) && sender.id != current_user.id
+  end
+
+  defp remote_mute_target(post) do
+    actor = Map.get(post, :remote_actor)
+
+    is_map(actor) && !match?(%Ecto.Association.NotLoaded{}, actor) &&
+      is_integer(Map.get(actor, :id))
   end
 
   # Reply ancestor stack component - renders root -> parent context cards with thread rails.

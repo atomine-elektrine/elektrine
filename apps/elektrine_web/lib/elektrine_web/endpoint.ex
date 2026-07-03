@@ -55,6 +55,15 @@ defmodule ElektrineWeb.Endpoint do
     gzip: false,
     only: ElektrineWeb.static_paths()
 
+  # Service worker must be served undigested at a stable root path so its
+  # scope covers the whole origin and browsers can detect updates.
+  plug Plug.Static,
+    at: "/",
+    from: :elektrine,
+    gzip: false,
+    only: ~w(sw.js),
+    headers: %{"cache-control" => "no-cache"}
+
   # Code reloading can be explicitly enabled under the
   # :code_reloader configuration of your endpoint.
   if code_reloading? do

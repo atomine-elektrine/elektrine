@@ -294,7 +294,7 @@ defmodule ElektrineSocialWeb.VideosLive.Index do
   end
 
   defp build_videos_data(filter, user) do
-    video_posts = get_video_feed(filter, user)
+    video_posts = get_video_feed_page(filter, user)
     {user_likes, user_saved_posts} = load_video_engagement_state(user, video_posts)
 
     %{
@@ -305,6 +305,17 @@ defmodule ElektrineSocialWeb.VideosLive.Index do
       end_of_feed: length(video_posts) < @videos_page_size
     }
   end
+
+  # The discover/trending feeds are global, so the first page can be served
+  # from a short-lived cache instead of re-running the feed query per visit.
+  # Per-user engagement state is always computed fresh from the posts.
+  defp get_video_feed_page(filter, user) when filter in ["discover", "trending"] do
+    ElektrineSocialWeb.Live.GlobalFeedPage.fetch({:videos, filter}, fn ->
+      get_video_feed(filter, user)
+    end)
+  end
+
+  defp get_video_feed_page(filter, user), do: get_video_feed(filter, user)
 
   defp apply_videos_data(socket, data) do
     socket

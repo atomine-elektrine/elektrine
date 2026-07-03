@@ -29,6 +29,11 @@ defmodule ElektrineWeb.ProfileController do
       POST /profiles/:handle/friend-request/accept - Accept friend request
       DELETE /profiles/:handle/friend-request  - Cancel friend request
       DELETE /profiles/:handle/friend          - Remove friend
+      POST /profiles/:handle/subscribe         - Turn on post notifications
+      DELETE /profiles/:handle/subscribe       - Turn off post notifications
+      POST /profiles/:handle/endorse           - Feature account on my profile
+      DELETE /profiles/:handle/endorse         - Remove featured account
+      POST /profiles/:handle/note              - Save private account note
   """
 
   use ElektrineWeb, :controller
@@ -279,6 +284,9 @@ defmodule ElektrineWeb.ProfileController do
     |> assign(:following_count, following_count)
     |> assign(:is_following, is_following)
     |> assign(:friend_status, profile_context.friend_status)
+    |> assign(:is_subscribed, profile_context.is_subscribed)
+    |> assign(:is_endorsed, profile_context.is_endorsed)
+    |> assign(:account_note, profile_context.account_note)
     |> assign(:user_timeline_posts, profile_context.user_timeline_posts)
     |> assign(:pinned_posts, profile_context.pinned_posts)
     |> assign(:user_discussion_posts, profile_context.user_discussion_posts)
@@ -384,6 +392,9 @@ defmodule ElektrineWeb.ProfileController do
     |> assign(:following_count, following_count)
     |> assign(:is_following, is_following)
     |> assign(:friend_status, profile_context.friend_status)
+    |> assign(:is_subscribed, profile_context.is_subscribed)
+    |> assign(:is_endorsed, profile_context.is_endorsed)
+    |> assign(:account_note, profile_context.account_note)
     |> assign(:user_timeline_posts, profile_context.user_timeline_posts)
     |> assign(:pinned_posts, profile_context.pinned_posts)
     |> assign(:user_discussion_posts, profile_context.user_discussion_posts)
@@ -641,6 +652,87 @@ defmodule ElektrineWeb.ProfileController do
     end
   end
 
+  def subscribe(conn, %{"handle" => handle}) do
+    profile_viewer_action(conn, handle, fn current_user, user ->
+      case Accounts.subscribe_to_account(current_user.id, user) do
+        {:ok, _} ->
+          {:info, "You'll be notified when #{user.handle || user.username} posts"}
+
+        {:error, _} ->
+          {:error, "Failed to update notifications"}
+      end
+    end)
+  end
+
+  def unsubscribe(conn, %{"handle" => handle}) do
+    profile_viewer_action(conn, handle, fn current_user, user ->
+      case Accounts.unsubscribe_from_account(current_user.id, user) do
+        {:ok, _} -> {:info, "Post notifications turned off"}
+        {:error, _} -> {:error, "Failed to update notifications"}
+      end
+    end)
+  end
+
+  def endorse(conn, %{"handle" => handle}) do
+    profile_viewer_action(conn, handle, fn current_user, user ->
+      case Accounts.endorse_account(current_user.id, user) do
+        {:ok, _} -> {:info, "Featured on your profile"}
+        {:error, _} -> {:error, "Failed to update featured accounts"}
+      end
+    end)
+  end
+
+  def unendorse(conn, %{"handle" => handle}) do
+    profile_viewer_action(conn, handle, fn current_user, user ->
+      case Accounts.unendorse_account(current_user.id, user) do
+        {:ok, _} -> {:info, "Removed from your featured accounts"}
+        {:error, _} -> {:error, "Failed to update featured accounts"}
+      end
+    end)
+  end
+
+  def save_account_note(conn, %{"handle" => handle} = params) do
+    comment = Map.get(params, "comment", "")
+
+    profile_viewer_action(conn, handle, fn current_user, user ->
+      case Accounts.put_account_note(current_user.id, {:user, user.id}, comment) do
+        {:ok, _note} -> {:info, "Note saved"}
+        {:error, _} -> {:error, "Failed to save note"}
+      end
+    end)
+  end
+
+  # Shared plumbing for browser-form profile viewer actions (subscribe, endorse,
+  # account note). Requires a logged-in viewer who isn't the profile owner, runs
+  # `fun`, then flashes the result and redirects back to the profile page.
+  defp profile_viewer_action(conn, handle, fun) do
+    conn = fetch_flash(conn, [])
+
+    with {:ok, current_user} <- require_current_user(conn),
+         user when not is_nil(user) <- Accounts.get_user_by_username_or_handle(handle) do
+      {kind, message} =
+        if current_user.id == user.id do
+          {:error, "You can't do this on your own profile"}
+        else
+          fun.(current_user, user)
+        end
+
+      conn
+      |> put_flash(kind, message)
+      |> redirect(to: profile_return_path(conn, handle))
+    else
+      {:error, :unauthenticated, _conn} ->
+        conn
+        |> put_session(:user_return_to, profile_return_path(conn, handle))
+        |> redirect(to: Elektrine.Paths.login_path())
+
+      nil ->
+        conn
+        |> put_flash(:error, "User not found")
+        |> redirect(to: profile_return_path(conn, handle))
+    end
+  end
+
   defp assign_profile_defaults(conn, user) do
     # Subdomain URLs use the user's handle
     local_handle = user.handle || user.username
@@ -687,6 +779,10 @@ defmodule ElektrineWeb.ProfileController do
     |> assign_if_missing(:modal_image_index, 0)
     |> assign_if_missing(:modal_post, nil)
     |> assign_if_missing(:friend_status, nil)
+    |> assign_if_missing(:is_subscribed, false)
+    |> assign_if_missing(:is_endorsed, false)
+    |> assign_if_missing(:account_note, "")
+    |> assign_if_missing(:show_account_note, false)
     |> assign_if_missing(:user_badges, [])
     |> assign_if_missing(:user_number, nil)
     |> assign_if_missing(:time_format, conn.assigns[:time_format] || "relative")
@@ -720,6 +816,21 @@ defmodule ElektrineWeb.ProfileController do
           }
         end
     }
+    |> Map.merge(viewer_relationship_context(user, current_user))
+  end
+
+  # Viewer-dependent relationship state for the static subscribe/endorse/note
+  # forms. Mirrors the relationship data ProfileLive.Show loads for the same UI.
+  defp viewer_relationship_context(user, current_user) do
+    if current_user && current_user.id != user.id do
+      %{
+        is_subscribed: Accounts.account_subscribed?(current_user.id, user),
+        is_endorsed: Accounts.account_endorsed?(current_user.id, user),
+        account_note: Accounts.account_note_comment(current_user.id, {:user, user.id})
+      }
+    else
+      %{is_subscribed: false, is_endorsed: false, account_note: ""}
+    end
   end
 
   defp assign_if_missing(conn, key, value) do

@@ -41,6 +41,56 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.UIOperations do
     {:noreply, push_event(socket, "copy_to_clipboard", %{text: url})}
   end
 
+  def handle_event("mute_thread", _params, socket) do
+    case socket.assigns[:current_user] do
+      nil ->
+        {:noreply, notify_error(socket, "You must be signed in to mute conversations")}
+
+      user ->
+        case Elektrine.Social.ThreadMutes.mute_thread(user.id, socket.assigns.post) do
+          {:ok, _} ->
+            {:noreply,
+             socket
+             |> assign(:thread_muted, true)
+             |> notify_info("Conversation muted")}
+
+          {:error, _} ->
+            {:noreply, notify_error(socket, "Failed to mute conversation")}
+        end
+    end
+  end
+
+  def handle_event("unmute_thread", _params, socket) do
+    case socket.assigns[:current_user] do
+      nil ->
+        {:noreply, socket}
+
+      user ->
+        _ = Elektrine.Social.ThreadMutes.unmute_thread(user.id, socket.assigns.post)
+
+        {:noreply,
+         socket
+         |> assign(:thread_muted, false)
+         |> notify_info("Conversation unmuted")}
+    end
+  end
+
+  def handle_event("mute_user", %{"user_id" => user_id} = params, socket) do
+    handle_user_mute(socket, user_id, :mute, params["duration"])
+  end
+
+  def handle_event("unmute_user", %{"user_id" => user_id}, socket) do
+    handle_user_mute(socket, user_id, :unmute, nil)
+  end
+
+  def handle_event("mute_remote_actor", %{"actor_id" => actor_id}, socket) do
+    handle_remote_actor_mute(socket, actor_id, :mute)
+  end
+
+  def handle_event("unmute_remote_actor", %{"actor_id" => actor_id}, socket) do
+    handle_remote_actor_mute(socket, actor_id, :unmute)
+  end
+
   def handle_event("report_discussion", %{"message_id" => message_id}, socket) do
     case parse_positive_int(message_id) do
       {:ok, message_id} ->
@@ -84,6 +134,56 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.UIOperations do
   # close_image_modal / next_image / prev_image are delegated to the shared
   # ElektrineSocialWeb.TimelineLive.Operations.ImageOperations via the post router,
   # since they only operate on the canonical modal-state assigns.
+
+  defp handle_user_mute(socket, user_id, action, duration) do
+    user = socket.assigns[:current_user]
+
+    with %{id: muter_id} <- user,
+         {:ok, target_id} when target_id != muter_id <- parse_positive_int(user_id) do
+      case action do
+        :mute ->
+          expires_in =
+            case Integer.parse(to_string(duration)) do
+              {seconds, ""} when seconds > 0 -> seconds
+              _ -> nil
+            end
+
+          case Elektrine.Accounts.mute_user(muter_id, target_id, false, expires_in) do
+            {:ok, _} -> {:noreply, notify_info(socket, "User muted")}
+            {:error, _} -> {:noreply, notify_error(socket, "Failed to mute user")}
+          end
+
+        :unmute ->
+          _ = Elektrine.Accounts.unmute_user(muter_id, target_id)
+          {:noreply, notify_info(socket, "User unmuted")}
+      end
+    else
+      nil -> {:noreply, notify_error(socket, "You must be signed in to mute users")}
+      _ -> {:noreply, socket}
+    end
+  end
+
+  defp handle_remote_actor_mute(socket, actor_id, action) do
+    user = socket.assigns[:current_user]
+
+    with %{id: muter_id} <- user,
+         {:ok, actor_id} <- parse_positive_int(actor_id) do
+      case action do
+        :mute ->
+          case Elektrine.Accounts.mute_remote_actor(muter_id, actor_id) do
+            {:ok, _} -> {:noreply, notify_info(socket, "User muted")}
+            {:error, _} -> {:noreply, notify_error(socket, "Failed to mute user")}
+          end
+
+        :unmute ->
+          _ = Elektrine.Accounts.unmute_remote_actor(muter_id, actor_id)
+          {:noreply, notify_info(socket, "User unmuted")}
+      end
+    else
+      nil -> {:noreply, notify_error(socket, "You must be signed in to mute users")}
+      _ -> {:noreply, socket}
+    end
+  end
 
   defp open_report_modal(socket, message_id) do
     post = socket.assigns.post

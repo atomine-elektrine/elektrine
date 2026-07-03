@@ -1,5 +1,5 @@
 /**
- * KairoGraph — a force-directed graph of Kairo sources.
+ * KairoGraph: a force-directed graph of Kairo sources.
  *
  * The LiveView serves a `data-graph` payload of `{nodes, edges}` where each node
  * is a source (file) and an edge connects two sources that share a tag (edge
@@ -381,7 +381,7 @@ export const KairoGraph = {
     })
     ctx.globalAlpha = 1
 
-    // Labels only at rest (or zoomed in / hovered neighborhood) — cheap to draw
+    // Labels only at rest (or zoomed in / hovered neighborhood), cheap to draw
     // on canvas with no trails, but skipping them keeps motion frames light.
     const showLabels = !this.running || this.scale > 1.4 || active
     if (showLabels) {

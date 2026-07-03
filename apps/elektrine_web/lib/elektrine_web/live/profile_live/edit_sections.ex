@@ -114,6 +114,39 @@ defmodule ElektrineWeb.ProfileLive.EditSections do
           </div>
 
           <div>
+            <label class="label"><span class="label-text font-medium">Birthday</span></label>
+            <input
+              type="date"
+              name="profile[birthday]"
+              value={@user.birthday}
+              max={Date.utc_today()}
+              class="input input-bordered w-full"
+            />
+            <div class="label">
+              <span class="text-xs text-base-content/60"> Optional. Leave blank to remove. </span>
+            </div>
+          </div>
+
+          <div class="form-control">
+            <label class="cursor-pointer label justify-start gap-4">
+              <input type="hidden" name="profile[show_birthday]" value="false" />
+              <input
+                type="checkbox"
+                name="profile[show_birthday]"
+                value="true"
+                checked={@user.show_birthday}
+                class="checkbox checkbox-primary"
+              />
+              <span class="label-text">
+                <span class="font-semibold">Show birthday on profile</span>
+                <span class="text-sm text-base-content/70 block">
+                  Display your birthday publicly on your profile
+                </span>
+              </span>
+            </label>
+          </div>
+
+          <div>
             <label class="label">
               <span class="label-text font-medium">Page Title</span>
             </label>
@@ -184,12 +217,14 @@ defmodule ElektrineWeb.ProfileLive.EditSections do
 
             <.privacy_group_heading>Social Graph</.privacy_group_heading>
 
-            <.privacy_checkbox
-              field="hide_followers"
-              checked={@profile.hide_followers}
-              title="Hide followers/following"
-              description="Don't show follower and following counts"
-            />
+            <p class="text-sm text-base-content/70">
+              Follower, following, and favorites visibility is managed in <.link
+                navigate={~p"/account?tab=privacy"}
+                class="link link-primary"
+              >
+                Account Settings &rarr; Privacy
+              </.link>.
+            </p>
 
             <.privacy_group_heading>Visibility</.privacy_group_heading>
             <.privacy_group_heading>Sharing</.privacy_group_heading>

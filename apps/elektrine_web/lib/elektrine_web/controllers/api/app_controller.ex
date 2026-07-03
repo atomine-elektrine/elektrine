@@ -60,7 +60,7 @@ defmodule ElektrineWeb.API.AppController do
       redirect_uri: Enum.join(redirect_uris, "\n"),
       client_id: app.client_id,
       client_secret: App.client_secret_value(app),
-      vapid_key: nil
+      vapid_key: web_push_vapid_key()
     }
   end
 
@@ -76,7 +76,7 @@ defmodule ElektrineWeb.API.AppController do
       client_secret: nil,
       client_secret_fingerprint: App.client_secret_fingerprint(app),
       scopes: app.scopes || [],
-      vapid_key: nil
+      vapid_key: web_push_vapid_key()
     }
   end
 
@@ -84,8 +84,13 @@ defmodule ElektrineWeb.API.AppController do
     %{
       name: app.client_name,
       website: app.website,
-      vapid_key: nil
+      vapid_key: web_push_vapid_key()
     }
+  end
+
+  defp web_push_vapid_key do
+    Application.get_env(:elektrine, :push, [])
+    |> Keyword.get(:web_push_public_key)
   end
 
   defp verify_app(conn, params) do

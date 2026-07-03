@@ -85,6 +85,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
   attr :style, :atom, default: :default
   attr :dom_id_prefix, :string, default: nil
   attr :counts_loading, :boolean, default: false
+  attr :container_class, :any, default: nil
 
   def post_actions(assigns) do
     {icon_size, btn_class, text_class} =
@@ -133,7 +134,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
 
   defp render_default(assigns) do
     ~H"""
-    <div class="flex items-center gap-1 post-actions-container">
+    <div class={["flex items-center gap-1 post-actions-container", @container_class]}>
       <%= if @show_like do %>
         <%= if @current_user do %>
           <button

@@ -31,6 +31,14 @@ defmodule Elektrine.AppCache do
   @media_proxy_negative_ttl :timer.minutes(15)
   # Passkey challenges - short TTL for security (5 minutes)
   @passkey_challenge_ttl :timer.minutes(5)
+  # Portal dashboard counts shown instantly while a fresh load runs
+  @portal_dashboard_ttl :timer.minutes(10)
+  # Last-known numeric stats per surface, shown instantly while a fresh load runs
+  @user_stats_ttl :timer.minutes(10)
+  # First page of global (non-personalized) feeds; short TTL to stay fresh
+  @global_feed_ttl :timer.minutes(2)
+  import Cachex.Spec
+
   alias Elektrine.Telemetry.Events
 
   @doc """
@@ -39,8 +47,8 @@ defmodule Elektrine.AppCache do
   """
   def start_link(_opts) do
     Cachex.start_link(@cache_name,
-      limit: 50_000,
-      ttl: @system_ttl
+      expiration: expiration(default: @system_ttl),
+      hooks: [hook(module: Cachex.Limit.Scheduled, args: {50_000, [], []})]
     )
   end
 
@@ -70,6 +78,69 @@ defmodule Elektrine.AppCache do
   def get_user_preferences(user_id, fetch_fn) do
     key = {:user_preferences, user_id}
     fetch_ok(key, @user_ttl, fetch_fn)
+  end
+
+  @doc """
+  Returns the last cached portal dashboard for a user, or nil.
+
+  Used to show last-known overview counts immediately while a fresh
+  dashboard load runs in the background (stale-while-revalidate).
+  """
+  def get_portal_dashboard(user_id) do
+    case get_with_telemetry({:portal_dashboard, user_id}) do
+      {:ok, %{} = dashboard} -> dashboard
+      _ -> nil
+    end
+  end
+
+  @doc """
+  Caches the computed portal dashboard for a user.
+  """
+  def cache_portal_dashboard(user_id, dashboard) when is_map(dashboard) do
+    put_with_telemetry({:portal_dashboard, user_id}, dashboard, expire: @portal_dashboard_ttl)
+  end
+
+  @doc """
+  Returns the last cached stats map for a named surface and subject
+  (e.g. `get_user_stats(:gallery_insights, user_id)`), or nil.
+
+  Used to show last-known numbers immediately while a fresh load runs
+  in the background (stale-while-revalidate).
+  """
+  def get_user_stats(scope, subject_id) when is_atom(scope) do
+    case get_with_telemetry({:user_stats, scope, subject_id}) do
+      {:ok, %{} = stats} -> stats
+      _ -> nil
+    end
+  end
+
+  @doc """
+  Caches the computed stats map for a named surface and subject.
+  """
+  def cache_user_stats(scope, subject_id, stats) when is_atom(scope) and is_map(stats) do
+    put_with_telemetry({:user_stats, scope, subject_id}, stats, expire: @user_stats_ttl)
+  end
+
+  @doc """
+  Returns the cached first page of a global (non-personalized) feed
+  (e.g. `get_global_feed({:videos, "discover"})`), or nil.
+  """
+  def get_global_feed(scope) do
+    case get_with_telemetry({:global_feed, scope}) do
+      {:ok, [_ | _] = items} -> items
+      _ -> nil
+    end
+  end
+
+  @doc """
+  Caches the first page of a global feed. Empty pages are not cached.
+  """
+  def cache_global_feed(scope, items) when is_list(items) do
+    if items == [] do
+      {:ok, false}
+    else
+      put_with_telemetry({:global_feed, scope}, items, expire: @global_feed_ttl)
+    end
   end
 
   @doc """
@@ -179,11 +250,11 @@ defmodule Elektrine.AppCache do
     case fetch_with_telemetry(key, fn _key ->
            case fetch_fn.() do
              {:ok, object} ->
-               {:commit, {:ok, object}, ttl: @object_ttl}
+               {:commit, {:ok, object}, expire: @object_ttl}
 
              {:error, reason} ->
                if negative_cacheable_object_error?(reason) do
-                 {:commit, {:error, reason}, ttl: @object_negative_ttl}
+                 {:commit, {:error, reason}, expire: @object_negative_ttl}
                else
                  {:ignore, {:error, reason}}
                end
@@ -226,8 +297,8 @@ defmodule Elektrine.AppCache do
 
     case fetch_with_telemetry(key, fn _key ->
            case fetch_fn.() do
-             nil -> {:commit, :not_found, ttl: @activitypub_ref_negative_ttl}
-             value -> {:commit, value, ttl: @activitypub_ref_ttl}
+             nil -> {:commit, :not_found, expire: @activitypub_ref_negative_ttl}
+             value -> {:commit, value, expire: @activitypub_ref_ttl}
            end
          end) do
       {:commit, :not_found} -> nil
@@ -279,7 +350,7 @@ defmodule Elektrine.AppCache do
 
     case get_with_telemetry(key) do
       {:ok, nil} ->
-        _ = put_with_telemetry(key, true, ttl: @site_visit_track_ttl)
+        _ = put_with_telemetry(key, true, expire: @site_visit_track_ttl)
         true
 
       {:ok, _} ->
@@ -304,9 +375,14 @@ defmodule Elektrine.AppCache do
 
     case fetch_with_telemetry(key, fn _key ->
            case fetch_fn.() do
-             {:ok, result} -> {:commit, {:ok, result}, ttl: @webfinger_ttl}
-             {:error, :not_found} -> {:commit, {:error, :not_found}, ttl: @webfinger_negative_ttl}
-             {:error, reason} -> {:ignore, {:error, reason}}
+             {:ok, result} ->
+               {:commit, {:ok, result}, expire: @webfinger_ttl}
+
+             {:error, :not_found} ->
+               {:commit, {:error, :not_found}, expire: @webfinger_negative_ttl}
+
+             {:error, reason} ->
+               {:ignore, {:error, reason}}
            end
          end) do
       {:commit, value} -> value
@@ -334,7 +410,7 @@ defmodule Elektrine.AppCache do
   Temporarily records a failed proxied media URL to avoid hammering remote hosts.
   """
   def mark_media_proxy_failed(url, reason) when is_binary(url) do
-    put_with_telemetry({:media_proxy_failed, url}, reason, ttl: @media_proxy_negative_ttl)
+    put_with_telemetry({:media_proxy_failed, url}, reason, expire: @media_proxy_negative_ttl)
   end
 
   def mark_media_proxy_failed(_url, _reason), do: {:ok, false}
@@ -370,7 +446,7 @@ defmodule Elektrine.AppCache do
     put_with_telemetry(
       {:media_proxy_banned, url},
       %{reason: inspect(reason), inserted_at: DateTime.utc_now()},
-      ttl: :timer.hours(24)
+      expire: :timer.hours(24)
     )
   end
 
@@ -512,7 +588,7 @@ defmodule Elektrine.AppCache do
   end
 
   def put_remote_user_counts(actor_id, counts) do
-    put_with_telemetry({:remote_user_counts, actor_id}, counts, ttl: @contact_ttl)
+    put_with_telemetry({:remote_user_counts, actor_id}, counts, expire: @contact_ttl)
   end
 
   def get_remote_user_community_stats(actor_id, fetch_fn) do
@@ -521,7 +597,7 @@ defmodule Elektrine.AppCache do
   end
 
   def put_remote_user_community_stats(actor_id, stats) do
-    put_with_telemetry({:remote_user_community_stats, actor_id}, stats, ttl: @contact_ttl)
+    put_with_telemetry({:remote_user_community_stats, actor_id}, stats, expire: @contact_ttl)
   end
 
   # Cache invalidation functions
@@ -625,7 +701,7 @@ defmodule Elektrine.AppCache do
 
   defp fetch_ok(key, ttl, fetch_fn) do
     case fetch_with_telemetry(key, fn _key ->
-           {:commit, fetch_fn.(), ttl: ttl}
+           {:commit, fetch_fn.(), expire: ttl}
          end) do
       {:commit, value} -> {:ok, value}
       {:commit, value, _opts} -> {:ok, value}
@@ -636,7 +712,7 @@ defmodule Elektrine.AppCache do
 
   defp fetch_value(key, ttl, fetch_fn) do
     case fetch_with_telemetry(key, fn _key ->
-           {:commit, fetch_fn.(), ttl: ttl}
+           {:commit, fetch_fn.(), expire: ttl}
          end) do
       {:commit, value} -> value
       {:commit, value, _opts} -> value
@@ -778,7 +854,7 @@ defmodule Elektrine.AppCache do
   """
   def put_passkey_challenge(challenge_bytes, challenge) when is_binary(challenge_bytes) do
     key = {:passkey_challenge, challenge_bytes}
-    put_with_telemetry(key, challenge, ttl: @passkey_challenge_ttl)
+    put_with_telemetry(key, challenge, expire: @passkey_challenge_ttl)
   end
 
   @doc """

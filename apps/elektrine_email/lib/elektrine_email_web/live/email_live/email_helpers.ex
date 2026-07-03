@@ -7,6 +7,43 @@ defmodule ElektrineEmailWeb.EmailLive.EmailHelpers do
   # Translation
   use Gettext, backend: ElektrineWeb.Gettext
 
+  @doc """
+  Locked-state status line for the private mailbox panel.
+
+  Must match the client hook's `lockedStatusText` (mailbox_private_crypto.js)
+  so nothing rewrites on mount.
+  """
+  def private_mailbox_locked_status(%Elektrine.Email.Mailbox{} = mailbox) do
+    mailbox
+    |> Elektrine.Email.Mailbox.private_storage_unlock_mode()
+    |> private_mailbox_locked_status()
+  end
+
+  def private_mailbox_locked_status("master") do
+    gettext("Mailbox locked. Unlock your master password to unlock it in this tab.")
+  end
+
+  def private_mailbox_locked_status("account_password") do
+    gettext("Mailbox locked. Enter your account password again to unlock it in this tab.")
+  end
+
+  def private_mailbox_locked_status(_mode), do: gettext("Mailbox locked.")
+
+  @doc """
+  Unlock input placeholder for the private mailbox panel.
+
+  Must match the client hook's `unlockSecretPlaceholder` (mailbox_private_crypto.js).
+  """
+  def private_mailbox_unlock_placeholder(%Elektrine.Email.Mailbox{} = mailbox) do
+    mailbox
+    |> Elektrine.Email.Mailbox.private_storage_unlock_mode()
+    |> private_mailbox_unlock_placeholder()
+  end
+
+  def private_mailbox_unlock_placeholder("master"), do: gettext("Master passphrase")
+  def private_mailbox_unlock_placeholder("account_password"), do: gettext("Account password")
+  def private_mailbox_unlock_placeholder(_mode), do: gettext("Mailbox passphrase")
+
   def format_date(datetime) do
     case datetime do
       %DateTime{} ->

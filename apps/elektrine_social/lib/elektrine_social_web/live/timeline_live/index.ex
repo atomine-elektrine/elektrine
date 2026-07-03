@@ -119,6 +119,12 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
       |> assign(:remote_post_data, %{})
       |> assign(:rss_items, [])
       |> assign(:rss_saves, %{})
+      |> assign(:bookmark_folders, if(user, do: Social.list_bookmark_folders(user.id), else: []))
+      |> assign(:selected_bookmark_folder_id, nil)
+      |> assign(:saved_item_folders, %{})
+      |> assign(:saved_scroll_cursor, nil)
+      |> assign(:show_bookmark_folder_manager, false)
+      |> assign(:editing_bookmark_folder_id, nil)
       |> assign(:remote_data_request_ref, nil)
       |> assign(:refresh_remote_counts_ref, nil)
       |> assign(:timeline_load_ref, nil)
@@ -261,7 +267,8 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
       timeline_sort: socket.assigns.timeline_sort,
       special_view_cache: socket.assigns[:special_view_cache] || %{},
       base_timeline_key: socket.assigns.base_timeline_key,
-      base_timeline_posts: socket.assigns.base_timeline_posts || []
+      base_timeline_posts: socket.assigns.base_timeline_posts || [],
+      bookmark_folder_id: socket.assigns[:selected_bookmark_folder_id]
     }
   end
 
@@ -285,7 +292,8 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
         _ ->
           load_posts_for_filter(filter, user, timeline_view,
             search_query: search_query,
-            session_context: session_context
+            session_context: session_context,
+            bookmark_folder_id: Map.get(context, :bookmark_folder_id)
           )
       end
 
@@ -312,7 +320,14 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
     special_view_cache =
       Map.put(special_view_cache, cache_key, %{posts: posts, post_replies: cached_post_replies})
 
-    {rss_items, rss_saves} = load_rss_timeline_state(filter, user, search_query, timeline_sort)
+    {rss_items, rss_saves} =
+      load_rss_timeline_state(
+        filter,
+        user,
+        search_query,
+        timeline_sort,
+        Map.get(context, :bookmark_folder_id)
+      )
 
     %{
       filter: filter,
@@ -330,7 +345,8 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
     }
   end
 
-  defp load_rss_timeline_state("rss", user, search_query, timeline_sort) when not is_nil(user) do
+  defp load_rss_timeline_state("rss", user, search_query, timeline_sort, _bookmark_folder_id)
+       when not is_nil(user) do
     items =
       user.id
       |> RSS.get_timeline_items(limit: 20, sort: timeline_sort)
@@ -341,17 +357,24 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
     {items, Enum.into(saves, %{}, fn id -> {id, true} end)}
   end
 
-  defp load_rss_timeline_state("saved", user, search_query, _timeline_sort)
+  defp load_rss_timeline_state("saved", user, search_query, _timeline_sort, bookmark_folder_id)
        when not is_nil(user) do
     items =
       user.id
-      |> Social.get_saved_rss_items(limit: 20)
+      |> Social.get_saved_rss_items(limit: 20, bookmark_folder_id: bookmark_folder_id)
       |> filter_rss_items_by_query(search_query)
 
     {items, Enum.into(items, %{}, fn item -> {item.id, true} end)}
   end
 
-  defp load_rss_timeline_state(_filter, _user, _search_query, _timeline_sort), do: {[], %{}}
+  defp load_rss_timeline_state(
+         _filter,
+         _user,
+         _search_query,
+         _timeline_sort,
+         _bookmark_folder_id
+       ),
+       do: {[], %{}}
 
   defp apply_timeline_load_state(socket, load_state) do
     socket
@@ -387,6 +410,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
     |> assign(:user_boosts, %{})
     |> assign(:user_saves, %{})
     |> assign(:loading_timeline, false)
+    |> assign_saved_item_folders()
     |> prune_queued_posts_for_active_filters()
     |> apply_timeline_filter()
     |> maybe_schedule_background_refresh(load_state.posts)
@@ -401,22 +425,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
   end
 
   defp queue_timeline_reload(socket, filter, timeline_view) do
-    load_ref = System.unique_integer([:positive, :monotonic])
-    send(self(), {:load_view_data, load_ref, filter, timeline_view})
-
-    socket
-    |> assign(:timeline_load_ref, load_ref)
-    |> assign(:timeline_hydration_ref, nil)
-    |> assign(:current_filter, filter)
-    |> assign(:timeline_filter, timeline_view)
-    |> assign(:timeline_posts, [])
-    |> assign(:filtered_posts, [])
-    |> assign(:filtered_post_ids, [])
-    |> assign(:timeline_gap_marker_ids, MapSet.new())
-    |> assign(:loading_timeline, true)
-    |> assign(:loading_more, false)
-    |> assign(:no_more_posts, false)
-    |> stream(:timeline_filtered_posts, [], reset: true)
+    TimelineHelpers.queue_timeline_reload(socket, filter, timeline_view)
   end
 
   defp apply_cached_timeline_view(socket, filter, timeline_view, search_query) do
@@ -448,6 +457,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
           |> assign(:pending_follows, %{})
           |> assign(:user_boosts, %{})
           |> assign(:user_saves, %{})
+          |> assign_saved_item_folders()
           |> prune_queued_posts_for_active_filters()
           |> apply_timeline_filter(true)
           |> maybe_queue_reply_context_previews(posts)
@@ -457,6 +467,29 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
 
       _ ->
         :miss
+    end
+  end
+
+  defp assign_saved_item_folders(socket) do
+    user = socket.assigns[:current_user]
+
+    if user && socket.assigns.current_filter == "saved" do
+      message_ids =
+        socket.assigns[:timeline_posts]
+        |> Kernel.||([])
+        |> Enum.map(& &1.id)
+        |> Enum.filter(&is_integer/1)
+
+      socket
+      |> assign(:saved_item_folders, Social.saved_item_folder_map(user.id, message_ids))
+      |> assign(
+        :saved_scroll_cursor,
+        Social.saved_post_cursor(user.id, List.last(message_ids))
+      )
+    else
+      socket
+      |> assign(:saved_item_folders, %{})
+      |> assign(:saved_scroll_cursor, nil)
     end
   end
 
@@ -1541,7 +1574,11 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
 
           "saved" ->
             if user do
-              Social.get_saved_posts(user.id, limit: 20, search_query: search_query)
+              Social.get_saved_posts(user.id,
+                limit: 20,
+                search_query: search_query,
+                bookmark_folder_id: Keyword.get(opts, :bookmark_folder_id)
+              )
             else
               []
             end

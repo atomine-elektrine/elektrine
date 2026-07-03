@@ -582,6 +582,12 @@
         
 <!-- Avatar and Name -->
         <div class="relative z-[2] mt-16 sm:mt-20">
+          <%= if @user.moved_to do %>
+            <ElektrineWeb.Components.Profile.AccountExtras.moved_to_banner
+              user={@user}
+              base_url={@base_url}
+            />
+          <% end %>
           <div class="text-center mb-8">
             <%= if not (@profile && @profile.hide_avatar) do %>
               <div class="relative inline-block mb-4 avatar-effect-wrapper">
@@ -787,84 +793,190 @@
             <%= if @current_user && @current_user.id != @user.id do %>
               <% btn_text_color = button_text_color(@profile, is_default_profile) %>
               <div class="mb-4 flex gap-2 justify-center flex-wrap">
-                <!-- Friend Button -->
-                <%= cond do %>
-                  <% Map.get(@friend_status, :are_friends) -> %>
-                    <button
-                      phx-click="unfriend_user"
-                      phx-value-user_id={@user.id}
-                      data-action="unfriend"
-                      class="btn btn-outline btn-sm sm:btn-md rounded-full"
-                      style="border-color: var(--profile-accent); color: var(--profile-accent);"
-                      title="Remove friend"
-                    >
-                      <.icon name="hero-check" class="w-4 h-4" /> Friends
-                    </button>
-                  <% Map.get(@friend_status, :pending_request) && @friend_status.pending_request.recipient_id == @current_user.id -> %>
-                    <button
-                      phx-click="accept_friend_request"
-                      phx-value-user_id={@user.id}
-                      data-action="accept-friend-request"
-                      class="btn btn-sm sm:btn-md rounded-full"
-                      style={"background-color: var(--profile-accent); color: #{btn_text_color};"}
-                      title="Accept friend request"
-                    >
-                      <.icon name="hero-user-plus" class="w-4 h-4" /> Accept Request
-                    </button>
-                  <% Map.get(@friend_status, :pending_request) && @friend_status.pending_request.requester_id == @current_user.id -> %>
-                    <button
-                      phx-click="cancel_friend_request"
-                      phx-value-user_id={@user.id}
-                      data-action="cancel-friend-request"
-                      class="btn btn-ghost btn-sm sm:btn-md rounded-full opacity-60"
-                      title="Cancel friend request"
-                    >
-                      <.icon name="hero-clock" class="w-4 h-4" /> Pending
-                    </button>
-                  <% true -> %>
-                    <button
-                      phx-click="send_friend_request"
-                      phx-value-user_id={@user.id}
-                      data-action="send-friend-request"
-                      class="btn btn-sm sm:btn-md rounded-full"
-                      style={"background-color: var(--profile-accent); color: #{btn_text_color};"}
-                      title="Send friend request"
-                    >
-                      Add Friend
-                    </button>
+                <!-- Friend Button: new requests only for non-moved accounts, but
+                     existing friendships / outgoing requests keep their undo actions -->
+                <%= if is_nil(@user.moved_to) or Map.get(@friend_status, :are_friends) or
+                      (Map.get(@friend_status, :pending_request) &&
+                         @friend_status.pending_request.requester_id == @current_user.id) do %>
+                  <%= cond do %>
+                    <% Map.get(@friend_status, :are_friends) -> %>
+                      <button
+                        phx-click="unfriend_user"
+                        phx-value-user_id={@user.id}
+                        data-action="unfriend"
+                        class="btn btn-outline btn-sm sm:btn-md rounded-full"
+                        style="border-color: var(--profile-accent); color: var(--profile-accent);"
+                        title="Remove friend"
+                      >
+                        <.icon name="hero-check" class="w-4 h-4" /> Friends
+                      </button>
+                    <% Map.get(@friend_status, :pending_request) && @friend_status.pending_request.recipient_id == @current_user.id -> %>
+                      <button
+                        phx-click="accept_friend_request"
+                        phx-value-user_id={@user.id}
+                        data-action="accept-friend-request"
+                        class="btn btn-sm sm:btn-md rounded-full"
+                        style={"background-color: var(--profile-accent); color: #{btn_text_color};"}
+                        title="Accept friend request"
+                      >
+                        <.icon name="hero-user-plus" class="w-4 h-4" /> Accept Request
+                      </button>
+                    <% Map.get(@friend_status, :pending_request) && @friend_status.pending_request.requester_id == @current_user.id -> %>
+                      <button
+                        phx-click="cancel_friend_request"
+                        phx-value-user_id={@user.id}
+                        data-action="cancel-friend-request"
+                        class="btn btn-ghost btn-sm sm:btn-md rounded-full opacity-60"
+                        title="Cancel friend request"
+                      >
+                        <.icon name="hero-clock" class="w-4 h-4" /> Pending
+                      </button>
+                    <% true -> %>
+                      <button
+                        phx-click="send_friend_request"
+                        phx-value-user_id={@user.id}
+                        data-action="send-friend-request"
+                        class="btn btn-sm sm:btn-md rounded-full"
+                        style={"background-color: var(--profile-accent); color: #{btn_text_color};"}
+                        title="Send friend request"
+                      >
+                        Add Friend
+                      </button>
+                  <% end %>
                 <% end %>
                 
-<!-- Follow Button -->
-                <%= if assigns[:socket] do %>
-                  <button
-                    phx-click="toggle_follow"
-                    type="button"
-                    data-action="toggle-follow"
-                    data-following={@is_following}
-                    class={
+<!-- Follow Button: still rendered for moved accounts while following, so the
+                     viewer can unfollow; new follows only for non-moved accounts -->
+                <%= if is_nil(@user.moved_to) or @is_following do %>
+                  <%= if assigns[:socket] do %>
+                    <button
+                      phx-click="toggle_follow"
+                      type="button"
+                      data-action="toggle-follow"
+                      data-following={@is_following}
+                      class={
                         "btn btn-sm sm:btn-md rounded-full transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80 #{if @is_following, do: "btn-outline", else: ""}"
                     }
+                      style={
+                        if @is_following,
+                          do:
+                            "border-color: var(--profile-accent); color: var(--profile-accent);",
+                          else:
+                            "background-color: var(--profile-accent); color: #{btn_text_color};"
+                      }
+                    >
+                      <span class="phx-click-loading:hidden">
+                        {if @is_following, do: "Following", else: "Follow"}
+                      </span>
+                      <span class="hidden phx-click-loading:inline-flex items-center">
+                        <.spinner size="sm" class="mr-1" />
+                        {if @is_following, do: "Unfollowing...", else: "Following..."}
+                      </span>
+                    </button>
+                  <% else %>
+                    <form
+                      action={~p"/profiles/#{@user.handle || @user.username}/follow"}
+                      method="post"
+                      class="inline"
+                    >
+                      <%= if @is_following do %>
+                        <input type="hidden" name="_method" value="delete" />
+                      <% end %>
+
+                      <input
+                        type="hidden"
+                        name="_csrf_token"
+                        value={Plug.CSRFProtection.get_csrf_token()}
+                      />
+
+                      <button
+                        type="submit"
+                        data-action="toggle-follow"
+                        data-following={@is_following}
+                        class={
+                        "btn btn-sm sm:btn-md rounded-full transition-all duration-150 #{if @is_following, do: "btn-outline", else: ""}"
+                      }
+                        style={
+                          if @is_following,
+                            do:
+                              "border-color: var(--profile-accent); color: var(--profile-accent);",
+                            else:
+                              "background-color: var(--profile-accent); color: #{btn_text_color};"
+                        }
+                      >
+                        {if @is_following, do: "Following", else: "Follow"}
+                      </button>
+                    </form>
+                  <% end %>
+                <% end %>
+                
+<!-- Viewer Actions -->
+                <%= if !@profile_static do %>
+                  <button
+                    phx-click="toggle_subscription"
+                    data-action="toggle-subscription"
+                    class={"btn btn-sm sm:btn-md rounded-full #{if @is_subscribed, do: "", else: "btn-ghost"}"}
                     style={
-                      if @is_following,
-                        do: "border-color: var(--profile-accent); color: var(--profile-accent);",
-                        else: "background-color: var(--profile-accent); color: #{btn_text_color};"
+                      if @is_subscribed,
+                        do: "background-color: var(--profile-accent); color: #{btn_text_color};",
+                        else: "color: var(--profile-accent);"
+                    }
+                    title={
+                      if @is_subscribed,
+                        do: "Turn off post notifications",
+                        else: "Notify me when they post"
                     }
                   >
-                    <span class="phx-click-loading:hidden">
-                      {if @is_following, do: "Following", else: "Follow"}
-                    </span>
-                    <span class="hidden phx-click-loading:inline-flex items-center">
-                      <.spinner size="sm" class="mr-1" />
-                      {if @is_following, do: "Unfollowing...", else: "Following..."}
-                    </span>
+                    <.icon
+                      name={if @is_subscribed, do: "hero-bell-solid", else: "hero-bell"}
+                      class="w-4 h-4"
+                    />
+                  </button>
+                  <button
+                    phx-click="toggle_endorsement"
+                    data-action="toggle-endorsement"
+                    class={"btn btn-sm sm:btn-md rounded-full #{if @is_endorsed, do: "", else: "btn-ghost"}"}
+                    style={
+                      if @is_endorsed,
+                        do: "background-color: var(--profile-accent); color: #{btn_text_color};",
+                        else: "color: var(--profile-accent);"
+                    }
+                    title={
+                      if @is_endorsed,
+                        do: "Remove from featured on my profile",
+                        else: "Feature on my profile"
+                    }
+                  >
+                    <.icon
+                      name={if @is_endorsed, do: "hero-star-solid", else: "hero-star"}
+                      class="w-4 h-4"
+                    />
+                  </button>
+                  <button
+                    phx-click="toggle_account_note"
+                    data-action="toggle-account-note"
+                    class="btn btn-ghost btn-sm sm:btn-md rounded-full"
+                    style="color: var(--profile-accent);"
+                    title={
+                      if @account_note != "", do: "Edit private note", else: "Add private note"
+                    }
+                  >
+                    <.icon
+                      name={
+                        if @account_note != "",
+                          do: "hero-pencil-square-solid",
+                          else: "hero-pencil-square"
+                      }
+                      class="w-4 h-4"
+                    />
                   </button>
                 <% else %>
                   <form
-                    action={~p"/profiles/#{@user.handle || @user.username}/follow"}
+                    action={~p"/profiles/#{@user.handle || @user.username}/subscribe"}
                     method="post"
                     class="inline"
                   >
-                    <%= if @is_following do %>
+                    <%= if @is_subscribed do %>
                       <input type="hidden" name="_method" value="delete" />
                     <% end %>
 
@@ -876,20 +988,61 @@
 
                     <button
                       type="submit"
-                      data-action="toggle-follow"
-                      data-following={@is_following}
-                      class={
-                        "btn btn-sm sm:btn-md rounded-full transition-all duration-150 #{if @is_following, do: "btn-outline", else: ""}"
-                      }
+                      data-action="toggle-subscription"
+                      class={"btn btn-sm sm:btn-md rounded-full #{if @is_subscribed, do: "", else: "btn-ghost"}"}
                       style={
-                        if @is_following,
+                        if @is_subscribed,
                           do:
-                            "border-color: var(--profile-accent); color: var(--profile-accent);",
-                          else:
-                            "background-color: var(--profile-accent); color: #{btn_text_color};"
+                            "background-color: var(--profile-accent); color: #{btn_text_color};",
+                          else: "color: var(--profile-accent);"
+                      }
+                      title={
+                        if @is_subscribed,
+                          do: "Turn off post notifications",
+                          else: "Notify me when they post"
                       }
                     >
-                      {if @is_following, do: "Following", else: "Follow"}
+                      <.icon
+                        name={if @is_subscribed, do: "hero-bell-solid", else: "hero-bell"}
+                        class="w-4 h-4"
+                      />
+                    </button>
+                  </form>
+                  <form
+                    action={~p"/profiles/#{@user.handle || @user.username}/endorse"}
+                    method="post"
+                    class="inline"
+                  >
+                    <%= if @is_endorsed do %>
+                      <input type="hidden" name="_method" value="delete" />
+                    <% end %>
+
+                    <input
+                      type="hidden"
+                      name="_csrf_token"
+                      value={Plug.CSRFProtection.get_csrf_token()}
+                    />
+
+                    <button
+                      type="submit"
+                      data-action="toggle-endorsement"
+                      class={"btn btn-sm sm:btn-md rounded-full #{if @is_endorsed, do: "", else: "btn-ghost"}"}
+                      style={
+                        if @is_endorsed,
+                          do:
+                            "background-color: var(--profile-accent); color: #{btn_text_color};",
+                          else: "color: var(--profile-accent);"
+                      }
+                      title={
+                        if @is_endorsed,
+                          do: "Remove from featured on my profile",
+                          else: "Feature on my profile"
+                      }
+                    >
+                      <.icon
+                        name={if @is_endorsed, do: "hero-star-solid", else: "hero-star"}
+                        class="w-4 h-4"
+                      />
                     </button>
                   </form>
                 <% end %>
@@ -907,6 +1060,87 @@
                   </button>
                 <% end %>
               </div>
+              
+<!-- Private Account Note -->
+              <%= if @profile_static do %>
+                <details class="mb-4 max-w-sm mx-auto text-left">
+                  <summary
+                    class="btn btn-ghost btn-xs rounded-full cursor-pointer inline-flex items-center gap-1"
+                    style="color: var(--profile-accent);"
+                  >
+                    <.icon
+                      name={
+                        if @account_note != "",
+                          do: "hero-pencil-square-solid",
+                          else: "hero-pencil-square"
+                      }
+                      class="w-4 h-4"
+                    />
+                    {if @account_note != "", do: "Edit private note", else: "Add private note"}
+                  </summary>
+                  <form
+                    action={~p"/profiles/#{@user.handle || @user.username}/note"}
+                    method="post"
+                    class="mt-2"
+                  >
+                    <input
+                      type="hidden"
+                      name="_csrf_token"
+                      value={Plug.CSRFProtection.get_csrf_token()}
+                    />
+                    <label class="text-xs font-semibold uppercase tracking-wide text-[var(--profile-text)] opacity-60">
+                      Private note (only visible to you)
+                    </label>
+                    <textarea
+                      name="comment"
+                      rows="3"
+                      placeholder="Add a private note about this account"
+                      class="textarea textarea-bordered w-full mt-1 bg-base-200/80 text-sm text-[var(--profile-text)]"
+                    >{@account_note}</textarea>
+                    <div class="flex justify-end gap-2 mt-2">
+                      <button
+                        type="submit"
+                        class="btn btn-xs rounded-full"
+                        style={"background-color: var(--profile-accent); color: #{btn_text_color};"}
+                      >
+                        Save note
+                      </button>
+                    </div>
+                  </form>
+                </details>
+              <% end %>
+              <%= if !@profile_static && @show_account_note do %>
+                <div class="mb-4 max-w-sm mx-auto text-left">
+                  <form phx-submit="save_account_note">
+                    <label class="text-xs font-semibold uppercase tracking-wide text-[var(--profile-text)] opacity-60">
+                      Private note (only visible to you)
+                    </label>
+                    <textarea
+                      name="comment"
+                      rows="3"
+                      placeholder="Add a private note about this account"
+                      class="textarea textarea-bordered w-full mt-1 bg-base-200/80 text-sm text-[var(--profile-text)]"
+                    >{@account_note}</textarea>
+                    <div class="flex justify-end gap-2 mt-2">
+                      <button
+                        type="button"
+                        phx-click="toggle_account_note"
+                        class="btn btn-ghost btn-xs rounded-full"
+                        style="color: var(--profile-accent);"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        class="btn btn-xs rounded-full"
+                        style={"background-color: var(--profile-accent); color: #{btn_text_color};"}
+                      >
+                        Save note
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              <% end %>
             <% end %>
             <%= if @profile && @profile.description do %>
               <div class={
@@ -962,6 +1196,18 @@
                   />
                 </svg>
                 <p class="text-[var(--profile-text)] opacity-60 text-sm">{@profile.location}</p>
+              </div>
+            <% end %>
+            <%= if @user.show_birthday && @user.birthday do %>
+              <div class={
+                if @profile && @profile.text_background,
+                  do:
+                    "bg-base-200/70 border border-base-300/60 rounded-lg p-2 sm:p-3 mt-2 inline-flex items-center justify-center",
+                  else: "flex items-center justify-center mt-2"
+              }>
+                <p class="text-[var(--profile-text)] opacity-60 text-sm">
+                  🎂 Born {Calendar.strftime(@user.birthday, "%B")} {@user.birthday.day}
+                </p>
               </div>
             <% end %>
           </div>
@@ -1145,6 +1391,15 @@
               <% end %>
             </div>
           <% end %>
+          
+<!-- Featured Accounts -->
+          <ElektrineWeb.Components.Profile.AccountExtras.featured_accounts
+            accounts={
+              assigns[:endorsed_accounts] || Elektrine.Accounts.list_endorsed_accounts(@user.id)
+            }
+            base_url={@base_url}
+            is_default={is_default_profile}
+          />
           
 <!-- Discord Status -->
           <%= if @profile && @profile.show_discord_presence && @profile.discord_user_id do %>

@@ -11,9 +11,16 @@ defmodule ElektrineWeb.PageLive.Home do
     {:ok,
      assign(socket,
        page_title: "Home",
-       sidebar_image: home_random_image(),
-       sidebar_buttons: home_button_images()
+       poster_image: home_random_image(),
+       button_images: home_button_images(),
+       platform_stats: load_platform_stats(),
+       onion_host: onion_host()
      ), layout: false}
+  end
+
+  defp onion_host do
+    host = ElektrineWeb.Layouts.tor_onion_host()
+    if String.ends_with?(host, ".onion"), do: host
   end
 
   def render(assigns) do
@@ -28,214 +35,313 @@ defmodule ElektrineWeb.PageLive.Home do
     </script>
 
     <div class="relative min-h-screen overflow-hidden text-base-content">
-      <div
-        class="pointer-events-none absolute inset-0"
-        style="background: radial-gradient(circle at top, color-mix(in srgb, var(--color-primary) 10%, transparent), transparent 34%), radial-gradient(circle at 82% 18%, color-mix(in srgb, var(--color-secondary) 8%, transparent), transparent 20%);"
-      >
-      </div>
+      <section class="relative flex min-h-[100dvh] flex-col bg-[#05070a]">
+        <div id="home-poster-art" phx-update="ignore" class="absolute inset-0">
+          <%= if @poster_image do %>
+            <div
+              class="absolute inset-0 bg-cover"
+              style={"background-image: url('/images/home/#{URI.encode(@poster_image)}'); background-position: 50% 30%;"}
+            >
+            </div>
+          <% else %>
+            <div
+              class="absolute inset-0"
+              style="background: radial-gradient(circle at top, color-mix(in srgb, var(--color-primary) 14%, transparent), transparent 40%), radial-gradient(circle at 82% 18%, color-mix(in srgb, var(--color-secondary) 10%, transparent), transparent 24%);"
+            >
+            </div>
+          <% end %>
+        </div>
+        <div
+          class="pointer-events-none absolute inset-0"
+          style="background: linear-gradient(90deg, rgba(5,7,10,0.93) 0%, rgba(5,7,10,0.72) 38%, rgba(5,7,10,0.18) 68%, rgba(5,7,10,0.12) 100%), linear-gradient(0deg, rgba(5,7,10,0.88) 0%, transparent 38%), linear-gradient(180deg, rgba(5,7,10,0.5) 0%, transparent 22%);"
+        >
+        </div>
 
-      <div class="relative mx-auto flex min-h-screen max-w-7xl flex-col px-6 py-6 sm:px-8 lg:px-10">
-        <header class="flex items-center justify-between gap-4 py-2">
+        <header class="relative z-10 mx-auto w-full max-w-7xl px-6 py-8 sm:px-8 lg:px-10">
           <.link navigate={~p"/"} class="inline-flex items-center">
             <img src="/images/logo.svg" alt="Elektrine" class="h-8 w-auto sm:h-9" />
           </.link>
         </header>
 
-        <main class="flex flex-1 items-center py-8 lg:py-10">
-          <div class="grid w-full items-start gap-8 lg:grid-cols-[minmax(0,1.1fr)_23rem]">
-            <section class="space-y-6">
-              <div class="card border border-base-300 bg-base-200/80">
-                <div class="card-body gap-6 p-6 sm:p-8 lg:p-10">
-                  <div class="space-y-4">
-                    <div class="space-y-4">
-                      <h1 class="max-w-3xl text-4xl font-semibold tracking-tight text-base-content sm:text-5xl lg:text-[3.75rem] lg:leading-[1.02] text-balance">
-                        Own or be owned.
-                      </h1>
-                      <p class="max-w-2xl text-base leading-7 text-base-content/72 sm:text-lg">
-                        Elektrine is a private, modular internet suite for people who want everyday
-                        services without ads, tracking, or dependence on closed providers. Use the
-                        hosted service, or run your own when you want full independence. Open source,
-                        licensed under the AGPLv3.
-                      </p>
-                    </div>
-                  </div>
+        <div class="relative z-10 mx-auto mt-auto w-full max-w-7xl px-6 pb-12 sm:px-8 lg:px-10">
+          <p class="font-mono text-xs uppercase tracking-[0.3em] text-white/60">
+            Elektrine
+          </p>
+          <h1 class="mt-4 max-w-3xl font-pixel text-4xl uppercase leading-[1.08] tracking-[0.1em] text-white sm:text-5xl lg:text-6xl text-balance">
+            Own or <span class="text-white/60">be owned.</span>
+          </h1>
+          <p class="mt-5 max-w-xl text-sm leading-7 text-white/70 sm:text-base">
+            Elektrine is a private, modular internet suite for people who want everyday
+            services without ads, tracking, or dependence on closed providers. Use the
+            hosted service, or run your own when you want full independence. Open source,
+            licensed under the AGPLv3.
+          </p>
 
-                  <div class="flex flex-wrap items-center gap-3">
-                    <%= if @current_user do %>
-                      <.link href={~p"/portal"} class="btn btn-primary btn-lg">
-                        {gettext("Portal")}
-                      </.link>
-                      <%= if Modules.enabled?(:email) do %>
-                        <.link href={~p"/email"} class="btn btn-ghost btn-lg">
-                          {gettext("Email")}
-                        </.link>
-                      <% end %>
-                      <%= if Modules.enabled?(:chat) do %>
-                        <.link href={~p"/chat"} class="btn btn-ghost btn-lg">
-                          {gettext("Chat")}
-                        </.link>
-                      <% end %>
-                      <.link href={~p"/account"} class="btn btn-ghost btn-lg">
-                        {gettext("Account")}
-                      </.link>
-                      <.link href={~p"/logout"} method="delete" class="btn btn-error btn-lg">
-                        {gettext("Sign out")}
-                      </.link>
-                    <% else %>
-                      <.link href={~p"/register"} class="btn btn-primary btn-lg">
-                        {gettext("Sign up")}
-                      </.link>
-                      <.link href={Elektrine.Paths.login_path()} class="btn btn-ghost btn-lg">
-                        {gettext("Sign in")}
-                      </.link>
+          <div class="mt-7 flex flex-wrap items-center gap-3">
+            <%= if @current_user do %>
+              <.link
+                href={~p"/portal"}
+                class="btn btn-primary btn-lg rounded-none font-mono text-xs uppercase tracking-[0.14em]"
+              >
+                {gettext("Portal")}
+              </.link>
+              <%= if Modules.enabled?(:email) do %>
+                <.link
+                  href={~p"/email"}
+                  class="btn btn-lg rounded-none border-white/30 bg-transparent font-mono text-xs uppercase tracking-[0.14em] text-white hover:border-white/60 hover:bg-white/10"
+                >
+                  {gettext("Email")}
+                </.link>
+              <% end %>
+              <%= if Modules.enabled?(:chat) do %>
+                <.link
+                  href={~p"/chat"}
+                  class="btn btn-lg rounded-none border-white/30 bg-transparent font-mono text-xs uppercase tracking-[0.14em] text-white hover:border-white/60 hover:bg-white/10"
+                >
+                  {gettext("Chat")}
+                </.link>
+              <% end %>
+              <.link
+                href={~p"/account"}
+                class="btn btn-lg rounded-none border-white/30 bg-transparent font-mono text-xs uppercase tracking-[0.14em] text-white hover:border-white/60 hover:bg-white/10"
+              >
+                {gettext("Account")}
+              </.link>
+              <.link
+                href={~p"/logout"}
+                method="delete"
+                class="btn btn-error btn-lg rounded-none font-mono text-xs uppercase tracking-[0.14em]"
+              >
+                {gettext("Sign out")}
+              </.link>
+            <% else %>
+              <.link
+                href={~p"/register"}
+                class="btn btn-primary btn-lg rounded-none font-mono text-xs uppercase tracking-[0.14em]"
+              >
+                {gettext("Sign up")}
+              </.link>
+              <.link
+                href={Elektrine.Paths.login_path()}
+                class="btn btn-lg rounded-none border-white/30 bg-transparent font-mono text-xs uppercase tracking-[0.14em] text-white hover:border-white/60 hover:bg-white/10"
+              >
+                {gettext("Sign in")}
+              </.link>
+            <% end %>
+          </div>
+
+          <div class="mt-8 max-w-2xl border-t border-white/15 pt-4">
+            <div class="flex flex-wrap items-center gap-x-6 gap-y-2 font-mono text-[11px] uppercase tracking-[0.14em] text-white/45">
+              <span :if={@platform_stats.stats.users > 0}>
+                Users
+                <span class="font-pixel text-lg leading-none tabular-nums text-white/85">
+                  {format_stat(@platform_stats.stats.users)}
+                </span>
+              </span>
+              <span :if={@platform_stats.federation.instances > 0}>
+                Instances
+                <span class="font-pixel text-lg leading-none tabular-nums text-white/85">
+                  {format_stat(@platform_stats.federation.instances)}
+                </span>
+              </span>
+              <span :if={@platform_stats.stats.posts > 0}>
+                Posts
+                <span class="font-pixel text-lg leading-none tabular-nums text-white/85">
+                  {format_stat(@platform_stats.stats.posts)}
+                </span>
+              </span>
+              <span :if={@platform_stats.federation.remote_actors > 0}>
+                Fediverse peers
+                <span class="font-pixel text-lg leading-none tabular-nums text-white/85">
+                  {format_stat(@platform_stats.federation.remote_actors)}
+                </span>
+              </span>
+            </div>
+            <div class="mt-3 flex flex-wrap items-center gap-4 text-sm text-white/50">
+              <.link
+                href={github_repo_url()}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="inline-flex items-center gap-2 hover:text-white"
+              >
+                <.icon name="hero-code-bracket-mini" class="h-4 w-4" />
+                <span>GitHub</span>
+              </.link>
+              <.link
+                href={github_releases_url()}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="inline-flex items-center gap-2 hover:text-white"
+              >
+                <.icon name="hero-arrow-down-tray-mini" class="h-4 w-4" />
+                <span>Releases</span>
+              </.link>
+              <.link
+                href={github_issues_url()}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="inline-flex items-center gap-2 hover:text-white"
+              >
+                <.icon name="hero-exclamation-circle-mini" class="h-4 w-4" />
+                <span>Issues</span>
+              </.link>
+              <.link href={~p"/canary"} class="inline-flex items-center gap-2 hover:text-white">
+                <.icon name="hero-shield-check-mini" class="h-4 w-4" />
+                <span>Canary</span>
+              </.link>
+              <.link
+                :if={@onion_host}
+                href={"http://#{@onion_host}"}
+                rel="noopener noreferrer"
+                title={@onion_host}
+                class="inline-flex items-center gap-2 hover:text-white"
+              >
+                <.icon name="hero-globe-alt-mini" class="h-4 w-4" />
+                <span>Onion service</span>
+              </.link>
+              <span :if={!@onion_host} class="inline-flex items-center gap-2 opacity-60">
+                <.icon name="hero-globe-alt-mini" class="h-4 w-4" />
+                <span>Onion: not configured</span>
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="border-t border-white/10 bg-[#05070a]">
+        <main class="mx-auto max-w-7xl space-y-14 px-6 py-14 sm:px-8 lg:px-10">
+          <section>
+            <p class="font-mono text-xs uppercase tracking-[0.3em] text-white/40">
+              // What you get
+            </p>
+            <div class="mt-8 space-y-10">
+              <%= for group <- feature_groups() do %>
+                <div>
+                  <p class="font-mono text-[11px] uppercase tracking-[0.22em] text-white/30">
+                    {group.label}
+                  </p>
+                  <div class="mt-3 grid gap-px border border-white/10 bg-white/10 sm:grid-cols-2 lg:grid-cols-3">
+                    <%= for item <- group.items do %>
+                      <div class={[
+                        "bg-[#05070a] px-4 py-3.5",
+                        item[:wide] && "sm:col-span-2 lg:col-span-3"
+                      ]}>
+                        <div class="font-mono text-[10px] uppercase tracking-[0.18em] text-white/35">
+                          {item.tag}
+                        </div>
+                        <div class="mt-1 text-sm font-medium text-white/90">{item.title}</div>
+                        <div class="mt-0.5 text-xs leading-relaxed text-white/50">{item.detail}</div>
+                      </div>
                     <% end %>
                   </div>
-
-                  <div class="flex flex-wrap items-center gap-4 border-t border-base-300/80 pt-5 text-sm text-base-content/60">
-                    <.link
-                      href={github_repo_url()}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      class="inline-flex items-center gap-2 hover:text-base-content"
-                    >
-                      <.icon name="hero-code-bracket-mini" class="h-4 w-4" />
-                      <span>GitHub</span>
-                    </.link>
-                    <.link
-                      href={github_releases_url()}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      class="inline-flex items-center gap-2 hover:text-base-content"
-                    >
-                      <.icon name="hero-arrow-down-tray-mini" class="h-4 w-4" />
-                      <span>Releases</span>
-                    </.link>
-                    <.link
-                      href={github_issues_url()}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      class="inline-flex items-center gap-2 hover:text-base-content"
-                    >
-                      <.icon name="hero-exclamation-circle-mini" class="h-4 w-4" />
-                      <span>Issues</span>
-                    </.link>
-                    <.link
-                      href={~p"/canary"}
-                      class="inline-flex items-center gap-2 hover:text-base-content"
-                    >
-                      <.icon name="hero-shield-check-mini" class="h-4 w-4" />
-                      <span>Canary</span>
-                    </.link>
-                  </div>
-                </div>
-              </div>
-
-              <div class="card border border-base-300 bg-base-200/80">
-                <div class="card-body gap-6 p-6 sm:p-8">
-                  <p class="text-xs uppercase tracking-[0.22em] opacity-60">What you get</p>
-                  <%= for group <- feature_groups() do %>
-                    <div class="space-y-3">
-                      <p class="text-[11px] uppercase tracking-[0.18em] opacity-40">{group.label}</p>
-                      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                        <%= for item <- group.items do %>
-                          <div class={[
-                            "rounded-lg border border-base-300 bg-base-200/45 px-4 py-3",
-                            item[:wide] && "sm:col-span-2 lg:col-span-3"
-                          ]}>
-                            <div class="text-xs uppercase tracking-[0.18em] opacity-50">
-                              {item.tag}
-                            </div>
-                            <div class="mt-1 text-sm font-medium text-base-content">{item.title}</div>
-                            <div class="text-xs text-base-content/60">{item.detail}</div>
-                          </div>
-                        <% end %>
-                      </div>
-                    </div>
-                  <% end %>
-                </div>
-              </div>
-
-              <div class="card border border-base-300 bg-base-200/80">
-                <div class="card-body gap-4 p-6 sm:p-8">
-                  <p class="text-xs uppercase tracking-[0.22em] opacity-60">For developers</p>
-                  <div class="grid gap-4 sm:grid-cols-3">
-                    <div class="rounded-lg border border-base-300 bg-base-200/45 px-4 py-3">
-                      <div class="text-xs uppercase tracking-[0.18em] opacity-50">OIDC</div>
-                      <div class="mt-1 text-sm font-medium text-base-content">
-                        Sign in with your domain
-                      </div>
-                      <div class="text-xs text-base-content/60">
-                        OpenID Connect with discovery, JWKS, and dynamic registration
-                      </div>
-                    </div>
-                    <div class="rounded-lg border border-base-300 bg-base-200/45 px-4 py-3">
-                      <div class="text-xs uppercase tracking-[0.18em] opacity-50">Tokens</div>
-                      <div class="mt-1 text-sm font-medium text-base-content">
-                        Scoped access tokens
-                      </div>
-                      <div class="text-xs text-base-content/60">
-                        Fine-grained tokens with separate read and write access per service
-                      </div>
-                    </div>
-                    <div class="rounded-lg border border-base-300 bg-base-200/45 px-4 py-3">
-                      <div class="text-xs uppercase tracking-[0.18em] opacity-50">Automate</div>
-                      <div class="mt-1 text-sm font-medium text-base-content">
-                        Automate everything
-                      </div>
-                      <div class="text-xs text-base-content/60">
-                        JMAP mail, a data-export API, even static-site deploys
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            <section class="space-y-4 lg:sticky lg:top-10">
-              <%!-- Main image: one at random per refresh, from images/home/. --%>
-              <%= if @sidebar_image do %>
-                <div
-                  id="home-sidebar-image"
-                  phx-update="ignore"
-                  class="overflow-hidden rounded-xl border border-base-300 bg-base-200/45"
-                >
-                  <img
-                    src={~p"/images/home/#{@sidebar_image}"}
-                    alt=""
-                    class="aspect-[4/3] w-full object-cover"
-                    loading="lazy"
-                  />
-                </div>
-              <% else %>
-                <div class="flex aspect-[4/3] items-center justify-center rounded-xl border border-dashed border-base-300 bg-base-200/45 text-sm text-base-content/40">
-                  Image
                 </div>
               <% end %>
+            </div>
+          </section>
 
-              <%!-- Separate 88x31 button wall, always shown (images/home/buttons/). --%>
-              <div class="rounded-xl border border-base-300 bg-base-200/45 p-3">
-                <div :if={@sidebar_buttons != []} class="flex flex-wrap justify-center gap-1.5">
-                  <img
-                    :for={button <- @sidebar_buttons}
-                    src={~p"/images/home/buttons/#{button}"}
-                    alt=""
-                    width="88"
-                    height="31"
-                    class="h-[31px] w-[88px] shrink-0 [image-rendering:pixelated]"
-                    loading="lazy"
-                  />
+          <section>
+            <p class="font-mono text-xs uppercase tracking-[0.3em] text-white/40">
+              // For developers
+            </p>
+            <div class="mt-6 grid gap-px border border-white/10 bg-white/10 sm:grid-cols-2 lg:grid-cols-3">
+              <div class="bg-[#05070a] px-4 py-3.5">
+                <div class="font-mono text-[10px] uppercase tracking-[0.18em] text-white/35">
+                  Email API
                 </div>
-                <p :if={@sidebar_buttons == []} class="text-sm text-base-content/40">
-                  88×31 buttons
-                </p>
+                <div class="mt-1 text-sm font-medium text-white/90">
+                  Mail over HTTP
+                </div>
+                <div class="mt-0.5 text-xs leading-relaxed text-white/50">
+                  Read, list, and send messages from your own scripts and software
+                </div>
               </div>
-            </section>
-          </div>
+              <div class="bg-[#05070a] px-4 py-3.5">
+                <div class="font-mono text-[10px] uppercase tracking-[0.18em] text-white/35">
+                  JMAP
+                </div>
+                <div class="mt-1 text-sm font-medium text-white/90">
+                  JMAP built in
+                </div>
+                <div class="mt-0.5 text-xs leading-relaxed text-white/50">
+                  Alongside IMAP, POP3, and SMTP. Bring any client, or write one
+                </div>
+              </div>
+              <div class="bg-[#05070a] px-4 py-3.5">
+                <div class="font-mono text-[10px] uppercase tracking-[0.18em] text-white/35">
+                  Client API
+                </div>
+                <div class="mt-1 text-sm font-medium text-white/90">
+                  Works with the apps you have
+                </div>
+                <div class="mt-0.5 text-xs leading-relaxed text-white/50">
+                  Mastodon-compatible, so existing clients and libraries just connect
+                </div>
+              </div>
+              <div class="bg-[#05070a] px-4 py-3.5">
+                <div class="font-mono text-[10px] uppercase tracking-[0.18em] text-white/35">
+                  OIDC
+                </div>
+                <div class="mt-1 text-sm font-medium text-white/90">
+                  Sign in with your own domain
+                </div>
+                <div class="mt-0.5 text-xs leading-relaxed text-white/50">
+                  Plain OpenID Connect for anything you build or run
+                </div>
+              </div>
+              <div class="bg-[#05070a] px-4 py-3.5">
+                <div class="font-mono text-[10px] uppercase tracking-[0.18em] text-white/35">
+                  Tokens
+                </div>
+                <div class="mt-1 text-sm font-medium text-white/90">
+                  Scoped tokens
+                </div>
+                <div class="mt-0.5 text-xs leading-relaxed text-white/50">
+                  Each script gets only the access it needs, read or write, per service
+                </div>
+              </div>
+              <div class="bg-[#05070a] px-4 py-3.5">
+                <div class="font-mono text-[10px] uppercase tracking-[0.18em] text-white/35">
+                  Deploys
+                </div>
+                <div class="mt-1 text-sm font-medium text-white/90">
+                  Static sites
+                </div>
+                <div class="mt-0.5 text-xs leading-relaxed text-white/50">
+                  Push a build and it's live, by hand or straight from your repository
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <%!-- 88x31 button wall (images/home/buttons/). --%>
+          <section :if={@button_images != []} class="border border-white/10 p-4">
+            <div class="flex flex-wrap justify-center gap-1.5">
+              <img
+                :for={button <- @button_images}
+                src={~p"/images/home/buttons/#{button}"}
+                alt=""
+                width="88"
+                height="31"
+                class="h-[31px] w-[88px] shrink-0 [image-rendering:pixelated]"
+                loading="lazy"
+              />
+            </div>
+          </section>
         </main>
       </div>
     </div>
     """
   end
+
+  defp format_stat(n) when is_integer(n) and n >= 0 do
+    n
+    |> Integer.to_string()
+    |> String.reverse()
+    |> String.replace(~r/(\d{3})(?=\d)/, "\\1,")
+    |> String.reverse()
+  end
+
+  defp format_stat(_), do: "0"
 
   defp feature_groups do
     [
@@ -417,7 +523,7 @@ defmodule ElektrineWeb.PageLive.Home do
   defp github_issues_url, do: "https://github.com/atomine-elektrine/elektrine/issues"
 
   def load_platform_stats(cache_fetch \\ &Elektrine.AppCache.get_platform_stats/1) do
-    case cache_fetch.(fn -> default_platform_stats() end) do
+    case cache_fetch.(&compute_platform_stats/0) do
       {:ok, stats} ->
         stats
 
@@ -428,6 +534,32 @@ defmodule ElektrineWeb.PageLive.Home do
         Logger.warning("Home platform stats cache fetch failed: #{Exception.message(reason)}")
         default_platform_stats()
     end
+  end
+
+  defp compute_platform_stats do
+    import Ecto.Query
+
+    users = Elektrine.Repo.aggregate(Elektrine.Accounts.User, :count)
+
+    posts =
+      from(m in Elektrine.Social.Message,
+        where: m.post_type in ["post", "gallery", "discussion"] and is_nil(m.deleted_at)
+      )
+      |> Elektrine.Repo.aggregate(:count)
+
+    remote_actors = Elektrine.Repo.aggregate(Elektrine.ActivityPub.Actor, :count)
+
+    instances =
+      from(a in Elektrine.ActivityPub.Actor,
+        where: not is_nil(a.domain),
+        select: count(a.domain, :distinct)
+      )
+      |> Elektrine.Repo.one() || 0
+
+    %{
+      stats: %{users: users, emails: 0, posts: posts},
+      federation: %{remote_actors: remote_actors, instances: instances}
+    }
   end
 
   defp default_platform_stats do

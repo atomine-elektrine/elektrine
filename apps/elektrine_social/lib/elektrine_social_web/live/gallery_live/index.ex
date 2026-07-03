@@ -29,6 +29,8 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
       send(self(), :load_gallery_data)
     end
 
+    cached_insights = user && Elektrine.AppCache.get_user_stats(:gallery_insights, user.id)
+
     socket =
       socket
       |> assign(:page_title, "Gallery")
@@ -46,15 +48,18 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
       |> assign(:upload_visibility, "public")
       |> assign(:filtered_posts, [])
       |> assign(:gallery_filter, "all")
-      |> assign(:user_gallery_stats, nil)
-      |> assign(:recent_uploads, [])
-      |> assign(:top_upload, nil)
-      |> assign(:suggested_photographers, [])
-      |> assign(:trending_tags, [])
+      |> assign(:user_gallery_stats, (cached_insights || %{})[:user_gallery_stats])
+      |> assign(:recent_uploads, (cached_insights || %{})[:recent_uploads] || [])
+      |> assign(:top_upload, (cached_insights || %{})[:top_upload])
+      |> assign(
+        :suggested_photographers,
+        (cached_insights || %{})[:suggested_photographers] || []
+      )
+      |> assign(:trending_tags, (cached_insights || %{})[:trending_tags] || [])
       |> assign(:uploading, false)
       |> assign(:loading_more, false)
       |> assign(:loading_gallery, true)
-      |> assign(:loading_gallery_insights, true)
+      |> assign(:loading_gallery_insights, is_nil(cached_insights))
       |> assign(:gallery_load_ref, nil)
       |> assign(:end_of_feed, false)
       |> assign(:show_image_modal, false)
@@ -808,7 +813,8 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
       |> assign(:loading_gallery, true)
       |> assign(
         :loading_gallery_insights,
-        include_insights? || socket.assigns.loading_gallery_insights
+        (include_insights? && is_nil(socket.assigns[:user_gallery_stats])) ||
+          socket.assigns.loading_gallery_insights
       )
 
     if Elektrine.RuntimeEnv.environment() == :test do
@@ -826,7 +832,7 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
   end
 
   defp build_gallery_data(filter, user, include_insights?) do
-    gallery_posts = get_gallery_feed(filter, user)
+    gallery_posts = get_gallery_feed_page(filter, user)
     {user_likes, user_saved_posts} = load_gallery_engagement_state(user, gallery_posts)
 
     insights =
@@ -939,10 +945,18 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
     socket =
       Enum.reduce(data.insights, socket, fn {key, value}, socket -> assign(socket, key, value) end)
 
+    cache_gallery_insights(socket.assigns[:current_user], data.insights)
+
     socket
     |> assign(:loading_gallery_insights, false)
     |> apply_gallery_filter()
   end
+
+  defp cache_gallery_insights(%{id: user_id}, %{user_gallery_stats: %{}} = insights) do
+    Elektrine.AppCache.cache_user_stats(:gallery_insights, user_id, insights)
+  end
+
+  defp cache_gallery_insights(_user, _insights), do: :ok
 
   defp error_to_string(:too_large) do
     "Image is too large (max 10MB)"
@@ -959,6 +973,17 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
   defp error_to_string(_) do
     "Upload error"
   end
+
+  # The discover/trending feeds are global, so the first page can be served
+  # from a short-lived cache instead of re-running the feed query per visit.
+  # Per-user engagement state is always computed fresh from the posts.
+  defp get_gallery_feed_page(filter, user) when filter in ["discover", "trending"] do
+    ElektrineSocialWeb.Live.GlobalFeedPage.fetch({:gallery, filter}, fn ->
+      get_gallery_feed(filter, user)
+    end)
+  end
+
+  defp get_gallery_feed_page(filter, user), do: get_gallery_feed(filter, user)
 
   defp get_gallery_feed(filter, user, opts \\ [])
 

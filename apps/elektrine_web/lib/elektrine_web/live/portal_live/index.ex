@@ -55,6 +55,9 @@ defmodule ElektrineWeb.PortalLive.Index do
 
       timezone = user.timezone || "Etc/UTC"
       time_format = user.time_format || "12"
+      cached_dashboard = Elektrine.AppCache.get_portal_dashboard(user.id)
+      cached_platform_stats = Elektrine.AppCache.get_user_stats(:portal_platform_stats, :global)
+      cached_personal_stats = Elektrine.AppCache.get_user_stats(:portal_personal_stats, user.id)
 
       socket =
         socket
@@ -77,15 +80,15 @@ defmodule ElektrineWeb.PortalLive.Index do
         |> assign(:attention_filter, @default_attention_filter)
         |> assign(:online_users, [])
         |> assign(:user_statuses, %{})
-        |> assign(:platform_stats, default_platform_stats())
-        |> assign(:personal_stats, default_personal_stats())
+        |> assign(:platform_stats, cached_platform_stats || default_platform_stats())
+        |> assign(:personal_stats, cached_personal_stats || default_personal_stats())
         |> assign(:timezone, timezone)
         |> assign(:time_format, time_format)
         |> assign(:loading_feed, true)
-        |> assign(:loading_stats, true)
-        |> assign(:loading_dashboard, true)
+        |> assign(:loading_stats, is_nil(cached_platform_stats) or is_nil(cached_personal_stats))
+        |> assign(:loading_dashboard, is_nil(cached_dashboard))
         |> assign(:portal_credits, atomine_credit_balance(user.id))
-        |> assign(:dashboard, DashboardData.default())
+        |> assign(:dashboard, cached_dashboard || DashboardData.default())
         |> assign(:reader_params, %{})
         |> assign(:dashboard_last_refreshed_at, nil)
         |> assign(:data_loaded, false)
@@ -1443,6 +1446,8 @@ defmodule ElektrineWeb.PortalLive.Index do
            @dashboard_load_timeout_ms
          ) do
       {:ok, dashboard} ->
+        Elektrine.AppCache.cache_portal_dashboard(user.id, dashboard)
+
         {:noreply,
          socket
          |> assign(:dashboard, dashboard)
@@ -1450,10 +1455,8 @@ defmodule ElektrineWeb.PortalLive.Index do
          |> assign(:dashboard_last_refreshed_at, DateTime.utc_now())}
 
       {:error, _reason} ->
-        {:noreply,
-         socket
-         |> assign(:dashboard, DashboardData.default())
-         |> assign(:loading_dashboard, false)}
+        # Keep the last-known (possibly cached) dashboard instead of zeroing it out.
+        {:noreply, assign(socket, :loading_dashboard, false)}
     end
   end
 
@@ -1496,8 +1499,12 @@ defmodule ElektrineWeb.PortalLive.Index do
              fn -> get_platform_stats() end,
              @stats_load_timeout_ms
            ) do
-        {:ok, stats} -> stats
-        {:error, _reason} -> default_platform_stats()
+        {:ok, stats} ->
+          Elektrine.AppCache.cache_user_stats(:portal_platform_stats, :global, stats)
+          stats
+
+        {:error, _reason} ->
+          socket.assigns.platform_stats || default_platform_stats()
       end
 
     personal_stats =
@@ -1506,8 +1513,12 @@ defmodule ElektrineWeb.PortalLive.Index do
              fn -> get_personal_stats(user.id) end,
              @stats_load_timeout_ms
            ) do
-        {:ok, stats} -> stats
-        {:error, _reason} -> default_personal_stats()
+        {:ok, stats} ->
+          Elektrine.AppCache.cache_user_stats(:portal_personal_stats, user.id, stats)
+          stats
+
+        {:error, _reason} ->
+          socket.assigns.personal_stats || default_personal_stats()
       end
 
     {:noreply,

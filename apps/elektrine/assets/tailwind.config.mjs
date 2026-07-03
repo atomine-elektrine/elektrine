@@ -38,7 +38,9 @@ export default {
         brand: "#FD4F00",
       },
       fontFamily: {
-        sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif'],
+        sans: ['Geist', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif'],
+        mono: ['Geist Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
+        pixel: ['Geist Pixel', 'Geist Mono', 'ui-monospace', 'monospace'],
       }
     },
   },
