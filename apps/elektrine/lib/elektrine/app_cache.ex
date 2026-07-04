@@ -261,7 +261,6 @@ defmodule Elektrine.AppCache do
            end
          end) do
       {:commit, value} -> value
-      {:commit, value, _opts} -> value
       {:ok, value} -> value
       {:ignore, value} -> value
       error -> error
@@ -304,7 +303,6 @@ defmodule Elektrine.AppCache do
       {:commit, :not_found} -> nil
       {:ok, :not_found} -> nil
       {:commit, value} -> value
-      {:commit, value, _opts} -> value
       {:ok, value} -> value
       _ -> nil
     end
@@ -386,7 +384,6 @@ defmodule Elektrine.AppCache do
            end
          end) do
       {:commit, value} -> value
-      {:commit, value, _opts} -> value
       {:ok, value} -> value
       {:ignore, value} -> value
       error -> error
@@ -704,7 +701,6 @@ defmodule Elektrine.AppCache do
            {:commit, fetch_fn.(), expire: ttl}
          end) do
       {:commit, value} -> {:ok, value}
-      {:commit, value, _opts} -> {:ok, value}
       {:ok, value} -> {:ok, value}
       error -> error
     end
@@ -715,7 +711,6 @@ defmodule Elektrine.AppCache do
            {:commit, fetch_fn.(), expire: ttl}
          end) do
       {:commit, value} -> value
-      {:commit, value, _opts} -> value
       {:ok, value} -> value
       error -> error
     end
@@ -766,14 +761,44 @@ defmodule Elektrine.AppCache do
     end)
   end
 
+  # Cachex 4 executes `Cachex.fetch/3` fallbacks inside its Courier process.
+  # Our fallbacks read from the database, and several callers invoke them
+  # while already holding a checked-out DB connection inside a transaction
+  # (for example federation ingress applying an event). That deadlocks: the
+  # caller blocks on the Courier while the Courier's fallback blocks waiting
+  # for a database connection. Run the fallback in the calling process
+  # instead (Cachex 3 semantics), trading cross-process fetch coalescing for
+  # deadlock safety.
   defp fetch_with_telemetry(key, fetch_fn) do
-    result = Cachex.fetch(@cache_name, key, fetch_fn)
+    result =
+      case Cachex.get(@cache_name, key) do
+        {:ok, value} when not is_nil(value) ->
+          {:ok, value}
+
+        _miss_or_error ->
+          case fetch_fn.(key) do
+            {:commit, value} = commit ->
+              _ = Cachex.put(@cache_name, key, value)
+              commit
+
+            {:commit, value, opts} ->
+              _ = Cachex.put(@cache_name, key, value, Keyword.take(List.wrap(opts), [:expire]))
+              # Match Cachex.fetch/3, which strips commit options from the
+              # returned tuple.
+              {:commit, value}
+
+            {:ignore, _value} = ignore ->
+              ignore
+
+            other ->
+              other
+          end
+      end
 
     fetch_result =
       case result do
         {:ok, _} -> :hit
         {:commit, _} -> :miss
-        {:commit, _, _} -> :miss
         {:ignore, _} -> :ignored
         _ -> :error
       end
