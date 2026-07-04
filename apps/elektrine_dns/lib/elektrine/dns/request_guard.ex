@@ -13,6 +13,24 @@ defmodule Elektrine.DNS.RequestGuard do
   end
 
   def begin_request(client_ip, transport) when transport in [:udp, :tcp] do
+    case check_rate(client_ip, transport) do
+      :ok ->
+        inflight_key = {:inflight, transport}
+        inflight = :ets.update_counter(@table, inflight_key, {2, 1}, {inflight_key, 0})
+
+        if inflight > max_inflight(transport) do
+          :ets.update_counter(@table, inflight_key, {2, -1})
+          {:error, :busy}
+        else
+          {:ok, transport}
+        end
+
+      {:error, _reason} = error ->
+        error
+    end
+  end
+
+  def check_rate(client_ip, transport) when transport in [:udp, :tcp] do
     bucket = current_bucket()
     client_key = normalize_client_key(client_ip)
     rate_key = {:rate, transport, bucket, client_key}
@@ -22,15 +40,7 @@ defmodule Elektrine.DNS.RequestGuard do
     if count > rate_limit(transport) do
       {:error, :rate_limited}
     else
-      inflight_key = {:inflight, transport}
-      inflight = :ets.update_counter(@table, inflight_key, {2, 1}, {inflight_key, 0})
-
-      if inflight > max_inflight(transport) do
-        :ets.update_counter(@table, inflight_key, {2, -1})
-        {:error, :busy}
-      else
-        {:ok, transport}
-      end
+      :ok
     end
   end
 

@@ -77,11 +77,17 @@ defmodule Elektrine.DNS.ZoneCache do
 
     case load_zones(repo_opts) do
       {:ok, zones} ->
-        :ets.delete_all_objects(@table)
+        # Insert before pruning so concurrent lookups never see an empty
+        # table mid-refresh.
+        entries = Enum.map(zones, fn zone -> {String.downcase(zone.domain), zone} end)
+        :ets.insert(@table, entries)
 
-        Enum.each(zones, fn zone ->
-          :ets.insert(@table, {String.downcase(zone.domain), zone})
-        end)
+        fresh_keys = MapSet.new(entries, &elem(&1, 0))
+
+        @table
+        |> :ets.select([{{:"$1", :_}, [], [:"$1"]}])
+        |> Enum.reject(&MapSet.member?(fresh_keys, &1))
+        |> Enum.each(&:ets.delete(@table, &1))
 
       {:error, error} ->
         Logger.warning("DNS zone cache refresh failed: #{Exception.message(error)}")

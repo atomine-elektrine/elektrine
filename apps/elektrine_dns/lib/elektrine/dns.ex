@@ -988,6 +988,11 @@ defmodule Elektrine.DNS do
     |> Keyword.get(:recursive_transport, Elektrine.DNS.RecursiveTransport)
   end
 
+  def recursive_max_upstream_queries do
+    Application.get_env(:elektrine, :dns, [])
+    |> Keyword.get(:recursive_max_upstream_queries, 32)
+  end
+
   def dns_resolver do
     Application.get_env(:elektrine, :dns, [])
     |> Keyword.get(:dns_resolver, :inet_res)

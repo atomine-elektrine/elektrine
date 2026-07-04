@@ -3,22 +3,55 @@ defmodule Elektrine.DNS.UDPServer do
 
   use GenServer
 
+  require Logger
+
   def start_link(opts \\ []) do
-    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
+    GenServer.start_link(__MODULE__, opts, name: Keyword.get(opts, :name, __MODULE__))
+  end
+
+  def child_spec(opts) do
+    %{
+      id: Keyword.get(opts, :name, __MODULE__),
+      start: {__MODULE__, :start_link, [opts]}
+    }
   end
 
   @impl true
-  def init(_opts) do
-    {:ok, socket} =
-      :gen_udp.open(Elektrine.DNS.udp_port(), [
+  def init(opts) do
+    family = Keyword.get(opts, :family, :inet)
+
+    case open(family) do
+      {:ok, socket} ->
+        {:ok, %{socket: socket}}
+
+      {:error, reason} when family == :inet6 ->
+        Logger.warning("DNS UDP IPv6 listener unavailable: #{inspect(reason)}")
+        :ignore
+
+      {:error, reason} ->
+        {:stop, reason}
+    end
+  end
+
+  defp open(family) do
+    :gen_udp.open(
+      Elektrine.DNS.udp_port(),
+      [
         :binary,
+        family,
         active: 100,
         reuseaddr: true,
-        ip: {0, 0, 0, 0}
-      ])
-
-    {:ok, %{socket: socket}}
+        ip: wildcard_address(family)
+      ] ++ family_opts(family)
+    )
   end
+
+  defp wildcard_address(:inet), do: {0, 0, 0, 0}
+  defp wildcard_address(:inet6), do: {0, 0, 0, 0, 0, 0, 0, 0}
+
+  # v6only keeps the v6 wildcard bind from claiming the v4 port too.
+  defp family_opts(:inet), do: []
+  defp family_opts(:inet6), do: [{:ipv6_v6only, true}]
 
   @impl true
   def handle_info({:udp, socket, host, port, packet}, state) do

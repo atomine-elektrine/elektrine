@@ -8,6 +8,8 @@ defmodule Elektrine.DNS.Recursive do
   alias Elektrine.DNS.RecursiveCache
 
   @max_depth 12
+  @max_cache_ttl_seconds 86_400
+  @budget_key {__MODULE__, :upstream_budget}
   @supported_types [:a, :aaaa, :ns, :cname, :mx, :txt, :srv, :ds, :dnskey, :tlsa]
 
   def resolve(packet, opts \\ []) when is_binary(packet) do
@@ -39,6 +41,8 @@ defmodule Elektrine.DNS.Recursive do
         Packet.encode_response(query, [], :refused, response_opts)
 
       true ->
+        init_upstream_budget()
+
         case cached_or_iterative_resolve(query, MapSet.new()) do
           {:ok, result} ->
             Packet.encode_response(query, result.answers, result.rcode,
@@ -215,6 +219,9 @@ defmodule Elektrine.DNS.Recursive do
             false -> {:cont, {:error, :invalid_response}}
           end
 
+        {:error, :budget_exhausted} = error ->
+          {:halt, error}
+
         {:error, _reason} = error ->
           {:cont, error}
       end
@@ -235,6 +242,9 @@ defmodule Elektrine.DNS.Recursive do
             true -> {:halt, {:ok, final}}
             false -> {:cont, {:error, :invalid_response}}
           end
+
+        {:error, :budget_exhausted} = error ->
+          {:halt, error}
 
         {:error, _reason} = error ->
           {:cont, error}
@@ -405,7 +415,7 @@ defmodule Elektrine.DNS.Recursive do
   end
 
   defp cache_result(query, result) do
-    ttl = cache_ttl(result)
+    ttl = result |> cache_ttl() |> min(@max_cache_ttl_seconds)
     RecursiveCache.put({normalize_name(query.qname), query.qtype}, result, ttl)
     {:ok, result}
   end
@@ -435,11 +445,31 @@ defmodule Elektrine.DNS.Recursive do
   end
 
   defp exchange_udp(ip, port, packet, timeout) do
-    DNS.recursive_transport().exchange_udp(ip, port, packet, timeout)
+    with :ok <- consume_upstream_budget() do
+      DNS.recursive_transport().exchange_udp(ip, port, packet, timeout)
+    end
   end
 
   defp exchange_tcp(ip, port, packet, timeout) do
-    DNS.recursive_transport().exchange_tcp(ip, port, packet, timeout)
+    with :ok <- consume_upstream_budget() do
+      DNS.recursive_transport().exchange_tcp(ip, port, packet, timeout)
+    end
+  end
+
+  # Bounds the total upstream exchanges a single client query can trigger,
+  # so crafted delegation chains (NXNSAttack-style) can't multiply work.
+  # Resolution for one query runs in a single process, so the budget lives
+  # in the process dictionary rather than being threaded through every hop.
+  defp init_upstream_budget do
+    Process.put(@budget_key, DNS.recursive_max_upstream_queries())
+  end
+
+  defp consume_upstream_budget do
+    case Process.get(@budget_key) do
+      nil -> :ok
+      remaining when remaining <= 0 -> {:error, :budget_exhausted}
+      remaining -> Process.put(@budget_key, remaining - 1) && :ok
+    end
   end
 
   defp maybe_retry_over_tcp(ip, port, packet, udp_response) do

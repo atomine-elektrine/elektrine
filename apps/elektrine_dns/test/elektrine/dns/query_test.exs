@@ -471,10 +471,29 @@ defmodule Elektrine.DNS.QueryTest do
     assert response =~ <<0, 1, 0, 3, 2, "h2">>
   end
 
-  test "refuses ANY queries" do
+  test "returns NODATA instead of NXDOMAIN for empty non-terminals" do
+    # "_tcp.mail.example.com" has no records itself, but "_25._tcp.mail" sits
+    # below it, so the name exists (RFC 8020) and the "*" wildcard must not
+    # match it (RFC 4592).
+    response = Query.answer(build_query("_tcp.mail.example.com", 1))
+
+    assert header(response).rcode == 0
+    assert header(response).ancount == 0
+    assert header(response).aa == 1
+  end
+
+  test "answers ANY queries with a minimal HINFO record (RFC 8482)" do
     response = Query.answer(build_query("example.com", 255))
 
-    assert header(response).ancount == 0
+    assert header(response).ancount == 1
+    assert header(response).rcode == 0
+    assert header(response).aa == 1
+    assert response =~ <<7, "RFC8482", 0>>
+  end
+
+  test "refuses ANY queries for non-authoritative names" do
+    response = Query.answer(build_query("unknown-domain.test", 255))
+
     assert header(response).rcode == 5
   end
 

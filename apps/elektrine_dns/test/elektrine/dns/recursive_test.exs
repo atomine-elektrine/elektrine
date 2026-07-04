@@ -377,6 +377,28 @@ defmodule Elektrine.DNS.RecursiveTest do
     assert response =~ <<0x30, 0x39, 13, 2, 0xA1, 0xB2, 0xC3, 0xD4>>
   end
 
+  test "caps total upstream queries for a single client query" do
+    put_dns_config(
+      recursive_root_hints: [{{1, 1, 1, 1}, 53}],
+      recursive_max_upstream_queries: 5
+    )
+
+    # Every response is a glueless referral to a fresh nameserver name, so an
+    # unbounded resolver would chase delegations forever.
+    Elektrine.DNS.TestRecursiveTransport.set_handler(fn _ip, _port, _packet, _timeout, query ->
+      {:ok,
+       Packet.encode_response(query, [], :noerror,
+         authority: [%{name: "test", type: :ns, value: "x" <> query.qname, ttl: 300}]
+       )}
+    end)
+
+    packet = Packet.encode_query(%{id: 777, rd: 1, qname: "chained.example", qtype: :a})
+    response = Query.answer(packet, client_ip: {127, 0, 0, 1})
+
+    assert header(response).rcode == 2
+    assert length(Elektrine.DNS.TestRecursiveTransport.calls()) <= 5
+  end
+
   defp clear_table(table) do
     case :ets.whereis(table) do
       :undefined -> :ok
