@@ -57,7 +57,9 @@ defmodule Elektrine.Messaging.Federation.Builders do
   end
 
   def build_message_created_event(%ChatMessage{} = message, context) when is_map(context) do
-    message = Repo.preload(message, [:sender, conversation: [:server]])
+    message =
+      message |> reset_hydrated_sender() |> Repo.preload([:sender, conversation: [:server]])
+
     conversation = message.conversation
     server = if conversation, do: conversation.server, else: nil
 
@@ -86,7 +88,7 @@ defmodule Elektrine.Messaging.Federation.Builders do
 
   def build_dm_message_created_event(%ChatMessage{} = message, remote_handle, context)
       when is_binary(remote_handle) and is_map(context) do
-    message = Repo.preload(message, [:sender, :conversation])
+    message = message |> reset_hydrated_sender() |> Repo.preload([:sender, :conversation])
     conversation = message.conversation
 
     with {:ok, recipient} <- DirectMessageState.normalize_remote_dm_handle(remote_handle),
@@ -256,7 +258,9 @@ defmodule Elektrine.Messaging.Federation.Builders do
   end
 
   def build_message_updated_event(%ChatMessage{} = message, context) when is_map(context) do
-    message = Repo.preload(message, [:sender, conversation: [:server]])
+    message =
+      message |> reset_hydrated_sender() |> Repo.preload([:sender, conversation: [:server]])
+
     conversation = message.conversation
     server = if conversation, do: conversation.server, else: nil
 
@@ -1041,6 +1045,7 @@ defmodule Elektrine.Messaging.Federation.Builders do
       "urn:arblarg:ext:permissions:1#overwrite.upsert",
       "urn:arblarg:ext:threads:1#thread.upsert",
       "urn:arblarg:ext:threads:1#thread.archive",
+      "urn:arblarg:ext:pins:1#pin.upsert",
       "urn:arblarg:ext:moderation:1#action.recorded"
     ]
   end
@@ -1070,6 +1075,9 @@ defmodule Elektrine.Messaging.Federation.Builders do
       "thread.archive" ->
         Map.put_new(base_payload, "actor", sender_payload(actor_user))
 
+      "pin.upsert" ->
+        Map.put_new(base_payload, "actor", sender_payload(actor_user))
+
       "moderation.action.recorded" ->
         update_in(base_payload["action"], fn
           %{} = action -> Map.put_new(action, "actor", sender_payload(actor_user))
@@ -1086,4 +1094,23 @@ defmodule Elektrine.Messaging.Federation.Builders do
     |> Map.fetch!(key)
     |> Kernel.apply(args)
   end
+
+  # Messages hydrated for PubSub carry a plain-map sender (webhook/remote
+  # display metadata), which Repo.preload cannot handle. Reset it so preload
+  # reloads the real association; the display metadata still reaches the
+  # payload via message_sender_payload/1 (webhook_sender/remote_sender in
+  # media_metadata).
+  defp reset_hydrated_sender(%ChatMessage{sender: sender} = message)
+       when is_map(sender) and not is_struct(sender) do
+    %{
+      message
+      | sender: %Ecto.Association.NotLoaded{
+          __field__: :sender,
+          __owner__: ChatMessage,
+          __cardinality__: :one
+        }
+    }
+  end
+
+  defp reset_hydrated_sender(message), do: message
 end

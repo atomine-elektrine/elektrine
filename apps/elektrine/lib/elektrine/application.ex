@@ -39,6 +39,7 @@ defmodule Elektrine.Application do
       Elektrine.Accounts.Tracking,
       Elektrine.Encryption.KeyCache,
       Elektrine.Messaging.RateLimiter,
+      Elektrine.Messaging.Federation.IngressRateLimiter,
       Elektrine.Auth.RateLimiter,
       Elektrine.API.RateLimiter,
       Elektrine.API.SearchRateLimiter,

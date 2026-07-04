@@ -19,6 +19,7 @@ defmodule Elektrine.Messaging.ChatMessages do
     ChatConversationMember,
     ChatEncryptionDevice,
     ChatMessage,
+    ChatMessagePins,
     ChatMessageReaction,
     ChatRemoteEncryptionDevice,
     ChatUserHiddenMessage,
@@ -124,7 +125,11 @@ defmodule Elektrine.Messaging.ChatMessages do
       from(m in ChatMessage,
         left_join: h in ChatUserHiddenMessage,
         on: h.chat_message_id == m.id and h.user_id == ^user_id,
-        where: m.conversation_id == ^conversation_id and is_nil(m.deleted_at) and is_nil(h.id),
+        # Thread messages live in the thread panel, not the main timeline
+        # (thread root messages keep a nil thread_id and stay visible here).
+        where:
+          m.conversation_id == ^conversation_id and is_nil(m.deleted_at) and is_nil(h.id) and
+            is_nil(m.thread_id),
         limit: ^limit,
         preload: [:sender, :link_preview, reply_to: [:sender], reactions: [:user, :remote_actor]]
       )
@@ -149,6 +154,7 @@ defmodule Elektrine.Messaging.ChatMessages do
 
     messages = Repo.all(query)
     messages = if after_id, do: Enum.reverse(messages), else: messages
+    messages = ChatMessagePins.hydrate_pin_state(messages)
 
     if decrypt? do
       messages
@@ -173,7 +179,8 @@ defmodule Elektrine.Messaging.ChatMessages do
               m.conversation_id == ^conversation_id and
                 m.id < ^oldest_message.id and
                 is_nil(m.deleted_at) and
-                is_nil(h.id),
+                is_nil(h.id) and
+                is_nil(m.thread_id),
             select: m.id,
             limit: 1
           )
@@ -202,7 +209,8 @@ defmodule Elektrine.Messaging.ChatMessages do
               m.conversation_id == ^conversation_id and
                 m.id > ^newest_message.id and
                 is_nil(m.deleted_at) and
-                is_nil(h.id),
+                is_nil(h.id) and
+                is_nil(m.thread_id),
             select: m.id,
             limit: 1
           )
@@ -257,17 +265,28 @@ defmodule Elektrine.Messaging.ChatMessages do
 
   @doc """
   Creates a text message.
+
+  Pass `thread_id` in `opts` to send the message into a thread instead of the
+  conversation's main timeline (see `Elektrine.Messaging.ChatThreads`).
   """
   def create_text_message(conversation_id, sender_id, content, opts \\ []) do
     with :ok <- ensure_writable_conversation(conversation_id, sender_id) do
       reply_to_id = Keyword.get(opts, :reply_to_id)
+      thread_id = Keyword.get(opts, :thread_id)
       encrypt? = should_encrypt?(conversation_id)
 
       ChatMessage.text_changeset(conversation_id, sender_id, content, reply_to_id, encrypt?)
+      |> maybe_put_thread_id(thread_id)
       |> Repo.insert()
       |> handle_message_created(conversation_id)
     end
   end
+
+  defp maybe_put_thread_id(changeset, thread_id) when is_integer(thread_id) do
+    Ecto.Changeset.put_change(changeset, :thread_id, thread_id)
+  end
+
+  defp maybe_put_thread_id(changeset, _thread_id), do: changeset
 
   @doc """
   Registers or refreshes a browser chat encryption device for a user.
@@ -519,6 +538,29 @@ defmodule Elektrine.Messaging.ChatMessages do
       |> Repo.insert()
       |> handle_message_created(conversation_id)
     end
+  end
+
+  @doc """
+  Creates a text message authored by an incoming webhook.
+
+  Webhook messages have no local sender: the webhook id is stored on the
+  message row and display metadata (name/avatar) is carried in
+  `media_metadata` under `"webhook_sender"` so clients can render the
+  webhook as the author. Token verification, authorization, and rate
+  limiting happen in `Elektrine.Messaging.ChatWebhooks`.
+  """
+  def create_webhook_text_message(conversation_id, webhook_id, content, sender_meta)
+      when is_integer(conversation_id) and is_integer(webhook_id) and is_map(sender_meta) do
+    %ChatMessage{}
+    |> ChatMessage.changeset(%{
+      conversation_id: conversation_id,
+      webhook_id: webhook_id,
+      content: content,
+      message_type: "text",
+      media_metadata: %{"webhook_sender" => sender_meta}
+    })
+    |> Repo.insert()
+    |> handle_message_created(conversation_id)
   end
 
   @doc """
@@ -1404,8 +1446,15 @@ defmodule Elektrine.Messaging.ChatMessages do
 
     Enum.each(member_ids, &Elektrine.AppCache.invalidate_chat_cache/1)
 
-    # Broadcast to conversation
-    broadcast_new_message(conversation_id, decrypted)
+    # Broadcast to conversation. Thread messages get their own event so open
+    # LiveViews update the thread panel instead of the main timeline.
+    if is_integer(decrypted.thread_id) do
+      broadcast_new_thread_message(conversation_id, decrypted)
+      Elektrine.Messaging.ChatThreads.record_message_activity(decrypted)
+    else
+      broadcast_new_message(conversation_id, decrypted)
+    end
+
     maybe_federate_message_created(conversation_id, decrypted)
     maybe_notify_chat_members(conversation_id, decrypted)
 
@@ -1446,6 +1495,11 @@ defmodule Elektrine.Messaging.ChatMessages do
   defp broadcast_new_message(conversation_id, message) do
     topic = PubSubTopics.conversation(conversation_id)
     Phoenix.PubSub.broadcast(Elektrine.PubSub, topic, {:new_chat_message, message})
+  end
+
+  defp broadcast_new_thread_message(conversation_id, message) do
+    topic = PubSubTopics.conversation(conversation_id)
+    Phoenix.PubSub.broadcast(Elektrine.PubSub, topic, {:new_thread_message, message})
   end
 
   defp broadcast_message_updated(conversation_id, message) do
@@ -1555,6 +1609,9 @@ defmodule Elektrine.Messaging.ChatMessages do
     end
   end
 
+  # Thread messages federate as regular channel messages carrying an optional
+  # thread reference (see Federation.Utils.event_message_payload/1); peers
+  # without thread support show them in the channel timeline.
   defp maybe_federate_message_created(conversation_id, message) do
     case Repo.get(ChatConversation, conversation_id) do
       %ChatConversation{type: "channel"} ->
@@ -1638,12 +1695,13 @@ defmodule Elektrine.Messaging.ChatMessages do
     message = %{message | reply_to: reply_to}
 
     if is_nil(message.sender) do
-      case remote_sender_from_metadata(message.media_metadata) do
+      case webhook_sender_from_metadata(message.media_metadata) ||
+             remote_sender_from_metadata(message.media_metadata) do
         nil ->
           message
 
-        remote_sender ->
-          %{message | sender: remote_sender}
+        hydrated_sender ->
+          %{message | sender: hydrated_sender}
       end
     else
       message
@@ -1735,6 +1793,36 @@ defmodule Elektrine.Messaging.ChatMessages do
   end
 
   defp read_only_mirror_conversation?(_conversation_id), do: false
+
+  # Webhook-authored messages carry display metadata under "webhook_sender"
+  # (see `create_webhook_text_message/4`). Hydrate a sender-shaped map so the
+  # UI renders the webhook name/avatar; `is_bot`/`webhook` let clients show a
+  # bot/app badge.
+  defp webhook_sender_from_metadata(metadata) when is_map(metadata) do
+    sender = metadata["webhook_sender"] || metadata[:webhook_sender]
+
+    if is_map(sender) do
+      name = sender["name"] || sender[:name] || "Webhook"
+      avatar = sender["avatar_url"] || sender[:avatar_url]
+
+      %{
+        id: nil,
+        username: to_string(name),
+        display_name: to_string(name),
+        handle: to_string(name),
+        avatar: avatar,
+        remote: false,
+        remote_domain: nil,
+        webhook: true,
+        webhook_id: sender["webhook_id"] || sender[:webhook_id],
+        is_bot: true
+      }
+    else
+      nil
+    end
+  end
+
+  defp webhook_sender_from_metadata(_), do: nil
 
   defp remote_sender_from_metadata(metadata) when is_map(metadata) do
     sender = metadata["remote_sender"] || metadata[:remote_sender]

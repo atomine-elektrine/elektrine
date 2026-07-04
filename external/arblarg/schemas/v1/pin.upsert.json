@@ -1,0 +1,92 @@
+{
+  "$id": "arblarg://schemas/1.0/pin.upsert",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "actor": {
+      "properties": {
+        "avatar_url": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "domain": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "handle": {
+          "minLength": 3,
+          "type": "string"
+        },
+        "id": {
+          "format": "uri",
+          "minLength": 1,
+          "pattern": "^https?://",
+          "type": "string"
+        },
+        "key_id": {
+          "type": "string"
+        },
+        "uri": {
+          "format": "uri",
+          "minLength": 1,
+          "pattern": "^https?://",
+          "type": "string"
+        },
+        "username": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "uri",
+        "username",
+        "domain",
+        "handle"
+      ],
+      "type": "object"
+    },
+    "channel": {
+      "type": "object"
+    },
+    "pin": {
+      "properties": {
+        "message_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "pinned_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "pinned",
+            "unpinned"
+          ],
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "message_id",
+        "state"
+      ],
+      "type": "object"
+    },
+    "server": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "server",
+    "channel",
+    "pin",
+    "actor"
+  ],
+  "title": "Arblarg pin.upsert payload",
+  "type": "object"
+}

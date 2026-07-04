@@ -684,7 +684,7 @@ defmodule ArblargWeb.ChatLive.Operations.MessageOperations do
   def handle_event("pin_message", %{"message_id" => message_id}, socket) do
     case parse_positive_int(message_id) do
       {:ok, message_id} ->
-        case Messaging.pin_message(message_id, socket.assigns.current_user.id) do
+        case Messaging.pin_chat_message(message_id, socket.assigns.current_user.id) do
           {:ok, _message} ->
             {:noreply,
              socket
@@ -696,6 +696,18 @@ defmodule ArblargWeb.ChatLive.Operations.MessageOperations do
              socket
              |> hide_message_context_menu()
              |> notify_error("Only moderators can pin messages")}
+
+          {:error, :pin_limit_reached} ->
+            {:noreply,
+             socket
+             |> hide_message_context_menu()
+             |> notify_error("Pin limit reached for this conversation")}
+
+          {:error, :already_pinned} ->
+            {:noreply,
+             socket
+             |> hide_message_context_menu()
+             |> notify_info("Message is already pinned")}
 
           {:error, _} ->
             {:noreply,
@@ -715,7 +727,7 @@ defmodule ArblargWeb.ChatLive.Operations.MessageOperations do
   def handle_event("unpin_message", %{"message_id" => message_id}, socket) do
     case parse_positive_int(message_id) do
       {:ok, message_id} ->
-        case Messaging.unpin_message(message_id, socket.assigns.current_user.id) do
+        case Messaging.unpin_chat_message(message_id, socket.assigns.current_user.id) do
           {:ok, _message} ->
             {:noreply,
              socket

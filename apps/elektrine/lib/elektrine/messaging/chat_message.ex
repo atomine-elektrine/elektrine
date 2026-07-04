@@ -28,12 +28,19 @@ defmodule Elektrine.Messaging.ChatMessage do
     field :edited_at, :utc_datetime
     field :deleted_at, :utc_datetime
 
+    # Pin state hydrated from `chat_message_pins` (see ChatMessagePins context).
+    field :is_pinned, :boolean, virtual: true, default: false
+    field :pinned_at, :utc_datetime, virtual: true
+    field :pinned_by_id, :integer, virtual: true
+
     # Voice message fields
     field :audio_duration, :integer
     field :audio_mime_type, :string
 
     belongs_to :conversation, Elektrine.Messaging.ChatConversation
     belongs_to :sender, Elektrine.Accounts.User
+    belongs_to :webhook, Elektrine.Messaging.ChatWebhook
+    belongs_to :thread, Elektrine.Messaging.ChatThread
     belongs_to :reply_to, __MODULE__
     belongs_to :client_encryption_key, Elektrine.Messaging.ChatConversationEncryptionKey
 
@@ -51,6 +58,8 @@ defmodule Elektrine.Messaging.ChatMessage do
     |> cast(attrs, [
       :conversation_id,
       :sender_id,
+      :webhook_id,
+      :thread_id,
       :content,
       :encrypted_content,
       :client_encrypted_payload,
@@ -79,6 +88,8 @@ defmodule Elektrine.Messaging.ChatMessage do
     |> validate_media_urls_security()
     |> foreign_key_constraint(:conversation_id)
     |> foreign_key_constraint(:sender_id)
+    |> foreign_key_constraint(:webhook_id)
+    |> foreign_key_constraint(:thread_id)
     |> foreign_key_constraint(:reply_to_id)
     |> unique_constraint(:federated_source,
       name: :chat_messages_conversation_federated_source_unique

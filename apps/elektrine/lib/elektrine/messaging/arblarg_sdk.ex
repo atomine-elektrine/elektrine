@@ -27,6 +27,9 @@ defmodule Elektrine.Messaging.ArblargSDK do
   @threads_thread_upsert_event_type "urn:arblarg:ext:threads:1#thread.upsert"
   @threads_thread_archive_event_type "urn:arblarg:ext:threads:1#thread.archive"
 
+  @pins_extension_urn "urn:arblarg:ext:pins:1"
+  @pins_pin_upsert_event_type "urn:arblarg:ext:pins:1#pin.upsert"
+
   @presence_extension_urn "urn:arblarg:ext:presence:1"
   @presence_update_event_type "urn:arblarg:ext:presence:1#presence.update"
   @typing_start_event_type "urn:arblarg:ext:presence:1#typing.start"
@@ -71,6 +74,10 @@ defmodule Elektrine.Messaging.ArblargSDK do
     @threads_thread_archive_event_type
   ]
 
+  @pins_event_types [
+    @pins_pin_upsert_event_type
+  ]
+
   @presence_event_types [
     @presence_update_event_type,
     @typing_start_event_type,
@@ -96,6 +103,7 @@ defmodule Elektrine.Messaging.ArblargSDK do
   @durable_extension_event_types @roles_event_types ++
                                    @permissions_event_types ++
                                    @threads_event_types ++
+                                   @pins_event_types ++
                                    @moderation_event_types ++
                                    @dm_event_types ++
                                    Enum.take(@voice_event_types, 4)
@@ -112,7 +120,8 @@ defmodule Elektrine.Messaging.ArblargSDK do
   @channel_scoped_durable_event_types @core_event_types ++
                                         @roles_event_types ++
                                         @permissions_event_types ++
-                                        @threads_event_types ++ @moderation_event_types
+                                        @threads_event_types ++
+                                        @pins_event_types ++ @moderation_event_types
 
   @extension_event_aliases %{
     "server.upsert" => @bootstrap_server_upsert_event_type,
@@ -121,6 +130,7 @@ defmodule Elektrine.Messaging.ArblargSDK do
     "permission.overwrite.upsert" => @permissions_overwrite_upsert_event_type,
     "thread.upsert" => @threads_thread_upsert_event_type,
     "thread.archive" => @threads_thread_archive_event_type,
+    "pin.upsert" => @pins_pin_upsert_event_type,
     "presence.update" => @presence_update_event_type,
     "typing.start" => @typing_start_event_type,
     "typing.stop" => @typing_stop_event_type,
@@ -140,6 +150,7 @@ defmodule Elektrine.Messaging.ArblargSDK do
     @permissions_overwrite_upsert_event_type => "permission.overwrite.upsert",
     @threads_thread_upsert_event_type => "thread.upsert",
     @threads_thread_archive_event_type => "thread.archive",
+    @pins_pin_upsert_event_type => "pin.upsert",
     @presence_update_event_type => "presence.update",
     @typing_start_event_type => "typing.start",
     @typing_stop_event_type => "typing.stop",
@@ -175,6 +186,8 @@ defmodule Elektrine.Messaging.ArblargSDK do
     "thread.upsert" => "thread.upsert",
     @threads_thread_archive_event_type => "thread.archive",
     "thread.archive" => "thread.archive",
+    @pins_pin_upsert_event_type => "pin.upsert",
+    "pin.upsert" => "pin.upsert",
     @presence_update_event_type => "presence.update",
     "presence.update" => "presence.update",
     @typing_start_event_type => "typing.start",
@@ -378,7 +391,8 @@ defmodule Elektrine.Messaging.ArblargSDK do
               "attachments" => %{"type" => "array", "items" => @attachment_schema},
               "created_at" => %{"type" => "string", "format" => "date-time"},
               "edited_at" => %{"type" => "string", "format" => "date-time"},
-              "sender" => @actor_schema
+              "sender" => @actor_schema,
+              "thread_id" => %{"type" => "string", "minLength" => 1}
             }
           }
         }
@@ -776,6 +790,28 @@ defmodule Elektrine.Messaging.ArblargSDK do
           "actor" => @actor_schema
         }
       },
+      "pin.upsert" => %{
+        "$schema" => "https://json-schema.org/draft/2020-12/schema",
+        "$id" => "arblarg://schemas/1.0/pin.upsert",
+        "title" => "Arblarg pin.upsert payload",
+        "type" => "object",
+        "required" => ["server", "channel", "pin", "actor"],
+        "properties" => %{
+          "server" => %{"type" => "object"},
+          "channel" => %{"type" => "object"},
+          "pin" => %{
+            "type" => "object",
+            "required" => ["message_id", "state"],
+            "properties" => %{
+              "message_id" => %{"type" => "string", "minLength" => 1},
+              "state" => %{"type" => "string", "enum" => ["pinned", "unpinned"]},
+              "pinned_at" => %{"type" => "string", "format" => "date-time"},
+              "updated_at" => %{"type" => "string", "format" => "date-time"}
+            }
+          },
+          "actor" => @actor_schema
+        }
+      },
       "presence.update" => %{
         "$schema" => "https://json-schema.org/draft/2020-12/schema",
         "$id" => "arblarg://schemas/1.0/presence.update",
@@ -1058,6 +1094,7 @@ defmodule Elektrine.Messaging.ArblargSDK do
   def roles_extension_urn, do: @roles_extension_urn
   def permissions_extension_urn, do: @permissions_extension_urn
   def threads_extension_urn, do: @threads_extension_urn
+  def pins_extension_urn, do: @pins_extension_urn
   def presence_extension_urn, do: @presence_extension_urn
   def moderation_extension_urn, do: @moderation_extension_urn
   def dm_extension_urn, do: @dm_extension_urn
@@ -1065,6 +1102,8 @@ defmodule Elektrine.Messaging.ArblargSDK do
   def roles_event_types, do: @roles_event_types
   def permissions_event_types, do: @permissions_event_types
   def threads_event_types, do: @threads_event_types
+  def pins_event_types, do: @pins_event_types
+  def pins_pin_upsert_event_type, do: @pins_pin_upsert_event_type
   def presence_event_types, do: @presence_event_types
   def moderation_event_types, do: @moderation_event_types
   def dm_event_types, do: @dm_event_types
@@ -1525,6 +1564,12 @@ defmodule Elektrine.Messaging.ArblargSDK do
   def validate_event_payload("thread.archive", payload),
     do: validate_event_payload(@threads_thread_archive_event_type, payload)
 
+  def validate_event_payload(@pins_pin_upsert_event_type, payload),
+    do: validate_pin_upsert_payload(payload)
+
+  def validate_event_payload("pin.upsert", payload),
+    do: validate_event_payload(@pins_pin_upsert_event_type, payload)
+
   def validate_event_payload(@presence_update_event_type, payload),
     do: validate_presence_update_payload(payload)
 
@@ -1919,6 +1964,24 @@ defmodule Elektrine.Messaging.ArblargSDK do
       !non_empty_binary?(payload["thread_id"]) -> {:error, :invalid_event_payload}
       !valid_iso8601?(payload["archived_at"]) -> {:error, :invalid_event_payload}
       !valid_optional_binary?(payload["reason"]) -> {:error, :invalid_event_payload}
+      !valid_actor_payload?(payload["actor"]) -> {:error, :invalid_event_payload}
+      true -> :ok
+    end
+  end
+
+  defp validate_pin_upsert_payload(payload) do
+    pin = if is_map(payload), do: payload["pin"], else: nil
+
+    cond do
+      !is_map(payload) -> {:error, :invalid_event_payload}
+      !valid_server_object?(payload["server"]) -> {:error, :invalid_event_payload}
+      !valid_channel_object?(payload["channel"]) -> {:error, :invalid_event_payload}
+      !valid_channel_event_context?(payload) -> {:error, :invalid_event_payload}
+      !is_map(pin) -> {:error, :invalid_event_payload}
+      !non_empty_binary?(pin["message_id"]) -> {:error, :invalid_event_payload}
+      pin["state"] not in ["pinned", "unpinned"] -> {:error, :invalid_event_payload}
+      !valid_optional_iso8601?(pin["pinned_at"]) -> {:error, :invalid_event_payload}
+      !valid_optional_iso8601?(pin["updated_at"]) -> {:error, :invalid_event_payload}
       !valid_actor_payload?(payload["actor"]) -> {:error, :invalid_event_payload}
       true -> :ok
     end

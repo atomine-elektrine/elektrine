@@ -5,12 +5,21 @@ defmodule Elektrine.Messaging.Federation do
     Egress,
     Errors,
     Ingress,
+    IngressRateLimiter,
     Maintenance,
     Peers,
     PublicDiscovery,
     RequestAuth,
     Runtime
   }
+
+  defdelegate check_ingress_peer_limit(domain, lane, cost \\ 1),
+    to: IngressRateLimiter,
+    as: :check_peer
+
+  defdelegate check_ingress_durable_limit(domain, stream_ids),
+    to: IngressRateLimiter,
+    as: :check_durable
 
   defdelegate enabled?, to: Peers
   defdelegate peers, to: Peers

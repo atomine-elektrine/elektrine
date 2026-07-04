@@ -227,6 +227,10 @@ defmodule Elektrine.Messaging.Federation.Mirrors do
           call(context, :attachment_storage_metadata, [attachments])
           |> Map.put("remote_sender", payload["sender"] || %{})
 
+        # Optional thread reference (spec section 7.6): map to a local thread
+        # row when known, otherwise fall back to the channel timeline.
+        thread = resolve_message_thread(channel.id, payload["thread_id"])
+
         attrs = %{
           conversation_id: channel.id,
           sender_id: nil,
@@ -237,15 +241,32 @@ defmodule Elektrine.Messaging.Federation.Mirrors do
           media_metadata: media_metadata,
           federated_source: federation_id,
           origin_domain: message_origin_domain,
-          is_federated_mirror: channel.is_federated_mirror == true
+          is_federated_mirror: channel.is_federated_mirror == true,
+          thread_id: thread && thread.id
         }
 
-        %ChatMessage{} |> ChatMessage.changeset(attrs) |> Repo.insert()
+        %ChatMessage{}
+        |> ChatMessage.changeset(attrs)
+        |> Repo.insert()
+        |> case do
+          {:ok, %ChatMessage{thread_id: thread_id} = message} when is_integer(thread_id) ->
+            _ = Elektrine.Messaging.ChatThreads.record_message_activity(message)
+            {:ok, message}
+
+          other ->
+            other
+        end
     end
   end
 
   def upsert_mirror_message(_channel, _payload, _remote_domain, _context),
     do: {:error, :invalid_event_payload}
+
+  defp resolve_message_thread(conversation_id, ref) when is_binary(ref) do
+    Elektrine.Messaging.ChatThreads.resolve_thread_for_message_ref(conversation_id, ref)
+  end
+
+  defp resolve_message_thread(_conversation_id, _ref), do: nil
 
   def upsert_or_update_mirror_message(channel, payload, remote_domain, context)
       when is_map(context) and is_binary(remote_domain) do

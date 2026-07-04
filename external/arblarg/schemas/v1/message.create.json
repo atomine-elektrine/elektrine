@@ -152,6 +152,10 @@
             "handle"
           ],
           "type": "object"
+        },
+        "thread_id": {
+          "minLength": 1,
+          "type": "string"
         }
       },
       "required": [

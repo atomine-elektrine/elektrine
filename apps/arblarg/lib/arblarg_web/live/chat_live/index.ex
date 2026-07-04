@@ -16,6 +16,7 @@ defmodule ArblargWeb.ChatLive.Index do
   import ElektrineWeb.Components.Social.YoutubePreview, only: [youtube_preview: 1]
   import ArblargWeb.Components.Social.ContentJourney
   import ArblargWeb.Components.Chat.Call
+  import ArblargWeb.Components.Chat.SenderBadge, only: [sender_badge: 1]
   import ArblargWeb.Components.Platform.ENav
   import ArblargWeb.Components.Social.EmbeddedPost
   import ElektrineWeb.Live.NotificationHelpers
@@ -23,7 +24,14 @@ defmodule ArblargWeb.ChatLive.Index do
   # Import operation modules
   alias ArblargWeb.ChatLive.Bootstrap
   alias ArblargWeb.ChatLive.HandleFormatter
-  alias ArblargWeb.ChatLive.Operations.{CallInfoOperations, Helpers, MessageInfoOperations}
+
+  alias ArblargWeb.ChatLive.Operations.{
+    CallInfoOperations,
+    Helpers,
+    MessageInfoOperations,
+    ThreadOperations,
+    VoiceChannelOperations
+  }
 
   @room_presence_heartbeat_ms 30_000
 
@@ -162,7 +170,7 @@ defmodule ArblargWeb.ChatLive.Index do
 
     case Messaging.get_conversation_for_chat_by_hash!(conversation_identifier, user_id) do
       {:ok, conversation} ->
-        {:noreply, open_conversation(socket, conversation)}
+        {:noreply, open_conversation_or_redirect(socket, conversation)}
 
       {:error, :not_found} ->
         case Integer.parse(conversation_identifier) do
@@ -173,7 +181,7 @@ defmodule ArblargWeb.ChatLive.Index do
                 if conversation_identifier != conversation.hash && conversation.hash do
                   {:noreply, push_navigate(socket, to: Elektrine.Paths.chat_path(conversation))}
                 else
-                  {:noreply, open_conversation(socket, conversation)}
+                  {:noreply, open_conversation_or_redirect(socket, conversation)}
                 end
 
               {:error, :not_found} ->
@@ -253,7 +261,8 @@ defmodule ArblargWeb.ChatLive.Index do
          unread_counts: unread_counts
      })
      |> assign(:joined_servers, joined_servers)
-     |> assign(:loading_conversations, false)}
+     |> assign(:loading_conversations, false)
+     |> VoiceChannelOperations.sync_voice_channels(conversations)}
   end
 
   def handle_info({:update_group_form, group_params}, socket) do
@@ -491,6 +500,12 @@ defmodule ArblargWeb.ChatLive.Index do
     description = Map.get(channel_params, "description", "")
     topic = Map.get(channel_params, "channel_topic", "")
     is_private = parse_checkbox_value(Map.get(channel_params, "is_private"))
+    category_id = parse_optional_positive_int(Map.get(channel_params, "category_id"))
+
+    channel_type =
+      if Map.get(channel_params, "channel_type") == "voice_channel",
+        do: "voice_channel",
+        else: "channel"
 
     with server_id when is_integer(server_id) <- selected_server_id(socket),
          true <- Elektrine.Strings.present?(name),
@@ -500,10 +515,20 @@ defmodule ArblargWeb.ChatLive.Index do
         description: normalize_optional_text(description),
         channel_topic: normalize_optional_text(topic),
         avatar_url: avatar_url,
+        category_id: category_id,
+        type: channel_type,
         is_public: !is_private
       }
 
       case Messaging.create_server_channel(server_id, socket.assigns.current_user.id, attrs) do
+        {:ok, %{type: "voice_channel"}} ->
+          # Voice channels have no text timeline to navigate to.
+          {:noreply,
+           socket
+           |> assign(:ui, Map.put(socket.assigns.ui, :show_channel_modal, false))
+           |> notify_info("Voice channel created successfully!")
+           |> maybe_schedule_conversation_refresh(100)}
+
         {:ok, channel} ->
           {:noreply,
            socket
@@ -1041,7 +1066,8 @@ defmodule ArblargWeb.ChatLive.Index do
          last_message_read_status: last_message_read_status
      })
      |> assign(:joined_servers, joined_servers)
-     |> assign(:refresh_conversations_scheduled, false)}
+     |> assign(:refresh_conversations_scheduled, false)
+     |> VoiceChannelOperations.sync_voice_channels(conversations)}
   end
 
   @impl true
@@ -1210,14 +1236,26 @@ defmodule ArblargWeb.ChatLive.Index do
   end
 
   def handle_info(info, socket) do
-    case MessageInfoOperations.route_info(info, socket) do
+    case ThreadOperations.route_info(info, socket) do
       {:handled, result} ->
         result
 
       :unhandled ->
-        case CallInfoOperations.route_info(info, socket) do
-          {:handled, result} -> result
-          :unhandled -> {:noreply, socket}
+        case MessageInfoOperations.route_info(info, socket) do
+          {:handled, result} ->
+            result
+
+          :unhandled ->
+            case CallInfoOperations.route_info(info, socket) do
+              {:handled, result} ->
+                result
+
+              :unhandled ->
+                case VoiceChannelOperations.route_info(info, socket) do
+                  {:handled, result} -> result
+                  :unhandled -> {:noreply, socket}
+                end
+            end
         end
     end
   end
@@ -1332,6 +1370,53 @@ defmodule ArblargWeb.ChatLive.Index do
                 <.icon name="hero-plus-circle" class="w-4 h-4 mr-2" /> Create Server
               </button>
               <button type="button" phx-click="hide_create_server" class="btn btn-ghost">
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    <% end %>
+
+    <!-- Channel Category Creation Modal -->
+    <%= if @ui.show_category_modal do %>
+      <div class="modal modal-open">
+        <div
+          class="modal-box modal-surface p-6 max-w-md w-full mx-4"
+          phx-click-away="hide_create_category"
+        >
+          <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-bold">Create Category</h2>
+            <button phx-click="hide_create_category" class="btn btn-ghost btn-sm btn-circle">
+              <.icon name="hero-x-mark" class="w-5 h-5" />
+            </button>
+          </div>
+
+          <form phx-submit="create_channel_category" class="space-y-4">
+            <div>
+              <label class="label">
+                <span class="label-text font-semibold">Category Name</span>
+              </label>
+              <input
+                type="text"
+                name="category[name]"
+                placeholder="e.g. General, Projects"
+                class="input input-bordered w-full"
+                maxlength="80"
+                required
+                autofocus
+              />
+              <p class="text-xs text-base-content/70 mt-1">
+                Categories group this server's channels in the sidebar. Assign channels to a
+                category when creating them.
+              </p>
+            </div>
+
+            <div class="flex gap-3 pt-2">
+              <button type="submit" class="btn btn-secondary flex-1">
+                <.icon name="hero-folder-plus" class="w-4 h-4 mr-2" /> Create Category
+              </button>
+              <button type="button" phx-click="hide_create_category" class="btn btn-ghost">
                 Cancel
               </button>
             </div>
@@ -1932,6 +2017,28 @@ defmodule ArblargWeb.ChatLive.Index do
         >
           <.icon name="hero-arrow-uturn-left" class="w-4 h-4" /> Reply
         </button>
+        
+    <!-- Create/Open Thread -->
+        <%= if @conversation.selected && @conversation.selected.type == "channel" && @context_menu.message.message_type != "system" do %>
+          <% existing_thread = thread_for_message(@threads, @context_menu.message.id) %>
+          <%= if existing_thread do %>
+            <button
+              phx-click="open_thread"
+              phx-value-thread_id={existing_thread.id}
+              class="w-full px-4 py-2 text-left hover:bg-base-200 flex items-center gap-2"
+            >
+              <.icon name="hero-chat-bubble-left-right" class="w-4 h-4" /> Open Thread
+            </button>
+          <% else %>
+            <button
+              phx-click="create_thread"
+              phx-value-message_id={@context_menu.message.id}
+              class="w-full px-4 py-2 text-left hover:bg-base-200 flex items-center gap-2"
+            >
+              <.icon name="hero-chat-bubble-left-right" class="w-4 h-4" /> Create Thread
+            </button>
+          <% end %>
+        <% end %>
         
     <!-- Pin/Unpin Message -->
         <%= if Map.get(@context_menu.message, :is_pinned, false) do %>
@@ -2551,6 +2658,17 @@ defmodule ArblargWeb.ChatLive.Index do
     end
   end
 
+  # Voice channels have no text timeline; they are joined from the sidebar
+  # instead of being opened as a conversation.
+  defp open_conversation_or_redirect(socket, %{type: "voice_channel"}) do
+    socket
+    |> notify_info("Voice channels are joined from the sidebar")
+    |> push_navigate(to: Elektrine.Paths.chat_root_path())
+  end
+
+  defp open_conversation_or_redirect(socket, conversation),
+    do: open_conversation(socket, conversation)
+
   defp open_conversation(socket, conversation) do
     conversation_id = conversation.id
     active_server_id = conversation_server_id(conversation) || socket.assigns[:active_server_id]
@@ -2587,12 +2705,21 @@ defmodule ArblargWeb.ChatLive.Index do
             )
       })
       |> assign(:active_server_id, active_server_id)
+      |> assign(:server_categories, Helpers.server_categories(active_server_id))
       |> assign(:federation_presence, federation_presence)
       |> assign(
         :chat_e2ee_devices,
         Messaging.list_chat_encryption_devices_for_conversation(conversation_id)
       )
       |> assign(:messages, [])
+      |> assign(:pinned_messages, Messaging.list_pinned_chat_messages(conversation_id))
+      |> assign(:threads, %ArblargWeb.ChatLive.State.Threads{
+        list:
+          if(conversation.type == "channel",
+            do: Messaging.list_chat_threads(conversation_id),
+            else: []
+          )
+      })
       |> assign(:message, %{
         socket.assigns.message
         | read_status: %{},
@@ -2842,6 +2969,7 @@ defmodule ArblargWeb.ChatLive.Index do
   defdelegate user_reacted?(reactions, emoji, user_id), to: Helpers
   defdelegate linkify_urls(text), to: Helpers
   defdelegate render_reaction_emoji(emoji), to: Helpers
+  defdelegate thread_for_message(threads, message_id), to: ThreadOperations
 
   defp route_label(conversation, current_user_id) do
     name = Helpers.conversation_name(conversation, current_user_id) |> to_string()
@@ -3313,6 +3441,13 @@ defmodule ArblargWeb.ChatLive.Index do
     case Integer.parse(to_string(value)) do
       {int, ""} when int > 0 -> {:ok, int}
       _ -> :error
+    end
+  end
+
+  defp parse_optional_positive_int(value) do
+    case parse_positive_int(value) do
+      {:ok, int} -> int
+      :error -> nil
     end
   end
 

@@ -62,6 +62,7 @@ defmodule ElektrineWeb.MixProject do
       ArblargWeb.API.ServerController,
       ElektrineSocialWeb.API.SocialController,
       ElektrineVPNWeb.API.VPNController,
+      ArblargWeb.API.WebhookController,
       ElektrineEmailWeb.AttachmentController,
       ArblargWeb.ChatLive.Index,
       ElektrineEmailWeb.ContactsLive.Index,

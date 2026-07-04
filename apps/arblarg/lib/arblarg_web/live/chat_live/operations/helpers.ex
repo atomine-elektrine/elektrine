@@ -134,18 +134,94 @@ defmodule ArblargWeb.ChatLive.Operations.Helpers do
     case active_server_id do
       server_id when is_integer(server_id) ->
         Enum.filter(conversations, fn conversation ->
-          conversation.type != "channel" or is_nil(conversation.server_id) or
+          not server_channel_type?(conversation.type) or is_nil(conversation.server_id) or
             conversation.server_id == server_id
         end)
 
       _ ->
         Enum.filter(conversations, fn conversation ->
-          conversation.type != "channel" or is_nil(conversation.server_id)
+          not server_channel_type?(conversation.type) or is_nil(conversation.server_id)
         end)
     end
   end
 
   def scope_conversations_to_server(_conversations, _active_server_id), do: []
+
+  @doc """
+  Whether a conversation type lives inside a server's channel list (text or
+  voice channels).
+  """
+  def server_channel_type?(type), do: type in ["channel", "voice_channel"]
+
+  @doc """
+  Loads the channel categories of a server (empty list when no server is
+  selected).
+  """
+  def server_categories(server_id) when is_integer(server_id) do
+    Messaging.list_channel_categories(server_id)
+  end
+
+  def server_categories(_server_id), do: []
+
+  @doc """
+  Builds the sidebar entry list for the conversation panel.
+
+  Without an active server this is just the conversations in their given
+  order. With an active server the server's channels are grouped under their
+  category headers: uncategorized channels first, then each category (by
+  position) with its channels ordered by channel position. Non-channel
+  conversations (DMs, groups) follow at the bottom. Channels under a
+  collapsed category are skipped.
+
+  Returns entries shaped as `{:conversation, conversation}` or
+  `{:category, category, collapsed?}`.
+  """
+  def sidebar_entries(conversations, categories, collapsed_category_ids, active_server_id)
+      when is_integer(active_server_id) do
+    {channels, others} =
+      Enum.split_with(
+        conversations,
+        &(server_channel_type?(&1.type) and &1.server_id == active_server_id)
+      )
+
+    category_ids = MapSet.new(categories, & &1.id)
+
+    {categorized, uncategorized} =
+      Enum.split_with(channels, fn channel ->
+        is_integer(channel.category_id) and MapSet.member?(category_ids, channel.category_id)
+      end)
+
+    channels_by_category = Enum.group_by(categorized, & &1.category_id)
+
+    category_entries =
+      Enum.flat_map(categories, fn category ->
+        collapsed? = MapSet.member?(collapsed_category_ids, category.id)
+        header = {:category, category, collapsed?}
+
+        if collapsed? do
+          [header]
+        else
+          channel_entries =
+            channels_by_category
+            |> Map.get(category.id, [])
+            |> sort_channels()
+            |> Enum.map(&{:conversation, &1})
+
+          [header | channel_entries]
+        end
+      end)
+
+    Enum.map(sort_channels(uncategorized), &{:conversation, &1}) ++
+      category_entries ++ Enum.map(others, &{:conversation, &1})
+  end
+
+  def sidebar_entries(conversations, _categories, _collapsed_category_ids, _active_server_id) do
+    Enum.map(conversations, &{:conversation, &1})
+  end
+
+  defp sort_channels(channels) do
+    Enum.sort_by(channels, &{&1.channel_position || 0, &1.id})
+  end
 
   @doc """
   Load timeout status for multiple users in a conversation.

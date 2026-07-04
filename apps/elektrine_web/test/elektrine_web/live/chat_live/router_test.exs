@@ -14,7 +14,9 @@ defmodule ArblargWeb.ChatLive.RouterTest do
     GroupChannelOperations,
     MemberOperations,
     MessageOperations,
-    UIOperations
+    ThreadOperations,
+    UIOperations,
+    VoiceChannelOperations
   }
 
   test "handler_for/1 resolves representative events for each operation module" do
@@ -33,8 +35,10 @@ defmodule ArblargWeb.ChatLive.RouterTest do
   test "event_handlers/0 contains the full chat event surface" do
     handlers = Router.event_handlers()
 
-    assert map_size(handlers) == 126
+    assert map_size(handlers) == 149
     assert Map.fetch!(handlers, "send_message") == MessageOperations
+    assert Map.fetch!(handlers, "create_thread") == ThreadOperations
+    assert Map.fetch!(handlers, "join_voice_channel") == VoiceChannelOperations
     # remote-join review events were previously unrouted (dead buttons); now wired
     assert Map.fetch!(handlers, "approve_remote_join_request") == MemberOperations
     assert Map.fetch!(handlers, "decline_remote_join_request") == MemberOperations

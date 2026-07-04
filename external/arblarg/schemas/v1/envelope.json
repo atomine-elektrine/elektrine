@@ -23,6 +23,7 @@
         "urn:arblarg:ext:permissions:1#overwrite.upsert",
         "urn:arblarg:ext:threads:1#thread.upsert",
         "urn:arblarg:ext:threads:1#thread.archive",
+        "urn:arblarg:ext:pins:1#pin.upsert",
         "urn:arblarg:ext:moderation:1#action.recorded",
         "urn:arblarg:ext:dm:1#message.create",
         "urn:arblarg:ext:voice:1#dm.call.invite",

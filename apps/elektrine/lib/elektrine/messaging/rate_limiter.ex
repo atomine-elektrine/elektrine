@@ -13,6 +13,7 @@ defmodule Elektrine.Messaging.RateLimiter do
   @discussion_post_limit_per_hour 10
   @cross_context_promotion_limit_per_hour 5
   @dm_creation_limit_per_hour 50
+  @webhook_execution_limit_per_minute 30
 
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
@@ -46,6 +47,24 @@ defmodule Elektrine.Messaging.RateLimiter do
   """
   def can_search?(user_id) do
     GenServer.call(__MODULE__, {:check_rate_limit, user_id, :search, @search_limit_per_minute})
+  end
+
+  @doc """
+  Checks if an incoming webhook can post another message.
+  """
+  def can_execute_webhook?(webhook_id) do
+    GenServer.call(
+      __MODULE__,
+      {:check_rate_limit, {:webhook, webhook_id}, :webhook_execution,
+       @webhook_execution_limit_per_minute}
+    )
+  end
+
+  @doc """
+  Records an incoming webhook execution for rate limiting.
+  """
+  def record_webhook_execution(webhook_id) do
+    GenServer.cast(__MODULE__, {:record_action, {:webhook, webhook_id}, :webhook_execution})
   end
 
   @doc """

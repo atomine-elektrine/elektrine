@@ -66,6 +66,10 @@ defmodule Elektrine.Messaging.Federation.MirrorBroadcasts do
         conversation_id: conversation_id
       }) do
     case ChatMessages.get_message_decrypted(message_id) do
+      # Thread messages update the thread panel, not the main timeline.
+      %ChatMessage{thread_id: thread_id} = message when is_integer(thread_id) ->
+        broadcast_conversation_event(conversation_id, {:new_thread_message, message})
+
       %ChatMessage{} = message ->
         broadcast_conversation_event(conversation_id, {:new_chat_message, message})
 

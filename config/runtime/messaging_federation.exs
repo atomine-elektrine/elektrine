@@ -104,4 +104,18 @@ config :elektrine, :messaging_federation,
     parse_int_env.("MESSAGING_FEDERATION_OUTBOX_BASE_BACKOFF_SECONDS", 5),
   event_retention_days: parse_int_env.("MESSAGING_FEDERATION_EVENT_RETENTION_DAYS", 14),
   outbox_retention_days: parse_int_env.("MESSAGING_FEDERATION_OUTBOX_RETENTION_DAYS", 30),
+  ingress_rate_limit_enabled:
+    parse_bool_env.("MESSAGING_FEDERATION_INGRESS_RATE_LIMIT_ENABLED", true),
+  ingress_peer_durable_events_per_minute:
+    parse_int_env.("MESSAGING_FEDERATION_INGRESS_PEER_DURABLE_EVENTS_PER_MINUTE", 600),
+  ingress_peer_ephemeral_items_per_minute:
+    parse_int_env.("MESSAGING_FEDERATION_INGRESS_PEER_EPHEMERAL_ITEMS_PER_MINUTE", 1200),
+  ingress_peer_sync_requests_per_minute:
+    parse_int_env.("MESSAGING_FEDERATION_INGRESS_PEER_SYNC_REQUESTS_PER_MINUTE", 10),
+  ingress_peer_replay_requests_per_minute:
+    parse_int_env.("MESSAGING_FEDERATION_INGRESS_PEER_REPLAY_REQUESTS_PER_MINUTE", 60),
+  ingress_room_durable_events_per_minute:
+    parse_int_env.("MESSAGING_FEDERATION_INGRESS_ROOM_DURABLE_EVENTS_PER_MINUTE", 240),
+  ingress_rate_limit_exempt_domains:
+    parse_json_list_env.("MESSAGING_FEDERATION_INGRESS_RATE_LIMIT_EXEMPT_DOMAINS_JSON"),
   peers: parse_json_list_env.("MESSAGING_FEDERATION_PEERS_JSON")

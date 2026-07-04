@@ -24,6 +24,9 @@ defmodule Elektrine.Messaging.Federation.ExtensionEvents do
       "thread.archive" ->
         apply_thread_archive(data, remote_domain, context)
 
+      "pin.upsert" ->
+        apply_pin_upsert(data, remote_domain, context)
+
       "moderation.action.recorded" ->
         apply_moderation_action_recorded(data, remote_domain, context)
 
@@ -208,7 +211,7 @@ defmodule Elektrine.Messaging.Federation.ExtensionEvents do
              context
            ),
          event_key <- "thread:#{thread_id}:channel:#{mirror_channel.id}",
-         {:ok, _event_projection} <-
+         {:ok, event_projection} <-
            call(context, :upsert_extension_projection, [
              "thread.upsert",
              event_key,
@@ -219,6 +222,13 @@ defmodule Elektrine.Messaging.Federation.ExtensionEvents do
              DateTime.utc_now(),
              thread_state
            ]),
+         # Project the winning extension state into a local chat_threads row so
+         # the thread is visible in the chat UI alongside the event storage.
+         :ok <-
+           Elektrine.Messaging.ChatThreads.apply_remote_thread_projection(
+             mirror_channel,
+             event_projection
+           ),
          :ok <-
            call(context, :upsert_extension_system_message, [
              mirror_channel,
@@ -266,7 +276,7 @@ defmodule Elektrine.Messaging.Federation.ExtensionEvents do
              context
            ),
          event_key <- "thread:#{thread_id}:channel:#{mirror_channel.id}",
-         {:ok, _event_projection} <-
+         {:ok, event_projection} <-
            call(context, :upsert_extension_projection, [
              "thread.archive",
              event_key,
@@ -277,6 +287,12 @@ defmodule Elektrine.Messaging.Federation.ExtensionEvents do
              archived_at,
              "archived"
            ]),
+         # Keep the local chat_threads projection in sync with the archive.
+         :ok <-
+           Elektrine.Messaging.ChatThreads.apply_remote_thread_projection(
+             mirror_channel,
+             event_projection
+           ),
          :ok <-
            call(context, :upsert_extension_system_message, [
              mirror_channel,
@@ -291,6 +307,55 @@ defmodule Elektrine.Messaging.Federation.ExtensionEvents do
              },
              remote_domain
            ]) do
+      :ok
+    else
+      error -> normalize_event_error(error)
+    end
+  end
+
+  defp apply_pin_upsert(data, remote_domain, context) do
+    with %{} <- data["server"],
+         %{} <- data["channel"],
+         %{} = pin_payload <- data["pin"],
+         message_id when is_binary(message_id) <- pin_payload["message_id"],
+         pin_state when pin_state in ["pinned", "unpinned"] <- pin_payload["state"],
+         %{} = actor_payload <- data["actor"],
+         occurred_at <-
+           call(context, :parse_datetime, [
+             pin_payload["updated_at"] || pin_payload["pinned_at"]
+           ]) || DateTime.utc_now(),
+         {:ok, mirror_server, mirror_channel} <-
+           call(context, :resolve_channel_event_context, [data, remote_domain]),
+         {:ok, remote_actor_id} <-
+           call(context, :resolve_or_create_remote_actor_id, [actor_payload, remote_domain]),
+         :ok <-
+           authorize_governance_event(
+             data,
+             remote_domain,
+             mirror_channel,
+             remote_actor_id,
+             :manage_messages,
+             %{remote_actor_id: remote_actor_id},
+             context
+           ),
+         event_key <- "pin:#{message_id}:channel:#{mirror_channel.id}",
+         {:ok, event_projection} <-
+           call(context, :upsert_extension_projection, [
+             "pin.upsert",
+             event_key,
+             data,
+             remote_domain,
+             mirror_server.id,
+             mirror_channel.id,
+             occurred_at,
+             pin_state
+           ]),
+         # Project the winning pin state into the local chat_message_pins rows.
+         :ok <-
+           Elektrine.Messaging.ChatMessagePins.apply_remote_pin_projection(
+             mirror_channel,
+             event_projection
+           ) do
       :ok
     else
       error -> normalize_event_error(error)

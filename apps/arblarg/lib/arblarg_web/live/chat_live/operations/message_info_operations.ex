@@ -262,7 +262,13 @@ defmodule ArblargWeb.ChatLive.Operations.MessageInfoOperations do
           end
         end)
 
-      {:noreply, Phoenix.Component.assign(socket, :messages, messages)}
+      pinned_messages =
+        [message | Enum.reject(socket.assigns[:pinned_messages] || [], &(&1.id == message.id))]
+
+      {:noreply,
+       socket
+       |> Phoenix.Component.assign(:messages, messages)
+       |> Phoenix.Component.assign(:pinned_messages, pinned_messages)}
     else
       {:noreply, socket}
     end
@@ -279,7 +285,13 @@ defmodule ArblargWeb.ChatLive.Operations.MessageInfoOperations do
           end
         end)
 
-      {:noreply, Phoenix.Component.assign(socket, :messages, messages)}
+      pinned_messages =
+        Enum.reject(socket.assigns[:pinned_messages] || [], &(&1.id == message.id))
+
+      {:noreply,
+       socket
+       |> Phoenix.Component.assign(:messages, messages)
+       |> Phoenix.Component.assign(:pinned_messages, pinned_messages)}
     else
       {:noreply, socket}
     end

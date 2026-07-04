@@ -47,10 +47,14 @@ defmodule Elektrine.Messaging do
 
   # Delegate to sub-contexts
   alias Elektrine.Messaging.{
+    ChannelCategories,
     ChatConversation,
     ChatConversations,
     ChatMessage,
-    ChatMessages
+    ChatMessagePins,
+    ChatMessages,
+    ChatThreads,
+    ChatWebhooks
   }
 
   alias Elektrine.Social.Message
@@ -407,6 +411,56 @@ defmodule Elektrine.Messaging do
   """
   defdelegate join_server(server_id, user_id), to: Servers
 
+  ## Channel categories - Delegate to ChannelCategories context
+
+  @doc """
+  Lists a server's channel categories ordered by position.
+  """
+  defdelegate list_channel_categories(server_id), to: ChannelCategories, as: :list_categories
+
+  @doc """
+  Lists a server's channel categories with channels preloaded, plus the
+  server's uncategorized channels.
+  """
+  defdelegate list_channel_categories_with_channels(server_id),
+    to: ChannelCategories,
+    as: :list_categories_with_channels
+
+  @doc """
+  Creates a channel category in a server (requires `manage_channels`).
+  """
+  defdelegate create_channel_category(server_id, user_id, attrs),
+    to: ChannelCategories,
+    as: :create_category
+
+  @doc """
+  Renames a channel category (requires `manage_channels`).
+  """
+  defdelegate rename_channel_category(category_id, user_id, name),
+    to: ChannelCategories,
+    as: :rename_category
+
+  @doc """
+  Deletes a channel category, keeping its channels (requires `manage_channels`).
+  """
+  defdelegate delete_channel_category(category_id, user_id),
+    to: ChannelCategories,
+    as: :delete_category
+
+  @doc """
+  Reorders a server's channel categories (requires `manage_channels`).
+  """
+  defdelegate reorder_channel_categories(server_id, user_id, ordered_ids),
+    to: ChannelCategories,
+    as: :reorder_categories
+
+  @doc """
+  Moves a channel into a category, or out of any category when `category_id`
+  is `nil` (requires `manage_channels`).
+  """
+  defdelegate assign_channel_to_category(channel_id, user_id, category_id),
+    to: ChannelCategories
+
   ## Messages - Delegate to Messages context
 
   @doc """
@@ -652,7 +706,12 @@ defmodule Elektrine.Messaging do
 
       {chat_info, non_chat_info} =
         Enum.split_with(message_info_list, fn {conversation_id, _message_id, _inserted_at} ->
-          Map.get(conversation_type_map, conversation_id) in ["dm", "group", "channel"]
+          Map.get(conversation_type_map, conversation_id) in [
+            "dm",
+            "group",
+            "channel",
+            "voice_channel"
+          ]
         end)
 
       chat_result = ChatMessages.get_batch_last_message_read_status(chat_info)
@@ -687,7 +746,7 @@ defmodule Elektrine.Messaging do
         conversation_ids
         |> Enum.uniq()
         |> Enum.split_with(fn conversation_id ->
-          Map.get(type_map, conversation_id) in ["dm", "group", "channel"]
+          Map.get(type_map, conversation_id) in ["dm", "group", "channel", "voice_channel"]
         end)
 
       chat_counts = ChatMessages.get_conversation_unread_counts(chat_ids, user_id)
@@ -718,6 +777,128 @@ defmodule Elektrine.Messaging do
   Lists pinned messages for a conversation.
   """
   defdelegate list_pinned_messages(conversation_id), to: Messages
+
+  ## Chat message pins - Delegate to ChatMessagePins context
+
+  @doc """
+  Pins a chat message (requires `manage_messages` in the conversation).
+  """
+  defdelegate pin_chat_message(message_id, user_id), to: ChatMessagePins, as: :pin_message
+
+  @doc """
+  Unpins a chat message (requires `manage_messages` in the conversation).
+  """
+  defdelegate unpin_chat_message(message_id, user_id), to: ChatMessagePins, as: :unpin_message
+
+  @doc """
+  Lists a chat conversation's pinned messages, newest pin first.
+  """
+  defdelegate list_pinned_chat_messages(conversation_id),
+    to: ChatMessagePins,
+    as: :list_pinned_messages
+
+  ## Chat threads - Delegate to ChatThreads context
+
+  @doc """
+  Creates a thread from a channel message (requires `create_threads`).
+  """
+  defdelegate create_chat_thread_from_message(message_id, user_id, attrs \\ %{}),
+    to: ChatThreads,
+    as: :create_thread_from_message
+
+  @doc """
+  Creates a standalone thread in a channel (requires `create_threads`).
+  """
+  defdelegate create_chat_thread(conversation_id, user_id, attrs),
+    to: ChatThreads,
+    as: :create_thread
+
+  @doc """
+  Archives a thread (thread creator or `manage_threads`).
+  """
+  defdelegate archive_chat_thread(thread_id, user_id), to: ChatThreads, as: :archive_thread
+
+  @doc """
+  Unarchives a thread (thread creator or `manage_threads`).
+  """
+  defdelegate unarchive_chat_thread(thread_id, user_id), to: ChatThreads, as: :unarchive_thread
+
+  @doc """
+  Gets a thread by id.
+  """
+  defdelegate get_chat_thread(thread_id), to: ChatThreads, as: :get_thread
+
+  @doc """
+  Lists a conversation's threads (`:active`, `:archived`, or `:all`).
+  """
+  defdelegate list_chat_threads(conversation_id, status \\ :active),
+    to: ChatThreads,
+    as: :list_threads
+
+  @doc """
+  Sends a text message into a thread.
+  """
+  defdelegate create_chat_thread_message(thread_id, sender_id, content, opts \\ []),
+    to: ChatThreads,
+    as: :create_thread_message
+
+  @doc """
+  Lists the messages inside a thread, oldest first.
+  """
+  defdelegate list_chat_thread_messages(thread_id, opts \\ []),
+    to: ChatThreads,
+    as: :list_thread_messages
+
+  ## Chat webhooks - Delegate to ChatWebhooks context
+
+  @doc """
+  Creates an incoming webhook on a channel/group (requires `manage_webhooks`).
+  """
+  defdelegate create_chat_webhook(conversation_id, user_id, attrs \\ %{}),
+    to: ChatWebhooks,
+    as: :create_webhook
+
+  @doc """
+  Lists a conversation's incoming webhooks (requires `manage_webhooks`).
+  """
+  defdelegate list_chat_webhooks(conversation_id, user_id),
+    to: ChatWebhooks,
+    as: :list_webhooks
+
+  @doc """
+  Renames an incoming webhook or updates its avatar (requires `manage_webhooks`).
+  """
+  defdelegate update_chat_webhook(webhook_id, user_id, attrs),
+    to: ChatWebhooks,
+    as: :update_webhook
+
+  @doc """
+  Rotates an incoming webhook's token (requires `manage_webhooks`).
+  """
+  defdelegate rotate_chat_webhook_token(webhook_id, user_id),
+    to: ChatWebhooks,
+    as: :rotate_webhook_token
+
+  @doc """
+  Deactivates an incoming webhook (requires `manage_webhooks`).
+  """
+  defdelegate deactivate_chat_webhook(webhook_id, user_id),
+    to: ChatWebhooks,
+    as: :deactivate_webhook
+
+  @doc """
+  Deletes an incoming webhook (requires `manage_webhooks`).
+  """
+  defdelegate delete_chat_webhook(webhook_id, user_id),
+    to: ChatWebhooks,
+    as: :delete_webhook
+
+  @doc """
+  Executes an incoming webhook (token-authenticated message post).
+  """
+  defdelegate execute_chat_webhook(webhook_id, token, params),
+    to: ChatWebhooks,
+    as: :execute_webhook
 
   @doc """
   Generates a friendly URL path for a discussion post.
@@ -1019,6 +1200,7 @@ defmodule Elektrine.Messaging do
       "dm" -> true
       "group" -> true
       "channel" -> true
+      "voice_channel" -> true
       _ -> false
     end
   end
@@ -1050,6 +1232,7 @@ defmodule Elektrine.Messaging do
   Creates a message from a federated source (ActivityPub).
   """
   defdelegate create_federated_message(attrs), to: Messages
+  defdelegate create_federated_message_with_status(attrs), to: Messages
 
   @doc """
   Gets a message by its ActivityPub ID.

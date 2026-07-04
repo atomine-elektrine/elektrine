@@ -211,6 +211,19 @@ defmodule Elektrine.Messaging.RoomACL do
        when type != "channel" and action in [:participate, :write, :send_messages],
        do: true
 
+  # Voice channels have no text timeline; any active member may participate in
+  # voice signaling. Full permission-overwrite evaluation is intentionally not
+  # applied here (the builtin member role does not carry send_voice_signaling,
+  # which is reserved for gating via explicit overwrites in later iterations).
+  defp allowed?(
+         %ChatConversation{type: "voice_channel"},
+         _base_role,
+         _actor_uri,
+         action,
+         _options
+       ),
+       do: action in [:participate, :send_voice_signaling]
+
   defp allowed?(%ChatConversation{type: type}, _base_role, _actor_uri, action, _options)
        when type != "channel" and action in [:participate, :write, :send_messages],
        do: true
@@ -250,6 +263,9 @@ defmodule Elektrine.Messaging.RoomACL do
       :manage_channels ->
         MapSet.member?(permissions, "manage_channels")
 
+      :manage_webhooks ->
+        MapSet.member?(permissions, "manage_webhooks")
+
       :manage_server ->
         MapSet.member?(permissions, "manage_server")
 
@@ -272,6 +288,15 @@ defmodule Elektrine.Messaging.RoomACL do
       :thread_archive ->
         MapSet.member?(permissions, "manage_threads") or
           MapSet.member?(permissions, "manage_moderation") or owner_matches?(options, actor_uri)
+
+      :create_threads ->
+        MapSet.member?(permissions, "create_threads") or
+          MapSet.member?(permissions, "manage_threads") or
+          MapSet.member?(permissions, "manage_moderation")
+
+      :manage_threads ->
+        MapSet.member?(permissions, "manage_threads") or
+          MapSet.member?(permissions, "manage_moderation")
 
       _ ->
         false
@@ -305,6 +330,9 @@ defmodule Elektrine.Messaging.RoomACL do
       :manage_channels ->
         MapSet.member?(permissions, "manage_channels")
 
+      :manage_webhooks ->
+        MapSet.member?(permissions, "manage_webhooks")
+
       :manage_server ->
         MapSet.member?(permissions, "manage_server")
 
@@ -327,6 +355,15 @@ defmodule Elektrine.Messaging.RoomACL do
       :thread_archive ->
         MapSet.member?(permissions, "manage_threads") or
           MapSet.member?(permissions, "manage_moderation") or owner_matches?(options, actor_uri)
+
+      :create_threads ->
+        MapSet.member?(permissions, "create_threads") or
+          MapSet.member?(permissions, "manage_threads") or
+          MapSet.member?(permissions, "manage_moderation")
+
+      :manage_threads ->
+        MapSet.member?(permissions, "manage_threads") or
+          MapSet.member?(permissions, "manage_moderation")
 
       _ ->
         false

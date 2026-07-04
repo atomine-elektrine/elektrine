@@ -21,6 +21,7 @@ defmodule Elektrine.Accounts.User do
     field :avatar, :string
     field :avatar_size, :integer, default: 0
     field :is_admin, :boolean, default: false
+    field :is_bot, :boolean, default: false
     field :verified, :boolean, default: false
     field :banned, :boolean, default: false
     field :banned_at, :utc_datetime
@@ -493,6 +494,7 @@ defmodule Elektrine.Accounts.User do
       :also_known_as,
       :moved_to,
       :verified,
+      :is_bot,
       :banned,
       :banned_reason,
       :suspended,

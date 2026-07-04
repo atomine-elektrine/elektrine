@@ -672,6 +672,18 @@ Feature-specific authorization MUST reduce to the effective room permission
 projection. Unsupported rich features MAY be preserved as metadata, but MUST NOT
 grant additional authority unless the receiver understands them.
 
+Thread-scoped messages:
+
+- `message.create` payloads MAY carry an optional `message.thread_id`
+  referencing the stable id of a thread previously announced through
+  `thread.upsert` in the same room
+- senders MUST NOT invent thread ids; the reference MUST match a thread id
+  minted by the thread's origin domain
+- receivers that track threads SHOULD place the message inside the referenced
+  thread and MUST fall back to the channel timeline when the thread is unknown
+- receivers that do not track threads MUST treat the message as a regular
+  channel message; the field grants no additional authority
+
 ### 7.7 Attachments and media metadata
 
 Arblarg does not define a binary media transport, but message payloads MAY carry
@@ -704,6 +716,7 @@ Current extension URNs are:
 - `urn:arblarg:ext:roles:1`
 - `urn:arblarg:ext:permissions:1`
 - `urn:arblarg:ext:threads:1`
+- `urn:arblarg:ext:pins:1`
 - `urn:arblarg:ext:presence:1`
 - `urn:arblarg:ext:moderation:1`
 - `urn:arblarg:ext:dm:1`
@@ -711,6 +724,11 @@ Current extension URNs are:
 
 `urn:arblarg:ext:voice:1` defines DM call control and signaling events only. It
 does not define voice or video media transport.
+
+`urn:arblarg:ext:pins:1` defines the `pin.upsert` governance event carrying a
+pinned-message reference and a `pinned`/`unpinned` state. It projects
+last-write-wins per pinned message, requires `manage_messages`, and realizes
+the "pinned messages as governed room state" feature from section 7.6.
 
 Negotiation rules:
 

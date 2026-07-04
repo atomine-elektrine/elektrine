@@ -62,6 +62,7 @@ import {
   VideoDisplay,
   CallTimer,
 } from "./call_hooks";
+import { VoiceChannel } from "./voice_channel_hook";
 
 // Profile hooks
 import {
@@ -166,6 +167,7 @@ export const Hooks = {
   CallControls,
   VideoDisplay,
   CallTimer,
+  VoiceChannel,
 
   // Profile
   TypewriterHook,
