@@ -76,6 +76,85 @@ defmodule ArblargWeb.ChatLive.Operations.GroupChannelOperations do
     end
   end
 
+  def handle_event("show_create_category", _params, socket) do
+    case selected_server_id(socket) do
+      nil ->
+        {:noreply,
+         socket
+         |> notify_error("Select a server first, then create categories inside it")}
+
+      _server_id ->
+        {:noreply,
+         assign(
+           socket,
+           :ui,
+           socket.assigns.ui
+           |> Map.put(:show_category_modal, true)
+           |> Map.put(:show_new_chat, false)
+         )}
+    end
+  end
+
+  def handle_event("hide_create_category", _params, socket) do
+    {:noreply, assign(socket, :ui, Map.put(socket.assigns.ui, :show_category_modal, false))}
+  end
+
+  def handle_event("create_channel_category", params, socket) do
+    category_params = Map.get(params, "category", %{})
+    name = params["name"] || category_params["name"]
+
+    with server_id when is_integer(server_id) <- selected_server_id(socket),
+         true <- Elektrine.Strings.present?(name) do
+      case Messaging.create_channel_category(server_id, socket.assigns.current_user.id, %{
+             name: String.trim(name)
+           }) do
+        {:ok, _category} ->
+          {:noreply,
+           socket
+           |> assign(:ui, Map.put(socket.assigns.ui, :show_category_modal, false))
+           |> assign(:server_categories, Helpers.server_categories(server_id))
+           |> notify_info("Category created!")}
+
+        {:error, :unauthorized} ->
+          {:noreply,
+           socket
+           |> notify_error("You don't have permission to manage channels in this server")}
+
+        {:error, :not_found} ->
+          {:noreply, notify_error(socket, "Server not found")}
+
+        {:error, _} ->
+          {:noreply, notify_error(socket, "Failed to create category")}
+      end
+    else
+      nil ->
+        {:noreply,
+         notify_error(socket, "Select a server first, then create categories inside it")}
+
+      false ->
+        {:noreply, notify_error(socket, "Please enter a category name")}
+    end
+  end
+
+  def handle_event("toggle_category_collapse", %{"category_id" => category_id}, socket) do
+    case parse_positive_int(category_id) do
+      {:ok, category_id} ->
+        collapsed = socket.assigns.collapsed_category_ids
+
+        updated =
+          if MapSet.member?(collapsed, category_id) do
+            MapSet.delete(collapsed, category_id)
+          else
+            MapSet.put(collapsed, category_id)
+          end
+
+        {:noreply, assign(socket, :collapsed_category_ids, updated)}
+
+      :error ->
+        {:noreply, socket}
+    end
+  end
+
   def handle_event("create_group", params, socket) do
     name = params["name"]
     selected_users = socket.assigns.form.selected_users
@@ -200,6 +279,7 @@ defmodule ArblargWeb.ChatLive.Operations.GroupChannelOperations do
       socket.assigns.ui
       |> Map.put(:show_group_modal, false)
       |> Map.put(:show_channel_modal, false)
+      |> Map.put(:show_category_modal, false)
       |> Map.put(:show_server_modal, false)
       |> Map.put(:show_new_chat, false)
 
@@ -496,6 +576,7 @@ defmodule ArblargWeb.ChatLive.Operations.GroupChannelOperations do
 
     socket
     |> assign(:active_server_id, active_server_id)
+    |> assign(:server_categories, Helpers.server_categories(active_server_id))
     |> assign(:conversation, %{socket.assigns.conversation | filtered: filtered_conversations})
   end
 

@@ -14,6 +14,8 @@ defmodule ArblargWeb.ChatLive.State do
               show_create_channel: false,
               show_group_modal: false,
               show_channel_modal: false,
+              show_category_modal: false,
+              show_pinned_panel: false,
               show_server_modal: false,
               show_browse_channels: false,
               show_settings_modal: false,
@@ -101,6 +103,33 @@ defmodule ArblargWeb.ChatLive.State do
               last_message_read_status: %{},
               unread_count: 0,
               unread_counts: %{}
+  end
+
+  defmodule Threads do
+    @moduledoc """
+    Thread state for the selected conversation: the thread list, the thread
+    open in the right-hand panel (with its messages), and panel visibility.
+    """
+    defstruct list: [],
+              archived: [],
+              show_panel: false,
+              show_archived: false,
+              active: nil,
+              messages: [],
+              composer: ""
+  end
+
+  defmodule Voice do
+    @moduledoc """
+    Voice channel state: the channel the user is connected to, local mute
+    state, live occupant lists per voice channel (from presence), and the
+    set of voice presence topics this LiveView is subscribed to.
+    """
+    defstruct joined_id: nil,
+              joined_name: nil,
+              muted: false,
+              occupants: %{},
+              subscribed_ids: MapSet.new()
   end
 
   defmodule Moderation do

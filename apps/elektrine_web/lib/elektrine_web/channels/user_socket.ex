@@ -6,6 +6,7 @@ defmodule ElektrineWeb.UserSocket do
 
   # Channels
   channel "call:*", ElektrineWeb.CallChannel
+  channel "voice:*", ElektrineWeb.VoiceChannel
   channel "mobile:*", ElektrineWeb.MobileChannel
 
   @impl true

@@ -71,6 +71,7 @@ defmodule Elektrine.Messaging.Federation.Utils do
       "deleted_at" => format_created_at(message.deleted_at),
       "sender" => message_sender_payload(message)
     }
+    |> maybe_put_thread_ref(message)
     |> maybe_put_client_encryption(message)
   end
 
@@ -84,7 +85,17 @@ defmodule Elektrine.Messaging.Federation.Utils do
       "edited_at" => format_created_at(message.edited_at),
       "sender" => message_sender_payload(message)
     }
+    |> maybe_put_thread_ref(message)
     |> maybe_put_client_encryption(message)
+  end
+
+  # Thread messages carry an optional thread reference (spec section 7.6);
+  # receivers without thread support treat them as regular channel messages.
+  defp maybe_put_thread_ref(payload, message) do
+    case Elektrine.Messaging.ChatThreads.message_thread_ref(message) do
+      ref when is_binary(ref) -> Map.put(payload, "thread_id", ref)
+      _ -> payload
+    end
   end
 
   def attachment_payloads(message) do
@@ -134,6 +145,7 @@ defmodule Elektrine.Messaging.Federation.Utils do
       "domain" => domain,
       "handle" => handle
     }
+    |> maybe_put_is_bot(user)
     |> maybe_put_chat_encryption_devices(user)
   end
 
@@ -265,6 +277,10 @@ defmodule Elektrine.Messaging.Federation.Utils do
     "#{local_base_url()}/_arblarg/channels/#{channel_id}"
   end
 
+  def thread_federation_id(thread_id) do
+    "#{local_base_url()}/_arblarg/threads/#{thread_id}"
+  end
+
   def message_federation_id(message_id, opts \\ []) do
     "#{base_url_for_domain(sender_domain(opts))}/_arblarg/messages/#{message_id}"
   end
@@ -366,15 +382,70 @@ defmodule Elektrine.Messaging.Federation.Utils do
       "domain" => local_domain(),
       "handle" => handle
     }
+    |> maybe_put_is_bot(sender)
     |> maybe_put_chat_encryption_devices(sender)
   end
 
   def message_sender_payload(message) when is_map(message) do
-    format_sender(Map.get(message, :sender)) ||
+    webhook_sender_payload(message) ||
+      format_sender(Map.get(message, :sender)) ||
       embedded_sender_payload(Map.get(message, :media_metadata))
   end
 
   def message_sender_payload(_message), do: nil
+
+  # Webhook-authored messages federate as normal message.create events; the
+  # sender payload carries the webhook display metadata. The message.create
+  # schema requires uri/username/domain/handle on the sender and already
+  # allows the optional avatar_url/display_name fields; the extra "is_bot"
+  # flag is permitted because the schema does not restrict additional
+  # properties.
+  def webhook_sender_payload(message) when is_map(message) do
+    metadata = Map.get(message, :media_metadata)
+
+    sender =
+      if is_map(metadata),
+        do: metadata["webhook_sender"] || metadata[:webhook_sender],
+        else: nil
+
+    if is_map(sender) do
+      webhook_id =
+        Map.get(message, :webhook_id) || sender["webhook_id"] || sender[:webhook_id] || "unknown"
+
+      name = to_string(sender["name"] || sender[:name] || "Webhook")
+      avatar_url = sender["avatar_url"] || sender[:avatar_url]
+      uri = "#{local_base_url()}/chat/webhooks/#{webhook_id}"
+
+      %{
+        "id" => uri,
+        "uri" => uri,
+        "username" => name,
+        "display_name" => name,
+        "domain" => local_domain(),
+        "handle" => "webhook-#{webhook_id}@#{local_domain()}",
+        "is_bot" => true
+      }
+      |> maybe_put_avatar_url(avatar_url)
+    else
+      nil
+    end
+  end
+
+  def webhook_sender_payload(_message), do: nil
+
+  defp maybe_put_avatar_url(payload, avatar_url) when is_binary(avatar_url) do
+    Map.put(payload, "avatar_url", avatar_url)
+  end
+
+  defp maybe_put_avatar_url(payload, _avatar_url), do: payload
+
+  defp maybe_put_is_bot(payload, sender) do
+    if is_map(sender) and Map.get(sender, :is_bot) == true do
+      Map.put(payload, "is_bot", true)
+    else
+      payload
+    end
+  end
 
   def format_created_at(nil) do
     nil
@@ -384,8 +455,12 @@ defmodule Elektrine.Messaging.Federation.Utils do
     DateTime.to_iso8601(datetime)
   end
 
+  # Ecto `timestamps()` are UTC-naive; emit a full ISO 8601 UTC timestamp so
+  # receivers validating `format: date-time` (including our own SDK) accept it.
   def format_created_at(%NaiveDateTime{} = datetime) do
-    NaiveDateTime.to_iso8601(datetime)
+    datetime
+    |> DateTime.from_naive!("Etc/UTC")
+    |> DateTime.to_iso8601()
   end
 
   def parse_datetime(nil), do: nil

@@ -258,6 +258,16 @@ defmodule ElektrineWeb.MessagingFederationController do
   def event(conn, payload) do
     remote_domain = conn.assigns[:federation_peer_domain]
 
+    case Federation.check_ingress_durable_limit(remote_domain, [payload["stream_id"]]) do
+      :ok ->
+        process_event(conn, payload, remote_domain)
+
+      {:error, :rate_limited, retry_after} ->
+        render_rate_limited(conn, retry_after)
+    end
+  end
+
+  defp process_event(conn, payload, remote_domain) do
     case Federation.receive_event(payload, remote_domain) do
       {:ok, :applied} ->
         conn
@@ -408,9 +418,17 @@ defmodule ElektrineWeb.MessagingFederationController do
     remote_domain = conn.assigns[:federation_peer_domain]
 
     with {:ok, decoded_payload} <- decode_request_payload(conn, payload),
+         :ok <-
+           Federation.check_ingress_durable_limit(
+             remote_domain,
+             batch_stream_ids(decoded_payload)
+           ),
          {:ok, response} <- Federation.receive_event_batch(decoded_payload, remote_domain) do
       render_federation_payload(conn, :ok, response, :batch)
     else
+      {:error, :rate_limited, retry_after} ->
+        render_rate_limited(conn, retry_after)
+
       {:error, :invalid_payload} ->
         render_error(conn, :bad_request, :invalid_payload, "Invalid payload")
 
@@ -440,9 +458,18 @@ defmodule ElektrineWeb.MessagingFederationController do
     remote_domain = conn.assigns[:federation_peer_domain]
 
     with {:ok, decoded_payload} <- decode_request_payload(conn, payload),
+         :ok <-
+           Federation.check_ingress_peer_limit(
+             remote_domain,
+             :ephemeral,
+             ephemeral_item_count(decoded_payload)
+           ),
          {:ok, response} <- Federation.receive_ephemeral_batch(decoded_payload, remote_domain) do
       render_federation_payload(conn, :ok, response, :ephemeral)
     else
+      {:error, :rate_limited, retry_after} ->
+        render_rate_limited(conn, retry_after)
+
       {:error, :invalid_payload} ->
         render_error(conn, :bad_request, :invalid_payload, "Invalid payload")
 
@@ -471,6 +498,16 @@ defmodule ElektrineWeb.MessagingFederationController do
   def sync(conn, payload) do
     remote_domain = conn.assigns[:federation_peer_domain]
 
+    case Federation.check_ingress_peer_limit(remote_domain, :sync) do
+      :ok ->
+        process_sync(conn, payload, remote_domain)
+
+      {:error, :rate_limited, retry_after} ->
+        render_rate_limited(conn, retry_after)
+    end
+  end
+
+  defp process_sync(conn, payload, remote_domain) do
     case Federation.import_server_snapshot(payload, remote_domain) do
       {:ok, mirror_server} ->
         conn
@@ -550,6 +587,16 @@ defmodule ElektrineWeb.MessagingFederationController do
   Exports a local server snapshot for trusted peers.
   """
   def snapshot(conn, %{"server_id" => server_id}) do
+    case Federation.check_ingress_peer_limit(conn.assigns[:federation_peer_domain], :sync) do
+      :ok ->
+        process_snapshot(conn, server_id)
+
+      {:error, :rate_limited, retry_after} ->
+        render_rate_limited(conn, retry_after)
+    end
+  end
+
+  defp process_snapshot(conn, server_id) do
     case Integer.parse(server_id) do
       {id, ""} ->
         case Federation.build_server_snapshot(id, peer: conn.assigns[:federation_peer]) do
@@ -586,6 +633,16 @@ defmodule ElektrineWeb.MessagingFederationController do
   Exports local ordered events for a single stream after a cursor.
   """
   def stream_events(conn, params) do
+    case Federation.check_ingress_peer_limit(conn.assigns[:federation_peer_domain], :replay) do
+      :ok ->
+        process_stream_events(conn, params)
+
+      {:error, :rate_limited, retry_after} ->
+        render_rate_limited(conn, retry_after)
+    end
+  end
+
+  defp process_stream_events(conn, params) do
     stream_id = params["stream_id"]
     after_sequence = parse_positive_int(params["after_sequence"], 0)
     limit = parse_positive_int(params["limit"], 128)
@@ -693,4 +750,30 @@ defmodule ElektrineWeb.MessagingFederationController do
     |> put_status(status)
     |> json(%{error: message, code: Federation.error_code(reason)})
   end
+
+  defp render_rate_limited(conn, retry_after_seconds) do
+    conn
+    |> put_resp_header("retry-after", Integer.to_string(retry_after_seconds))
+    |> put_status(:too_many_requests)
+    |> json(%{
+      error: "Federation ingress rate limit exceeded",
+      code: Federation.error_code(:rate_limited),
+      retry_after_seconds: retry_after_seconds
+    })
+  end
+
+  defp batch_stream_ids(%{"events" => events}) when is_list(events), do: event_stream_ids(events)
+  defp batch_stream_ids(events) when is_list(events), do: event_stream_ids(events)
+  defp batch_stream_ids(_payload), do: []
+
+  defp event_stream_ids(events) do
+    Enum.map(events, fn
+      event when is_map(event) -> event["stream_id"]
+      _event -> nil
+    end)
+  end
+
+  defp ephemeral_item_count(%{"items" => items}) when is_list(items), do: length(items)
+  defp ephemeral_item_count(items) when is_list(items), do: length(items)
+  defp ephemeral_item_count(_payload), do: 1
 end

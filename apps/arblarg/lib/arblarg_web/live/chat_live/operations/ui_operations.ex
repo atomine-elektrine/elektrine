@@ -13,6 +13,7 @@ defmodule ArblargWeb.ChatLive.Operations.UIOperations do
     :show_create_channel,
     :show_group_modal,
     :show_channel_modal,
+    :show_category_modal,
     :show_server_modal,
     :show_browse_channels,
     :show_settings_modal,
@@ -88,6 +89,13 @@ defmodule ArblargWeb.ChatLive.Operations.UIOperations do
 
   def handle_event("hide_message_search", _params, socket) do
     {:noreply, assign(socket, :ui, Map.put(socket.assigns.ui, :show_message_search_modal, false))}
+  end
+
+  def handle_event("toggle_pinned_panel", _params, socket) do
+    show_pinned_panel = !socket.assigns.ui.show_pinned_panel
+
+    {:noreply,
+     assign(socket, :ui, Map.put(socket.assigns.ui, :show_pinned_panel, show_pinned_panel))}
   end
 
   def handle_event("ignore", _params, socket) do

@@ -154,6 +154,32 @@ defmodule ElektrineWeb.Routes.Chat do
         ArblargWeb.API.MessageController,
         :remove_reaction
       )
+
+      get(
+        "/conversations/:conversation_id/webhooks",
+        ArblargWeb.API.WebhookController,
+        :index
+      )
+
+      post(
+        "/conversations/:conversation_id/webhooks",
+        ArblargWeb.API.WebhookController,
+        :create
+      )
+
+      put("/webhooks/:id", ArblargWeb.API.WebhookController, :update)
+      post("/webhooks/:id/rotate", ArblargWeb.API.WebhookController, :rotate)
+      post("/webhooks/:id/deactivate", ArblargWeb.API.WebhookController, :deactivate)
+      delete("/webhooks/:id", ArblargWeb.API.WebhookController, :delete)
+    end
+  end
+
+  # Incoming webhook execution: no session or API token -- the webhook token
+  # in the path is the credential. Mounted behind the unauthenticated :api
+  # pipeline.
+  defmacro webhook_execute_routes do
+    quote do
+      post("/webhooks/:id/:token", ArblargWeb.API.WebhookController, :execute)
     end
   end
 

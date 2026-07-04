@@ -166,6 +166,42 @@ defmodule Elektrine.Messaging.Federation.Config do
     Keyword.get(config, :presence_ttl_seconds, 120)
   end
 
+  @ingress_rate_limit_defaults %{
+    ingress_peer_durable_events_per_minute: 600,
+    ingress_peer_ephemeral_items_per_minute: 1200,
+    ingress_peer_sync_requests_per_minute: 10,
+    ingress_peer_replay_requests_per_minute: 60,
+    ingress_room_durable_events_per_minute: 240
+  }
+
+  def ingress_rate_limit(config, key) when is_list(config) do
+    default = Map.fetch!(@ingress_rate_limit_defaults, key)
+
+    case Keyword.get(config, key, default) do
+      value when is_integer(value) and value > 0 -> value
+      _ -> default
+    end
+  end
+
+  def ingress_rate_limit_enabled?(config) when is_list(config) do
+    Keyword.get(config, :ingress_rate_limit_enabled, true) != false
+  end
+
+  def ingress_rate_limit_exempt_domains(config) when is_list(config) do
+    configured =
+      config
+      |> Keyword.get(:ingress_rate_limit_exempt_domains, [])
+      |> Enum.filter(&is_binary/1)
+
+    relay_hosts =
+      config
+      |> discovery_official_relays()
+      |> Enum.map(&URI.parse(&1["url"]).host)
+      |> Enum.filter(&is_binary/1)
+
+    (configured ++ relay_hosts) |> Enum.map(&String.downcase/1) |> Enum.uniq()
+  end
+
   def allow_insecure_transport?(config) when is_list(config) do
     Keyword.get(config, :allow_insecure_http_transport, false)
   end

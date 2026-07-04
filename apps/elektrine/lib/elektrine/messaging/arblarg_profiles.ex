@@ -107,6 +107,18 @@ defmodule Elektrine.Messaging.ArblargProfiles do
       profile_requirement: @community_profile_id
     },
     %{
+      urn: "urn:arblarg:ext:pins:1",
+      version: 1,
+      stability: "experimental",
+      required: false,
+      events: ["urn:arblarg:ext:pins:1#pin.upsert"],
+      fallback: "reject_unsupported_event_type",
+      gate: "optional",
+      env_flag: nil,
+      test_command: nil,
+      profile_requirement: nil
+    },
+    %{
       urn: "urn:arblarg:ext:dm:1",
       version: 1,
       stability: "experimental",

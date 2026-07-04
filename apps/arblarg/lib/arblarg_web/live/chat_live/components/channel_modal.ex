@@ -3,6 +3,7 @@ defmodule ArblargWeb.ChatLive.Components.ChannelModal do
   use ArblargWeb, :live_component
 
   attr :uploads, :map, default: %{}
+  attr :categories, :list, default: []
 
   def render(assigns) do
     ~H"""
@@ -20,6 +21,38 @@ defmodule ArblargWeb.ChatLive.Components.ChannelModal do
         </div>
 
         <form phx-submit="create_channel" phx-target={@myself} class="space-y-4">
+          <div>
+            <label class="label">
+              <span class="label-text font-semibold">Channel Type</span>
+            </label>
+            <div class="grid grid-cols-2 gap-2">
+              <label class="flex items-center gap-2 rounded-lg border border-base-300 px-3 py-2 cursor-pointer hover:bg-base-200">
+                <input
+                  type="radio"
+                  name="channel[channel_type]"
+                  value="channel"
+                  class="radio radio-secondary radio-sm"
+                  checked
+                />
+                <.icon name="hero-hashtag" class="w-4 h-4" />
+                <span class="text-sm font-medium">Text</span>
+              </label>
+              <label class="flex items-center gap-2 rounded-lg border border-base-300 px-3 py-2 cursor-pointer hover:bg-base-200">
+                <input
+                  type="radio"
+                  name="channel[channel_type]"
+                  value="voice_channel"
+                  class="radio radio-secondary radio-sm"
+                />
+                <.icon name="hero-speaker-wave" class="w-4 h-4" />
+                <span class="text-sm font-medium">Voice</span>
+              </label>
+            </div>
+            <p class="text-xs text-base-content/60 mt-1">
+              Voice channels are live audio rooms members can join. They stay on this server.
+            </p>
+          </div>
+
           <div>
             <label class="label">
               <span class="label-text font-semibold">Channel Name</span>
@@ -94,6 +127,20 @@ defmodule ArblargWeb.ChatLive.Components.ChannelModal do
                   </button>
                 </div>
               <% end %>
+            </div>
+          <% end %>
+
+          <%= if @categories != [] do %>
+            <div>
+              <label class="label">
+                <span class="label-text font-semibold">Category</span>
+              </label>
+              <select name="channel[category_id]" class="select select-bordered w-full">
+                <option value="">No category</option>
+                <%= for category <- @categories do %>
+                  <option value={category.id}>{category.name}</option>
+                <% end %>
+              </select>
             </div>
           <% end %>
 

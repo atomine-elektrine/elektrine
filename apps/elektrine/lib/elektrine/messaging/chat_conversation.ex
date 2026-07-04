@@ -24,6 +24,7 @@ defmodule Elektrine.Messaging.ChatConversation do
     belongs_to :remote_group_actor, Elektrine.ActivityPub.Actor
     belongs_to :creator, Elektrine.Accounts.User
     belongs_to :server, Elektrine.Messaging.Server
+    belongs_to :category, Elektrine.Messaging.ChannelCategory
     has_many :channels, __MODULE__, foreign_key: :server_id
     has_many :members, Elektrine.Messaging.ChatConversationMember, foreign_key: :conversation_id
     has_many :users, through: [:members, :user]
@@ -52,17 +53,19 @@ defmodule Elektrine.Messaging.ChatConversation do
       :channel_topic,
       :channel_position,
       :server_id,
+      :category_id,
       :federated_source,
       :is_federated_mirror,
       :remote_group_actor_id
     ])
     |> validate_required([:type])
-    |> validate_inclusion(:type, ["dm", "group", "channel"])
+    |> validate_inclusion(:type, ["dm", "group", "channel", "voice_channel"])
     |> validate_length(:channel_topic, max: 300)
     |> validate_number(:channel_position, greater_than_or_equal_to: 0)
     |> validate_length(:name, max: 100)
     |> validate_length(:description, max: 500)
     |> generate_hash_if_needed()
+    |> foreign_key_constraint(:category_id)
     |> unique_constraint(:hash)
   end
 
@@ -76,6 +79,10 @@ defmodule Elektrine.Messaging.ChatConversation do
 
   def channel_changeset(conversation, attrs) do
     changeset(conversation, Map.put(attrs, :type, "channel"))
+  end
+
+  def voice_channel_changeset(conversation, attrs) do
+    changeset(conversation, Map.put(attrs, :type, "voice_channel"))
   end
 
   defp generate_hash_if_needed(changeset) do

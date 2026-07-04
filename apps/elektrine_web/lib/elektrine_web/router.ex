@@ -1477,6 +1477,16 @@ defmodule ElektrineWeb.Router do
     delete("/export/:id", ElektrineWeb.API.ExportController, :delete)
   end
 
+  # Incoming chat webhook execution. No session or API token: the webhook
+  # token in the path is the credential (verified against a stored hash).
+  # Mounted after the authenticated /api scope so the literal
+  # /webhooks/:id/rotate and /webhooks/:id/deactivate routes match first.
+  scope "/api", alias: false do
+    pipe_through([:api, :api_rate_limited])
+
+    ElektrineWeb.Routes.Chat.webhook_execute_routes()
+  end
+
   # External PAT-authenticated API endpoints for integrations.
   scope "/api/ext/v1", ElektrineWeb.API do
     pipe_through([:api_pat_authenticated])
@@ -1632,7 +1642,13 @@ defmodule ElektrineWeb.Router do
     pipe_through([:api_pat_authenticated, :api_pat_kairo_write_scope])
 
     post("/projects", KairoController, :create_project)
+    patch("/projects/:id", KairoController, :update_project)
+    put("/projects/:id", KairoController, :update_project)
+    delete("/projects/:id", KairoController, :delete_project)
     post("/sources", KairoController, :create_source)
+    patch("/sources/:id", KairoController, :update_source)
+    put("/sources/:id", KairoController, :update_source)
+    delete("/sources/:id", KairoController, :delete_source)
   end
 
   scope "/api/ext/v1/exports", ElektrineWeb.API do

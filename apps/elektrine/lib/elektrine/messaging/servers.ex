@@ -9,6 +9,7 @@ defmodule Elektrine.Messaging.Servers do
   alias Elektrine.Repo
 
   alias Elektrine.Messaging.{
+    ChannelCategories,
     ChatConversation,
     ChatConversations,
     Federation,
@@ -203,6 +204,7 @@ defmodule Elektrine.Messaging.Servers do
 
   defp do_create_channel(server_id, creator_id, attrs) do
     next_position = next_channel_position(server_id)
+    attrs = sanitize_channel_category(attrs, server_id)
 
     channel_attrs =
       attrs
@@ -212,6 +214,7 @@ defmodule Elektrine.Messaging.Servers do
         :avatar_url,
         :channel_topic,
         :channel_position,
+        :category_id,
         :is_public
       ])
       |> Enum.reject(fn {_key, value} -> is_nil(value) end)
@@ -226,16 +229,34 @@ defmodule Elektrine.Messaging.Servers do
 
     with {:ok, channel} <-
            %ChatConversation{}
-           |> ChatConversation.channel_changeset(channel_attrs)
+           |> channel_type_changeset(Map.get(attrs, :type), channel_attrs)
            |> Repo.insert(),
          :ok <- add_all_server_members_to_channel(server_id, channel.id) do
       {:ok, channel}
     end
   end
 
+  # Voice channels are local-only: they are never exported through federation
+  # bootstrap (which only serializes type == "channel" conversations).
+  defp channel_type_changeset(conversation, "voice_channel", channel_attrs) do
+    ChatConversation.voice_channel_changeset(conversation, channel_attrs)
+  end
+
+  defp channel_type_changeset(conversation, _type, channel_attrs) do
+    ChatConversation.channel_changeset(conversation, channel_attrs)
+  end
+
+  # Drops :category_id unless it references a category of this server.
+  defp sanitize_channel_category(attrs, server_id) do
+    case ChannelCategories.resolve_category_for_server(Map.get(attrs, :category_id), server_id) do
+      {:ok, category_id} -> Map.put(attrs, :category_id, category_id)
+      {:error, _} -> Map.delete(attrs, :category_id)
+    end
+  end
+
   defp next_channel_position(server_id) do
     from(c in ChatConversation,
-      where: c.server_id == ^server_id and c.type == "channel",
+      where: c.server_id == ^server_id and c.type in ["channel", "voice_channel"],
       select: max(c.channel_position)
     )
     |> Repo.one()
@@ -265,7 +286,7 @@ defmodule Elektrine.Messaging.Servers do
   defp add_user_to_all_server_channels(server_id, user_id) do
     channel_ids =
       from(c in ChatConversation,
-        where: c.server_id == ^server_id and c.type == "channel",
+        where: c.server_id == ^server_id and c.type in ["channel", "voice_channel"],
         select: c.id
       )
       |> Repo.all()

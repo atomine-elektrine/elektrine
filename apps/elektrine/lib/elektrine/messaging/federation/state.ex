@@ -657,6 +657,13 @@ defmodule Elektrine.Messaging.Federation.State do
     end
   end
 
+  defp local_extension_event_key("pin.upsert", payload, %ChatConversation{} = conversation) do
+    case get_in(payload, ["pin", "message_id"]) do
+      message_id when is_binary(message_id) -> "pin:#{message_id}:channel:#{conversation.id}"
+      _ -> nil
+    end
+  end
+
   defp local_extension_event_key(
          "moderation.action.recorded",
          payload,
@@ -678,6 +685,11 @@ defmodule Elektrine.Messaging.Federation.State do
     parse_datetime(payload["archived_at"]) || DateTime.utc_now()
   end
 
+  defp local_extension_occurred_at("pin.upsert", payload) do
+    parse_datetime(get_in(payload, ["pin", "updated_at"])) ||
+      parse_datetime(get_in(payload, ["pin", "pinned_at"])) || DateTime.utc_now()
+  end
+
   defp local_extension_occurred_at("moderation.action.recorded", payload) do
     parse_datetime(get_in(payload, ["action", "occurred_at"])) || DateTime.utc_now()
   end
@@ -689,6 +701,7 @@ defmodule Elektrine.Messaging.Federation.State do
 
   defp local_extension_status("thread.upsert", payload), do: get_in(payload, ["thread", "state"])
   defp local_extension_status("thread.archive", _payload), do: "archived"
+  defp local_extension_status("pin.upsert", payload), do: get_in(payload, ["pin", "state"])
 
   defp local_extension_status("moderation.action.recorded", payload),
     do: get_in(payload, ["action", "kind"])

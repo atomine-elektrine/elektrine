@@ -119,6 +119,9 @@
 <!-- Hidden elements for call hooks -->
   <div id="call-initiator" phx-hook="CallInitiator" class="hidden"></div>
   <div id="call-receiver" phx-hook="CallReceiver" class="hidden"></div>
+  <!-- Voice channel mesh audio manager (remote <audio> elements live inside) -->
+  <div id="voice-channel-manager" phx-hook="VoiceChannel" phx-update="ignore" class="hidden">
+  </div>
   <div
     id="chat-keyboard-shortcuts"
     phx-hook="ChatKeyboardShortcuts"
@@ -340,6 +343,34 @@
             </div>
           </button>
           
+<!-- New Category -->
+          <button
+            phx-click="show_create_category"
+            class={[
+              "w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors",
+              if(is_integer(active_server_id),
+                do: "hover:bg-base-200",
+                else: "opacity-50 cursor-not-allowed"
+              )
+            ]}
+            disabled={not is_integer(active_server_id)}
+          >
+            <div class="w-9 h-9 rounded-md flex items-center justify-center shrink-0 bg-base-300">
+              <.icon
+                name="hero-folder-plus"
+                class="w-4 h-4 text-base-content/80"
+              />
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="font-semibold text-[13px] text-base-content">New Category</p>
+              <p class="text-xs text-base-content/70 hidden sm:block">
+                {if is_integer(active_server_id),
+                  do: "Group the selected server's channels",
+                  else: "Select a server first"}
+              </p>
+            </div>
+          </button>
+          
 <!-- Browse Network Index -->
           <button
             phx-click="show_browse_modal"
@@ -506,65 +537,303 @@
               <% end %>
             </div>
           <% else %>
-            <%= for conversation <- @conversation.filtered do %>
-              <% is_selected =
-                @conversation.selected && @conversation.selected.id == conversation.id %>
-              <% remote_conversation = remote_conversation?(conversation) %>
-              <% unread_count = Map.get(@conversation.unread_counts, conversation.id, 0) %>
-              <div
-                phx-hook="ContextMenu"
-                id={"conversation-#{conversation.id}"}
-                data-conversation-id={conversation.id}
-              >
-                <.link
-                  patch={Elektrine.Paths.chat_path(conversation)}
-                  class={[
-                    "flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-all relative outline-none focus:outline-none focus-visible:outline-none active:opacity-90 select-none [&:active]:!outline-none [&:focus]:!outline-none border-b overflow-visible",
-                    if(is_selected,
-                      do: "bg-secondary/10 text-base-content border-secondary/30",
-                      else:
-                        if(unread_count > 0,
-                          do:
-                            "bg-base-200/70 hover:bg-base-200 border-base-300 text-base-content",
-                          else: "hover:bg-base-200 border-base-300 text-base-content"
-                        )
-                    )
-                  ]}
-                >
+            <%= for entry <-
+                  Helpers.sidebar_entries(
+                    @conversation.filtered,
+                    @server_categories,
+                    @collapsed_category_ids,
+                    active_server_id
+                  ) do %>
+              <%= case entry do %>
+                <% {:category, category, collapsed?} -> %>
                   <button
-                    class="outline-none focus:outline-none overflow-visible"
-                    phx-click="show_conversation_info"
-                    phx-value-conversation_id={conversation.id}
-                    phx-value-conversation_type={conversation.type}
-                    title="View details"
+                    type="button"
+                    phx-click="toggle_category_collapse"
+                    phx-value-category_id={category.id}
+                    class="w-full flex items-center gap-1.5 px-3 pt-3 pb-1 text-left group"
+                    title={if collapsed?, do: "Expand category", else: "Collapse category"}
                   >
-                    <div class="w-10 sm:w-10 md:w-11 lg:w-12 h-10 sm:h-10 md:h-11 lg:h-12 rounded-full overflow-visible">
-                      <.conversation_avatar
-                        conversation={conversation}
-                        current_user_id={@current_user.id}
-                        size="responsive"
-                        online_users={@online_users}
-                        user_statuses={@user_statuses}
-                      />
-                    </div>
+                    <.icon
+                      name={if collapsed?, do: "hero-chevron-right", else: "hero-chevron-down"}
+                      class="w-3 h-3 text-base-content/50"
+                    />
+                    <span class="text-[11px] font-bold uppercase tracking-wide text-base-content/60 group-hover:text-base-content/80 truncate">
+                      {category.name}
+                    </span>
                   </button>
+                <% {:conversation, %{type: "voice_channel"} = conversation} -> %>
+                  <% voice_occupants = Map.get(@voice.occupants, conversation.id, []) %>
+                  <% voice_joined = @voice.joined_id == conversation.id %>
+                  <div
+                    id={"voice-channel-#{conversation.id}"}
+                    class="border-b border-base-300"
+                  >
+                    <button
+                      type="button"
+                      phx-click={
+                        unless conversation.is_federated_mirror, do: "join_voice_channel"
+                      }
+                      phx-value-conversation_id={conversation.id}
+                      disabled={voice_joined || conversation.is_federated_mirror}
+                      class={[
+                        "w-full flex items-center gap-2 px-3 py-2 text-left transition-all",
+                        if(voice_joined,
+                          do: "bg-secondary/10 text-base-content",
+                          else: "hover:bg-base-200 text-base-content"
+                        )
+                      ]}
+                      title={
+                        cond do
+                          conversation.is_federated_mirror ->
+                            "Remote voice channels can't be joined"
 
-                  <div class="flex-1 min-w-0">
-                    <div class="flex items-center justify-between">
-                      <p class={
+                          voice_joined ->
+                            "Connected"
+
+                          true ->
+                            "Join voice channel"
+                        end
+                      }
+                    >
+                      <.icon
+                        name="hero-speaker-wave"
+                        class={[
+                          "w-4 h-4 flex-shrink-0",
+                          if(voice_joined, do: "text-success", else: "text-base-content/60")
+                        ]}
+                      />
+                      <span class="font-medium text-sm truncate flex-1">{conversation.name}</span>
+                      <span class="badge badge-ghost badge-xs">Voice</span>
+                      <span class="text-[11px] text-base-content/60">
+                        {length(voice_occupants)}/{Elektrine.Messaging.VoiceChannels.max_occupants()}
+                      </span>
+                    </button>
+                    <%= if voice_occupants != [] do %>
+                      <div class="pl-9 pr-3 pb-2 space-y-1">
+                        <%= for occupant <- voice_occupants do %>
+                          <div class="flex items-center gap-1.5 text-xs text-base-content/80">
+                            <span class="w-4 h-4 rounded-full bg-base-300 flex items-center justify-center text-[9px] font-semibold uppercase flex-shrink-0">
+                              {String.first(occupant.display_name || occupant.username || "?")}
+                            </span>
+                            <span class="truncate">
+                              {occupant.display_name || occupant.username}
+                            </span>
+                            <%= if occupant.muted do %>
+                              <.icon
+                                name="hero-speaker-x-mark"
+                                class="w-3 h-3 text-error flex-shrink-0"
+                              />
+                            <% end %>
+                          </div>
+                        <% end %>
+                      </div>
+                    <% end %>
+                  </div>
+                <% {:conversation, conversation} -> %>
+                  <% is_selected =
+                    @conversation.selected && @conversation.selected.id == conversation.id %>
+                  <% remote_conversation = remote_conversation?(conversation) %>
+                  <% unread_count = Map.get(@conversation.unread_counts, conversation.id, 0) %>
+                  <div
+                    phx-hook="ContextMenu"
+                    id={"conversation-#{conversation.id}"}
+                    data-conversation-id={conversation.id}
+                  >
+                    <.link
+                      patch={Elektrine.Paths.chat_path(conversation)}
+                      class={[
+                        "flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-all relative outline-none focus:outline-none focus-visible:outline-none active:opacity-90 select-none [&:active]:!outline-none [&:focus]:!outline-none border-b overflow-visible",
                         if(is_selected,
-                          do: "font-semibold text-sm truncate",
+                          do: "bg-secondary/10 text-base-content border-secondary/30",
                           else:
                             if(unread_count > 0,
-                              do: "font-semibold text-sm truncate text-base-content",
-                              else: "font-medium text-sm truncate text-base-content"
+                              do:
+                                "bg-base-200/70 hover:bg-base-200 border-base-300 text-base-content",
+                              else: "hover:bg-base-200 border-base-300 text-base-content"
                             )
                         )
-                      }>
-                        {route_label(conversation, @current_user.id)}
-                      </p>
-                      <!-- Mobile timestamp and unread (always visible) -->
-                      <div class="flex items-center gap-1 lg:hidden">
+                      ]}
+                    >
+                      <button
+                        class="outline-none focus:outline-none overflow-visible"
+                        phx-click="show_conversation_info"
+                        phx-value-conversation_id={conversation.id}
+                        phx-value-conversation_type={conversation.type}
+                        title="View details"
+                      >
+                        <div class="w-10 sm:w-10 md:w-11 lg:w-12 h-10 sm:h-10 md:h-11 lg:h-12 rounded-full overflow-visible">
+                          <.conversation_avatar
+                            conversation={conversation}
+                            current_user_id={@current_user.id}
+                            size="responsive"
+                            online_users={@online_users}
+                            user_statuses={@user_statuses}
+                          />
+                        </div>
+                      </button>
+
+                      <div class="flex-1 min-w-0">
+                        <div class="flex items-center justify-between">
+                          <p class={
+                            if(is_selected,
+                              do: "font-semibold text-sm truncate",
+                              else:
+                                if(unread_count > 0,
+                                  do: "font-semibold text-sm truncate text-base-content",
+                                  else: "font-medium text-sm truncate text-base-content"
+                                )
+                            )
+                          }>
+                            {route_label(conversation, @current_user.id)}
+                          </p>
+                          <!-- Mobile timestamp and unread (always visible) -->
+                          <div class="flex items-center gap-1 lg:hidden">
+                            <%= if unread_count > 0 do %>
+                              <div class="badge badge-secondary badge-sm">
+                                {unread_count}
+                              </div>
+                            <% end %>
+                            <%= if conversation.last_message_at do %>
+                              <span class={
+                                if(is_selected,
+                                  do: "text-xs text-base-content/80",
+                                  else: "text-xs text-base-content/70"
+                                )
+                              }>
+                                <.local_time
+                                  datetime={conversation.last_message_at}
+                                  format="datetime"
+                                  timezone={@timezone}
+                                  time_format={@time_format}
+                                />
+                              </span>
+                            <% end %>
+                          </div>
+                        </div>
+
+                        <div class="flex items-center gap-1 py-0.5">
+                          <span class="badge badge-ghost badge-xs">
+                            {protocol_conversation_type(conversation.type)}
+                          </span>
+                          <%= if remote_conversation do %>
+                            <span class="badge badge-secondary badge-xs">
+                              From another server
+                            </span>
+                          <% end %>
+                        </div>
+
+                        <%= if conversation.messages != [] do %>
+                          <% last_message = List.first(conversation.messages) %>
+                          <% last_message_encrypted_payload =
+                            Map.get(last_message, :client_encrypted_payload) ||
+                              Map.get(last_message, "client_encrypted_payload") %>
+                          <%= if last_message.sender_id == @current_user.id do %>
+                            <% read_status =
+                              Map.get(
+                                @conversation.last_message_read_status || %{},
+                                conversation.id
+                              ) %>
+                            <div class={
+                              if(is_selected,
+                                do:
+                                  "text-xs sm:text-sm text-base-content/80 flex items-center gap-1 min-w-0",
+                                else:
+                                  if(unread_count > 0,
+                                    do:
+                                      "text-xs sm:text-sm text-base-content flex items-center gap-1 min-w-0 font-medium",
+                                    else:
+                                      "text-xs sm:text-sm text-base-content/70 flex items-center gap-1 min-w-0"
+                                  )
+                              )
+                            }>
+                              <%= if read_status && read_status.is_read do %>
+                                <span class="text-[10px] sm:text-xs text-green-500 font-bold flex-shrink-0">
+                                  ✓✓
+                                </span>
+                              <% else %>
+                                <span class="text-[11px] sm:text-sm text-gray-400 font-medium flex-shrink-0">
+                                  ✓
+                                </span>
+                              <% end %>
+                              <span class="truncate">
+                                You:
+                                <%= if last_message_encrypted_payload do %>
+                                  <span
+                                    id={"conversation-preview-encrypted-message-#{last_message.id}"}
+                                    phx-update="ignore"
+                                    class="opacity-0"
+                                    data-chat-encrypted-preview="true"
+                                    data-conversation-id={last_message.conversation_id}
+                                    data-key-uid={
+                                      Map.get(last_message_encrypted_payload, "key_uid") ||
+                                        Map.get(last_message_encrypted_payload, :key_uid)
+                                    }
+                                    data-payload={Jason.encode!(last_message_encrypted_payload)}
+                                  >
+                                    Encrypted message
+                                  </span>
+                                <% else %>
+                                  {message_display_content(last_message)}
+                                <% end %>
+                              </span>
+                            </div>
+                          <% else %>
+                            <p class={
+                              if(is_selected,
+                                do: "text-xs sm:text-sm text-base-content/80 truncate",
+                                else:
+                                  if(unread_count > 0,
+                                    do:
+                                      "text-xs sm:text-sm text-base-content truncate font-medium",
+                                    else: "text-xs sm:text-sm text-base-content/70 truncate"
+                                  )
+                              )
+                            }>
+                              <%= if last_message_encrypted_payload do %>
+                                <span
+                                  id={"conversation-preview-encrypted-message-#{last_message.id}"}
+                                  phx-update="ignore"
+                                  class="opacity-0"
+                                  data-chat-encrypted-preview="true"
+                                  data-conversation-id={last_message.conversation_id}
+                                  data-key-uid={
+                                    Map.get(last_message_encrypted_payload, "key_uid") ||
+                                      Map.get(last_message_encrypted_payload, :key_uid)
+                                  }
+                                  data-payload={Jason.encode!(last_message_encrypted_payload)}
+                                >
+                                  Encrypted message
+                                </span>
+                              <% else %>
+                                {message_display_content(last_message)}
+                              <% end %>
+                            </p>
+                          <% end %>
+                        <% else %>
+                          <p class={
+                            if(is_selected,
+                              do: "text-xs sm:text-sm text-base-content/80",
+                              else: "text-xs sm:text-sm text-base-content/70"
+                            )
+                          }>
+                            No messages yet
+                          </p>
+                        <% end %>
+                      </div>
+
+                      <div class="flex items-center gap-2 hidden lg:flex">
+                        <%= if conversation.type != "dm" do %>
+                          <div class={
+                            if(is_selected,
+                              do: "text-xs text-base-content/80",
+                              else: "text-xs text-base-content/70"
+                            )
+                          }>
+                            {conversation.member_count} members
+                          </div>
+                        <% end %>
+                        
+<!-- Desktop timestamp and unread -->
                         <%= if unread_count > 0 do %>
                           <div class="badge badge-secondary badge-sm">
                             {unread_count}
@@ -585,181 +854,48 @@
                             />
                           </span>
                         <% end %>
-                      </div>
-                    </div>
-
-                    <div class="flex items-center gap-1 py-0.5">
-                      <span class="badge badge-ghost badge-xs">
-                        {protocol_conversation_type(conversation.type)}
-                      </span>
-                      <%= if remote_conversation do %>
-                        <span class="badge badge-secondary badge-xs">From another server</span>
-                      <% end %>
-                    </div>
-
-                    <%= if conversation.messages != [] do %>
-                      <% last_message = List.first(conversation.messages) %>
-                      <% last_message_encrypted_payload =
-                        Map.get(last_message, :client_encrypted_payload) ||
-                          Map.get(last_message, "client_encrypted_payload") %>
-                      <%= if last_message.sender_id == @current_user.id do %>
-                        <% read_status =
-                          Map.get(@conversation.last_message_read_status || %{}, conversation.id) %>
-                        <div class={
-                          if(is_selected,
-                            do:
-                              "text-xs sm:text-sm text-base-content/80 flex items-center gap-1 min-w-0",
-                            else:
-                              if(unread_count > 0,
-                                do:
-                                  "text-xs sm:text-sm text-base-content flex items-center gap-1 min-w-0 font-medium",
-                                else:
-                                  "text-xs sm:text-sm text-base-content/70 flex items-center gap-1 min-w-0"
-                              )
-                          )
-                        }>
-                          <%= if read_status && read_status.is_read do %>
-                            <span class="text-[10px] sm:text-xs text-green-500 font-bold flex-shrink-0">
-                              ✓✓
-                            </span>
-                          <% else %>
-                            <span class="text-[11px] sm:text-sm text-gray-400 font-medium flex-shrink-0">
-                              ✓
-                            </span>
-                          <% end %>
-                          <span class="truncate">
-                            You:
-                            <%= if last_message_encrypted_payload do %>
-                              <span
-                                id={"conversation-preview-encrypted-message-#{last_message.id}"}
-                                phx-update="ignore"
-                                class="opacity-0"
-                                data-chat-encrypted-preview="true"
-                                data-conversation-id={last_message.conversation_id}
-                                data-key-uid={
-                                  Map.get(last_message_encrypted_payload, "key_uid") ||
-                                    Map.get(last_message_encrypted_payload, :key_uid)
-                                }
-                                data-payload={Jason.encode!(last_message_encrypted_payload)}
-                              >
-                                Encrypted message
-                              </span>
-                            <% else %>
-                              {message_display_content(last_message)}
-                            <% end %>
-                          </span>
-                        </div>
-                      <% else %>
-                        <p class={
-                          if(is_selected,
-                            do: "text-xs sm:text-sm text-base-content/80 truncate",
-                            else:
-                              if(unread_count > 0,
-                                do: "text-xs sm:text-sm text-base-content truncate font-medium",
-                                else: "text-xs sm:text-sm text-base-content/70 truncate"
-                              )
-                          )
-                        }>
-                          <%= if last_message_encrypted_payload do %>
-                            <span
-                              id={"conversation-preview-encrypted-message-#{last_message.id}"}
-                              phx-update="ignore"
-                              class="opacity-0"
-                              data-chat-encrypted-preview="true"
-                              data-conversation-id={last_message.conversation_id}
-                              data-key-uid={
-                                Map.get(last_message_encrypted_payload, "key_uid") ||
-                                  Map.get(last_message_encrypted_payload, :key_uid)
-                              }
-                              data-payload={Jason.encode!(last_message_encrypted_payload)}
-                            >
-                              Encrypted message
-                            </span>
-                          <% else %>
-                            {message_display_content(last_message)}
-                          <% end %>
-                        </p>
-                      <% end %>
-                    <% else %>
-                      <p class={
-                        if(is_selected,
-                          do: "text-xs sm:text-sm text-base-content/80",
-                          else: "text-xs sm:text-sm text-base-content/70"
-                        )
-                      }>
-                        No messages yet
-                      </p>
-                    <% end %>
-                  </div>
-
-                  <div class="flex items-center gap-2 hidden lg:flex">
-                    <%= if conversation.type != "dm" do %>
-                      <div class={
-                        if(is_selected,
-                          do: "text-xs text-base-content/80",
-                          else: "text-xs text-base-content/70"
-                        )
-                      }>
-                        {conversation.member_count} members
-                      </div>
-                    <% end %>
-                    
-<!-- Desktop timestamp and unread -->
-                    <%= if unread_count > 0 do %>
-                      <div class="badge badge-secondary badge-sm">
-                        {unread_count}
-                      </div>
-                    <% end %>
-                    <%= if conversation.last_message_at do %>
-                      <span class={
-                        if(is_selected,
-                          do: "text-xs text-base-content/80",
-                          else: "text-xs text-base-content/70"
-                        )
-                      }>
-                        <.local_time
-                          datetime={conversation.last_message_at}
-                          format="datetime"
-                          timezone={@timezone}
-                          time_format={@time_format}
-                        />
-                      </span>
-                    <% end %>
-                    
+                        
 <!-- Pinned Indicator -->
-                    <% member =
-                      Enum.find(
-                        conversation.members,
-                        &(&1.user_id == @current_user.id and is_nil(&1.left_at))
-                      ) %>
-                    <%= if member && member.pinned do %>
-                      <.icon
-                        name="hero-bookmark-solid"
-                        class={
-                          if(is_selected, do: "w-3 h-3 text-accent", else: "w-3 h-3 text-error")
-                        }
-                      />
-                    <% end %>
-                  </div>
-                  
+                        <% member =
+                          Enum.find(
+                            conversation.members,
+                            &(&1.user_id == @current_user.id and is_nil(&1.left_at))
+                          ) %>
+                        <%= if member && member.pinned do %>
+                          <.icon
+                            name="hero-bookmark-solid"
+                            class={
+                              if(is_selected,
+                                do: "w-3 h-3 text-accent",
+                                else: "w-3 h-3 text-error"
+                              )
+                            }
+                          />
+                        <% end %>
+                      </div>
+                      
 <!-- Mobile Pinned Indicator (always visible) -->
-                  <% member =
-                    Enum.find(
-                      conversation.members,
-                      &(&1.user_id == @current_user.id and is_nil(&1.left_at))
-                    ) %>
-                  <%= if member && member.pinned do %>
-                    <div class="absolute -top-1 -right-1 lg:hidden">
-                      <.icon
-                        name="hero-bookmark-solid"
-                        class={
-                          if(is_selected, do: "w-3 h-3 text-accent", else: "w-3 h-3 text-error")
-                        }
-                      />
-                    </div>
-                  <% end %>
-                </.link>
-              </div>
+                      <% member =
+                        Enum.find(
+                          conversation.members,
+                          &(&1.user_id == @current_user.id and is_nil(&1.left_at))
+                        ) %>
+                      <%= if member && member.pinned do %>
+                        <div class="absolute -top-1 -right-1 lg:hidden">
+                          <.icon
+                            name="hero-bookmark-solid"
+                            class={
+                              if(is_selected,
+                                do: "w-3 h-3 text-accent",
+                                else: "w-3 h-3 text-error"
+                              )
+                            }
+                          />
+                        </div>
+                      <% end %>
+                    </.link>
+                  </div>
+              <% end %>
             <% end %>
           <% end %>
           <!-- End of loading_conversations else -->
@@ -792,7 +928,7 @@
 <!-- Center - Chat Messages -->
     <div class={[
       if(@conversation.selected, do: "flex", else: "hidden lg:flex"),
-      "flex-1 card panel-card border sm:border-l-0 border-base-300 flex-col h-full max-h-full overflow-hidden"
+      "relative flex-1 card panel-card border sm:border-l-0 border-base-300 flex-col h-full max-h-full overflow-hidden"
     ]}>
       <%= if @conversation.selected do %>
         <!-- Chat Header -->
@@ -871,6 +1007,19 @@
                   remote_handle={remote_handle}
                 />
               <% end %>
+            <% end %>
+
+            <%= if @conversation.selected.type == "channel" do %>
+              <button
+                phx-click="toggle_thread_panel"
+                class={[
+                  "btn btn-ghost btn-circle btn-sm p-0 min-h-0 h-8 w-8 sm:h-9 sm:w-9 flex-shrink-0",
+                  if(@threads.show_panel, do: "text-secondary", else: "text-base-content")
+                ]}
+                title={"Threads (#{length(@threads.list)} active)"}
+              >
+                <.icon name="hero-chat-bubble-left-right" class="w-4 h-4 sm:w-5 sm:h-5" />
+              </button>
             <% end %>
 
             <details class="dropdown dropdown-end flex-shrink-0">
@@ -966,6 +1115,205 @@
           </div>
         </div>
         
+<!-- Thread Panel (right-hand drawer) -->
+        <%= if @threads.show_panel && @conversation.selected.type == "channel" do %>
+          <div class="absolute inset-y-0 right-0 z-40 w-full sm:w-96 bg-base-100 border-l border-base-300 shadow-xl flex flex-col">
+            <div class="flex-shrink-0 flex items-center gap-2 p-3 border-b border-base-300 bg-base-200">
+              <%= if @threads.active do %>
+                <button
+                  phx-click="back_to_thread_list"
+                  class="btn btn-ghost btn-xs"
+                  title="Back to thread list"
+                >
+                  <.icon name="hero-arrow-left" class="w-4 h-4" />
+                </button>
+                <div class="flex-1 min-w-0">
+                  <h3 class="text-sm font-semibold truncate">{@threads.active.title}</h3>
+                  <p class="text-xs opacity-60">
+                    {@threads.active.message_count} {if @threads.active.message_count == 1,
+                      do: "reply",
+                      else: "replies"}
+                    <%= if @threads.active.archived_at do %>
+                      · archived
+                    <% end %>
+                  </p>
+                </div>
+                <%= if @threads.active.archived_at do %>
+                  <button
+                    phx-click="unarchive_thread"
+                    phx-value-thread_id={@threads.active.id}
+                    class="btn btn-ghost btn-xs"
+                    title="Reopen thread"
+                  >
+                    <.icon name="hero-arrow-path" class="w-4 h-4" />
+                  </button>
+                <% else %>
+                  <button
+                    phx-click="archive_thread"
+                    phx-value-thread_id={@threads.active.id}
+                    class="btn btn-ghost btn-xs"
+                    title="Archive thread"
+                  >
+                    <.icon name="hero-archive-box" class="w-4 h-4" />
+                  </button>
+                <% end %>
+              <% else %>
+                <.icon name="hero-chat-bubble-left-right" class="w-4 h-4 text-secondary" />
+                <h3 class="text-sm font-semibold flex-1">Threads</h3>
+              <% end %>
+              <button phx-click="close_thread_panel" class="btn btn-ghost btn-xs" title="Close">
+                <.icon name="hero-x-mark" class="w-4 h-4" />
+              </button>
+            </div>
+
+            <%= if @threads.active do %>
+              <!-- Thread view: root message + replies -->
+              <div
+                class="flex-1 min-h-0 overflow-y-auto p-3 space-y-3"
+                id={"thread-messages-#{@threads.active.id}"}
+              >
+                <% root = @threads.active.root_message %>
+                <% thread_entries =
+                  if(root && is_nil(root.deleted_at), do: [{root, true}], else: []) ++
+                    Enum.map(@threads.messages, &{&1, false}) %>
+                <%= for {message, is_root} <- thread_entries do %>
+                  <div
+                    class={["flex items-start gap-2", is_root && "pb-3 border-b border-base-300"]}
+                    id={"thread-message-#{@threads.active.id}-#{message.id}"}
+                  >
+                    <div class="w-6 h-6 rounded-full flex-shrink-0">
+                      <.user_avatar user={message_sender(message)} size="xs" />
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center gap-2">
+                        <span class="text-xs font-medium">{message_sender_name(message)}</span>
+                        <.sender_badge sender={message_sender(message)} />
+                        <time class="text-xs opacity-50">
+                          <.local_time
+                            datetime={message.inserted_at}
+                            format="time"
+                            timezone={@timezone}
+                            time_format={@time_format}
+                          />
+                        </time>
+                        <%= if is_root do %>
+                          <span class="badge badge-ghost badge-xs">original message</span>
+                        <% end %>
+                      </div>
+                      <p class="text-sm break-words cursor-text select-text">
+                        {Phoenix.HTML.raw(linkify_urls(message_display_content(message) || ""))}
+                      </p>
+                    </div>
+                  </div>
+                <% end %>
+                <%= if @threads.messages == [] do %>
+                  <p class="text-xs opacity-60 text-center py-4">
+                    No replies yet. Start the thread below.
+                  </p>
+                <% end %>
+              </div>
+
+              <%= if is_nil(@threads.active.archived_at) do %>
+                <form
+                  phx-submit="send_thread_message"
+                  phx-change="update_thread_composer"
+                  class="flex-shrink-0 p-2 border-t border-base-300 flex items-center gap-2"
+                >
+                  <input
+                    type="text"
+                    name="message"
+                    value={@threads.composer}
+                    placeholder="Reply in thread..."
+                    autocomplete="off"
+                    maxlength="4000"
+                    class="input input-bordered input-sm flex-1"
+                  />
+                  <button
+                    type="submit"
+                    class="btn btn-secondary btn-sm"
+                    disabled={String.trim(@threads.composer) == ""}
+                    title="Send"
+                  >
+                    <.icon name="hero-paper-airplane" class="w-4 h-4" />
+                  </button>
+                </form>
+              <% else %>
+                <div class="flex-shrink-0 p-3 border-t border-base-300 text-center text-xs opacity-60">
+                  This thread is archived.
+                </div>
+              <% end %>
+            <% else %>
+              <!-- Thread list -->
+              <div class="flex-1 min-h-0 overflow-y-auto p-2 space-y-1">
+                <%= if @threads.list == [] do %>
+                  <p class="text-xs opacity-60 text-center py-6 px-4">
+                    No active threads. Use a message's context menu to start one.
+                  </p>
+                <% end %>
+                <%= for thread <- @threads.list do %>
+                  <button
+                    phx-click="open_thread"
+                    phx-value-thread_id={thread.id}
+                    class="w-full text-left p-2 rounded-lg hover:bg-base-200 transition-colors"
+                  >
+                    <div class="flex items-center gap-2">
+                      <span class="text-sm font-medium flex-1 truncate">{thread.title}</span>
+                      <span
+                        class="badge badge-ghost badge-xs"
+                        title={"#{thread.message_count} replies"}
+                      >
+                        {thread.message_count}
+                      </span>
+                    </div>
+                    <div class="flex items-center gap-2 text-xs opacity-60 mt-0.5">
+                      <%= if thread.last_activity_at do %>
+                        <.local_time
+                          datetime={thread.last_activity_at}
+                          format="datetime"
+                          timezone={@timezone}
+                          time_format={@time_format}
+                        />
+                      <% end %>
+                    </div>
+                  </button>
+                <% end %>
+
+                <button
+                  phx-click="toggle_archived_threads"
+                  class="w-full flex items-center gap-2 px-2 py-1.5 text-xs opacity-70 hover:opacity-100"
+                >
+                  <.icon
+                    name={
+                      if @threads.show_archived,
+                        do: "hero-chevron-down",
+                        else: "hero-chevron-right"
+                    }
+                    class="w-3 h-3"
+                  /> Archived threads
+                </button>
+                <%= if @threads.show_archived do %>
+                  <%= if @threads.archived == [] do %>
+                    <p class="text-xs opacity-50 px-2 py-1">No archived threads.</p>
+                  <% end %>
+                  <%= for thread <- @threads.archived do %>
+                    <button
+                      phx-click="open_thread"
+                      phx-value-thread_id={thread.id}
+                      class="w-full text-left p-2 rounded-lg hover:bg-base-200 transition-colors opacity-70"
+                    >
+                      <div class="flex items-center gap-2">
+                        <.icon name="hero-archive-box" class="w-3 h-3 flex-shrink-0" />
+                        <span class="text-sm flex-1 truncate">{thread.title}</span>
+                        <span class="badge badge-ghost badge-xs">{thread.message_count}</span>
+                      </div>
+                    </button>
+                  <% end %>
+                <% end %>
+              </div>
+            <% end %>
+          </div>
+        <% end %>
+        
 <!-- Messages Area -->
         <div
           class="flex-1 min-h-0 overflow-y-auto p-2.5 sm:p-3 space-y-2 sm:space-y-3 bg-base-200"
@@ -998,41 +1346,73 @@
           <% end %>
           
 <!-- Pinned Messages -->
-          <% pinned_messages = Enum.filter(@messages, &Map.get(&1, :is_pinned, false)) %>
-          <%= if pinned_messages != [] do %>
+          <%= if @pinned_messages != [] do %>
             <div class="mb-4 border border-secondary/30 rounded-lg bg-secondary/5">
-              <div class="px-3 py-2 border-b border-secondary/20 flex items-center gap-2">
+              <button
+                type="button"
+                phx-click="toggle_pinned_panel"
+                class="w-full px-3 py-2 flex items-center gap-2 text-left"
+                title={
+                  if @ui.show_pinned_panel,
+                    do: "Hide pinned messages",
+                    else: "Show pinned messages"
+                }
+              >
                 <.icon name="hero-bookmark-solid" class="w-4 h-4 text-secondary" />
-                <span class="text-sm font-medium text-secondary">Pinned Messages</span>
-              </div>
-              <div class="p-2 space-y-2 max-h-48 overflow-y-auto">
-                <%= for message <- pinned_messages do %>
-                  <div
-                    class="flex items-start gap-2 p-2 rounded-lg hover:bg-base-200 cursor-pointer transition-colors"
-                    phx-click="scroll_to_message"
-                    phx-value-message_id={message.id}
-                  >
-                    <div class="w-6 h-6 rounded-full flex-shrink-0">
-                      <.user_avatar user={message_sender(message)} size="xs" />
+                <span class="text-sm font-medium text-secondary flex-1">
+                  Pinned Messages ({length(@pinned_messages)})
+                </span>
+                <.icon
+                  name={
+                    if @ui.show_pinned_panel, do: "hero-chevron-up", else: "hero-chevron-down"
+                  }
+                  class="w-4 h-4 text-secondary"
+                />
+              </button>
+              <%= if @ui.show_pinned_panel do %>
+                <div class="p-2 space-y-2 max-h-48 overflow-y-auto border-t border-secondary/20">
+                  <%= for message <- @pinned_messages do %>
+                    <div class="flex items-start gap-2 p-2 rounded-lg hover:bg-base-200 transition-colors group/pinned">
+                      <button
+                        type="button"
+                        class="flex items-start gap-2 flex-1 min-w-0 text-left cursor-pointer"
+                        phx-click="scroll_to_message"
+                        phx-value-message_id={message.id}
+                      >
+                        <div class="w-6 h-6 rounded-full flex-shrink-0">
+                          <.user_avatar user={message_sender(message)} size="xs" />
+                        </div>
+                        <div class="flex-1 min-w-0">
+                          <div class="flex items-center gap-2">
+                            <span class="text-xs font-medium">
+                              {message_sender_name(message)}
+                            </span>
+                            <span class="text-xs opacity-50">
+                              {Calendar.strftime(message.inserted_at, "%b %d")}
+                            </span>
+                          </div>
+                          <p class="text-sm opacity-80 truncate">
+                            <%= if message.message_type == "voice" do %>
+                              Voice message
+                            <% else %>
+                              {message.content || "[Media]"}
+                            <% end %>
+                          </p>
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        phx-click="unpin_message"
+                        phx-value-message_id={message.id}
+                        class="btn btn-ghost btn-xs opacity-0 group-hover/pinned:opacity-100 transition-opacity"
+                        title="Unpin message"
+                      >
+                        <.icon name="hero-bookmark-slash" class="w-3 h-3" />
+                      </button>
                     </div>
-                    <div class="flex-1 min-w-0">
-                      <div class="flex items-center gap-2">
-                        <span class="text-xs font-medium">{message_sender_name(message)}</span>
-                        <span class="text-xs opacity-50">
-                          {Calendar.strftime(message.inserted_at, "%b %d")}
-                        </span>
-                      </div>
-                      <p class="text-sm opacity-80 truncate">
-                        <%= if message.message_type == "voice" do %>
-                          Voice message
-                        <% else %>
-                          {message.content || "[Media]"}
-                        <% end %>
-                      </p>
-                    </div>
-                  </div>
-                <% end %>
-              </div>
+                  <% end %>
+                </div>
+              <% end %>
             </div>
           <% end %>
 
@@ -1138,6 +1518,7 @@
                     <% else %>
                       <span class="font-medium">{message_sender_tag(message)}</span>
                     <% end %>
+                    <.sender_badge sender={message_sender(message)} />
                     <%= if sender_timeout?(message, @moderation.user_timeout_status) do %>
                       <span class="badge badge-warning badge-xs ml-1">
                         <.icon name="hero-clock" class="w-2 h-2 mr-1" /> Timed Out
@@ -1471,6 +1852,28 @@
                         </button>
                       <% end %>
                     </div>
+                  <% end %>
+                  
+<!-- Thread Indicator -->
+                  <%= if @conversation.selected.type == "channel" do %>
+                    <% message_thread = thread_for_message(@threads, message.id) %>
+                    <%= if message_thread do %>
+                      <button
+                        phx-click="open_thread"
+                        phx-value-thread_id={message_thread.id}
+                        class="flex items-center gap-1 mt-2 text-xs text-secondary hover:underline"
+                        title="Open thread"
+                      >
+                        <.icon name="hero-chat-bubble-left-right" class="w-3 h-3" />
+                        <span>
+                          {message_thread.message_count} {if message_thread.message_count == 1,
+                            do: "reply",
+                            else: "replies"} in thread<%= if message_thread.archived_at do %>
+                            (archived)
+                          <% end %>
+                        </span>
+                      </button>
+                    <% end %>
                   <% end %>
                 </div>
                 
@@ -2409,8 +2812,41 @@
       module={ArblargWeb.ChatLive.Components.ChannelModal}
       id="channel-modal"
       uploads={@uploads}
+      categories={@server_categories}
     />
   <% end %>
 
   <.chat_overlay_panels {assigns} />
+  
+<!-- Voice channel connected bar (visible while connected, regardless of open conversation) -->
+  <%= if @voice.joined_id do %>
+    <div class="fixed bottom-4 right-4 z-[70] card panel-card border border-base-300 shadow-lg px-4 py-3 flex flex-row items-center gap-3">
+      <.icon name="hero-speaker-wave" class="w-5 h-5 text-success flex-shrink-0" />
+      <div class="min-w-0">
+        <p class="text-[10px] font-semibold uppercase tracking-wide text-base-content/60">
+          Voice connected
+        </p>
+        <p class="text-sm font-medium truncate max-w-[10rem]">{@voice.joined_name}</p>
+      </div>
+      <button
+        type="button"
+        phx-click="toggle_voice_mute"
+        class="btn btn-ghost btn-sm btn-circle"
+        title={if @voice.muted, do: "Unmute microphone", else: "Mute microphone"}
+      >
+        <.icon
+          name={if @voice.muted, do: "hero-speaker-x-mark", else: "hero-microphone"}
+          class={["w-4 h-4", if(@voice.muted, do: "text-error", else: "")]}
+        />
+      </button>
+      <button
+        type="button"
+        phx-click="leave_voice_channel"
+        class="btn btn-error btn-sm btn-circle"
+        title="Leave voice channel"
+      >
+        <.icon name="hero-phone-x-mark" class="w-4 h-4" />
+      </button>
+    </div>
+  <% end %>
 </div>

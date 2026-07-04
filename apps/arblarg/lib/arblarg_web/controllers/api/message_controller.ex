@@ -379,6 +379,7 @@ defmodule ArblargWeb.API.MessageController do
       conversation_id: message.conversation_id,
       sender_id: message.sender_id,
       sender: format_user(message.sender),
+      webhook_id: Map.get(message, :webhook_id),
       reply_to_id: message.reply_to_id,
       reply_to: format_reply_to(message.reply_to),
       like_count: Map.get(message, :like_count, 0) || 0,
@@ -446,7 +447,9 @@ defmodule ArblargWeb.API.MessageController do
     %{
       id: user.id,
       username: user.username,
-      avatar: user.avatar
+      avatar: user.avatar,
+      is_bot: Map.get(user, :is_bot, false) == true,
+      webhook: Map.get(user, :webhook, false) == true
     }
   end
 
