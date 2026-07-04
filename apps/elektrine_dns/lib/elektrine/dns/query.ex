@@ -36,17 +36,7 @@ defmodule Elektrine.DNS.Query do
     result =
       case Packet.decode_query(packet) do
         {:ok, query} ->
-          if any_query?(query) do
-            response =
-              Packet.encode_response(query, [], :refused,
-                transport: Keyword.get(opts, :transport),
-                recursion_available: DNS.recursive_enabled?()
-              )
-
-            response_meta(query, response, nil, :refused, false)
-          else
-            route_query(packet, query, opts)
-          end
+          route_query(packet, query, opts)
 
         {:error, :format_error} ->
           %{
@@ -83,7 +73,11 @@ defmodule Elektrine.DNS.Query do
   defp route_query(packet, query, opts) do
     case fetch_zone(query.qname) do
       {:ok, zone} ->
-        answer_for_zone(query, zone, opts)
+        if query.qtype == :any do
+          minimal_any_response(query, zone, opts)
+        else
+          answer_for_zone(query, zone, opts)
+        end
 
       {:error, :not_authoritative} ->
         if query_recursion_desired?(packet) and DNS.recursive_enabled?() do
@@ -95,29 +89,21 @@ defmodule Elektrine.DNS.Query do
 
           response_meta(query, response, nil, :refused, false)
         end
-
-      {:error, :name_error, failed_query} ->
-        response =
-          Packet.encode_response(failed_query, [], :nxdomain,
-            transport: Keyword.get(opts, :transport)
-          )
-
-        response_meta(failed_query, response, nil, :nxdomain, false)
-
-      {:error, _, failed_query} ->
-        response =
-          Packet.encode_response(failed_query, [], :servfail,
-            transport: Keyword.get(opts, :transport)
-          )
-
-        response_meta(failed_query, response, nil, :servfail, false)
-
-      _ ->
-        response =
-          Packet.encode_response(query, [], :servfail, transport: Keyword.get(opts, :transport))
-
-        response_meta(query, response, nil, :servfail, false)
     end
+  end
+
+  # RFC 8482: answer ANY with a synthetic HINFO instead of the full RRset or
+  # an outright refusal, which breaks some legacy mail senders.
+  defp minimal_any_response(query, zone, opts) do
+    hinfo = %{host: query.qname, type: :hinfo, cpu: "RFC8482", os: "", ttl: 3789}
+
+    response =
+      Packet.encode_response(query, [hinfo], :noerror,
+        authoritative: true,
+        transport: Keyword.get(opts, :transport)
+      )
+
+    response_meta(query, response, zone, :noerror, true)
   end
 
   defp query_recursion_desired?(<<_id::16, flags::16, _rest::binary>>),
@@ -378,17 +364,27 @@ defmodule Elektrine.DNS.Query do
     end)
   end
 
+  # A name exists if a record sits at it or below it: empty non-terminals
+  # must yield NODATA, not NXDOMAIN (RFC 8020), and must block wildcards.
   defp name_exists?(zone, qname, opts) do
     fqdn = normalize_name(qname)
-    Enum.any?(zone_records(zone, opts), &(record_name(zone, &1) == fqdn))
+    suffix = "." <> fqdn
+
+    Enum.any?(zone_records(zone, opts), fn record ->
+      name = record_name(zone, record)
+      name == fqdn or String.ends_with?(name, suffix)
+    end)
   end
 
   defp private_name_exists?(zone, qname, opts) do
     fqdn = normalize_name(qname)
+    suffix = "." <> fqdn
 
     not private_query?(opts) and
       Enum.any?(all_zone_records(zone), fn record ->
-        Elektrine.DNS.Record.private?(record) and record_name(zone, record) == fqdn
+        Elektrine.DNS.Record.private?(record) and
+          (record_name(zone, record) == fqdn or
+             String.ends_with?(record_name(zone, record), suffix))
       end)
   end
 
@@ -520,9 +516,6 @@ defmodule Elektrine.DNS.Query do
     do: Map.get(@type_names, String.downcase(type), type)
 
   defp normalize_type(type), do: type
-
-  defp any_query?(%{qtype: :any}), do: true
-  defp any_query?(_query), do: false
 
   defp private_query?(opts) do
     opts

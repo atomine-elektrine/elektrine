@@ -48,6 +48,22 @@ defmodule Elektrine.DNS.RequestGuardTest do
     RequestGuard.finish_request(:tcp)
   end
 
+  test "check_rate consumes rate budget without touching inflight" do
+    put_dns_config(
+      tcp_rate_limit_per_window: 2,
+      tcp_max_inflight: 1,
+      rate_limit_window_ms: 1_000
+    )
+
+    assert :ok = RequestGuard.check_rate({127, 0, 0, 9}, :tcp)
+    assert :ok = RequestGuard.check_rate({127, 0, 0, 9}, :tcp)
+    assert {:error, :rate_limited} = RequestGuard.check_rate({127, 0, 0, 9}, :tcp)
+
+    # Inflight capacity is untouched by check_rate.
+    assert {:ok, :tcp} = RequestGuard.begin_request({127, 0, 0, 10}, :tcp)
+    RequestGuard.finish_request(:tcp)
+  end
+
   defp clear_table(table) do
     case :ets.whereis(table) do
       :undefined -> :ok

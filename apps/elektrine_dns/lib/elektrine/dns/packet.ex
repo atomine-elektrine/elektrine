@@ -11,6 +11,7 @@ defmodule Elektrine.DNS.Packet do
     ns: 2,
     cname: 5,
     soa: 6,
+    hinfo: 13,
     mx: 15,
     txt: 16,
     aaaa: 28,
@@ -47,7 +48,8 @@ defmodule Elektrine.DNS.Packet do
          qtype: question.qtype,
          qclass: question.qclass,
          udp_size: options.udp_size,
-         dnssec_ok: options.dnssec_ok
+         dnssec_ok: options.dnssec_ok,
+         edns: options.edns
        }}
     else
       _ -> {:error, :format_error}
@@ -77,25 +79,39 @@ defmodule Elektrine.DNS.Packet do
   def encode_response(query, answers, rcode, opts \\ []) do
     do_encode_response(query, answers, rcode, opts)
   rescue
-    MatchError -> do_encode_response(query, [], :servfail, transport_opts(opts))
-    ArgumentError -> do_encode_response(query, [], :servfail, transport_opts(opts))
+    # A record that fails to encode must never leave the client without an
+    # answer, so any encode error degrades to a bare SERVFAIL.
+    _error -> do_encode_response(query, [], :servfail, transport_opts(opts))
   end
 
   defp do_encode_response(query, answers, rcode, opts) do
     flags = flags_for_reply(query.rd, rcode, opts)
     question = encode_name(query.qname) <> <<encode_type(query.qtype)::16, 1::16>>
-    answer_bin = Enum.map_join(answers, &encode_record(&1))
+    qname_norm = normalize_owner(query.qname)
+    answer_bin = Enum.map_join(answers, &encode_record(&1, qname_norm))
     authority = Keyword.get(opts, :authority, [])
     additional = Keyword.get(opts, :additional, [])
-    authority_bin = Enum.map_join(authority, &encode_record(&1))
-    additional_bin = Enum.map_join(additional, &encode_record(&1))
+    authority_bin = Enum.map_join(authority, &encode_record(&1, qname_norm))
+    additional_bin = Enum.map_join(additional, &encode_record(&1, qname_norm))
+    opt_bin = response_opt_record(query)
+    arcount = length(additional) + if opt_bin == <<>>, do: 0, else: 1
 
     response =
-      <<query.id::16, flags::16, 1::16, length(answers)::16, length(authority)::16,
-        length(additional)::16, question::binary, answer_bin::binary, authority_bin::binary,
-        additional_bin::binary>>
+      <<query.id::16, flags::16, 1::16, length(answers)::16, length(authority)::16, arcount::16,
+        question::binary, answer_bin::binary, authority_bin::binary, additional_bin::binary,
+        opt_bin::binary>>
 
     maybe_truncate_response(query, response, rcode, opts)
+  end
+
+  # RFC 6891/3225: a response to an EDNS query must carry an OPT record, with
+  # the DO bit copied from the request.
+  defp response_opt_record(query) do
+    if Map.get(query, :edns, false) do
+      encode_opt_record(DNS.max_udp_payload(), Map.get(query, :dnssec_ok, false))
+    else
+      <<>>
+    end
   end
 
   defp transport_opts(opts) do
@@ -125,7 +141,11 @@ defmodule Elektrine.DNS.Packet do
   defp encode_truncated_response(query, rcode, opts) do
     flags = flags_for_reply(query.rd, rcode, Keyword.put(opts, :truncated, true))
     question = encode_name(query.qname) <> <<encode_type(query.qtype)::16, 1::16>>
-    <<query.id::16, flags::16, 1::16, 0::16, 0::16, 0::16, question::binary>>
+    opt_bin = response_opt_record(query)
+    arcount = if opt_bin == <<>>, do: 0, else: 1
+
+    <<query.id::16, flags::16, 1::16, 0::16, 0::16, arcount::16, question::binary,
+      opt_bin::binary>>
   end
 
   defp udp_payload_limit(query) do
@@ -157,10 +177,15 @@ defmodule Elektrine.DNS.Packet do
     end
   end
 
-  defp decode_query_options(_rest, _packet, 0), do: {:ok, %{udp_size: 512, dnssec_ok: false}}
+  defp decode_query_options(_rest, _packet, 0),
+    do: {:ok, %{udp_size: 512, dnssec_ok: false, edns: false}}
 
   defp decode_query_options(rest, packet, arcount) do
-    decode_additional_records(rest, packet, arcount, %{udp_size: 512, dnssec_ok: false})
+    decode_additional_records(rest, packet, arcount, %{
+      udp_size: 512,
+      dnssec_ok: false,
+      edns: false
+    })
   end
 
   defp decode_additional_records(rest, _packet, 0, options) when is_binary(rest),
@@ -175,7 +200,8 @@ defmodule Elektrine.DNS.Packet do
           %{
             options
             | udp_size: clamp_udp_size(class),
-              dnssec_ok: (ttl &&& 0x8000) != 0
+              dnssec_ok: (ttl &&& 0x8000) != 0,
+              edns: true
           }
         else
           options
@@ -241,13 +267,27 @@ defmodule Elektrine.DNS.Packet do
 
   defp decode_name(_, _, _, _), do: {:error, :bad_name}
 
-  defp encode_record(record) do
-    name = encode_name(record_name(record))
+  defp encode_record(record, qname_norm) do
+    name = encode_owner(record_name(record), qname_norm)
     type = encode_type(record.type)
     ttl = Map.get(record, :ttl, 300)
     rdata = encode_rdata(Map.put(record, :type, normalize_type(record.type)))
 
     <<name::binary, type::16, 1::16, ttl::32, byte_size(rdata)::16, rdata::binary>>
+  end
+
+  # Owner names matching the question name are emitted as a compression
+  # pointer to the question section (fixed offset 12).
+  defp encode_owner(name, qname_norm) do
+    if qname_norm != nil and normalize_owner(name) == qname_norm do
+      <<0xC00C::16>>
+    else
+      encode_name(name)
+    end
+  end
+
+  defp normalize_owner(name) do
+    name |> to_string() |> String.trim_trailing(".") |> String.downcase()
   end
 
   defp encode_rdata(%{type: :a, content: content}) do
@@ -268,6 +308,9 @@ defmodule Elektrine.DNS.Packet do
 
   defp encode_rdata(%{type: :txt, content: content}), do: encode_txt(content)
   defp encode_rdata(%{type: :txt, value: value}), do: encode_txt(value)
+
+  defp encode_rdata(%{type: :hinfo, cpu: cpu, os: os}),
+    do: <<byte_size(cpu)::8, cpu::binary, byte_size(os)::8, os::binary>>
 
   defp encode_rdata(%{
          type: :srv,

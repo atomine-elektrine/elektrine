@@ -22,8 +22,10 @@ defmodule Elektrine.DNS.Application do
         Elektrine.DNS.ZoneCache,
         Elektrine.DNS.ProfileWildcardBootstrap,
         Elektrine.DNS.Authority,
-        Elektrine.DNS.UDPServer,
-        Elektrine.DNS.TCPServer
+        {Elektrine.DNS.UDPServer, name: Elektrine.DNS.UDPServer, family: :inet},
+        {Elektrine.DNS.UDPServer, name: Elektrine.DNS.UDPServerV6, family: :inet6},
+        {Elektrine.DNS.TCPServer, name: Elektrine.DNS.TCPServer, family: :inet},
+        {Elektrine.DNS.TCPServer, name: Elektrine.DNS.TCPServerV6, family: :inet6}
       ]
     else
       []
