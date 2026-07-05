@@ -25,7 +25,7 @@ defmodule Paige.MixProject do
 
   defp deps do
     [
-      {:finch, "== 0.22.0"},
+      {:finch, "== 0.23.0"},
       {:jason, "== 1.4.5"}
     ]
   end
