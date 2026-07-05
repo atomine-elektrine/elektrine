@@ -6,6 +6,7 @@ defmodule ArblargWeb.ChatLive.Operations.MessageOperations do
   alias ArblargWeb.ChatLive.Operations.Helpers
   alias Elektrine.Accounts.Storage
   alias Elektrine.Messaging, as: Messaging
+  alias Elektrine.Messaging.RoomACL
   alias Elektrine.Messaging.SlashCommands
   alias Elektrine.Uploads
   @doc "Load older messages in the conversation (pagination upward).\n"
@@ -171,247 +172,279 @@ defmodule ArblargWeb.ChatLive.Operations.MessageOperations do
   def handle_event("send_message", %{"message" => message_content}, socket) do
     trimmed_content = String.trim(message_content)
 
-    upload_results =
-      consume_uploaded_entries(socket, :chat_attachments, fn %{path: path}, entry ->
-        user_id = socket.assigns.current_user.id
+    case ensure_can_send_current_conversation(socket) do
+      :ok ->
+        upload_results =
+          consume_uploaded_entries(socket, :chat_attachments, fn %{path: path}, entry ->
+            user_id = socket.assigns.current_user.id
 
-        upload_struct = %Plug.Upload{
-          path: path,
-          content_type: entry.client_type,
-          filename: entry.client_name
-        }
+            upload_struct = %Plug.Upload{
+              path: path,
+              content_type: entry.client_type,
+              filename: entry.client_name
+            }
 
-        case Uploads.upload_chat_attachment(upload_struct, user_id) do
-          {:ok, metadata} ->
-            {:ok,
-             %{
-               url: metadata.key,
-               name: metadata.filename,
-               type: metadata.content_type,
-               size: metadata.size
-             }}
+            case Uploads.upload_chat_attachment(upload_struct, user_id) do
+              {:ok, metadata} ->
+                {:ok,
+                 %{
+                   url: metadata.key,
+                   name: metadata.filename,
+                   type: metadata.content_type,
+                   size: metadata.size
+                 }}
 
-          {:error, _reason} ->
-            {:ok, %{upload_error: true, name: entry.client_name}}
-        end
-      end)
+              {:error, _reason} ->
+                {:ok, %{upload_error: true, name: entry.client_name}}
+            end
+          end)
 
-    {failed_uploads, uploaded_files} =
-      Enum.split_with(upload_results, fn upload ->
-        Map.get(upload, :upload_error, false)
-      end)
+        {failed_uploads, uploaded_files} =
+          Enum.split_with(upload_results, fn upload ->
+            Map.get(upload, :upload_error, false)
+          end)
 
-    socket =
-      if failed_uploads != [] do
-        notify_error(
-          socket,
-          "One or more attachments failed to upload. Try a supported image format (JPG, PNG, WEBP, HEIC, AVIF) or a smaller file."
-        )
-      else
-        socket
-      end
+        socket =
+          if failed_uploads != [] do
+            notify_error(
+              socket,
+              "One or more attachments failed to upload. Try a supported image format (JPG, PNG, WEBP, HEIC, AVIF) or a smaller file."
+            )
+          else
+            socket
+          end
 
-    case maybe_apply_slash_command(trimmed_content, uploaded_files, socket) do
-      {:halt, socket} ->
-        {:noreply, socket}
+        case maybe_apply_slash_command(trimmed_content, uploaded_files, socket) do
+          {:halt, socket} ->
+            {:noreply, socket}
 
-      {:send, resolved_content, socket} ->
-        has_content = resolved_content != "" || !Enum.empty?(uploaded_files)
+          {:send, resolved_content, socket} ->
+            has_content = resolved_content != "" || !Enum.empty?(uploaded_files)
 
-        if has_content do
-          case socket.assigns.conversation.selected do
-            nil ->
-              {:noreply, socket}
+            if has_content do
+              case socket.assigns.conversation.selected do
+                nil ->
+                  {:noreply, socket}
 
-            conversation ->
-              if Map.get(
-                   socket.assigns.moderation.user_timeout_status,
-                   socket.assigns.current_user.id,
-                   false
-                 ) do
-                {:noreply,
-                 notify_error(socket, "You are currently timed out and cannot send messages")}
-              else
-                reply_to_id =
-                  if socket.assigns.message.reply_to do
-                    socket.assigns.message.reply_to.id
+                conversation ->
+                  if Map.get(
+                       socket.assigns.moderation.user_timeout_status,
+                       socket.assigns.current_user.id,
+                       false
+                     ) do
+                    {:noreply,
+                     notify_error(socket, "You are currently timed out and cannot send messages")}
                   else
-                    nil
-                  end
-
-                socket =
-                  assign(socket, :message, %{socket.assigns.message | loading_messages: true})
-
-                result =
-                  if Enum.empty?(uploaded_files) do
-                    Messaging.create_text_message(
-                      conversation.id,
-                      socket.assigns.current_user.id,
-                      resolved_content,
-                      reply_to_id
-                    )
-                  else
-                    media_urls = Enum.map(uploaded_files, & &1.url)
-
-                    content =
-                      if resolved_content != "" do
-                        resolved_content
+                    reply_to_id =
+                      if socket.assigns.message.reply_to do
+                        socket.assigns.message.reply_to.id
                       else
                         nil
                       end
 
-                    media_metadata =
-                      uploaded_files
-                      |> Enum.map(fn file ->
-                        {file.url,
-                         %{size: file.size, filename: file.name, content_type: file.type}}
-                      end)
-                      |> Map.new()
+                    socket =
+                      assign(socket, :message, %{socket.assigns.message | loading_messages: true})
 
-                    Messaging.create_media_message(
-                      conversation.id,
-                      socket.assigns.current_user.id,
-                      media_urls,
-                      content,
-                      media_metadata
-                    )
-                  end
-
-                case result do
-                  {:ok, message} ->
-                    if !Enum.empty?(uploaded_files) do
-                      Storage.update_user_storage(socket.assigns.current_user.id)
-                    end
-
-                    if socket.assigns[:typing_timer] do
-                      Process.cancel_timer(socket.assigns.typing_timer)
-                    end
-
-                    Phoenix.PubSub.broadcast_from(
-                      Elektrine.PubSub,
-                      self(),
-                      "conversation:#{conversation.id}",
-                      {:user_stopped_typing, socket.assigns.current_user.id}
-                    )
-
-                    Elektrine.Messaging.Federation.publish_typing_stopped(
-                      conversation.id,
-                      socket.assigns.current_user.id
-                    )
-
-                    message_with_sender = Elektrine.Repo.preload(message, sender: [:profile])
-                    conversations = socket.assigns.conversation.list
-
-                    updated_conversations =
-                      Enum.map(conversations, fn conv ->
-                        if conv.id == conversation.id do
-                          last_message_at = DateTime.from_naive!(message.inserted_at, "Etc/UTC")
-
-                          %{
-                            conv
-                            | messages: [message_with_sender],
-                              last_message_at: last_message_at
-                          }
-                        else
-                          conv
-                        end
-                      end)
-
-                    last_message_read_status =
-                      Helpers.calculate_last_message_read_status(
-                        updated_conversations,
-                        socket.assigns.current_user.id
-                      )
-
-                    unread_counts =
-                      Helpers.calculate_unread_counts(
-                        updated_conversations,
-                        socket.assigns.current_user.id
-                      )
-
-                    sorted_conversations =
-                      Helpers.sort_conversations_by_unread(
-                        updated_conversations,
-                        unread_counts,
-                        socket.assigns.current_user.id
-                      )
-
-                    scoped_conversations =
-                      Helpers.scope_conversations_to_server(
-                        sorted_conversations,
-                        socket.assigns[:active_server_id]
-                      )
-
-                    filtered_conversations =
-                      if socket.assigns.search.conversation_query != "" do
-                        Helpers.filter_conversations(
-                          scoped_conversations,
-                          socket.assigns.search.conversation_query,
-                          socket.assigns.current_user.id
+                    result =
+                      if Enum.empty?(uploaded_files) do
+                        Messaging.create_text_message(
+                          conversation.id,
+                          socket.assigns.current_user.id,
+                          resolved_content,
+                          reply_to_id
                         )
                       else
-                        scoped_conversations
+                        media_urls = Enum.map(uploaded_files, & &1.url)
+
+                        content =
+                          if resolved_content != "" do
+                            resolved_content
+                          else
+                            nil
+                          end
+
+                        media_metadata =
+                          uploaded_files
+                          |> Enum.map(fn file ->
+                            {file.url,
+                             %{size: file.size, filename: file.name, content_type: file.type}}
+                          end)
+                          |> Map.new()
+
+                        Messaging.create_media_message(
+                          conversation.id,
+                          socket.assigns.current_user.id,
+                          media_urls,
+                          content,
+                          media_metadata
+                        )
                       end
 
-                    updated_messages =
-                      Helpers.dedupe_messages(socket.assigns.messages ++ [message])
+                    case result do
+                      {:ok, message} ->
+                        if !Enum.empty?(uploaded_files) do
+                          Storage.update_user_storage(socket.assigns.current_user.id)
+                        end
 
-                    updated_read_status =
-                      Map.put(socket.assigns.message.read_status || %{}, message.id, [])
+                        if socket.assigns[:typing_timer] do
+                          Process.cancel_timer(socket.assigns.typing_timer)
+                        end
 
-                    updated_socket =
-                      socket
-                      |> assign(:messages, updated_messages)
-                      |> assign(:newest_message_id, message.id)
-                      |> assign(:has_more_newer_messages, false)
-                      |> assign(:message, %{
-                        socket.assigns.message
-                        | new_message: "",
-                          reply_to: nil,
-                          loading_messages: false,
-                          read_status: updated_read_status
-                      })
-                      |> assign(:typing_timer, nil)
-                      |> assign(:conversation, %{
-                        socket.assigns.conversation
-                        | list: sorted_conversations,
-                          filtered: filtered_conversations,
-                          last_message_read_status: last_message_read_status
-                      })
+                        Phoenix.PubSub.broadcast_from(
+                          Elektrine.PubSub,
+                          self(),
+                          "conversation:#{conversation.id}",
+                          {:user_stopped_typing, socket.assigns.current_user.id}
+                        )
 
-                    updated_socket =
-                      if message.media_urls && message.media_urls != [] do
-                        Process.send_after(self(), {:ensure_scroll_after_media, message.id}, 50)
-                        Process.send_after(self(), {:ensure_scroll_after_media, message.id}, 200)
-                        Process.send_after(self(), {:ensure_scroll_after_media, message.id}, 500)
-                        Process.send_after(self(), {:ensure_scroll_after_media, message.id}, 1000)
-                        Process.send_after(self(), {:ensure_scroll_after_media, message.id}, 1500)
-                        updated_socket
-                      else
-                        push_event(updated_socket, "scroll_to_bottom", %{})
-                      end
+                        Elektrine.Messaging.Federation.publish_typing_stopped(
+                          conversation.id,
+                          socket.assigns.current_user.id
+                        )
 
-                    {:noreply, updated_socket}
+                        message_with_sender = Elektrine.Repo.preload(message, sender: [:profile])
+                        conversations = socket.assigns.conversation.list
 
-                  {:error, :rate_limited} ->
-                    {:noreply,
-                     socket
-                     |> assign(:message, %{socket.assigns.message | loading_messages: false})
-                     |> notify_error("Sending too fast! Please slow down.")}
+                        updated_conversations =
+                          Enum.map(conversations, fn conv ->
+                            if conv.id == conversation.id do
+                              last_message_at =
+                                DateTime.from_naive!(message.inserted_at, "Etc/UTC")
 
-                  {:error, reason} ->
-                    error_message = Elektrine.Privacy.privacy_error_message(reason)
+                              %{
+                                conv
+                                | messages: [message_with_sender],
+                                  last_message_at: last_message_at
+                              }
+                            else
+                              conv
+                            end
+                          end)
 
-                    {:noreply,
-                     socket
-                     |> assign(:message, %{socket.assigns.message | loading_messages: false})
-                     |> notify_error(error_message)}
-                end
+                        last_message_read_status =
+                          Helpers.calculate_last_message_read_status(
+                            updated_conversations,
+                            socket.assigns.current_user.id
+                          )
+
+                        unread_counts =
+                          Helpers.calculate_unread_counts(
+                            updated_conversations,
+                            socket.assigns.current_user.id
+                          )
+
+                        sorted_conversations =
+                          Helpers.sort_conversations_by_unread(
+                            updated_conversations,
+                            unread_counts,
+                            socket.assigns.current_user.id
+                          )
+
+                        scoped_conversations =
+                          Helpers.scope_conversations_to_server(
+                            sorted_conversations,
+                            socket.assigns[:active_server_id]
+                          )
+
+                        filtered_conversations =
+                          if socket.assigns.search.conversation_query != "" do
+                            Helpers.filter_conversations(
+                              scoped_conversations,
+                              socket.assigns.search.conversation_query,
+                              socket.assigns.current_user.id
+                            )
+                          else
+                            scoped_conversations
+                          end
+
+                        updated_messages =
+                          Helpers.dedupe_messages(socket.assigns.messages ++ [message])
+
+                        updated_read_status =
+                          Map.put(socket.assigns.message.read_status || %{}, message.id, [])
+
+                        updated_socket =
+                          socket
+                          |> assign(:messages, updated_messages)
+                          |> assign(:newest_message_id, message.id)
+                          |> assign(:has_more_newer_messages, false)
+                          |> assign(:message, %{
+                            socket.assigns.message
+                            | new_message: "",
+                              reply_to: nil,
+                              loading_messages: false,
+                              read_status: updated_read_status
+                          })
+                          |> assign(:typing_timer, nil)
+                          |> assign(:conversation, %{
+                            socket.assigns.conversation
+                            | list: sorted_conversations,
+                              filtered: filtered_conversations,
+                              last_message_read_status: last_message_read_status
+                          })
+
+                        updated_socket =
+                          if message.media_urls && message.media_urls != [] do
+                            Process.send_after(
+                              self(),
+                              {:ensure_scroll_after_media, message.id},
+                              50
+                            )
+
+                            Process.send_after(
+                              self(),
+                              {:ensure_scroll_after_media, message.id},
+                              200
+                            )
+
+                            Process.send_after(
+                              self(),
+                              {:ensure_scroll_after_media, message.id},
+                              500
+                            )
+
+                            Process.send_after(
+                              self(),
+                              {:ensure_scroll_after_media, message.id},
+                              1000
+                            )
+
+                            Process.send_after(
+                              self(),
+                              {:ensure_scroll_after_media, message.id},
+                              1500
+                            )
+
+                            updated_socket
+                          else
+                            push_event(updated_socket, "scroll_to_bottom", %{})
+                          end
+
+                        {:noreply, updated_socket}
+
+                      {:error, :rate_limited} ->
+                        {:noreply,
+                         socket
+                         |> assign(:message, %{socket.assigns.message | loading_messages: false})
+                         |> notify_error("Sending too fast! Please slow down.")}
+
+                      {:error, reason} ->
+                        error_message = message_send_error_message(reason)
+
+                        {:noreply,
+                         socket
+                         |> assign(:message, %{socket.assigns.message | loading_messages: false})
+                         |> notify_error(error_message)}
+                    end
+                  end
               end
-          end
-        else
-          {:noreply, socket}
+            else
+              {:noreply, socket}
+            end
         end
+
+      {:error, reason} ->
+        {:noreply, notify_error(socket, message_send_error_message(reason))}
     end
   end
 
@@ -1015,6 +1048,29 @@ defmodule ArblargWeb.ChatLive.Operations.MessageOperations do
         selected_text: nil
     })
   end
+
+  defp ensure_can_send_current_conversation(socket) do
+    case socket.assigns.conversation.selected do
+      %{id: conversation_id} ->
+        RoomACL.authorize_local_user_action(
+          conversation_id,
+          socket.assigns.current_user.id,
+          :write
+        )
+
+      _ ->
+        {:error, :no_conversation}
+    end
+  end
+
+  defp message_send_error_message(:unauthorized), do: "You cannot send messages in this chat."
+
+  defp message_send_error_message(:not_authorized_for_room),
+    do: "You cannot send messages in this chat."
+
+  defp message_send_error_message(:no_conversation), do: "Select a chat before sending."
+
+  defp message_send_error_message(reason), do: Elektrine.Privacy.privacy_error_message(reason)
 
   defp maybe_apply_slash_command("", _uploaded_files, socket) do
     {:send, "", socket}

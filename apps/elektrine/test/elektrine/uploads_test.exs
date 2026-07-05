@@ -107,6 +107,24 @@ defmodule Elektrine.UploadsTest do
     refute filename =~ "tax-return"
   end
 
+  test "stores image attachment metadata before cleaning stripped temp file", %{
+    tmp_dir: tmp_dir,
+    user: user
+  } do
+    upload = upload_fixture(tmp_dir, "pixel.png", "image/png", tiny_png())
+
+    assert Code.ensure_loaded?(Image)
+    assert {:ok, _image} = Image.open(upload.path)
+
+    assert {:ok, %{key: "/uploads/chat-attachments/" <> stored_filename, sha256: sha256}} =
+             Uploads.upload_chat_attachment(upload, user.id)
+
+    assert String.ends_with?(stored_filename, ".png")
+    assert is_binary(sha256)
+    refute File.exists?(upload.path <> "_stripped.png")
+    assert File.exists?(Path.join([tmp_dir, "chat-attachments", stored_filename]))
+  end
+
   test "private S3 attachment URLs fail closed when presigning cannot be configured" do
     Application.put_env(:elektrine, :uploads, adapter: :s3)
 
@@ -198,5 +216,11 @@ defmodule Elektrine.UploadsTest do
     File.write!(path, content)
 
     %Plug.Upload{path: path, filename: filename, content_type: content_type}
+  end
+
+  defp tiny_png do
+    Base.decode64!(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII="
+    )
   end
 end

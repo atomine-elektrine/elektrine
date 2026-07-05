@@ -471,7 +471,8 @@ defmodule Elektrine.Messaging.ChatMessage do
 
     case String.split(normalized, "/", parts: 2) do
       [prefix, filename] when prefix in ["chat-attachments", "attachments"] ->
-        String.starts_with?(filename, "#{sender_id}_")
+        legacy_owned_chat_media_filename?(filename, sender_id) or
+          content_addressed_chat_media_key?(filename, sender_id)
 
       _ ->
         false
@@ -479,6 +480,34 @@ defmodule Elektrine.Messaging.ChatMessage do
   end
 
   defp owned_chat_media_key?(_key, _sender_id), do: false
+
+  defp legacy_owned_chat_media_filename?(filename, sender_id) when is_binary(filename) do
+    safe_chat_media_key?(filename) and String.starts_with?(filename, "#{sender_id}_")
+  end
+
+  defp content_addressed_chat_media_key?(path, sender_id) when is_binary(path) do
+    case String.split(path, "/") do
+      [user_id, hash_a, hash_b, hash_c, filename] ->
+        user_id == to_string(sender_id) and safe_hash_segment?(hash_a) and
+          safe_hash_segment?(hash_b) and safe_hash_segment?(hash_c) and
+          safe_content_addressed_filename?(filename)
+
+      _ ->
+        false
+    end
+  end
+
+  defp safe_content_addressed_filename?(filename) when is_binary(filename) do
+    String.match?(filename, ~r/\A[0-9a-f]{64}\.[A-Za-z0-9]{1,16}\z/)
+  end
+
+  defp safe_hash_segment?(segment) when is_binary(segment) do
+    String.match?(segment, ~r/\A[0-9a-f]{2}\z/)
+  end
+
+  defp safe_chat_media_key?(key) when is_binary(key) do
+    not String.contains?(key, ["..", "\\", "/"]) and not Regex.match?(~r/[\x00-\x1F\x7F]/, key)
+  end
 
   defp determine_media_type(media_urls) do
     if Enum.any?(media_urls, &String.match?(&1, ~r/\.(jpg|jpeg|png|gif|webp|heic|heif|avif)$/i)) do

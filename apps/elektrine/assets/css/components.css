@@ -191,6 +191,8 @@ html[data-theme="dark"] .btn:focus-visible,
 } .dropdown:focus-within .dropdown-content,
 .dropdown:focus .dropdown-content,
 .dropdown-open .dropdown-content { visibility: visible; opacity: 1; transform: translateY(0) scale(1);
+} .dropdown[data-portal-dropdown-root]:not([data-portal-dropdown-open="true"]):focus-within .dropdown-content[data-portal-dropdown-menu],
+.dropdown[data-portal-dropdown-root]:not([data-portal-dropdown-open="true"]):focus .dropdown-content[data-portal-dropdown-menu] { visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; transform: translateY(-4px) scale(0.98) !important;
 } /* Timeline cards need higher stacking when menus are open */
 .timeline-post-card { position: relative; overflow: visible !important; z-index: 1; isolation: isolate; contain: none; transform: none !important;
 } .timeline-post-card:hover,
@@ -199,7 +201,10 @@ html[data-theme="dark"] .btn:focus-visible,
 .timeline-post-card .timeline-post-card-body { overflow: visible;
 } .timeline-post-dropdown { position: relative; z-index: 90; overflow: visible;
 } .timeline-post-dropdown .dropdown-content,
-.timeline-post-card .timeline-post-dropdown-menu { z-index: 260; position: absolute; overflow: visible;
+.timeline-post-card .timeline-post-dropdown-menu { z-index: 260; position: absolute;
+} .timeline-post-dropdown-menu { width: min(18rem, calc(100vw - 1rem)); max-width: calc(100vw - 1rem); overflow: hidden;
+} .timeline-post-dropdown-menu :where(li > a, li > button, li > details > summary) { min-width: 0; white-space: normal; overflow-wrap: anywhere; word-break: break-word; line-height: 1.25;
+} .timeline-post-dropdown-menu :where(svg, .ui-icon) { flex-shrink: 0;
 } .thread-context-card[role="button"] { cursor: pointer;
 } .thread-context-card[role="button"]:focus-visible { outline: 2px solid color-mix(in srgb, var(--color-primary) 55%, transparent); outline-offset: -2px;
 }

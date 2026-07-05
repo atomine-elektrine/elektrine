@@ -202,8 +202,20 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.Helpers do
   end
 
   defp pure_boost_post?(post) when is_map(post) do
-    not is_nil(Map.get(post, :shared_message_id)) &&
-      Elektrine.Strings.present?(Map.get(post, :content)) == false
+    local_boost? =
+      not is_nil(Map.get(post, :shared_message_id)) &&
+        Elektrine.Strings.present?(Map.get(post, :content)) == false
+
+    # Incoming federated boosts (Announce) are stored as the original post with
+    # a boosted_by marker in metadata instead of shared_message_id — the same
+    # condition the timeline uses to render the "boosted" banner.
+    remote_boost? =
+      case Map.get(post, :media_metadata) do
+        %{"boosted_by" => booster} -> is_map(booster)
+        _ -> false
+      end
+
+    local_boost? || remote_boost?
   end
 
   defp pure_boost_post?(_), do: false

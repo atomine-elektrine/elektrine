@@ -376,63 +376,159 @@ defmodule Elektrine.Social do
     search_query = Keyword.get(opts, :search_query)
     source_filter = Keyword.get(opts, :source_filter, "all")
     preloads = [conversation: []] ++ MessagingMessages.timeline_feed_preloads()
-    all_blocked_ids = blocked_user_ids(user_id)
 
-    source_scope_filter =
-      case source_filter do
-        "federated" ->
-          dynamic(
-            [m, c],
-            (m.federated == true and
-               (c.type == "community" or
-                  fragment("?->>'community_actor_uri' IS NOT NULL", m.media_metadata))) or
-              c.is_federated_mirror == true
-          )
+    # This feed used to be one query whose community condition was an OR spanning
+    # both social_messages and the joined social_conversations table. No index can
+    # serve that: Postgres walks the whole public timeline in id order, probing the
+    # conversation for every row, until it fills the limit — which times out when
+    # matching posts are sparse (filter=federated). Fetch ids per indexable branch
+    # instead, then load the winning page.
+    branch_opts = %{
+      limit: limit,
+      pagination: pagination,
+      user_id: user_id,
+      blocked_ids: blocked_user_ids(user_id),
+      search_query: search_query
+    }
 
-        "local" ->
-          dynamic(
-            [m, c],
-            c.type == "community" and
-              (is_nil(c.is_federated_mirror) or c.is_federated_mirror == false) and
-              m.federated != true
-          )
+    ids =
+      source_filter
+      |> community_post_branch_ids(branch_opts)
+      |> Enum.uniq()
+      |> Enum.sort(pagination.order)
+      |> Enum.take(limit)
 
-        _ ->
-          dynamic(
-            [m, c],
-            c.type == "community" or
-              fragment("?->>'community_actor_uri' IS NOT NULL", m.media_metadata)
-          )
-      end
+    Message
+    |> where([m], m.id in ^ids)
+    |> preload(^preloads)
+    |> Repo.all()
+    |> Enum.sort_by(& &1.id, pagination.order)
+  end
 
-    where_filter =
-      dynamic(
-        [m, c],
-        m.visibility == "public" and
-          m.is_draft != true and
-          is_nil(m.deleted_at) and
-          (m.approval_status == "approved" or is_nil(m.approval_status)) and
-          is_nil(m.reply_to_id) and
-          fragment("(?->>'inReplyTo' IS NULL)", m.media_metadata) and
-          ^source_scope_filter
+  defp community_post_branch_ids("federated", branch_opts) do
+    federated_only = dynamic([m], m.federated == true)
+
+    community_metadata_post_ids(federated_only, branch_opts) ++
+      community_conversation_post_ids(
+        community_conversation_ids(:communities),
+        federated_only,
+        branch_opts
+      ) ++
+      community_conversation_post_ids(
+        community_conversation_ids(:federated_mirrors),
+        true,
+        branch_opts
+      )
+  end
+
+  defp community_post_branch_ids("local", branch_opts) do
+    community_conversation_post_ids(
+      community_conversation_ids(:local_communities),
+      dynamic([m], m.federated != true),
+      branch_opts
+    )
+  end
+
+  defp community_post_branch_ids(_source_filter, branch_opts) do
+    community_metadata_post_ids(true, branch_opts) ++
+      community_conversation_post_ids(
+        community_conversation_ids(:communities),
+        true,
+        branch_opts
+      )
+  end
+
+  defp community_conversation_ids(:communities) do
+    Repo.all(from c in Conversation, where: c.type == "community", select: c.id)
+  end
+
+  defp community_conversation_ids(:local_communities) do
+    Repo.all(
+      from c in Conversation,
+        where:
+          c.type == "community" and
+            (is_nil(c.is_federated_mirror) or c.is_federated_mirror == false),
+        select: c.id
+    )
+  end
+
+  defp community_conversation_ids(:federated_mirrors) do
+    Repo.all(from c in Conversation, where: c.is_federated_mirror == true, select: c.id)
+  end
+
+  # Posts tagged with a community actor uri in metadata, regardless of conversation.
+  # Served by the partial index on (id DESC) WHERE community_actor_uri IS NOT NULL.
+  defp community_metadata_post_ids(scope_filter, branch_opts) do
+    from(m in Message,
+      where: ^public_top_level_post_filter(),
+      where: fragment("?->>'community_actor_uri' IS NOT NULL", m.media_metadata),
+      where: ^scope_filter,
+      select: m.id,
+      limit: ^branch_opts.limit
+    )
+    |> apply_community_post_visibility_filters(branch_opts)
+    |> apply_id_pagination(branch_opts.pagination)
+    |> apply_id_order(branch_opts.pagination.order)
+    |> Repo.all()
+  end
+
+  # Posts inside the given conversations. A lateral top-N per conversation keeps
+  # each probe on the (conversation_id, id DESC) partial index instead of letting
+  # the planner walk the global timeline index.
+  defp community_conversation_post_ids([], _scope_filter, _branch_opts), do: []
+
+  defp community_conversation_post_ids(conversation_ids, scope_filter, branch_opts) do
+    per_conversation_query =
+      from(m in Message,
+        where: m.conversation_id == parent_as(:community_conversation).id,
+        where: ^public_top_level_post_filter(),
+        where: ^scope_filter,
+        select: %{id: m.id},
+        limit: ^branch_opts.limit
+      )
+      |> apply_community_post_visibility_filters(branch_opts)
+      |> apply_id_pagination(branch_opts.pagination)
+      |> apply_id_order(branch_opts.pagination.order)
+
+    query =
+      from(c in Conversation,
+        as: :community_conversation,
+        inner_lateral_join: p in subquery(per_conversation_query),
+        on: true,
+        where: c.id in ^conversation_ids,
+        select: p.id,
+        limit: ^branch_opts.limit
       )
 
     query =
-      from m in Message,
-        left_join: c in Conversation,
-        on: c.id == m.conversation_id,
-        where: ^where_filter,
-        order_by: [desc: m.id],
-        limit: ^limit,
-        preload: ^preloads
-
-    query = maybe_exclude_blocked_senders_or_nil(query, all_blocked_ids)
-    query = maybe_apply_viewer_timeline_policy(query, user_id)
-    query = maybe_exclude_public_timeline_removed_instances(query)
-    query = maybe_apply_timeline_search(query, search_query)
-    query = query |> apply_id_pagination(pagination) |> apply_id_order(pagination.order)
+      case branch_opts.pagination.order do
+        :asc -> order_by(query, [c, p], asc: p.id)
+        _ -> order_by(query, [c, p], desc: p.id)
+      end
 
     Repo.all(query)
+  end
+
+  defp apply_community_post_visibility_filters(query, branch_opts) do
+    query
+    |> maybe_exclude_blocked_senders_or_nil(branch_opts.blocked_ids)
+    |> maybe_apply_viewer_timeline_policy(branch_opts.user_id)
+    |> maybe_exclude_public_timeline_removed_instances()
+    |> maybe_apply_timeline_search(branch_opts.search_query)
+  end
+
+  defp public_top_level_post_filter do
+    # is_draft is spelled `IS NOT TRUE` (not `!= true`) so Postgres can prove the
+    # predicate of the partial indexes serving this feed, which use the same form.
+    dynamic(
+      [m],
+      m.visibility == "public" and
+        fragment("? IS NOT TRUE", m.is_draft) and
+        is_nil(m.deleted_at) and
+        (m.approval_status == "approved" or is_nil(m.approval_status)) and
+        is_nil(m.reply_to_id) and
+        fragment("(?->>'inReplyTo' IS NULL)", m.media_metadata)
+    )
   end
 
   @doc """

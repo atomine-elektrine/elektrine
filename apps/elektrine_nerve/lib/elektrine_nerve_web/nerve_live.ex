@@ -103,20 +103,9 @@ defmodule ElektrineNerveWeb.NerveLive do
         data-vault-configured={to_string(@vault_configured)}
         data-vault-wrapped-dek={@wrapped_dek && Jason.encode!(@wrapped_dek)}
       >
-        <section class="mx-auto w-full max-w-7xl space-y-6">
-          <ENav.e_nav
-            active_tab="nerve"
-            current_user={@current_user}
-          />
+        <ENav.e_nav active_tab="nerve" current_user={@current_user} class="mb-6" />
 
-          <div>
-            <h1 class="text-2xl font-bold text-base-content sm:text-3xl">Nerve</h1>
-            <p class="mt-1 text-base-content/70">
-              Encrypted passwords, autofill, and page capture for the browser extension,
-              unlocked with your account password.
-            </p>
-          </div>
-
+        <section class="space-y-6">
           <Elektrine.Components.ExperimentalNotice.experimental_notice message="Nerve is experimental. Keep separate backups of anything important you store here." />
 
           <div class="grid gap-6 lg:grid-cols-2">

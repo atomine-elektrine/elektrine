@@ -148,6 +148,34 @@ defmodule Elektrine.DNS.ZoneVerificationTest do
              "Delegation matches the configured nameservers, but they are not serving an authoritative SOA for #{zone.domain}: received a non-authoritative or empty SOA response"
   end
 
+  test "verify_zone reports per-endpoint authoritative SOA failures when reasons differ" do
+    user = AccountsFixtures.user_fixture()
+    {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
+
+    put_tld_delegation(zone.domain, ["ns1.elektrine.com", "ns2.elektrine.com"], [
+      {{203, 0, 113, 10}, 53},
+      {{8193, 3512, 0, 0, 0, 0, 0, 1}, 53}
+    ])
+
+    put_authoritative_response(
+      {203, 0, 113, 10},
+      zone.domain,
+      Elektrine.DNS.Packet.encode_response(
+        %{id: 1, rd: 0, qname: zone.domain, qtype: :soa},
+        [],
+        :noerror
+      )
+    )
+
+    put_authoritative_error({8193, 3512, 0, 0, 0, 0, 0, 1}, zone.domain, :eafnosupport)
+
+    assert {:ok, updated} = DNS.verify_zone(zone)
+    assert updated.status == "pending"
+
+    assert updated.last_error ==
+             "Delegation matches the configured nameservers, but they are not serving an authoritative SOA for #{zone.domain}: 203.0.113.10: received a non-authoritative or empty SOA response; [2001:db8::1]: address family not supported by this runtime"
+  end
+
   defp put_tld_delegation(domain, nameservers, endpoints) do
     tld = domain |> String.split(".") |> List.last()
     tld_server = {192, 0, 2, 53}
@@ -169,6 +197,12 @@ defmodule Elektrine.DNS.ZoneVerificationTest do
 
   defp put_authoritative_response(ip, domain, response) do
     put_response(ip, domain, :soa, response)
+  end
+
+  defp put_authoritative_error(ip, domain, reason) do
+    Agent.update(Elektrine.DNS.TestVerificationTransport, fn state ->
+      Map.put(state, {ip, 53, domain, :soa}, {:error, reason})
+    end)
   end
 
   defp put_response(ip, qname, qtype, response, opts \\ []) do

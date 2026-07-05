@@ -148,6 +148,7 @@ defmodule Elektrine.Social.FeedPolicy do
 
   defp boost?(%{post_type: "share"}), do: true
   defp boost?(%{shared_message_id: id}) when is_integer(id), do: true
+  defp boost?(%{media_metadata: %{"boosted_by" => booster}}) when is_map(booster), do: true
   defp boost?(_message), do: false
 
   defp reply?(%{reply_to_id: id}) when is_integer(id), do: true

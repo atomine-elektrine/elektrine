@@ -1,5 +1,6 @@
 defmodule ElektrineSocialWeb.TimelineLive.Index do
   use ElektrineSocialWeb, :live_view
+  require Logger
   alias Elektrine.Messaging
   alias Elektrine.PubSubTopics
   alias Elektrine.RSS
@@ -654,6 +655,19 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
 
       true ->
         {:noreply, apply_timeline_load_state(socket, load_state)}
+    end
+  end
+
+  @impl true
+  def handle_info({:timeline_data_load_failed, load_ref}, socket) do
+    if load_ref == socket.assigns.timeline_load_ref do
+      {:noreply,
+       socket
+       |> assign(:loading_timeline, false)
+       |> assign(:timeline_load_ref, nil)
+       |> put_flash(:error, "The timeline failed to load. Please try again.")}
+    else
+      {:noreply, socket}
     end
   end
 
@@ -1446,10 +1460,26 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
       parent = self()
 
       Task.start(fn ->
-        send(
-          parent,
-          {:timeline_data_loaded, load_ref, build_timeline_load_state(context, filter)}
-        )
+        try do
+          send(
+            parent,
+            {:timeline_data_loaded, load_ref, build_timeline_load_state(context, filter)}
+          )
+        rescue
+          error ->
+            Logger.error(
+              "Timeline data load failed: #{Exception.format(:error, error, __STACKTRACE__)}"
+            )
+
+            send(parent, {:timeline_data_load_failed, load_ref})
+        catch
+          kind, reason ->
+            Logger.error(
+              "Timeline data load failed: #{Exception.format(kind, reason, __STACKTRACE__)}"
+            )
+
+            send(parent, {:timeline_data_load_failed, load_ref})
+        end
       end)
 
       socket

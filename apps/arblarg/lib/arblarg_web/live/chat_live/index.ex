@@ -9,6 +9,7 @@ defmodule ArblargWeb.ChatLive.Index do
   alias Elektrine.Messaging, as: Messaging
   alias Elektrine.Messaging.ChatMessage
   alias Elektrine.Messaging.Federation.VoiceCalls
+  alias Elektrine.Messaging.RoomACL
   alias Elektrine.Social.Message
   alias Elektrine.Uploads
   import Elektrine.Components.User.Avatar
@@ -2669,6 +2670,10 @@ defmodule ArblargWeb.ChatLive.Index do
   defp open_conversation_or_redirect(socket, conversation),
     do: open_conversation(socket, conversation)
 
+  defp can_write_to_conversation?(conversation_id, user_id) do
+    RoomACL.authorize_local_user_action(conversation_id, user_id, :write) == :ok
+  end
+
   defp open_conversation(socket, conversation) do
     conversation_id = conversation.id
     active_server_id = conversation_server_id(conversation) || socket.assigns[:active_server_id]
@@ -2687,7 +2692,8 @@ defmodule ArblargWeb.ChatLive.Index do
 
     can_send =
       current_member &&
-        Elektrine.Social.ConversationMember.can_send_messages?(current_member)
+        Elektrine.Social.ConversationMember.can_send_messages?(current_member) &&
+        can_write_to_conversation?(conversation_id, socket.assigns.current_user.id)
 
     updated_socket =
       socket
@@ -2770,18 +2776,66 @@ defmodule ArblargWeb.ChatLive.Index do
     socket
   end
 
+  # Group messages that share an author when they arrive close together, so
+  # follow-up lines can drop the repeated avatar/name header. A new header is
+  # forced by a date change, a different sender, a system message, or a gap
+  # longer than @message_group_gap_seconds.
+  @message_group_gap_seconds 300
+
   defp messages_with_date_separators(messages) when is_list(messages) do
-    {entries, _last_date} =
-      Enum.reduce(messages, {[], nil}, fn message, {acc, previous_date} ->
+    {entries, _prev} =
+      Enum.reduce(messages, {[], nil}, fn message, {acc, previous} ->
         current_date = message_inserted_date(message)
-        show_separator = is_nil(previous_date) or Date.compare(current_date, previous_date) != :eq
-        {[{message, show_separator} | acc], current_date}
+
+        show_separator =
+          is_nil(previous) or Date.compare(current_date, previous.date) != :eq
+
+        grouped =
+          not show_separator and not is_nil(previous) and
+            message.message_type != "system" and previous.type != "system" and
+            message_sender_key(message) == previous.key and
+            within_group_gap?(message, previous.inserted_at)
+
+        current = %{
+          date: current_date,
+          key: message_sender_key(message),
+          type: message.message_type,
+          inserted_at: message.inserted_at
+        }
+
+        {[{message, show_separator, grouped} | acc], current}
       end)
 
     Enum.reverse(entries)
   end
 
   defp messages_with_date_separators(_), do: []
+
+  # Stable per-author key: local users key by id, federated senders by handle.
+  defp message_sender_key(message) do
+    case local_sender_id(message) do
+      id when is_integer(id) -> {:local, id}
+      _ -> {:remote, message_sender_name(message)}
+    end
+  end
+
+  defp within_group_gap?(%{inserted_at: current}, previous)
+       when not is_nil(current) and not is_nil(previous) do
+    case {to_naive(current), to_naive(previous)} do
+      {%NaiveDateTime{} = c, %NaiveDateTime{} = p} ->
+        diff = NaiveDateTime.diff(c, p)
+        diff >= 0 and diff <= @message_group_gap_seconds
+
+      _ ->
+        false
+    end
+  end
+
+  defp within_group_gap?(_, _), do: false
+
+  defp to_naive(%NaiveDateTime{} = naive), do: naive
+  defp to_naive(%DateTime{} = datetime), do: DateTime.to_naive(datetime)
+  defp to_naive(_), do: nil
 
   defp read_status_saved?(:ok), do: true
   defp read_status_saved?({:ok, _}), do: true
@@ -3000,18 +3054,6 @@ defmodule ArblargWeb.ChatLive.Index do
 
   defp conversation_type_label_lower(type), do: conversation_type_label(type) |> String.downcase()
 
-  defp protocol_conversation_type("dm"), do: "Direct Messages"
-  defp protocol_conversation_type("group"), do: "Groups"
-  defp protocol_conversation_type("channel"), do: "Channels"
-
-  defp protocol_conversation_type(type) when is_binary(type) do
-    type
-    |> String.replace("_", " ")
-    |> String.capitalize()
-  end
-
-  defp protocol_conversation_type(_), do: "Chat"
-
   defp remote_conversation?(conversation) when is_map(conversation) do
     Map.get(conversation, :is_federated_mirror, false) ||
       Messaging.remote_dm_conversation?(conversation)
@@ -3109,6 +3151,28 @@ defmodule ArblargWeb.ChatLive.Index do
 
   defp user_at_handle(user), do: HandleFormatter.at_handle(user)
   defp user_domain(user), do: HandleFormatter.domain(user)
+
+  # Only federated senders should surface an @domain suffix; local users are
+  # implied to be on this instance, so the suffix is just noise for them.
+  defp sender_federated?(message) do
+    user = message_sender(message)
+    user != %{} and user_domain(user) != HandleFormatter.local_domain()
+  end
+
+  # Id of the current user's most recent non-system message, used to anchor the
+  # single "Seen by" receipt instead of a per-message tick.
+  defp last_own_message_id(messages, user_id) when is_list(messages) do
+    messages
+    |> Enum.reduce(nil, fn message, acc ->
+      if message.sender_id == user_id and message.message_type != "system" do
+        message.id
+      else
+        acc
+      end
+    end)
+  end
+
+  defp last_own_message_id(_, _), do: nil
 
   defp local_sender_id(message) when is_map(message) do
     case Map.get(message, :sender_id) do

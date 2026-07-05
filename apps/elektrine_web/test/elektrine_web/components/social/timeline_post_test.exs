@@ -159,6 +159,22 @@ defmodule ElektrineWeb.Components.Social.TimelinePostTest do
     refute html =~ ~s(class="mt-3 border border-base-300 rounded-lg overflow-hidden)
   end
 
+  test "timeline post dropdown uses stable upward placement and wrapping class" do
+    post =
+      remote_post(%{
+        id: 902,
+        remote_actor: %Actor{
+          username: "verylongremoteusernamethatshouldnotbreakthemenu",
+          domain: "verylongdomainname.example"
+        }
+      })
+
+    html = render_timeline_post(post, "dropdown-layout")
+
+    assert html =~ ~s(data-portal-placement="top")
+    assert html =~ "timeline-post-dropdown-menu"
+  end
+
   test "timeline actions prefer cached federated likes over stale local likes" do
     post = %Message{
       id: 789,

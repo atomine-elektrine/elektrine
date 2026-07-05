@@ -1187,20 +1187,21 @@ defmodule Elektrine.DNS do
     packet = Packet.encode_query(query)
 
     endpoints
-    |> Enum.reduce_while({:error, :timeout}, fn {ip, port}, _acc ->
+    |> Enum.reduce_while([], fn {ip, port}, errors ->
       case recursive_transport().exchange_udp(ip, port, packet, recursive_timeout()) do
         {:ok, response} ->
           {:halt, {:ok, response}}
 
-        {:error, _reason} = error ->
-          {:cont, error}
+        {:error, reason} ->
+          {:cont, [{ip, port, {:error, format_dns_exchange_error(reason)}} | errors]}
       end
     end)
     |> case do
-      {:ok, response} -> {:ok, response}
-      {:error, :timeout} -> {:error, "query timed out"}
-      {:error, :unexpected_upstream} -> {:error, "received a reply from an unexpected upstream"}
-      {:error, reason} -> {:error, to_string(reason)}
+      {:ok, response} ->
+        {:ok, response}
+
+      errors when is_list(errors) ->
+        {:error, format_endpoint_attempt_errors(Enum.reverse(errors))}
     end
   end
 
@@ -1260,25 +1261,73 @@ defmodule Elektrine.DNS do
     query = %{id: 1, rd: 0, qname: domain, qtype: :soa, udp_size: max_udp_payload()}
     packet = Packet.encode_query(query)
 
-    endpoints
-    |> Enum.reduce_while({:error, :timeout}, fn {ip, port}, _acc ->
-      case recursive_transport().exchange_udp(ip, port, packet, recursive_timeout()) do
-        {:ok, response} ->
-          case authoritative_soa_response?(response, domain) do
-            true -> {:halt, :ok}
-            false -> {:cont, {:error, "received a non-authoritative or empty SOA response"}}
+    attempts =
+      Enum.map(endpoints, fn {ip, port} ->
+        result =
+          case recursive_transport().exchange_udp(ip, port, packet, recursive_timeout()) do
+            {:ok, response} ->
+              case authoritative_soa_response?(response, domain) do
+                true -> :ok
+                false -> {:error, "received a non-authoritative or empty SOA response"}
+              end
+
+            {:error, reason} ->
+              {:error, format_dns_exchange_error(reason)}
           end
 
-        {:error, _reason} = error ->
-          {:cont, error}
-      end
-    end)
-    |> case do
-      :ok -> :ok
-      {:error, :timeout} -> {:error, "query timed out"}
-      {:error, :unexpected_upstream} -> {:error, "received a reply from an unexpected upstream"}
-      {:error, reason} -> {:error, to_string(reason)}
+        {ip, port, result}
+      end)
+
+    if Enum.any?(attempts, &match?({_ip, _port, :ok}, &1)) do
+      :ok
+    else
+      {:error, format_endpoint_attempt_errors(attempts)}
     end
+  end
+
+  defp format_dns_exchange_error(:timeout), do: "query timed out"
+
+  defp format_dns_exchange_error(:unexpected_upstream),
+    do: "received a reply from an unexpected upstream"
+
+  defp format_dns_exchange_error(:eafnosupport),
+    do: "address family not supported by this runtime"
+
+  defp format_dns_exchange_error(reason), do: to_string(reason)
+
+  defp format_endpoint_attempt_errors([]), do: "query timed out"
+
+  defp format_endpoint_attempt_errors(attempts) do
+    reasons =
+      attempts
+      |> Enum.map(fn {_ip, _port, {:error, reason}} -> reason end)
+      |> Enum.uniq()
+
+    case reasons do
+      [reason] ->
+        reason
+
+      _ ->
+        Enum.map_join(attempts, "; ", fn {ip, port, {:error, reason}} ->
+          "#{format_dns_endpoint(ip, port)} #{reason}"
+        end)
+    end
+  end
+
+  defp format_dns_endpoint(ip, port) do
+    host =
+      ip
+      |> :inet.ntoa()
+      |> to_string()
+
+    host =
+      if tuple_size(ip) == 8 do
+        "[#{host}]"
+      else
+        host
+      end
+
+    if port == 53, do: host <> ":", else: "#{host}:#{port}:"
   end
 
   defp authoritative_soa_response?(<<_id::16, flags::16, _rest::binary>> = response, domain) do

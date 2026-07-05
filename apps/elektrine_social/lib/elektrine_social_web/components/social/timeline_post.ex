@@ -726,7 +726,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       id={"#{@id_prefix}-post-dropdown-#{@post.id}"}
       data-portal-dropdown-root
       data-portal-align="end"
-      data-portal-placement="auto"
+      data-portal-placement="top"
     >
       <button
         type="button"

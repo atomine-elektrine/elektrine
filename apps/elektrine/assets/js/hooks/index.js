@@ -14,6 +14,7 @@ import { ChatE2EE } from "./chat_e2ee_hook";
 import {
   ContextMenu,
   MessageContextMenu,
+  MessageMenuButton,
   CopyChatMessage,
 } from "./chat_context_menu_hooks";
 import { VoiceRecorder } from "./chat_voice_recorder_hook";
@@ -130,6 +131,7 @@ export const Hooks = {
   MessageList,
   ContextMenu,
   MessageContextMenu,
+  MessageMenuButton,
   ChatKeyboardShortcuts,
   CopyChatMessage,
   VoiceRecorder,

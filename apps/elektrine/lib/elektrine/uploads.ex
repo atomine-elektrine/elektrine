@@ -178,32 +178,8 @@ defmodule Elektrine.Uploads do
   def upload_background(%Plug.Upload{} = upload, user_id) do
     result =
       with {:ok, %File.Stat{size: file_size}} <- File.stat(upload.path),
-           :ok <- validate_background_upload(upload, user_id),
-           {:ok, processed_path} <- strip_metadata_if_image(upload) do
-        upload_to_use =
-          if processed_path != upload.path do
-            %{upload | path: processed_path}
-          else
-            upload
-          end
-
-        upload_result =
-          case get_config(:adapter) do
-            :local -> upload_local(upload_to_use, user_id, "backgrounds")
-            :s3 -> upload_s3(upload_to_use, user_id, "backgrounds")
-          end
-
-        if processed_path != upload.path do
-          File.rm(processed_path)
-        end
-
-        case upload_result do
-          {:ok, key} ->
-            {:ok, build_upload_result_metadata(upload, upload_to_use.path, key, file_size)}
-
-          error ->
-            error
-        end
+           :ok <- validate_background_upload(upload, user_id) do
+        store_upload_with_metadata(upload, user_id, "backgrounds", file_size)
       end
 
     emit_upload_result(:background, result)
@@ -213,32 +189,8 @@ defmodule Elektrine.Uploads do
   def upload_favicon(%Plug.Upload{} = upload, user_id) do
     result =
       with {:ok, %File.Stat{size: file_size}} <- File.stat(upload.path),
-           :ok <- validate_favicon_upload(upload, user_id),
-           {:ok, processed_path} <- strip_metadata_if_image(upload) do
-        upload_to_use =
-          if processed_path != upload.path do
-            %{upload | path: processed_path}
-          else
-            upload
-          end
-
-        upload_result =
-          case get_config(:adapter) do
-            :local -> upload_local(upload_to_use, user_id, "favicons")
-            :s3 -> upload_s3(upload_to_use, user_id, "favicons")
-          end
-
-        if processed_path != upload.path do
-          File.rm(processed_path)
-        end
-
-        case upload_result do
-          {:ok, key} ->
-            {:ok, build_upload_result_metadata(upload, upload_to_use.path, key, file_size)}
-
-          error ->
-            error
-        end
+           :ok <- validate_favicon_upload(upload, user_id) do
+        store_upload_with_metadata(upload, user_id, "favicons", file_size)
       end
 
     emit_upload_result(:favicon, result)
@@ -249,32 +201,8 @@ defmodule Elektrine.Uploads do
   def upload_chat_attachment(%Plug.Upload{} = upload, user_id) do
     result =
       with {:ok, %File.Stat{size: file_size}} <- File.stat(upload.path),
-           :ok <- validate_chat_attachment_upload(upload, user_id),
-           {:ok, processed_path} <- strip_metadata_if_image(upload) do
-        upload_to_use =
-          if processed_path != upload.path do
-            %{upload | path: processed_path}
-          else
-            upload
-          end
-
-        upload_result =
-          case get_config(:adapter) do
-            :local -> upload_local(upload_to_use, user_id, "chat-attachments")
-            :s3 -> upload_s3(upload_to_use, user_id, "chat-attachments")
-          end
-
-        if processed_path != upload.path do
-          File.rm(processed_path)
-        end
-
-        case upload_result do
-          {:ok, key} ->
-            {:ok, build_upload_result_metadata(upload, upload_to_use.path, key, file_size)}
-
-          error ->
-            error
-        end
+           :ok <- validate_chat_attachment_upload(upload, user_id) do
+        store_upload_with_metadata(upload, user_id, "chat-attachments", file_size)
       else
         error ->
           Logger.error("Chat attachment upload failed for user #{user_id}: #{inspect(error)}")
@@ -289,32 +217,8 @@ defmodule Elektrine.Uploads do
   def upload_timeline_attachment(%Plug.Upload{} = upload, user_id) do
     result =
       with {:ok, %File.Stat{size: file_size}} <- File.stat(upload.path),
-           :ok <- validate_chat_attachment_upload(upload, user_id),
-           {:ok, processed_path} <- strip_metadata_if_image(upload) do
-        upload_to_use =
-          if processed_path != upload.path do
-            %{upload | path: processed_path}
-          else
-            upload
-          end
-
-        upload_result =
-          case get_config(:adapter) do
-            :local -> upload_local(upload_to_use, user_id, "timeline-attachments")
-            :s3 -> upload_s3(upload_to_use, user_id, "timeline-attachments")
-          end
-
-        if processed_path != upload.path do
-          File.rm(processed_path)
-        end
-
-        case upload_result do
-          {:ok, key} ->
-            {:ok, build_upload_result_metadata(upload, upload_to_use.path, key, file_size)}
-
-          error ->
-            error
-        end
+           :ok <- validate_chat_attachment_upload(upload, user_id) do
+        store_upload_with_metadata(upload, user_id, "timeline-attachments", file_size)
       else
         error ->
           Logger.error("Timeline attachment upload failed for user #{user_id}: #{inspect(error)}")
@@ -329,32 +233,8 @@ defmodule Elektrine.Uploads do
   def upload_gallery_photo(%Plug.Upload{} = upload, user_id) do
     result =
       with {:ok, %File.Stat{size: file_size}} <- File.stat(upload.path),
-           :ok <- validate_chat_attachment_upload(upload, user_id),
-           {:ok, processed_path} <- strip_metadata_if_image(upload) do
-        upload_to_use =
-          if processed_path != upload.path do
-            %{upload | path: processed_path}
-          else
-            upload
-          end
-
-        upload_result =
-          case get_config(:adapter) do
-            :local -> upload_local(upload_to_use, user_id, "gallery-attachments")
-            :s3 -> upload_s3(upload_to_use, user_id, "gallery-attachments")
-          end
-
-        if processed_path != upload.path do
-          File.rm(processed_path)
-        end
-
-        case upload_result do
-          {:ok, key} ->
-            {:ok, build_upload_result_metadata(upload, upload_to_use.path, key, file_size)}
-
-          error ->
-            error
-        end
+           :ok <- validate_chat_attachment_upload(upload, user_id) do
+        store_upload_with_metadata(upload, user_id, "gallery-attachments", file_size)
       else
         error ->
           Logger.error("Gallery photo upload failed for user #{user_id}: #{inspect(error)}")
@@ -456,6 +336,42 @@ defmodule Elektrine.Uploads do
     end
   end
 
+  defp store_upload_with_metadata(upload, user_id, folder, file_size) do
+    with {:ok, processed_path} <- strip_metadata_if_image(upload) do
+      upload_to_use =
+        if processed_path == upload.path do
+          upload
+        else
+          %{upload | path: processed_path}
+        end
+
+      try do
+        case store_upload(upload_to_use, user_id, folder) do
+          {:ok, key} ->
+            {:ok, build_upload_result_metadata(upload, upload_to_use.path, key, file_size)}
+
+          error ->
+            error
+        end
+      after
+        cleanup_processed_upload(processed_path, upload.path)
+      end
+    end
+  end
+
+  defp store_upload(upload, user_id, folder) do
+    case get_config(:adapter) do
+      :local -> upload_local(upload, user_id, folder)
+      :s3 -> upload_s3(upload, user_id, folder)
+    end
+  end
+
+  defp cleanup_processed_upload(processed_path, original_path)
+       when processed_path == original_path,
+       do: :ok
+
+  defp cleanup_processed_upload(processed_path, _original_path), do: File.rm(processed_path)
+
   defp build_upload_result_metadata(upload, upload_path, key, file_size) do
     content_hash = file_sha256(upload_path)
 
@@ -499,32 +415,8 @@ defmodule Elektrine.Uploads do
   def upload_discussion_attachment(%Plug.Upload{} = upload, user_id) do
     result =
       with {:ok, %File.Stat{size: file_size}} <- File.stat(upload.path),
-           :ok <- validate_chat_attachment_upload(upload, user_id),
-           {:ok, processed_path} <- strip_metadata_if_image(upload) do
-        upload_to_use =
-          if processed_path != upload.path do
-            %{upload | path: processed_path}
-          else
-            upload
-          end
-
-        upload_result =
-          case get_config(:adapter) do
-            :local -> upload_local(upload_to_use, user_id, "discussion-attachments")
-            :s3 -> upload_s3(upload_to_use, user_id, "discussion-attachments")
-          end
-
-        if processed_path != upload.path do
-          File.rm(processed_path)
-        end
-
-        case upload_result do
-          {:ok, key} ->
-            {:ok, build_upload_result_metadata(upload, upload_to_use.path, key, file_size)}
-
-          error ->
-            error
-        end
+           :ok <- validate_chat_attachment_upload(upload, user_id) do
+        store_upload_with_metadata(upload, user_id, "discussion-attachments", file_size)
       else
         error ->
           Logger.error(

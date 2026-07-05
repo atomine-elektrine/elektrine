@@ -4,7 +4,7 @@ defmodule ElektrineWeb.NerveExtensionController do
   alias Elektrine.Developer
   alias Elektrine.Theme
 
-  @extension_dir Path.expand("../../../../../clients/nerve-extension", __DIR__)
+  @source_extension_dir Path.expand("../../../../../clients/nerve-extension", __DIR__)
   @allowed_https_return_hosts [
     "chromiumapp.org",
     "extensions.allizom.org"
@@ -348,19 +348,45 @@ defmodule ElektrineWeb.NerveExtensionController do
   end
 
   defp build_archive do
-    files =
-      @extension_dir
-      |> Path.join("**/*")
-      |> Path.wildcard(match_dot: true)
-      |> Enum.filter(&File.regular?/1)
-      |> Enum.map(fn path ->
-        relative_path = Path.relative_to(path, @extension_dir)
-        {String.to_charlist(relative_path), File.read!(path)}
-      end)
-
-    case :zip.create(~c"elektrine-nerve-extension.zip", files, [:memory]) do
-      {:ok, {_name, archive}} -> {:ok, archive}
+    with {:ok, extension_dir} <- extension_dir(),
+         [_ | _] = files <- archive_files(extension_dir) do
+      case :zip.create(~c"elektrine-nerve-extension.zip", files, [:memory]) do
+        {:ok, {_name, archive}} -> {:ok, archive}
+        {:error, reason} -> {:error, reason}
+      end
+    else
+      [] -> {:error, :no_extension_files}
       {:error, reason} -> {:error, reason}
     end
+  end
+
+  defp extension_dir do
+    priv_extension_dir =
+      case :code.priv_dir(:elektrine_web) do
+        path when is_list(path) -> path |> List.to_string() |> Path.join("nerve-extension")
+        {:error, _reason} -> nil
+      end
+
+    cond do
+      is_binary(priv_extension_dir) and File.dir?(priv_extension_dir) ->
+        {:ok, priv_extension_dir}
+
+      File.dir?(@source_extension_dir) ->
+        {:ok, @source_extension_dir}
+
+      true ->
+        {:error, :extension_files_missing}
+    end
+  end
+
+  defp archive_files(extension_dir) do
+    extension_dir
+    |> Path.join("**/*")
+    |> Path.wildcard(match_dot: true)
+    |> Enum.filter(&File.regular?/1)
+    |> Enum.map(fn path ->
+      relative_path = Path.relative_to(path, extension_dir)
+      {String.to_charlist(relative_path), File.read!(path)}
+    end)
   end
 end

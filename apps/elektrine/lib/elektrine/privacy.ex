@@ -272,10 +272,62 @@ defmodule Elektrine.Privacy do
       :already_friends ->
         "You are already friends with this user"
 
-      _ ->
-        "Action not allowed"
+      :unauthorized ->
+        "You do not have permission to do that"
+
+      :not_authorized_for_room ->
+        "You do not have permission to do that in this room"
+
+      :not_found ->
+        "That item could not be found"
+
+      :rate_limited ->
+        "Slow down and try again in a moment"
+
+      :not_authenticated ->
+        "Sign in to continue"
+
+      error when is_binary(error) and error != "" ->
+        error
+
+      %Ecto.Changeset{} = changeset ->
+        changeset_error_message(changeset)
+
+      {:error, reason} ->
+        privacy_error_message(reason)
+
+      {reason, detail} when is_atom(reason) ->
+        "#{humanize_reason(reason)}: #{humanize_reason(detail)}"
+
+      reason when is_atom(reason) ->
+        humanize_reason(reason)
+
+      reason ->
+        "Could not complete action: #{inspect(reason)}"
     end
   end
+
+  defp changeset_error_message(%Ecto.Changeset{errors: [{field, error} | _]}) do
+    "#{Phoenix.Naming.humanize(field)} #{translate_changeset_error(error)}"
+  end
+
+  defp changeset_error_message(%Ecto.Changeset{}), do: "Could not save changes"
+
+  defp translate_changeset_error({message, opts}) do
+    Enum.reduce(opts, message, fn {key, value}, acc ->
+      String.replace(acc, "%{#{key}}", to_string(value))
+    end)
+  end
+
+  defp humanize_reason(reason) when is_atom(reason) do
+    reason
+    |> Atom.to_string()
+    |> String.replace("_", " ")
+    |> Phoenix.Naming.humanize()
+  end
+
+  defp humanize_reason(reason) when is_binary(reason), do: reason
+  defp humanize_reason(reason), do: inspect(reason)
 
   @doc """
   Returns the available privacy options for each setting.

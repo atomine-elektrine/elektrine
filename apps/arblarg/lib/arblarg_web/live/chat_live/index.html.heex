@@ -248,109 +248,121 @@
           </div>
         </div>
         
-<!-- Create New Options (integrated into sidebar) -->
-        <div class="flex-shrink-0">
-          <!-- New DM -->
-          <button
-            phx-click="toggle_new_chat"
-            class="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-base-200 text-left transition-colors"
-          >
-            <div class="w-9 h-9 rounded-md flex items-center justify-center shrink-0 bg-base-300">
-              <.icon name="hero-chat-bubble-left-right" class="w-4 h-4 text-base-content/80" />
+<!-- Create New: collapsed disclosure (was a permanent list of actions) -->
+        <details class="group/new flex-shrink-0 border-b border-base-300">
+          <summary class="flex list-none cursor-pointer items-center gap-3 px-3 py-2.5 transition-colors hover:bg-base-200 [&::-webkit-details-marker]:hidden">
+            <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-base-300">
+              <.icon name="hero-plus" class="w-4 h-4 text-secondary" />
             </div>
-            <p class="flex-1 min-w-0 font-semibold text-[13px] text-base-content">New DM</p>
-          </button>
-          
+            <p class="min-w-0 flex-1 font-semibold text-[13px] text-base-content">New</p>
+            <.icon
+              name="hero-chevron-down"
+              class="w-4 h-4 text-base-content/50 transition-transform group-open/new:rotate-180"
+            />
+          </summary>
+          <div class="pb-1">
+            <!-- New DM -->
+            <button
+              phx-click="toggle_new_chat"
+              class="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-base-200 text-left transition-colors"
+            >
+              <div class="w-9 h-9 rounded-md flex items-center justify-center shrink-0 bg-base-300">
+                <.icon name="hero-chat-bubble-left-right" class="w-4 h-4 text-base-content/80" />
+              </div>
+              <p class="flex-1 min-w-0 font-semibold text-[13px] text-base-content">New DM</p>
+            </button>
+            
 <!-- New Group -->
-          <button
-            phx-click="show_create_group"
-            class="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-base-200 text-left transition-colors"
-          >
-            <div class="w-9 h-9 rounded-md flex items-center justify-center shrink-0 bg-base-300">
-              <.icon name="hero-users" class="w-4 h-4 text-base-content/80" />
-            </div>
-            <p class="flex-1 min-w-0 font-semibold text-[13px] text-base-content">New Group</p>
-          </button>
-          
+            <button
+              phx-click="show_create_group"
+              class="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-base-200 text-left transition-colors"
+            >
+              <div class="w-9 h-9 rounded-md flex items-center justify-center shrink-0 bg-base-300">
+                <.icon name="hero-users" class="w-4 h-4 text-base-content/80" />
+              </div>
+              <p class="flex-1 min-w-0 font-semibold text-[13px] text-base-content">New Group</p>
+            </button>
+            
 <!-- New Server -->
-          <button
-            phx-click="show_create_server"
-            class="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-base-200 text-left transition-colors"
-          >
-            <div class="w-9 h-9 rounded-md flex items-center justify-center shrink-0 bg-base-300">
-              <.icon name="hero-plus-circle" class="w-4 h-4 text-base-content/80" />
-            </div>
-            <p class="flex-1 min-w-0 font-semibold text-[13px] text-base-content">New Server</p>
-          </button>
-          
+            <button
+              phx-click="show_create_server"
+              class="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-base-200 text-left transition-colors"
+            >
+              <div class="w-9 h-9 rounded-md flex items-center justify-center shrink-0 bg-base-300">
+                <.icon name="hero-plus-circle" class="w-4 h-4 text-base-content/80" />
+              </div>
+              <p class="flex-1 min-w-0 font-semibold text-[13px] text-base-content">New Server</p>
+            </button>
+            
 <!-- New Channel -->
-          <button
-            phx-click="show_create_channel"
-            class={[
-              "w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors",
-              if(is_integer(active_server_id),
-                do: "hover:bg-base-200",
-                else: "opacity-50 cursor-not-allowed"
-              )
-            ]}
-            disabled={not is_integer(active_server_id)}
-          >
-            <div class="w-9 h-9 rounded-md flex items-center justify-center shrink-0 bg-base-300">
-              <.icon
-                name="hero-megaphone"
-                class="w-4 h-4 text-base-content/80"
-              />
-            </div>
-            <div class="flex-1 min-w-0">
-              <p class="font-semibold text-[13px] text-base-content">New Channel</p>
-              <p :if={not is_integer(active_server_id)} class="text-xs text-base-content/70">
-                Select a server first
-              </p>
-            </div>
-          </button>
-          
+            <button
+              phx-click="show_create_channel"
+              class={[
+                "w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors",
+                if(is_integer(active_server_id),
+                  do: "hover:bg-base-200",
+                  else: "opacity-50 cursor-not-allowed"
+                )
+              ]}
+              disabled={not is_integer(active_server_id)}
+            >
+              <div class="w-9 h-9 rounded-md flex items-center justify-center shrink-0 bg-base-300">
+                <.icon
+                  name="hero-megaphone"
+                  class="w-4 h-4 text-base-content/80"
+                />
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="font-semibold text-[13px] text-base-content">New Channel</p>
+                <p :if={not is_integer(active_server_id)} class="text-xs text-base-content/70">
+                  Select a server first
+                </p>
+              </div>
+            </button>
+            
 <!-- New Category -->
-          <button
-            phx-click="show_create_category"
-            class={[
-              "w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors",
-              if(is_integer(active_server_id),
-                do: "hover:bg-base-200",
-                else: "opacity-50 cursor-not-allowed"
-              )
-            ]}
-            disabled={not is_integer(active_server_id)}
-          >
-            <div class="w-9 h-9 rounded-md flex items-center justify-center shrink-0 bg-base-300">
-              <.icon
-                name="hero-folder-plus"
-                class="w-4 h-4 text-base-content/80"
-              />
-            </div>
-            <div class="flex-1 min-w-0">
-              <p class="font-semibold text-[13px] text-base-content">New Category</p>
-              <p :if={not is_integer(active_server_id)} class="text-xs text-base-content/70">
-                Select a server first
-              </p>
-            </div>
-          </button>
-          
+            <button
+              phx-click="show_create_category"
+              class={[
+                "w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors",
+                if(is_integer(active_server_id),
+                  do: "hover:bg-base-200",
+                  else: "opacity-50 cursor-not-allowed"
+                )
+              ]}
+              disabled={not is_integer(active_server_id)}
+            >
+              <div class="w-9 h-9 rounded-md flex items-center justify-center shrink-0 bg-base-300">
+                <.icon
+                  name="hero-folder-plus"
+                  class="w-4 h-4 text-base-content/80"
+                />
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="font-semibold text-[13px] text-base-content">New Category</p>
+                <p :if={not is_integer(active_server_id)} class="text-xs text-base-content/70">
+                  Select a server first
+                </p>
+              </div>
+            </button>
+            
 <!-- Browse Network Index -->
-          <button
-            phx-click="show_browse_modal"
-            class="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-base-200 text-left border-t border-base-300 transition-colors"
-          >
-            <div class="w-9 h-9 rounded-md flex items-center justify-center shrink-0 bg-base-300">
-              <.icon
-                name="hero-globe-alt-solid"
-                class="w-4 h-4 text-base-content/80"
-              />
-            </div>
-            <p class="flex-1 min-w-0 font-semibold text-[13px] text-base-content">
-              Explore Servers
-            </p>
-          </button>
-        </div>
+            <button
+              phx-click="show_browse_modal"
+              class="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-base-200 text-left border-t border-base-300 transition-colors"
+            >
+              <div class="w-9 h-9 rounded-md flex items-center justify-center shrink-0 bg-base-300">
+                <.icon
+                  name="hero-globe-alt-solid"
+                  class="w-4 h-4 text-base-content/80"
+                />
+              </div>
+              <p class="flex-1 min-w-0 font-semibold text-[13px] text-base-content">
+                Explore Servers
+              </p>
+            </button>
+          </div>
+        </details>
       </div>
 
       <div class="card panel-card border border-base-300 flex flex-1 min-h-0 flex-col overflow-hidden">
@@ -648,7 +660,7 @@
                             {route_label(conversation, @current_user.id)}
                           </p>
                           <!-- Mobile timestamp and unread (always visible) -->
-                          <div class="flex items-center gap-1 lg:hidden">
+                          <div class="flex items-center gap-1 lg:hidden flex-shrink-0">
                             <%= if unread_count > 0 do %>
                               <div class="badge badge-secondary badge-sm">
                                 {unread_count}
@@ -657,13 +669,13 @@
                             <%= if conversation.last_message_at do %>
                               <span class={
                                 if(is_selected,
-                                  do: "text-xs text-base-content/80",
-                                  else: "text-xs text-base-content/70"
+                                  do: "text-xs text-base-content/80 tabular-nums",
+                                  else: "text-xs text-base-content/60 tabular-nums"
                                 )
                               }>
                                 <.local_time
                                   datetime={conversation.last_message_at}
-                                  format="datetime"
+                                  format="relative"
                                   timezone={@timezone}
                                   time_format={@time_format}
                                 />
@@ -672,16 +684,13 @@
                           </div>
                         </div>
 
-                        <div class="flex items-center gap-1 py-0.5">
-                          <span class="badge badge-ghost badge-xs">
-                            {protocol_conversation_type(conversation.type)}
-                          </span>
-                          <%= if remote_conversation do %>
+                        <%= if remote_conversation do %>
+                          <div class="flex items-center gap-1 py-0.5">
                             <span class="badge badge-secondary badge-xs">
                               From another server
                             </span>
-                          <% end %>
-                        </div>
+                          </div>
+                        <% end %>
 
                         <%= if conversation.messages != [] do %>
                           <% last_message = List.first(conversation.messages) %>
@@ -708,11 +717,11 @@
                               )
                             }>
                               <%= if read_status && read_status.is_read do %>
-                                <span class="text-[10px] sm:text-xs text-green-500 font-bold flex-shrink-0">
+                                <span class="text-[10px] sm:text-xs text-success font-bold flex-shrink-0">
                                   ✓✓
                                 </span>
                               <% else %>
-                                <span class="text-[11px] sm:text-sm text-gray-400 font-medium flex-shrink-0">
+                                <span class="text-[11px] sm:text-sm text-base-content/45 font-medium flex-shrink-0">
                                   ✓
                                 </span>
                               <% end %>
@@ -782,19 +791,8 @@
                         <% end %>
                       </div>
 
-                      <div class="flex items-center gap-2 hidden lg:flex">
-                        <%= if conversation.type != "dm" do %>
-                          <div class={
-                            if(is_selected,
-                              do: "text-xs text-base-content/80",
-                              else: "text-xs text-base-content/70"
-                            )
-                          }>
-                            {conversation.member_count} members
-                          </div>
-                        <% end %>
-                        
-<!-- Desktop timestamp and unread -->
+                      <div class="flex items-center gap-2 hidden lg:flex flex-shrink-0">
+                        <!-- Desktop timestamp and unread (member count lives in the header) -->
                         <%= if unread_count > 0 do %>
                           <div class="badge badge-secondary badge-sm">
                             {unread_count}
@@ -803,13 +801,13 @@
                         <%= if conversation.last_message_at do %>
                           <span class={
                             if(is_selected,
-                              do: "text-xs text-base-content/80",
-                              else: "text-xs text-base-content/70"
+                              do: "text-xs text-base-content/80 tabular-nums",
+                              else: "text-xs text-base-content/60 tabular-nums"
                             )
                           }>
                             <.local_time
                               datetime={conversation.last_message_at}
-                              format="datetime"
+                              format="relative"
                               timezone={@timezone}
                               time_format={@time_format}
                             />
@@ -1371,7 +1369,9 @@
             </div>
           <% end %>
 
-          <%= for {message, show_date_separator} <- messages_with_date_separators(@messages) do %>
+          <% last_own_message_id = last_own_message_id(@messages, @current_user.id) %>
+          <%= for {message, show_date_separator, grouped_with_previous} <- messages_with_date_separators(@messages) do %>
+            <% grouped = grouped_with_previous and message.id != @first_unread_message_id %>
             <!-- Date Separator -->
             <%= if show_date_separator do %>
               <div class="flex items-center gap-2 py-3 px-4">
@@ -1428,488 +1428,557 @@
               <div
                 id={"message-#{message.id}"}
                 class={[
-                  "chat group/message rounded-xl px-1 py-1 transition-colors hover:bg-base-100/45",
-                  if(message.sender_id == @current_user.id, do: "chat-end", else: "chat-start")
+                  "group/message relative flex gap-3 px-4 transition-colors hover:bg-base-100/45",
+                  if(grouped, do: "py-0.5", else: "mt-2 pt-1")
                 ]}
               >
-                <!-- Avatar -->
-                <%= if local_sender?(message) do %>
-                  <button
-                    phx-click="show_user_profile"
-                    phx-value-user_id={local_sender_id(message)}
-                    class="chat-image avatar"
-                    title={"View #{message_sender_tag(message)}'s profile"}
-                  >
-                    <div class="w-8 rounded-full">
-                      <.user_avatar user={message_sender(message)} size="sm" />
-                    </div>
-                  </button>
-                <% else %>
-                  <div class="chat-image avatar" title={message_sender_tag(message)}>
-                    <div class="w-8 rounded-full">
-                      <.user_avatar user={message_sender(message)} size="sm" />
-                    </div>
-                  </div>
-                <% end %>
-                
-<!-- Header -->
-                <div class="chat-header">
-                  <%= if @conversation.selected.type != "dm" or message.sender_id != @current_user.id do %>
+                <!-- Gutter: avatar starts a group, hover-timestamp for follow-ups -->
+                <div class="w-9 flex-shrink-0 flex justify-center">
+                  <%= if grouped do %>
+                    <time class="mt-0.5 text-[10px] leading-5 tabular-nums select-none text-transparent group-hover/message:text-base-content/45 transition-colors">
+                      <.local_time
+                        datetime={message.inserted_at}
+                        format="time"
+                        timezone={@timezone}
+                        time_format={@time_format}
+                      />
+                    </time>
+                  <% else %>
                     <%= if local_sender?(message) do %>
                       <button
                         phx-click="show_user_profile"
                         phx-value-user_id={local_sender_id(message)}
-                        class="font-medium hover:underline cursor-pointer"
+                        class="avatar"
+                        title={"View #{message_sender_tag(message)}'s profile"}
                       >
-                        <.username_with_effects
-                          user={message_sender(message)}
-                          show_at={true}
-                          verified_size="xs"
-                        />
-                        <span class="text-xs opacity-70">
-                          @{user_domain(message_sender(message))}
-                        </span>
+                        <div class="w-9 rounded-full">
+                          <.user_avatar user={message_sender(message)} size="sm" />
+                        </div>
                       </button>
                     <% else %>
-                      <span class="font-medium">{message_sender_tag(message)}</span>
+                      <div class="avatar" title={message_sender_tag(message)}>
+                        <div class="w-9 rounded-full">
+                          <.user_avatar user={message_sender(message)} size="sm" />
+                        </div>
+                      </div>
                     <% end %>
-                    <.sender_badge sender={message_sender(message)} />
-                    <%= if sender_timeout?(message, @moderation.user_timeout_status) do %>
-                      <span class="badge badge-warning badge-xs ml-1">
-                        <.icon name="hero-clock" class="w-2 h-2 mr-1" /> Timed Out
-                      </span>
-                    <% end %>
-                  <% end %>
-                  <time class="text-xs opacity-50">
-                    <.local_time
-                      datetime={message.inserted_at}
-                      format="time"
-                      timezone={@timezone}
-                      time_format={@time_format}
-                    />
-                  </time>
-                  <%= if message.edited_at do %>
-                    <span class="text-xs opacity-50">edited</span>
-                  <% end %>
-                  <!-- Read Receipts (for sent messages) -->
-                  <%= if message.sender_id == @current_user.id do %>
-                    <% readers = Map.get(@message.read_status, message.id, []) %>
-                    <% has_readers = length(readers) > 0 %>
-                    <span
-                      class="text-xs"
-                      title={
-                        if has_readers,
-                          do: "Read by: #{Enum.map_join(readers, ", ", & &1.username)}",
-                          else: "Sent"
-                      }
-                    >
-                      <%= if has_readers do %>
-                        <span class="text-success font-bold">✓✓</span>
-                      <% else %>
-                        <span class="text-base-content/45">✓</span>
-                      <% end %>
-                    </span>
                   <% end %>
                 </div>
                 
-<!-- Message Bubble -->
-                <div
-                  class={[
-                    "chat-bubble border text-sm sm:text-base shadow-none",
-                    if(message.sender_id == @current_user.id,
-                      do: "chat-bubble-secondary border-transparent",
-                      else: "bg-base-200 border-base-300 text-base-content"
-                    )
-                  ]}
-                  title={"#{NaiveDateTime.to_iso8601(message.inserted_at)}"}
-                  data-datetime={NaiveDateTime.to_iso8601(message.inserted_at)}
-                  data-message-id={message.id}
-                  data-sender-id={message.sender_id}
-                  phx-hook="MessageContextMenu"
-                  id={"message-bubble-#{message.id}"}
-                >
-                  <!-- Reply Context -->
-                  <%= if message.reply_to && sender_loaded?(message.reply_to.sender) do %>
-                    <% reply_content = message_display_content(message.reply_to) || "" %>
-                    <button
-                      phx-click="scroll_to_message"
-                      phx-value-message_id={message.reply_to.id}
-                      class="block w-full text-left mb-2 px-2 py-1 bg-base-300/30 rounded text-xs opacity-75 hover:opacity-100 cursor-pointer border-l-2 border-primary"
-                    >
-                      <span class="font-medium">
-                        Replying to {user_at_handle(message.reply_to.sender)}
-                      </span>
-                      <%= if reply_content != "" do %>
-                        <p class="truncate opacity-75">
-                          {String.slice(reply_content, 0, 50)}{if String.length(reply_content) >
-                                                                    50,
-                                                                  do: "..."}
-                        </p>
-                      <% end %>
-                    </button>
-                  <% end %>
-                  
-<!-- Pin Indicator -->
-                  <%= if Map.get(message, :is_pinned, false) do %>
-                    <div class="flex items-center gap-1 text-secondary text-xs mb-1 opacity-75">
-                      <.icon name="hero-bookmark-solid" class="w-3 h-3" />
-                      <span>Pinned</span>
-                    </div>
-                  <% end %>
-                  
-<!-- Message Content -->
-                  <% client_encrypted_payload =
-                    Map.get(message, :client_encrypted_payload) ||
-                      Map.get(message, "client_encrypted_payload") %>
-                  <%= if client_encrypted_payload do %>
-                    <p
-                      id={"chat-encrypted-message-content-#{message.id}"}
-                      phx-update="ignore"
-                      class="text-sm sm:text-base break-words cursor-text select-text opacity-0"
-                      data-chat-encrypted-message="true"
-                      data-conversation-id={message.conversation_id}
-                      data-key-uid={
-                        Map.get(client_encrypted_payload, "key_uid") ||
-                          Map.get(client_encrypted_payload, :key_uid)
-                      }
-                      data-payload={Jason.encode!(client_encrypted_payload)}
-                    >
-                      Decrypting encrypted message...
-                    </p>
-                  <% end %>
-                  <%= if is_nil(client_encrypted_payload) && message.content && message.content != "" do %>
-                    <p class="text-sm sm:text-base break-words cursor-text select-text">
-                      {Phoenix.HTML.raw(linkify_urls(message_display_content(message)))}
-                    </p>
-                  <% end %>
-                  
-<!-- Embedded cross-posted content (only for timeline posts, not chat messages) -->
-                  <%= if Map.get(message, :shared_message_id) && Map.get(message, :shared_message) do %>
-                    <.embedded_post
-                      message={message}
-                      shared_message={message.shared_message}
-                      class="mt-2"
-                    />
-                  <% end %>
-                  
-<!-- Voice Message -->
-                  <%= if message.message_type == "voice" && message.media_urls && message.media_urls != [] do %>
-                    <div class="mt-2">
-                      <div class="flex items-center gap-3 p-3 bg-base-200 rounded-lg max-w-xs">
-                        <.icon
-                          name="hero-microphone"
-                          class="w-5 h-5 text-secondary flex-shrink-0"
-                        />
-                        <audio
-                          controls
-                          preload="metadata"
-                          class="h-8 flex-1 min-w-0"
-                          src={
-                            Elektrine.Uploads.attachment_url(
-                              List.first(message.media_urls),
-                              @conversation.selected
-                            )
-                          }
-                        >
-                          Your browser does not support the audio element.
-                        </audio>
-                        <%= if message.media_metadata["duration"] do %>
-                          <span class="text-xs opacity-60 flex-shrink-0">
-                            {div(message.media_metadata["duration"], 60)}:{rem(
-                              message.media_metadata["duration"],
-                              60
-                            )
-                            |> Integer.to_string()
-                            |> String.pad_leading(2, "0")}
-                          </span>
-                        <% end %>
-                      </div>
-                    </div>
-                  <% end %>
-                  
-<!-- Uploaded Media/Files -->
-                  <%= if message.message_type != "voice" && message.media_urls && message.media_urls != [] do %>
-                    <% uploaded_image_urls =
-                      message.media_urls
-                      |> Enum.filter(&String.match?(&1, ~r/\.(jpg|jpeg|png|gif|webp)$/i))
-                      |> Enum.map(&Uploads.attachment_url(&1, @conversation.selected)) %>
-                    <div class="mt-2 space-y-2">
-                      <%= for media_url <- message.media_urls do %>
-                        <%= if String.match?(media_url, ~r/\.(jpg|jpeg|png|gif|webp)$/i) do %>
-                          <% resolved_media_url =
-                            Uploads.attachment_url(media_url, @conversation.selected) %>
+<!-- Content column -->
+                <div class="min-w-0 flex-1">
+                  <!-- Header (hidden for grouped follow-ups) -->
+                  <%= unless grouped do %>
+                    <div class="flex items-baseline gap-x-2 gap-y-0.5 flex-wrap leading-tight">
+                      <%= if @conversation.selected.type != "dm" or message.sender_id != @current_user.id do %>
+                        <%= if local_sender?(message) do %>
                           <button
-                            type="button"
-                            phx-click="open_image_modal"
-                            phx-value-images={Jason.encode!(uploaded_image_urls)}
-                            phx-value-index={
-                              Enum.find_index(uploaded_image_urls, &(&1 == resolved_media_url)) ||
-                                0
-                            }
-                            phx-value-url={resolved_media_url}
-                            phx-value-message_id={message.id}
-                            class="block border-0 bg-transparent p-0 text-left"
+                            phx-click="show_user_profile"
+                            phx-value-user_id={local_sender_id(message)}
+                            class={[
+                              "font-semibold text-sm hover:underline cursor-pointer",
+                              if(message.sender_id == @current_user.id, do: "text-secondary")
+                            ]}
                           >
-                            <img
-                              src={resolved_media_url}
-                              alt="Uploaded image"
-                              loading="lazy"
-                              decoding="async"
-                              class="max-w-full rounded-lg object-contain hover:opacity-90 transition-opacity cursor-pointer bg-base-200 min-h-[100px] max-h-96"
+                            <.username_with_effects
+                              user={message_sender(message)}
+                              show_at={false}
+                              verified_size="xs"
                             />
+                            <%= if sender_federated?(message) do %>
+                              <span class="text-xs font-normal opacity-60">
+                                @{user_domain(message_sender(message))}
+                              </span>
+                            <% end %>
                           </button>
                         <% else %>
-                          <a
-                            href={
+                          <span class="font-semibold text-sm">{message_sender_tag(message)}</span>
+                        <% end %>
+                        <.sender_badge sender={message_sender(message)} />
+                        <%= if sender_timeout?(message, @moderation.user_timeout_status) do %>
+                          <span class="badge badge-warning badge-xs">
+                            <.icon name="hero-clock" class="w-2 h-2 mr-1" /> Timed Out
+                          </span>
+                        <% end %>
+                      <% end %>
+                      <time class="text-xs text-base-content/45 tabular-nums">
+                        <.local_time
+                          datetime={message.inserted_at}
+                          format="time"
+                          timezone={@timezone}
+                          time_format={@time_format}
+                        />
+                      </time>
+                      <%= if message.edited_at do %>
+                        <span class="text-xs text-base-content/45">edited</span>
+                      <% end %>
+                    </div>
+                  <% end %>
+                  
+<!-- Message body -->
+                  <div
+                    class="text-sm sm:text-base"
+                    title={"#{NaiveDateTime.to_iso8601(message.inserted_at)}"}
+                    data-datetime={NaiveDateTime.to_iso8601(message.inserted_at)}
+                    data-message-id={message.id}
+                    data-sender-id={message.sender_id}
+                    phx-hook="MessageContextMenu"
+                    id={"message-bubble-#{message.id}"}
+                  >
+                    <!-- Reply Context -->
+                    <%= if message.reply_to && sender_loaded?(message.reply_to.sender) do %>
+                      <% reply_content = message_display_content(message.reply_to) || "" %>
+                      <button
+                        phx-click="scroll_to_message"
+                        phx-value-message_id={message.reply_to.id}
+                        class="block w-full text-left mb-2 px-2 py-1 bg-base-300/30 rounded text-xs opacity-75 hover:opacity-100 cursor-pointer border-l-2 border-primary"
+                      >
+                        <span class="font-medium">
+                          Replying to {user_at_handle(message.reply_to.sender)}
+                        </span>
+                        <%= if reply_content != "" do %>
+                          <p class="truncate opacity-75">
+                            {String.slice(reply_content, 0, 50)}{if String.length(reply_content) >
+                                                                      50,
+                                                                    do: "..."}
+                          </p>
+                        <% end %>
+                      </button>
+                    <% end %>
+                    
+<!-- Pin Indicator -->
+                    <%= if Map.get(message, :is_pinned, false) do %>
+                      <div class="flex items-center gap-1 text-secondary text-xs mb-1 opacity-75">
+                        <.icon name="hero-bookmark-solid" class="w-3 h-3" />
+                        <span>Pinned</span>
+                      </div>
+                    <% end %>
+                    
+<!-- Message Content -->
+                    <% client_encrypted_payload =
+                      Map.get(message, :client_encrypted_payload) ||
+                        Map.get(message, "client_encrypted_payload") %>
+                    <%= if client_encrypted_payload do %>
+                      <p
+                        id={"chat-encrypted-message-content-#{message.id}"}
+                        phx-update="ignore"
+                        class="text-sm sm:text-base break-words cursor-text select-text opacity-0"
+                        data-chat-encrypted-message="true"
+                        data-conversation-id={message.conversation_id}
+                        data-key-uid={
+                          Map.get(client_encrypted_payload, "key_uid") ||
+                            Map.get(client_encrypted_payload, :key_uid)
+                        }
+                        data-payload={Jason.encode!(client_encrypted_payload)}
+                      >
+                        Decrypting encrypted message...
+                      </p>
+                    <% end %>
+                    <%= if is_nil(client_encrypted_payload) && message.content && message.content != "" do %>
+                      <p class="text-sm sm:text-base break-words cursor-text select-text">
+                        {Phoenix.HTML.raw(linkify_urls(message_display_content(message)))}
+                      </p>
+                    <% end %>
+                    
+<!-- Embedded cross-posted content (only for timeline posts, not chat messages) -->
+                    <%= if Map.get(message, :shared_message_id) && Map.get(message, :shared_message) do %>
+                      <.embedded_post
+                        message={message}
+                        shared_message={message.shared_message}
+                        class="mt-2"
+                      />
+                    <% end %>
+                    
+<!-- Voice Message -->
+                    <%= if message.message_type == "voice" && message.media_urls && message.media_urls != [] do %>
+                      <div class="mt-2">
+                        <div class="flex items-center gap-3 p-3 bg-base-200 rounded-lg max-w-xs">
+                          <.icon
+                            name="hero-microphone"
+                            class="w-5 h-5 text-secondary flex-shrink-0"
+                          />
+                          <audio
+                            controls
+                            preload="metadata"
+                            class="h-8 flex-1 min-w-0"
+                            src={
                               Elektrine.Uploads.attachment_url(
-                                media_url,
+                                List.first(message.media_urls),
                                 @conversation.selected
                               )
                             }
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            class="flex items-center gap-2 p-3 bg-base-200 rounded-lg hover:bg-base-300 transition-colors"
                           >
-                            <.icon name="hero-document" class="w-5 h-5" />
-                            <span class="text-sm flex-1 truncate">
-                              {Path.basename(media_url)}
+                            Your browser does not support the audio element.
+                          </audio>
+                          <%= if message.media_metadata["duration"] do %>
+                            <span class="text-xs opacity-60 flex-shrink-0">
+                              {div(message.media_metadata["duration"], 60)}:{rem(
+                                message.media_metadata["duration"],
+                                60
+                              )
+                              |> Integer.to_string()
+                              |> String.pad_leading(2, "0")}
                             </span>
-                            <.icon name="hero-arrow-down-tray" class="w-4 h-4 opacity-50" />
-                          </a>
-                        <% end %>
-                      <% end %>
-                    </div>
-                  <% end %>
-                  
-<!-- Direct Image URLs Preview (only if no uploaded media) -->
-                  <%= if (message.media_urls == nil || message.media_urls == []) do %>
-                    <% image_urls =
-                      message.content
-                      |> Message.extract_image_urls()
-                      |> ElektrineWeb.HtmlHelpers.safe_external_image_urls() %>
-                    <%= if image_urls != [] do %>
+                          <% end %>
+                        </div>
+                      </div>
+                    <% end %>
+                    
+<!-- Uploaded Media/Files -->
+                    <%= if message.message_type != "voice" && message.media_urls && message.media_urls != [] do %>
+                      <% uploaded_image_urls =
+                        message.media_urls
+                        |> Enum.filter(&String.match?(&1, ~r/\.(jpg|jpeg|png|gif|webp)$/i))
+                        |> Enum.map(&Uploads.attachment_url(&1, @conversation.selected)) %>
                       <div class="mt-2 space-y-2">
-                        <%= for {image_url, index} <- Enum.with_index(image_urls) do %>
-                          <button
-                            type="button"
-                            phx-click="open_image_modal"
-                            phx-value-images={Jason.encode!(image_urls)}
-                            phx-value-index={index}
-                            phx-value-url={image_url}
-                            class="block border-0 bg-transparent p-0 text-left"
-                          >
-                            <img
-                              id={"chat-message-image-#{:erlang.phash2(image_url)}"}
-                              src={image_url}
-                              alt="Image preview"
-                              loading="lazy"
-                              decoding="async"
-                              class="max-w-full rounded-lg object-contain hover:opacity-90 transition-opacity cursor-pointer bg-base-200 min-h-[100px] max-h-96"
-                              phx-hook="ImageFallback"
-                            />
-                          </button>
+                        <%= for media_url <- message.media_urls do %>
+                          <%= if String.match?(media_url, ~r/\.(jpg|jpeg|png|gif|webp)$/i) do %>
+                            <% resolved_media_url =
+                              Uploads.attachment_url(media_url, @conversation.selected) %>
+                            <button
+                              type="button"
+                              phx-click="open_image_modal"
+                              phx-value-images={Jason.encode!(uploaded_image_urls)}
+                              phx-value-index={
+                                Enum.find_index(uploaded_image_urls, &(&1 == resolved_media_url)) ||
+                                  0
+                              }
+                              phx-value-url={resolved_media_url}
+                              phx-value-message_id={message.id}
+                              class="block border-0 bg-transparent p-0 text-left"
+                            >
+                              <img
+                                src={resolved_media_url}
+                                alt="Uploaded image"
+                                loading="lazy"
+                                decoding="async"
+                                class="max-w-full rounded-lg object-contain hover:opacity-90 transition-opacity cursor-pointer bg-base-200 min-h-[100px] max-h-96"
+                              />
+                            </button>
+                          <% else %>
+                            <a
+                              href={
+                                Elektrine.Uploads.attachment_url(
+                                  media_url,
+                                  @conversation.selected
+                                )
+                              }
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              class="flex items-center gap-2 p-3 bg-base-200 rounded-lg hover:bg-base-300 transition-colors"
+                            >
+                              <.icon name="hero-document" class="w-5 h-5" />
+                              <span class="text-sm flex-1 truncate">
+                                {Path.basename(media_url)}
+                              </span>
+                              <.icon name="hero-arrow-down-tray" class="w-4 h-4 opacity-50" />
+                            </a>
+                          <% end %>
                         <% end %>
                       </div>
                     <% end %>
-                  <% end %>
-                  
+                    
+<!-- Direct Image URLs Preview (only if no uploaded media) -->
+                    <%= if (message.media_urls == nil || message.media_urls == []) do %>
+                      <% image_urls =
+                        message.content
+                        |> Message.extract_image_urls()
+                        |> ElektrineWeb.HtmlHelpers.safe_external_image_urls() %>
+                      <%= if image_urls != [] do %>
+                        <div class="mt-2 space-y-2">
+                          <%= for {image_url, index} <- Enum.with_index(image_urls) do %>
+                            <button
+                              type="button"
+                              phx-click="open_image_modal"
+                              phx-value-images={Jason.encode!(image_urls)}
+                              phx-value-index={index}
+                              phx-value-url={image_url}
+                              class="block border-0 bg-transparent p-0 text-left"
+                            >
+                              <img
+                                id={"chat-message-image-#{:erlang.phash2(image_url)}"}
+                                src={image_url}
+                                alt="Image preview"
+                                loading="lazy"
+                                decoding="async"
+                                class="max-w-full rounded-lg object-contain hover:opacity-90 transition-opacity cursor-pointer bg-base-200 min-h-[100px] max-h-96"
+                                phx-hook="ImageFallback"
+                              />
+                            </button>
+                          <% end %>
+                        </div>
+                      <% end %>
+                    <% end %>
+                    
 <!-- YouTube Embed -->
-                  <% youtube_url = Message.extract_youtube_embed_url(message.content) %>
-                  <%= if youtube_url do %>
-                    <.youtube_preview
-                      url={youtube_url}
-                      wrapper_class="mt-2 rounded-lg overflow-hidden"
-                    />
-                  <% end %>
-                  
+                    <% youtube_url = Message.extract_youtube_embed_url(message.content) %>
+                    <%= if youtube_url do %>
+                      <.youtube_preview
+                        url={youtube_url}
+                        wrapper_class="mt-2 rounded-lg overflow-hidden"
+                      />
+                    <% end %>
+                    
 <!-- Link Preview (skip when rendered as a YouTube embed) -->
-                  <% link_preview = Map.get(message, :link_preview) %>
-                  <% link_preview_url =
-                    if social_link_preview_success?(link_preview),
-                      do: ElektrineWeb.HtmlHelpers.safe_external_href(link_preview.url) %>
-                  <%= if !youtube_url && link_preview_url do %>
-                    <a
-                      href={link_preview_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      class="block mt-2 border border-base-300 rounded-lg overflow-hidden hover:border-error/50 transition-colors group"
-                    >
-                      <%= if preview_image_url =
+                    <% link_preview = Map.get(message, :link_preview) %>
+                    <% link_preview_url =
+                      if social_link_preview_success?(link_preview),
+                        do: ElektrineWeb.HtmlHelpers.safe_external_href(link_preview.url) %>
+                    <%= if !youtube_url && link_preview_url do %>
+                      <a
+                        href={link_preview_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="block mt-2 border border-base-300 rounded-lg overflow-hidden hover:border-error/50 transition-colors group"
+                      >
+                        <%= if preview_image_url =
                             ElektrineWeb.HtmlHelpers.safe_external_image_url(
                               link_preview.image_url
                             ) do %>
-                        <div class="aspect-video bg-base-200 relative overflow-hidden">
-                          <img
-                            src={preview_image_url}
-                            alt={link_preview.title || "Link preview"}
-                            loading="lazy"
-                            decoding="async"
-                            class="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                          />
-                        </div>
-                      <% end %>
-                      <div class="p-3 bg-base-100">
-                        <%= if link_preview.title do %>
-                          <h4 class="font-medium text-sm mb-1 line-clamp-2 group-hover:text-error transition-colors">
-                            {link_preview.title}
-                          </h4>
+                          <div class="aspect-video bg-base-200 relative overflow-hidden">
+                            <img
+                              src={preview_image_url}
+                              alt={link_preview.title || "Link preview"}
+                              loading="lazy"
+                              decoding="async"
+                              class="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                            />
+                          </div>
                         <% end %>
-                        <%= if link_preview.description do %>
-                          <p class="text-xs opacity-70 line-clamp-2">
-                            {link_preview.description}
-                          </p>
-                        <% end %>
-                        <div class="flex items-center gap-2 mt-2 text-xs opacity-50">
-                          <%= if favicon_url =
+                        <div class="p-3 bg-base-100">
+                          <%= if link_preview.title do %>
+                            <h4 class="font-medium text-sm mb-1 line-clamp-2 group-hover:text-error transition-colors">
+                              {link_preview.title}
+                            </h4>
+                          <% end %>
+                          <%= if link_preview.description do %>
+                            <p class="text-xs opacity-70 line-clamp-2">
+                              {link_preview.description}
+                            </p>
+                          <% end %>
+                          <div class="flex items-center gap-2 mt-2 text-xs opacity-50">
+                            <%= if favicon_url =
                                 ElektrineWeb.HtmlHelpers.safe_external_image_url(
                                   link_preview.favicon_url
                                 ) do %>
-                            <img
-                              id={"chat-link-preview-favicon-#{:erlang.phash2(link_preview.favicon_url)}"}
-                              src={favicon_url}
-                              alt=""
-                              loading="lazy"
-                              decoding="async"
-                              class="w-4 h-4"
-                              phx-hook="ImageFallback"
-                            />
-                          <% end %>
-                          <span class="truncate">
-                            {URI.parse(link_preview_url).host}
-                          </span>
+                              <img
+                                id={"chat-link-preview-favicon-#{:erlang.phash2(link_preview.favicon_url)}"}
+                                src={favicon_url}
+                                alt=""
+                                loading="lazy"
+                                decoding="async"
+                                class="w-4 h-4"
+                                phx-hook="ImageFallback"
+                              />
+                            <% end %>
+                            <span class="truncate">
+                              {URI.parse(link_preview_url).host}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    </a>
-                  <% end %>
-                  
+                      </a>
+                    <% end %>
+                    
 <!-- Content Journey Trail -->
-                  <.content_journey message={message} context="chat" />
-                  
+                    <.content_journey message={message} context="chat" />
+                    
 <!-- Reactions inside bubble -->
-                  <%= if message.reactions != [] do %>
-                    <div class="flex gap-1 mt-2 flex-wrap">
-                      <%= for {emoji, count, users} <- format_reactions(message.reactions) do %>
+                    <%= if message.reactions != [] do %>
+                      <div class="flex gap-1 mt-2 flex-wrap">
+                        <%= for {emoji, count, users} <- format_reactions(message.reactions) do %>
+                          <button
+                            phx-click="react_to_message"
+                            phx-value-message_id={message.id}
+                            phx-value-emoji={emoji}
+                            class={[
+                              "px-2 py-0.5 rounded-full text-xs border flex items-center gap-1",
+                              if user_reacted?(message.reactions, emoji, @current_user.id) do
+                                "bg-primary/20 border-primary"
+                              else
+                                "bg-base-200/50 border-base-300 hover:bg-base-200"
+                              end
+                            ]}
+                            title={Enum.join(users, ", ")}
+                          >
+                            {Phoenix.HTML.raw(render_reaction_emoji(emoji))} {count}
+                          </button>
+                        <% end %>
+                      </div>
+                    <% end %>
+                    
+<!-- Thread Indicator -->
+                    <%= if @conversation.selected.type == "channel" do %>
+                      <% message_thread = thread_for_message(@threads, message.id) %>
+                      <%= if message_thread do %>
                         <button
-                          phx-click="react_to_message"
-                          phx-value-message_id={message.id}
-                          phx-value-emoji={emoji}
-                          class={[
-                            "px-2 py-0.5 rounded-full text-xs border flex items-center gap-1",
-                            if user_reacted?(message.reactions, emoji, @current_user.id) do
-                              "bg-primary/20 border-primary"
-                            else
-                              "bg-base-200/50 border-base-300 hover:bg-base-200"
-                            end
-                          ]}
-                          title={Enum.join(users, ", ")}
+                          phx-click="open_thread"
+                          phx-value-thread_id={message_thread.id}
+                          class="flex items-center gap-1 mt-2 text-xs text-secondary hover:underline"
+                          title="Open thread"
                         >
-                          {Phoenix.HTML.raw(render_reaction_emoji(emoji))} {count}
+                          <.icon name="hero-chat-bubble-left-right" class="w-3 h-3" />
+                          <span>
+                            {message_thread.message_count} {if message_thread.message_count == 1,
+                              do: "reply",
+                              else: "replies"} in thread<%= if message_thread.archived_at do %>
+                              (archived)
+                            <% end %>
+                          </span>
                         </button>
                       <% end %>
-                    </div>
-                  <% end %>
-                  
-<!-- Thread Indicator -->
-                  <%= if @conversation.selected.type == "channel" do %>
-                    <% message_thread = thread_for_message(@threads, message.id) %>
-                    <%= if message_thread do %>
-                      <button
-                        phx-click="open_thread"
-                        phx-value-thread_id={message_thread.id}
-                        class="flex items-center gap-1 mt-2 text-xs text-secondary hover:underline"
-                        title="Open thread"
-                      >
-                        <.icon name="hero-chat-bubble-left-right" class="w-3 h-3" />
-                        <span>
-                          {message_thread.message_count} {if message_thread.message_count == 1,
-                            do: "reply",
-                            else: "replies"} in thread<%= if message_thread.archived_at do %>
-                            (archived)
-                          <% end %>
-                        </span>
-                      </button>
                     <% end %>
-                  <% end %>
-                </div>
-                
-<!-- Footer: Actions -->
-                <div class="chat-footer">
-                  <div class="flex items-center gap-2 flex-wrap">
-                    <!-- Message Actions -->
-                    <div class="flex items-center gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-hover/message:opacity-100 sm:focus-within:opacity-100">
-                      <button
-                        phx-click="reply_to_message"
-                        phx-value-message_id={message.id}
-                        class="btn btn-xs btn-ghost"
-                        title="Reply"
-                      >
-                        <.icon name="hero-arrow-uturn-left" class="w-3 h-3" />
-                      </button>
-
-                      <%= if @current_user.is_admin and local_sender?(message) && message.sender_id != @current_user.id do %>
-                        <!-- Site Admin Moderation Actions -->
-                        <div class="dropdown dropdown-end">
-                          <button
-                            tabindex="0"
-                            class="btn btn-xs btn-ghost text-warning hover:bg-warning/20"
-                            title="Admin Actions"
-                          >
-                            <.icon name="hero-shield-exclamation" class="w-4 h-4" />
-                          </button>
-                          <ul
-                            tabindex="0"
-                            class="dropdown-content z-30 menu p-2 rounded-box w-48"
-                          >
-                            <li class="menu-title text-xs">
-                              <span class="text-warning">
-                                Moderate {message_sender_tag(message)}
-                              </span>
-                            </li>
-                            <li>
-                              <button
-                                phx-click="delete_message_admin"
-                                phx-value-message_id={message.id}
-                                class="text-error"
-                              >
-                                <.icon name="hero-trash" class="w-4 h-4" /> Delete Message
-                              </button>
-                            </li>
-                            <li>
-                              <button
-                                phx-click="timeout_user"
-                                phx-value-user_id={local_sender_id(message)}
-                                phx-value-duration="300"
-                                class="text-warning"
-                              >
-                                <.icon name="hero-clock" class="w-4 h-4" /> Timeout 5min
-                              </button>
-                            </li>
-                            <li>
-                              <button
-                                phx-click="timeout_user"
-                                phx-value-user_id={local_sender_id(message)}
-                                phx-value-duration="3600"
-                                class="text-warning"
-                              >
-                                <.icon name="hero-clock" class="w-4 h-4" /> Timeout 1hr
-                              </button>
-                            </li>
-                            <li>
-                              <button
-                                phx-click="kick_user"
-                                phx-value-user_id={local_sender_id(message)}
-                                class="text-error"
-                              >
-                                <.icon name="hero-user-minus" class="w-4 h-4" /> Kick User
-                              </button>
-                            </li>
-                          </ul>
-                        </div>
-                      <% end %>
-                    </div>
                   </div>
                 </div>
+                
+<!-- Floating action bar: visible on hover and keyboard focus; touch long-press
+                     opens the same context menu via the right-click handler -->
+                <div class="absolute right-3 -top-3 z-10 hidden items-center rounded-lg border border-base-300 bg-base-100 p-0.5 shadow-md group-hover/message:flex focus-within:flex">
+                  <button
+                    phx-click="reply_to_message"
+                    phx-value-message_id={message.id}
+                    class="btn btn-ghost btn-xs btn-square"
+                    title="Reply"
+                    aria-label="Reply"
+                  >
+                    <.icon name="hero-arrow-uturn-left" class="w-4 h-4" />
+                  </button>
+
+                  <%= if @conversation.selected.type == "channel" && message.message_type != "system" do %>
+                    <% message_thread = thread_for_message(@threads, message.id) %>
+                    <button
+                      phx-click={if message_thread, do: "open_thread", else: "create_thread"}
+                      phx-value-thread_id={message_thread && message_thread.id}
+                      phx-value-message_id={message.id}
+                      class="btn btn-ghost btn-xs btn-square"
+                      title={if message_thread, do: "Open thread", else: "Start thread"}
+                      aria-label={if message_thread, do: "Open thread", else: "Start thread"}
+                    >
+                      <.icon name="hero-chat-bubble-left-right" class="w-4 h-4" />
+                    </button>
+                  <% end %>
+
+                  <button
+                    phx-click={
+                      if Map.get(message, :is_pinned, false),
+                        do: "unpin_message",
+                        else: "pin_message"
+                    }
+                    phx-value-message_id={message.id}
+                    class="btn btn-ghost btn-xs btn-square"
+                    title={if Map.get(message, :is_pinned, false), do: "Unpin", else: "Pin"}
+                    aria-label={
+                      if Map.get(message, :is_pinned, false),
+                        do: "Unpin message",
+                        else: "Pin message"
+                    }
+                  >
+                    <.icon
+                      name={
+                        if Map.get(message, :is_pinned, false),
+                          do: "hero-bookmark-slash",
+                          else: "hero-bookmark"
+                      }
+                      class="w-4 h-4"
+                    />
+                  </button>
+
+                  <button
+                    id={"message-menu-#{message.id}"}
+                    type="button"
+                    phx-hook="MessageMenuButton"
+                    data-menu-target={"message-bubble-#{message.id}"}
+                    data-message-id={message.id}
+                    data-sender-id={message.sender_id}
+                    class="btn btn-ghost btn-xs btn-square"
+                    title="More actions"
+                    aria-label="More actions"
+                  >
+                    <.icon name="hero-ellipsis-horizontal" class="w-4 h-4" />
+                  </button>
+
+                  <%= if @current_user.is_admin and local_sender?(message) && message.sender_id != @current_user.id do %>
+                    <!-- Site Admin Moderation Actions -->
+                    <div class="dropdown dropdown-end">
+                      <button
+                        tabindex="0"
+                        class="btn btn-xs btn-ghost btn-square text-warning hover:bg-warning/20"
+                        title="Admin Actions"
+                        aria-label="Admin actions"
+                      >
+                        <.icon name="hero-shield-exclamation" class="w-4 h-4" />
+                      </button>
+                      <ul tabindex="0" class="dropdown-content z-30 menu p-2 rounded-box w-48">
+                        <li class="menu-title text-xs">
+                          <span class="text-warning">
+                            Moderate {message_sender_tag(message)}
+                          </span>
+                        </li>
+                        <li>
+                          <button
+                            phx-click="delete_message_admin"
+                            phx-value-message_id={message.id}
+                            class="text-error"
+                          >
+                            <.icon name="hero-trash" class="w-4 h-4" /> Delete Message
+                          </button>
+                        </li>
+                        <li>
+                          <button
+                            phx-click="timeout_user"
+                            phx-value-user_id={local_sender_id(message)}
+                            phx-value-duration="300"
+                            class="text-warning"
+                          >
+                            <.icon name="hero-clock" class="w-4 h-4" /> Timeout 5min
+                          </button>
+                        </li>
+                        <li>
+                          <button
+                            phx-click="timeout_user"
+                            phx-value-user_id={local_sender_id(message)}
+                            phx-value-duration="3600"
+                            class="text-warning"
+                          >
+                            <.icon name="hero-clock" class="w-4 h-4" /> Timeout 1hr
+                          </button>
+                        </li>
+                        <li>
+                          <button
+                            phx-click="kick_user"
+                            phx-value-user_id={local_sender_id(message)}
+                            class="text-error"
+                          >
+                            <.icon name="hero-user-minus" class="w-4 h-4" /> Kick User
+                          </button>
+                        </li>
+                      </ul>
+                    </div>
+                  <% end %>
+                </div>
               </div>
+              
+<!-- Seen-by receipt: single stack under the current user's latest message -->
+              <%= if message.sender_id == @current_user.id and message.id == last_own_message_id do %>
+                <% readers = Map.get(@message.read_status, message.id, []) %>
+                <%= if readers != [] do %>
+                  <div class="flex items-center justify-end gap-1.5 px-4 pb-1 text-[11px] text-base-content/45">
+                    <span>Seen by</span>
+                    <div class="flex -space-x-1.5">
+                      <%= for reader <- Enum.take(readers, 5) do %>
+                        <span
+                          class="inline-flex h-4 w-4 items-center justify-center rounded-full bg-base-300 text-[8px] font-semibold uppercase text-base-content ring-2 ring-base-100"
+                          title={reader.username}
+                        >
+                          {String.first(reader.username || "?")}
+                        </span>
+                      <% end %>
+                    </div>
+                    <%= if length(readers) > 5 do %>
+                      <span>+{length(readers) - 5}</span>
+                    <% end %>
+                  </div>
+                <% end %>
+              <% end %>
             <% end %>
           <% end %>
         </div>
@@ -2147,7 +2216,7 @@
               </div>
             <% end %>
 
-            <%= if @current_user && Map.get(@moderation.user_timeout_status, @current_user.id, false) do %>
+            <%= if Map.get(@moderation.user_timeout_status, @current_user.id, false) do %>
               <div class="p-3 bg-warning/20 border border-warning rounded-lg text-center">
                 <.icon name="hero-clock" class="w-5 h-5 mx-auto mb-2 text-warning" />
                 <p class="text-sm font-medium text-warning">You are currently timed out</p>
@@ -2200,14 +2269,26 @@
                     </button>
                   </div>
                 <% end %>
-
-                <div class="flex items-end gap-1 sm:gap-2">
+                
+<!-- Single composer surface: attach, input, emoji, voice and send
+                     share one bordered container that focuses as a unit -->
+                <div class="flex items-end gap-1 rounded-2xl border border-base-300 bg-base-200 p-1.5 transition-colors focus-within:border-secondary focus-within:ring-1 focus-within:ring-secondary">
                   <%= if @can_send_messages do %>
+                    <!-- File Upload Button -->
+                    <label
+                      class="btn btn-ghost btn-circle btn-sm flex-shrink-0 text-base-content/80 hover:bg-base-300"
+                      title="Attach"
+                      aria-label="Attach a file"
+                    >
+                      <.icon name="hero-paper-clip" class="w-5 h-5" />
+                      <.live_file_input upload={@uploads.chat_attachments} class="hidden" />
+                    </label>
+
                     <textarea
                       name="message"
                       placeholder={"Message #{route_label(@conversation.selected, @current_user.id)}"}
                       aria-label={"Message #{route_label(@conversation.selected, @current_user.id)}"}
-                      class="flex-1 min-w-0 text-sm leading-5 px-3 py-[9px] resize-none rounded-xl border border-base-300 bg-base-200 text-base-content placeholder:text-base-content/70 focus:outline-none focus:border-secondary focus:ring-1 focus:ring-secondary transition-colors sm:px-4"
+                      class="flex-1 min-w-0 self-center resize-none border-0 bg-transparent px-1 py-1.5 text-sm leading-5 text-base-content placeholder:text-base-content/60 focus:outline-none focus:ring-0"
                       autocomplete="off"
                       phx-change="update_message"
                       phx-blur="stop_typing"
@@ -2216,30 +2297,14 @@
                       rows="1"
                       maxlength="4000"
                     ><%= @message.new_message %></textarea>
-                  <% else %>
-                    <textarea
-                      disabled
-                      placeholder="Cannot send messages"
-                      class="textarea textarea-bordered flex-1 min-w-0 resize-none opacity-50 cursor-not-allowed text-sm sm:text-base leading-5 py-[9px] px-2 bg-base-200 border-base-300 text-base-content/70"
-                      rows="1"
-                    ></textarea>
-                  <% end %>
-                  <%= if @can_send_messages do %>
-                    <!-- File Upload Button - First on mobile for easy access -->
-                    <label
-                      class="btn btn-ghost btn-circle p-0 min-h-0 h-8 w-8 sm:h-10 sm:w-10 cursor-pointer flex-shrink-0 flex items-center justify-center text-base-content/80 hover:bg-base-300"
-                      title="Attach"
-                    >
-                      <.icon name="hero-paper-clip" class="w-4 h-4 sm:w-5 sm:h-5" />
-                      <.live_file_input upload={@uploads.chat_attachments} class="hidden" />
-                    </label>
                     
 <!-- Emoji Button - Hidden on mobile to save space -->
                     <button
                       type="button"
                       phx-click="toggle_emoji_picker"
-                      class="btn btn-ghost btn-circle p-0 min-h-0 h-10 w-10 flex-shrink-0 hidden sm:flex items-center justify-center text-base-content/80 hover:bg-base-300"
+                      class="btn btn-ghost btn-circle btn-sm flex-shrink-0 hidden sm:flex text-base-content/80 hover:bg-base-300"
                       title="Emoji"
+                      aria-label="Add emoji"
                     >
                       <.icon name="hero-face-smile" class="w-5 h-5" />
                     </button>
@@ -2249,8 +2314,9 @@
                       type="button"
                       id="voice-recorder-btn"
                       phx-hook="VoiceRecorder"
-                      class="btn btn-ghost btn-circle p-0 min-h-0 h-8 w-8 sm:h-10 sm:w-10 flex-shrink-0 flex items-center justify-center text-base-content/80 hover:bg-base-300"
+                      class="btn btn-ghost btn-circle btn-sm flex-shrink-0 text-base-content/80 hover:bg-base-300"
                       title="Voice Message"
+                      aria-label="Record voice message"
                     >
                       <.icon name="hero-microphone" class="w-5 h-5" />
                     </button>
@@ -2272,10 +2338,10 @@
                       </button>
                     </div>
                     
-<!-- Send Button - Always visible, compact on mobile -->
+<!-- Send Button -->
                     <button
                       type="submit"
-                      class="btn btn-circle p-0 min-h-0 h-8 w-8 sm:h-10 sm:w-10 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center bg-secondary hover:bg-secondary/90 border-none text-secondary-content"
+                      class="btn btn-circle btn-sm flex-shrink-0 border-none bg-secondary text-secondary-content hover:bg-secondary/90 disabled:opacity-50 disabled:cursor-not-allowed"
                       disabled={
                         @message.loading_messages ||
                           (not chat_e2ee_ready &&
@@ -2283,9 +2349,17 @@
                                 @uploads.chat_attachments.entries == []))
                       }
                       title="Send"
+                      aria-label="Send message"
                     >
-                      <.icon name="hero-paper-airplane" class="w-4 h-4 sm:w-5 sm:h-5" />
+                      <.icon name="hero-paper-airplane" class="w-5 h-5" />
                     </button>
+                  <% else %>
+                    <textarea
+                      disabled
+                      placeholder="Cannot send messages"
+                      class="flex-1 min-w-0 resize-none border-0 bg-transparent px-1 py-1.5 text-sm leading-5 text-base-content/70 opacity-60 cursor-not-allowed focus:outline-none"
+                      rows="1"
+                    ></textarea>
                   <% end %>
                 </div>
                 <%= if @message.new_message && String.length(@message.new_message) > 3600 do %>

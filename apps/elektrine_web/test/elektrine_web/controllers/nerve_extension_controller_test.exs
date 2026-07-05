@@ -29,6 +29,13 @@ defmodule ElektrineWeb.NerveExtensionControllerTest do
     |> Plug.Conn.put_session(:user_token, token)
   end
 
+  test "packages the extension files in application priv" do
+    priv_manifest = Application.app_dir(:elektrine_web, "priv/nerve-extension/manifest.json")
+
+    assert File.exists?(priv_manifest)
+    assert File.read!(priv_manifest) =~ "\"name\": \"Elektrine Nerve\""
+  end
+
   test "downloads the chromium extension archive", %{conn: conn, user: user} do
     conn = get(log_in_user(conn, user), ~p"/account/nerve/extension/chromium/download")
 
@@ -39,11 +46,14 @@ defmodule ElektrineWeb.NerveExtensionControllerTest do
            ]
 
     assert {:ok, files} = :zip.unzip(conn.resp_body, [:memory])
+    assert length(files) > 5
 
     assert {~c"manifest.json", manifest} =
              Enum.find(files, fn {name, _contents} -> name == ~c"manifest.json" end)
 
     assert manifest =~ "\"name\": \"Elektrine Nerve\""
+    assert Enum.any?(files, fn {name, _contents} -> name == ~c"content.js" end)
+    assert Enum.any?(files, fn {name, _contents} -> name == ~c"background.js" end)
   end
 
   test "downloads the firefox extension archive", %{conn: conn, user: user} do

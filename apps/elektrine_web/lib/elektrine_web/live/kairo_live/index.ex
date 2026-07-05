@@ -580,19 +580,9 @@ defmodule ElektrineWeb.KairoLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="pb-2">
-      <section class="mx-auto w-full max-w-6xl space-y-4 px-3 sm:px-4 lg:px-5">
-        <.e_nav active_tab="kairo" current_user={@current_user} />
-
-        <div>
-          <h1 class="text-2xl font-bold text-base-content sm:text-3xl">Kairo</h1>
-          <p class="mt-1 text-base-content/70">
-            Notes, links, and sources you save here or ingest via the <.link
-              navigate={~p"/account?tab=developer"}
-              class="link"
-            >API</.link>.
-          </p>
-        </div>
+    <div class="mx-auto w-full max-w-7xl px-4 pb-2 sm:px-6 lg:px-8">
+      <section>
+        <.e_nav active_tab="kairo" current_user={@current_user} class="mb-6" />
 
         <div
           id="kairo-vault"
@@ -600,30 +590,9 @@ defmodule ElektrineWeb.KairoLive.Index do
           data-kairo-master-configured={to_string(not is_nil(@master_vault))}
           data-kairo-master-wrapped-dek={@master_vault && Jason.encode!(@master_vault.wrapped_dek)}
         >
-          <div class="mb-3 flex justify-end">
-            <div class="join">
-              <button
-                type="button"
-                phx-click="toggle_view"
-                phx-value-mode="reader"
-                class={["btn btn-sm join-item", @view_mode == "reader" && "btn-active"]}
-              >
-                <.icon name="hero-list-bullet" class="h-4 w-4" /> List
-              </button>
-              <button
-                type="button"
-                phx-click="toggle_view"
-                phx-value-mode="graph"
-                class={["btn btn-sm join-item", @view_mode == "graph" && "btn-active"]}
-              >
-                <.icon name="hero-share" class="h-4 w-4" /> Graph
-              </button>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-1 gap-4 lg:grid-cols-[16.5rem_minmax(0,1fr)]">
+          <div class="grid grid-cols-1 gap-4 lg:grid-cols-[18rem_minmax(0,1fr)] lg:gap-6">
             <%!-- Explorer --%>
-            <aside class="card panel-card flex flex-col overflow-hidden border border-base-300 lg:max-h-[calc(100vh-11rem)]">
+            <aside class="card panel-card flex flex-col overflow-hidden border border-base-300 lg:max-h-[calc(100vh-8rem)]">
               <div class="space-y-2 border-b border-base-300 p-3">
                 <div class="flex gap-2">
                   <button type="button" phx-click="new_note" class="btn btn-primary btn-sm flex-1">
@@ -902,11 +871,42 @@ defmodule ElektrineWeb.KairoLive.Index do
             </aside>
 
             <%!-- Reader / editor --%>
-            <section class="card panel-card border border-base-300 lg:max-h-[calc(100vh-11rem)] lg:overflow-y-auto">
+            <section class="card panel-card border border-base-300 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto">
+              <div class="flex justify-end border-b border-base-300 px-2 py-1.5">
+                <div class="join">
+                  <button
+                    type="button"
+                    phx-click="toggle_view"
+                    phx-value-mode="reader"
+                    class={[
+                      "btn btn-ghost btn-xs join-item h-8 w-8 p-0",
+                      @view_mode == "reader" && "btn-active"
+                    ]}
+                    aria-label="List view"
+                    title="List view"
+                  >
+                    <.icon name="hero-list-bullet" class="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    phx-click="toggle_view"
+                    phx-value-mode="graph"
+                    class={[
+                      "btn btn-ghost btn-xs join-item h-8 w-8 p-0",
+                      @view_mode == "graph" && "btn-active"
+                    ]}
+                    aria-label="Graph view"
+                    title="Graph view"
+                  >
+                    <.icon name="hero-share" class="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+
               <%!-- Graph view --%>
               <div
                 :if={@view_mode == "graph"}
-                class="relative h-[60vh] text-base-content lg:h-[calc(100vh-11rem)]"
+                class="relative h-[60vh] text-base-content lg:h-[calc(100vh-8rem)]"
               >
                 <div
                   id="kairo-graph"

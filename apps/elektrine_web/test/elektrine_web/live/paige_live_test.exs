@@ -93,6 +93,8 @@ defmodule ElektrineWeb.MaidLiveTest do
     assert html =~ "Search"
     assert html =~ "Paige..."
     assert html =~ ~s(href="/paige")
+    assert html =~ ~s(phx-hook="PaigeSearch")
+    assert html =~ ~s(id="global-search-input")
   end
 
   test "runs configured Paige providers from query params", %{conn: conn} do

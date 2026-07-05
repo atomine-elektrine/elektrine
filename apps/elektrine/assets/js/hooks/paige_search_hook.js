@@ -14,17 +14,12 @@ export const PaigeSearch = {
       const input = this.input()
       if (!input) return
 
-      const target = event.target
-      const typing =
-        target instanceof HTMLElement &&
-        (target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.isContentEditable)
+      const commandK = (event.metaKey || event.ctrlKey) && event.key?.toLowerCase() === "k"
+      const slash = event.key === "/" || event.code === "Slash"
 
-      const commandK = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k"
-
-      if (commandK || (!typing && event.key === "/")) {
+      if (commandK || (slash && !this.isEditableElement(event.target))) {
         event.preventDefault()
+        event.stopPropagation()
         input.focus()
         input.select()
       }
@@ -55,16 +50,24 @@ export const PaigeSearch = {
       }
     }
 
-    window.addEventListener("keydown", this.onWindowKeydown)
+    window.addEventListener("keydown", this.onWindowKeydown, { capture: true })
     this.el.addEventListener("keydown", this.onKeydown)
   },
 
   destroyed() {
-    window.removeEventListener("keydown", this.onWindowKeydown)
+    window.removeEventListener("keydown", this.onWindowKeydown, { capture: true })
     this.el.removeEventListener("keydown", this.onKeydown)
   },
 
   input() {
     return this.el.querySelector("#global-search-input")
+  },
+
+  isEditableElement(element) {
+    if (!(element instanceof HTMLElement)) return false
+
+    return Boolean(
+      element.closest("input, textarea, select, button, a, [contenteditable='true']")
+    )
   },
 }

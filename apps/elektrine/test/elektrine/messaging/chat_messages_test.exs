@@ -258,6 +258,36 @@ defmodule Elektrine.Messaging.ChatMessagesTest do
     end
   end
 
+  describe "media URL validation" do
+    test "accepts content-addressed chat attachment paths owned by the sender" do
+      alice = AccountsFixtures.user_fixture()
+      bob = AccountsFixtures.user_fixture()
+      {:ok, conversation} = Messaging.create_dm_conversation(alice.id, bob.id)
+
+      hash = String.duplicate("a", 64)
+      media_url = "/uploads/chat-attachments/#{alice.id}/aa/aa/aa/#{hash}.png"
+
+      assert {:ok, message} =
+               Messaging.create_media_message(conversation.id, alice.id, [media_url], nil)
+
+      assert message.media_urls == [media_url]
+    end
+
+    test "rejects content-addressed chat attachment paths owned by another user" do
+      alice = AccountsFixtures.user_fixture()
+      bob = AccountsFixtures.user_fixture()
+      {:ok, conversation} = Messaging.create_dm_conversation(alice.id, bob.id)
+
+      hash = String.duplicate("a", 64)
+      media_url = "/uploads/chat-attachments/#{bob.id}/aa/aa/aa/#{hash}.png"
+
+      assert {:error, %Ecto.Changeset{} = changeset} =
+               Messaging.create_media_message(conversation.id, alice.id, [media_url], nil)
+
+      assert {"contains untrusted media URLs", _} = changeset.errors[:media_urls]
+    end
+  end
+
   describe "blocked direct messages" do
     test "rejects new messages in an existing local DM after a block" do
       alice = AccountsFixtures.user_fixture()

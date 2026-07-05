@@ -788,7 +788,7 @@ defmodule ElektrineWeb.SearchLive do
 
       <p :if={@hero} class="mt-3 text-xs text-base-content/45">
         Press <kbd class="kbd kbd-xs">/</kbd>
-        to focus — type <kbd class="kbd kbd-xs">&gt;</kbd>
+        to focus. Type <kbd class="kbd kbd-xs">&gt;</kbd>
         for commands
       </p>
 

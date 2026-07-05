@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Elektrine Nerve Settings</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell page-shell">
+      <section class="hero">
+        <span class="eyebrow">Nerve</span>
+        <h1>Extension Settings</h1>
+        <p>
+          Connect the extension to your account here. Unlock encrypted passwords separately with
+          your account password in the Nerve manager.
+        </p>
+      </section>
+
+      <div id="statusMessage" class="feedback hidden" role="status" aria-live="polite"></div>
+
+      <section class="panel">
+        <h2>Server</h2>
+        <p>Use the base URL for the Elektrine server this browser should connect to.</p>
+        <div class="options-grid">
+          <div class="field">
+            <label for="serverUrl">Server URL</label>
+            <input
+              id="serverUrl"
+              type="url"
+              placeholder="https://your-elektrine.example or http://localhost:4000"
+              required
+            />
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Account connection</h2>
+        <p>Open Elektrine, sign in there if needed, then approve this browser extension.</p>
+        <div class="actions">
+          <button id="connectButton" class="button" type="button">Connect on website</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Connection</h2>
+        <p id="connectionSummary">Not signed in on this browser yet.</p>
+        <div class="actions">
+          <button id="testButton" class="button secondary" type="button">Test connection</button>
+          <button id="signOutButton" class="button ghost" type="button">Sign out</button>
+          <button id="clearPassphraseButton" class="button ghost" type="button">Clear password session</button>
+        </div>
+      </section>
+
+    </main>
+
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

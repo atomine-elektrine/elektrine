@@ -149,6 +149,34 @@ export const MessageContextMenu = {
   }
 }
 
+// Opens the message context menu from an explicit button (hover action bar /
+// touch), positioned at the button rather than the cursor. Reuses the same
+// custom DOM event the right-click handler dispatches.
+export const MessageMenuButton = {
+  mounted() {
+    this.clickHandler = (e) => {
+      e.preventDefault()
+      e.stopPropagation()
+      const target = document.getElementById(this.el.dataset.menuTarget)
+      if (!target) return
+      const rect = this.el.getBoundingClientRect()
+      target.dispatchEvent(new CustomEvent("phx:show_message_context_menu", {
+        detail: {
+          message_id: parseInt(this.el.dataset.messageId),
+          sender_id: parseInt(this.el.dataset.senderId),
+          x: rect.right,
+          y: rect.bottom
+        }
+      }))
+    }
+    this.el.addEventListener("click", this.clickHandler)
+  },
+
+  destroyed() {
+    this.el.removeEventListener("click", this.clickHandler)
+  }
+}
+
 export const CopyChatMessage = {
   mounted() {
     this.copyHandler = () => {

@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Elektrine Nerve</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell page-shell manager-shell">
+      <section class="hero manager-hero">
+        <div class="hero-top">
+          <div>
+            <span class="eyebrow">Nerve</span>
+            <h1>Passwords</h1>
+            <p>Unlock once for this browser session, then search, save, copy, or fill entries.</p>
+          </div>
+          <button id="openOptionsButton" class="button secondary" type="button">Settings</button>
+        </div>
+        <div class="hero-chip">
+          <strong>Fill target:</strong>
+          <span id="currentSiteLabel">Checking tab...</span>
+        </div>
+      </section>
+
+      <div id="feedback" class="feedback hidden" role="status" aria-live="polite"></div>
+
+      <section id="configSection" class="panel hidden">
+        <h2>Connect account</h2>
+        <p>Connect this extension to your Elektrine account before using passwords in this browser.</p>
+        <div class="actions">
+          <button id="configureButton" class="button" type="button">Open Settings</button>
+        </div>
+      </section>
+
+      <section id="setupSection" class="panel hidden">
+        <h2>Set up account-password encryption</h2>
+        <p>Nerve uses your account password to unlock encrypted data. Set it up on the website and save the recovery code before adding entries.</p>
+        <div class="actions">
+          <button id="setupMasterButton" class="button" type="button">Open encryption settings</button>
+        </div>
+      </section>
+
+      <section id="unlockSection" class="panel hidden">
+        <h2>Unlock Nerve</h2>
+        <p>Use your account password. The unlocked encryption key stays only in this browser session.</p>
+        <form id="unlockForm">
+          <div class="field">
+            <label for="unlockPassphrase">Account password</label>
+            <input id="unlockPassphrase" type="password" autocomplete="current-password" required />
+          </div>
+          <div class="actions">
+            <button id="unlockSubmitButton" class="button" type="submit">Unlock</button>
+            <button id="forgotMasterButton" class="button secondary" type="button">Recover encrypted data</button>
+          </div>
+        </form>
+      </section>
+
+      <section id="nerveSection" class="panel hidden manager-panel">
+        <div class="toolbar manager-toolbar">
+          <input id="searchInput" type="search" placeholder="Search entries" />
+          <button id="lockButton" class="button secondary" type="button">Lock</button>
+        </div>
+
+        <details class="details">
+          <summary>Add entry</summary>
+          <div class="details-inner">
+            <form id="createEntryForm">
+              <div class="field">
+                <label for="entryTitle">Title</label>
+                <input id="entryTitle" type="text" maxlength="120" placeholder="GitHub" required />
+              </div>
+              <div class="row">
+                <div class="field">
+                  <label for="entryUsername">Username or email</label>
+                  <input id="entryUsername" type="text" maxlength="255" placeholder="you@example.com" />
+                </div>
+                <div class="field">
+                  <label for="entryWebsite">Website</label>
+                  <input id="entryWebsite" type="url" maxlength="255" placeholder="https://github.com" />
+                </div>
+              </div>
+              <div class="field">
+                <label for="entryPassword">Password</label>
+                <input id="entryPassword" type="password" maxlength="255" required />
+              </div>
+              <div class="field">
+                <label for="entryNotes">Notes</label>
+                <textarea id="entryNotes" placeholder="Optional notes"></textarea>
+              </div>
+              <div class="actions">
+                <button id="generatePasswordButton" class="button secondary" type="button">
+                  Generate password
+                </button>
+                <button id="createEntrySubmitButton" class="button" type="submit">Save entry</button>
+              </div>
+            </form>
+          </div>
+        </details>
+
+        <div id="entriesList" class="entries"></div>
+      </section>
+    </main>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

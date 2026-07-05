@@ -184,6 +184,32 @@ defmodule Elektrine.PrivacyTest do
     end
   end
 
+  describe "privacy_error_message/1" do
+    test "uses specific messages for authorization errors" do
+      assert Privacy.privacy_error_message(:unauthorized) ==
+               "You do not have permission to do that"
+
+      assert Privacy.privacy_error_message(:not_authorized_for_room) ==
+               "You do not have permission to do that in this room"
+    end
+
+    test "does not show the old generic action-not-allowed fallback" do
+      refute Privacy.privacy_error_message(:unknown_error) == "Action not allowed"
+
+      assert Privacy.privacy_error_message(:unknown_error) ==
+               "Unknown error"
+    end
+
+    test "formats changeset errors instead of hiding the reason" do
+      changeset =
+        {%{}, %{media_urls: :string}}
+        |> Ecto.Changeset.cast(%{media_urls: nil}, [:media_urls])
+        |> Ecto.Changeset.validate_required([:media_urls])
+
+      assert Privacy.privacy_error_message(changeset) == "Media urls can't be blank"
+    end
+  end
+
   # Test helpers
 
   defp create_user(username) do
