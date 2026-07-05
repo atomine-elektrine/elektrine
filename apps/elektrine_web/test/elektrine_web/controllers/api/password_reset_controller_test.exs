@@ -7,6 +7,7 @@ defmodule ElektrineWeb.API.PasswordResetControllerTest do
   alias Elektrine.Accounts
   alias Elektrine.Accounts.User
   alias Elektrine.Repo
+  alias Elektrine.Vault
 
   setup do
     previous_mailer_config = Application.get_env(:elektrine, Elektrine.Mailer, [])
@@ -75,12 +76,39 @@ defmodule ElektrineWeb.API.PasswordResetControllerTest do
           "password_confirmation" => "new_api_password123"
         })
 
-      assert %{"status" => "ok"} = json_response(conn, 200)
+      assert %{"status" => "ok", "encrypted_data_recovery_required" => false} =
+               json_response(conn, 200)
 
       reloaded = Accounts.get_user!(user.id)
       assert Argon2.verify_pass("new_api_password123", reloaded.password_hash)
       assert is_nil(reloaded.password_reset_token)
       assert is_nil(reloaded.password_reset_token_expires_at)
+    end
+
+    test "reports encrypted data recovery requirement after password reset", %{conn: conn} do
+      user = user_fixture(%{username: "apivaultresetuser"})
+      set_recovery_email_verified(user, "api-vault-reset@example.com")
+
+      assert {:ok, _master_key} =
+               Vault.setup(user.id, %{
+                 "wrapped_dek" => wrapped_payload("old-dek"),
+                 "wrapped_dek_recovery" => wrapped_payload("recovery")
+               })
+
+      {:ok, :emails_sent} = Accounts.initiate_password_reset(user.username)
+      token = extract_password_reset_token()
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/v1/accounts/password_reset/confirm", %{
+          "token" => token,
+          "password" => "new_api_password123",
+          "password_confirmation" => "new_api_password123"
+        })
+
+      assert %{"status" => "ok", "encrypted_data_recovery_required" => true} =
+               json_response(conn, 200)
     end
 
     test "accepts legacy confirmation payload shape", %{conn: conn} do
@@ -148,5 +176,17 @@ defmodule ElektrineWeb.API.PasswordResetControllerTest do
     assert_received {:email, email}
     [_, token] = Regex.run(~r{/password/reset/([A-Za-z0-9_-]+)}, email.text_body)
     token
+  end
+
+  defp wrapped_payload(value) do
+    %{
+      "version" => 1,
+      "algorithm" => "AES-GCM",
+      "kdf" => "PBKDF2-SHA256",
+      "iterations" => 210_000,
+      "salt" => Base.encode64("1234567890123456"),
+      "iv" => Base.encode64("123456789012"),
+      "ciphertext" => Base.encode64("ciphertext:" <> value)
+    }
   end
 end

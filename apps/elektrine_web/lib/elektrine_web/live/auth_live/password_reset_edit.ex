@@ -3,6 +3,7 @@ defmodule ElektrineWeb.AuthLive.PasswordResetEdit do
 
   alias Elektrine.Accounts
   alias Elektrine.Accounts.User
+  alias Elektrine.Vault
 
   # Note: on_mount is handled by live_session :auth in router
 
@@ -16,7 +17,8 @@ defmodule ElektrineWeb.AuthLive.PasswordResetEdit do
            page_title: "Set New Password",
            token: token,
            changeset: changeset,
-           valid_token: true
+           valid_token: true,
+           encrypted_data_configured: Vault.configured?(user.id)
          )}
 
       {:error, :invalid_token} ->
@@ -40,6 +42,15 @@ defmodule ElektrineWeb.AuthLive.PasswordResetEdit do
           <p class="text-center opacity-70 mb-6">
             Enter your new password below.
           </p>
+
+          <div
+            :if={@encrypted_data_configured}
+            class="mb-4 rounded-xl border border-warning/40 bg-warning/10 p-3 text-sm text-base-content/80"
+          >
+            This resets your login password only. After logging in, use your encrypted data recovery code at
+            <span class="font-mono">/account/encrypted-data</span>
+            before unlocking Nerve, Kairo, or private mail.
+          </div>
 
           <.simple_form
             :let={f}

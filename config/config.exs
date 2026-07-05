@@ -11,7 +11,7 @@ config :elektrine,
   ecto_repos: [Elektrine.Repo],
   generators: [timestamp_type: :utc_datetime]
 
-config :maid,
+config :paige,
   providers: []
 
 config :mime, :types, %{
@@ -78,7 +78,9 @@ config :elektrine, Oban,
     # Messaging federation outbox/event delivery
     messaging_federation: 4,
     # Uptime monitor probes
-    uptime: 3
+    uptime: 3,
+    # Kairo source hydration (URL fetching)
+    kairo: 2
   ],
   plugins: [
     # High-volume federation jobs add up quickly; keep only a short completed-job window.
@@ -442,7 +444,7 @@ config :posthog,
   root_source_code_paths: [File.cwd!()],
   context_lines: 5
 
-# S3-compatible storage configuration (Magpie or any S3-compatible endpoint)
+# S3 API storage configuration (Magpie or any S3 endpoint)
 # Configure in runtime.exs for production
 config :elektrine, :uploads,
   adapter: :s3,

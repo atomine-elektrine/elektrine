@@ -236,10 +236,11 @@ async function unwrapBytes(payload, passphrase) {
   return new Uint8Array(plaintext)
 }
 
-// --- master-password mode -------------------------------------------------
-// Instead of deriving a wrapping key from a passphrase, master mode wraps the
-// mailbox key with the email subkey of the account master key (held in the
-// shared vault session). One master unlock therefore unlocks this mailbox too.
+// --- shared account-password vault mode ------------------------------------
+// Instead of deriving a wrapping key directly from the account password, shared
+// vault mode wraps the mailbox key with the email subkey of the encrypted data
+// key held in the shared vault session. One account-password unlock therefore
+// unlocks this mailbox too.
 
 async function masterEmailKey() {
   return vaultSession.featureKey(MASTER_FEATURE)
@@ -398,23 +399,23 @@ export async function unlockMailboxWithMaster(mailboxId, wrappedKeyPayload, veri
 
 export function lockedStatusText(unlockMode) {
   if (unlockMode === MASTER_MODE) {
-    return "Mailbox locked. Unlock your master password to unlock it in this tab."
+    return "Mailbox locked. Enter your account password to continue."
   }
 
   if (unlockMode === "account_password") {
-    return "Mailbox locked. Enter your account password again to unlock it in this tab."
+    return "Mailbox locked. Enter your account password to continue."
   }
 
   return "Mailbox locked."
 }
 
 export function unlockSecretLabel(unlockMode) {
-  if (unlockMode === MASTER_MODE) return "master passphrase"
+  if (unlockMode === MASTER_MODE) return "account password"
   return unlockMode === "account_password" ? "account password" : "mailbox passphrase"
 }
 
 export function unlockSecretPlaceholder(unlockMode) {
-  if (unlockMode === MASTER_MODE) return "Master passphrase"
+  if (unlockMode === MASTER_MODE) return "Account password"
   return unlockMode === "account_password" ? "Account password" : "Mailbox passphrase"
 }
 

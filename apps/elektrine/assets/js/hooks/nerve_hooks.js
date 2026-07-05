@@ -1,7 +1,7 @@
 /**
- * Nerve - zero-knowledge password entries, now keyed by the account master
+ * Nerve - zero-knowledge password entries, now keyed by the account
  * password. Unlock is shared via vault_session; entries are encrypted/decrypted
- * with the Nerve subkey of the master key. The server only ever stores ciphertext.
+ * with the Nerve subkey of the encrypted data key. The server only ever stores ciphertext.
  */
 
 import { encryptValue, decryptValue, unwrapWithSecret } from "./vault_crypto"
@@ -86,14 +86,16 @@ export const Nerve = {
     this.setError("")
     const input = this.el.querySelector("[data-vault-unlock-input]")
     const wrapped = this.wrappedDek()
-    if (!wrapped) return this.setError("No master key found.")
+    if (!wrapped) return this.setError("Set up account-password encryption first.")
 
     try {
       const mdk = await unwrapWithSecret(wrapped, input ? input.value : "")
       vaultSession.unlock(mdk)
       if (input) input.value = ""
     } catch (_error) {
-      this.setError("Incorrect master passphrase.")
+      this.setError(
+        "Incorrect account password. If you just reset it, recover encrypted data at /account/encrypted-data."
+      )
     }
   },
 
@@ -133,7 +135,7 @@ export const Nerve = {
 
   async saveEntry() {
     this.setError("")
-    if (!vaultSession.isUnlocked()) return this.setError("Unlock your master password first.")
+    if (!vaultSession.isUnlocked()) return this.setError("Enter your account password first.")
 
     const form = this.el.querySelector("#nerve-entry-form")
     const metadata = {
@@ -181,7 +183,7 @@ export const Nerve = {
       return
     }
 
-    if (!vaultSession.isUnlocked()) return this.setError("Unlock your master password first.")
+    if (!vaultSession.isUnlocked()) return this.setError("Enter your account password first.")
 
     this.pushEvent("load_secret", { id }, (reply) => this.showSecret(button, secretRow, reply))
   },

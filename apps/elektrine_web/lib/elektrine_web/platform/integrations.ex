@@ -87,6 +87,16 @@ defmodule ElektrineWeb.Platform.Integrations do
     )
   end
 
+  def reset_private_mailbox_storage(user_id) do
+    call_optional(
+      :email,
+      @email_module,
+      :reset_user_private_storage,
+      [user_id],
+      {:ok, 0}
+    )
+  end
+
   def email_restriction_status(user_id) do
     call_optional(
       :email,
@@ -734,16 +744,6 @@ defmodule ElektrineWeb.Platform.Integrations do
       @nerve_module,
       :delete_entry,
       [user_id, entry_id],
-      {:error, :unavailable}
-    )
-  end
-
-  def nerve_delete_nerve(user_id) do
-    call_optional(
-      :nerve,
-      @nerve_module,
-      :delete_nerve,
-      [user_id],
       {:error, :unavailable}
     )
   end

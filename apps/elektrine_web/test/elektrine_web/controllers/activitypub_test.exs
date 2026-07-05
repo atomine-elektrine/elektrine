@@ -1362,6 +1362,7 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
   describe "POST /c/:name/inbox" do
     setup do
       reset_inbox_rate_limit!()
+      Elektrine.ActivityPub.MRF.SimplePolicy.invalidate_cache()
       unique = System.unique_integer([:positive])
       owner = AccountsFixtures.user_fixture(%{username: "communityinboxowner#{unique}"})
 

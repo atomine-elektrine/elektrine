@@ -2,8 +2,10 @@ defmodule ElektrineWeb.API.AuthController do
   use ElektrineWeb, :controller
 
   alias Elektrine.Accounts
+  alias Elektrine.Developer
   alias Elektrine.EmailAddresses
   alias Elektrine.OAuth
+  alias Elektrine.Theme
   alias ElektrineWeb.ClientIP
   alias ElektrineWeb.Endpoint
   alias ElektrineWeb.Plugs.APIAuth
@@ -20,7 +22,14 @@ defmodule ElektrineWeb.API.AuthController do
 
     case check_login_rate_limits(identifiers) do
       :ok ->
-        attempt_login(conn, username, password, Map.get(params, "two_factor_code"), identifiers)
+        attempt_login(
+          conn,
+          username,
+          password,
+          Map.get(params, "two_factor_code"),
+          identifiers,
+          params
+        )
 
       {:error, retry_after, reason} ->
         conn
@@ -40,7 +49,7 @@ defmodule ElektrineWeb.API.AuthController do
     |> json(%{error: "Username and password are required"})
   end
 
-  defp attempt_login(conn, username, password, two_factor_code, identifiers) do
+  defp attempt_login(conn, username, password, two_factor_code, identifiers, params) do
     case Accounts.Authentication.authenticate_user(username, password) do
       {:ok, user} ->
         if UserAuth.admin_login_restricted?(conn, user) do
@@ -53,22 +62,34 @@ defmodule ElektrineWeb.API.AuthController do
           case verify_api_second_factor(user, two_factor_code) do
             :ok ->
               clear_login_rate_limits(identifiers)
-              {:ok, token} = APIAuth.generate_token(user.id)
 
-              conn
-              |> put_status(:ok)
-              |> json(%{
-                token: token,
-                user: %{
-                  id: user.id,
-                  username: user.username,
-                  email: EmailAddresses.primary_for_user(user),
-                  avatar: user.avatar,
-                  is_admin: user.is_admin,
-                  inserted_at: user.inserted_at,
-                  updated_at: user.updated_at
-                }
-              })
+              case issue_login_token(user, params) do
+                {:ok, token, token_type} ->
+                  conn
+                  |> put_status(:ok)
+                  |> json(%{
+                    token: token,
+                    token_type: token_type,
+                    user: %{
+                      id: user.id,
+                      username: user.username,
+                      email: EmailAddresses.primary_for_user(user),
+                      avatar: user.avatar,
+                      is_admin: user.is_admin,
+                      theme: Theme.api_payload(user),
+                      inserted_at: user.inserted_at,
+                      updated_at: user.updated_at
+                    }
+                  })
+
+                {:error, :token_creation_failed} ->
+                  conn
+                  |> put_status(:unprocessable_entity)
+                  |> json(%{
+                    error:
+                      "Could not create extension token. Revoke an old API token and try again."
+                  })
+              end
 
             {:error, :two_factor_required} ->
               record_login_rate_limit_attempts(identifiers)
@@ -109,6 +130,19 @@ defmodule ElektrineWeb.API.AuthController do
         conn
         |> put_status(:forbidden)
         |> json(%{error: "Account is suspended", until: until, reason: reason})
+    end
+  end
+
+  defp issue_login_token(user, %{"client" => "nerve_extension"}) do
+    case Developer.create_nerve_extension_token(user.id) do
+      {:ok, api_token} -> {:ok, api_token.token, "pat"}
+      {:error, _changeset} -> {:error, :token_creation_failed}
+    end
+  end
+
+  defp issue_login_token(user, _params) do
+    with {:ok, token} <- APIAuth.generate_token(user.id) do
+      {:ok, token, "api"}
     end
   end
 

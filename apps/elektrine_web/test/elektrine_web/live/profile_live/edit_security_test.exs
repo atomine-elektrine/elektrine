@@ -3,6 +3,7 @@ defmodule ElektrineWeb.ProfileLive.EditSecurityTest do
 
   import Phoenix.LiveViewTest
 
+  alias Elektrine.Accounts
   alias Elektrine.AccountsFixtures
   alias Elektrine.Profiles
 
@@ -52,12 +53,88 @@ defmodule ElektrineWeb.ProfileLive.EditSecurityTest do
           {"delete_widget", %{"id" => "12abc"}},
           {"toggle_badge_visibility", %{"badge_id" => "12abc"}},
           {"reorder_link", %{"id" => "12abc", "direction" => "up"}},
+          {"reorder_links", %{"ids" => ["12abc", "34"]}},
           {"reorder_widget", %{"id" => "12abc", "direction" => "down"}}
         ] do
       render_hook(view, event, params)
     end
 
     assert render(view) =~ "Profile"
+  end
+
+  test "renders profile privacy and federation controls", %{conn: conn} do
+    user = AccountsFixtures.user_fixture(%{profile_visibility: "followers"})
+    {:ok, _view, html} = conn |> log_in_user(user) |> live(~p"/account/profile/edit")
+
+    assert html =~ "Federation Preview"
+    assert html =~ "Federated actor"
+    assert html =~ "Local-only profile features"
+    assert html =~ ~s(name="profile[profile_visibility]")
+    assert html =~ ~s(name="profile[timeline_visibility]")
+    assert html =~ "Followers only"
+  end
+
+  test "profile visibility selects update persisted user and profile fields", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+    {:ok, view, _html} = conn |> log_in_user(user) |> live(~p"/account/profile/edit")
+
+    render_hook(view, "update_profile", %{
+      "profile" => %{
+        "profile_visibility" => "followers",
+        "timeline_visibility" => "hidden",
+        "community_posts_visibility" => "hidden",
+        "share_visibility" => "hidden",
+        "identity_visibility" => "hidden",
+        "view_counter_visibility" => "hidden",
+        "uid_visibility" => "hidden",
+        "layout_height" => "extended"
+      }
+    })
+
+    updated_user = Accounts.get_user!(user.id)
+    updated_profile = Profiles.get_user_profile(user.id)
+
+    assert updated_user.profile_visibility == "followers"
+    assert updated_profile.hide_timeline
+    assert updated_profile.hide_community_posts
+    assert updated_profile.hide_share_button
+    assert updated_profile.hide_avatar
+    assert updated_profile.hide_view_counter
+    assert updated_profile.hide_uid
+    assert updated_profile.extend_layout
+  end
+
+  test "reorders links from drag-and-drop ids", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+    {:ok, profile} = Profiles.create_user_profile(user.id, %{display_name: user.username})
+
+    {:ok, first} =
+      Profiles.create_profile_link(profile.id, %{
+        "title" => "First",
+        "url" => "https://first.example",
+        "platform" => "website",
+        "position" => 0,
+        "is_active" => true
+      })
+
+    {:ok, second} =
+      Profiles.create_profile_link(profile.id, %{
+        "title" => "Second",
+        "url" => "https://second.example",
+        "platform" => "website",
+        "position" => 1,
+        "is_active" => true
+      })
+
+    {:ok, view, _html} = conn |> log_in_user(user) |> live(~p"/account/profile/edit?tab=content")
+
+    render_hook(view, "reorder_links", %{
+      "ids" => [Integer.to_string(second.id), Integer.to_string(first.id)]
+    })
+
+    updated_profile = Profiles.get_user_profile(user.id)
+
+    assert Enum.map(updated_profile.links, & &1.id) == [second.id, first.id]
   end
 
   defp log_in_user(conn, user) do

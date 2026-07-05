@@ -2,6 +2,8 @@
   const DIRECT_FILL_MESSAGE = "fill_credentials"
   const MESSAGE_TYPES = {
     OPEN_OPTIONS: "ui:open-options",
+    OPEN_MANAGER: "ui:open-manager",
+    GET_THEME: "nerve:get-theme",
     GET_SUGGESTIONS: "nerve:get-suggestions",
     FILL_ENTRY: "nerve:fill-entry",
     STAGE_ENTRY_FILL: "nerve:stage-entry-fill",
@@ -10,8 +12,40 @@
     RECORD_SUBMISSION: "nerve:record-submission",
     RESOLVE_PENDING_SAVE: "nerve:resolve-pending-save",
     SAVE_PENDING: "nerve:save-pending",
-    DISMISS_PENDING_SAVE: "nerve:dismiss-pending-save"
+    DISMISS_PENDING_SAVE: "nerve:dismiss-pending-save",
+    SESSION_CHANGED: "nerve:session-changed",
+    GET_PAGE_CAPTURE: "kairo:get-page-capture"
   }
+
+  const DEFAULT_THEME_VALUES = {
+    color_primary: "#5f87b8",
+    color_secondary: "#c9853f",
+    color_accent: "#7d99bb",
+    color_base_100: "#121214",
+    color_base_200: "#1a1a1d",
+    color_base_300: "#2a2a31",
+    color_base_content: "#e5e2e1",
+    color_info: "#6f95c4",
+    color_success: "#6f8b74",
+    color_warning: "#c99152",
+    color_error: "#a56b68"
+  }
+
+  const CSS_VAR_BY_THEME_KEY = {
+    color_primary: "--primary",
+    color_secondary: "--secondary",
+    color_accent: "--accent",
+    color_base_100: "--bg",
+    color_base_200: "--bg-elevated",
+    color_base_300: "--bg-muted",
+    color_base_content: "--text",
+    color_info: "--info",
+    color_success: "--success",
+    color_warning: "--warning",
+    color_error: "--error"
+  }
+
+  const HEX_COLOR_PATTERN = /^#[0-9a-f]{6}$/i
 
   const state = {
     activeField: null,
@@ -31,6 +65,8 @@
     if (!isSupportedPage()) return
 
     ensureUi()
+    applyInlineTheme(null)
+    void refreshInlineTheme()
     bindExtensionMessages()
     bindPageEvents()
     refreshLoginBindings()
@@ -40,6 +76,27 @@
 
   function bindExtensionMessages() {
     chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+      if (message?.type === MESSAGE_TYPES.SESSION_CHANGED) {
+        Promise.resolve()
+          .then(async () => {
+            await handleSessionChanged(message.status)
+            sendResponse({ ok: true })
+          })
+          .catch((error) => {
+            sendResponse({ ok: false, error: error.message })
+          })
+
+        return true
+      }
+
+      if (message?.type === MESSAGE_TYPES.GET_PAGE_CAPTURE) {
+        sendResponse({
+          ok: true,
+          capture: pageCapturePayload()
+        })
+        return true
+      }
+
       if (message?.type !== DIRECT_FILL_MESSAGE) {
         return false
       }
@@ -86,11 +143,70 @@
     })
   }
 
+  function pageCapturePayload() {
+    return {
+      url: location.href,
+      title: document.title || location.hostname || "Captured page",
+      selectionText: selectedText()
+    }
+  }
+
+  function selectedText() {
+    const active = document.activeElement
+
+    if (active && selectionCapableField(active)) {
+      const start = Number.isInteger(active.selectionStart) ? active.selectionStart : 0
+      const end = Number.isInteger(active.selectionEnd) ? active.selectionEnd : 0
+      const value = typeof active.value === "string" ? active.value : ""
+
+      if (end > start) {
+        return value.slice(start, end).trim()
+      }
+    }
+
+    return String(window.getSelection?.().toString() || "").trim()
+  }
+
+  function selectionCapableField(element) {
+    return element instanceof HTMLTextAreaElement ||
+      (element instanceof HTMLInputElement && textInputType(element.type))
+  }
+
+  function textInputType(type) {
+    return ["", "email", "search", "tel", "text", "url"].includes(String(type || "").toLowerCase())
+  }
+
+  async function handleSessionChanged(status) {
+    await refreshInlineTheme()
+
+    if (status === "locked") {
+      if (ui.popover.style.display === "block") {
+        renderInlineState("locked")
+      }
+
+      if (state.pendingBanner) {
+        await maybeShowPendingSavePrompt()
+      }
+
+      return
+    }
+
+    scheduleStagedFillCheck(0)
+    await maybeShowPendingSavePrompt()
+
+    if (ui.popover.style.display === "block" && state.suggestionsContext) {
+      await renderSuggestions()
+    }
+  }
+
   function bindPageEvents() {
     document.addEventListener("focusin", handleFocusIn, true)
+    document.addEventListener("focusout", handleFocusOut, true)
     document.addEventListener("click", handleDocumentClick, true)
     window.addEventListener("scroll", updateInlineUiPosition, true)
     window.addEventListener("resize", updateInlineUiPosition)
+    window.visualViewport?.addEventListener("scroll", updateInlineUiPosition)
+    window.visualViewport?.addEventListener("resize", updateInlineUiPosition)
     window.addEventListener("pageshow", () => {
       refreshLoginBindings()
       scheduleStagedFillCheck(150)
@@ -123,6 +239,29 @@
       <style>
         :host {
           all: initial;
+          color-scheme: dark;
+          --bg: #121214;
+          --bg-elevated: #1a1a1d;
+          --bg-muted: #2a2a31;
+          --panel: color-mix(in srgb, var(--bg-elevated) 90%, var(--bg-muted) 10%);
+          --panel-subtle: color-mix(in srgb, var(--panel) 78%, var(--bg) 22%);
+          --field: color-mix(in srgb, var(--bg-elevated) 78%, var(--bg) 22%);
+          --field-hover: color-mix(in srgb, var(--bg-muted) 84%, var(--bg-elevated) 16%);
+          --text: #e5e2e1;
+          --muted: #e5e2e1b3;
+          --muted-strong: #e5e2e1db;
+          --line: color-mix(in srgb, var(--bg-muted) 88%, var(--primary) 12%);
+          --line-strong: color-mix(in srgb, var(--bg-muted) 72%, var(--primary) 28%);
+          --primary: #5f87b8;
+          --secondary: #c9853f;
+          --accent: #7d99bb;
+          --info: #6f95c4;
+          --primary-strong: color-mix(in srgb, var(--primary) 78%, #ffffff 22%);
+          --primary-soft: color-mix(in srgb, var(--primary) 14%, var(--bg-elevated) 86%);
+          --success: #6f8b74;
+          --warning: #c99152;
+          --error: #a56b68;
+          --shadow: 0 18px 40px rgba(0, 0, 0, 0.28), 0 0 0 1px color-mix(in srgb, var(--primary) 10%, transparent);
         }
 
         .nerve-button,
@@ -136,8 +275,8 @@
         .nerve-button,
         .nerve-popover,
         .nerve-banner {
-          font-family: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-          color: #e6edf5;
+          font-family: "Geist", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          color: var(--text);
         }
 
         .nerve-button {
@@ -145,63 +284,78 @@
           z-index: 2147483646;
           display: none;
           align-items: center;
-          gap: 6px;
-          padding: 8px 12px;
-          border: 1px solid rgba(148, 163, 184, 0.22);
-          border-radius: 14px;
-          background: rgba(18, 24, 33, 0.94);
-          box-shadow: 0 12px 28px rgba(0, 0, 0, 0.24);
+          justify-content: center;
+          width: var(--inline-size, 28px);
+          height: var(--inline-size, 28px);
+          padding: 0;
+          border: 1px solid var(--inline-border, var(--line));
+          border-radius: var(--inline-radius, 9px);
+          background: var(--inline-bg, color-mix(in srgb, var(--field) 82%, var(--primary) 18%));
+          color: var(--inline-fg, var(--muted-strong));
+          box-shadow: var(--inline-shadow, 0 2px 8px rgba(0, 0, 0, 0.16));
           cursor: pointer;
-          font-size: 12px;
-          font-weight: 700;
-          letter-spacing: 0.04em;
-          text-transform: uppercase;
+          opacity: 0.82;
           transition:
-            transform 120ms ease,
+            opacity 120ms ease,
             border-color 120ms ease,
-            background 120ms ease;
+            background 120ms ease,
+            box-shadow 120ms ease;
         }
 
-        .nerve-button:hover {
-          transform: translateY(-1px);
-          border-color: rgba(139, 124, 255, 0.32);
-          background: rgba(25, 33, 45, 0.98);
+        .nerve-button:hover,
+        .nerve-button:focus-visible {
+          opacity: 1;
+          border-color: color-mix(in srgb, var(--primary) 44%, var(--inline-border, var(--line)) 56%);
+          background: color-mix(in srgb, var(--inline-bg, var(--field)) 78%, var(--primary) 22%);
+          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.22);
+        }
+
+        .nerve-button:focus-visible {
+          outline: 2px solid color-mix(in srgb, var(--primary) 36%, transparent);
+          outline-offset: 2px;
+        }
+
+        .nerve-button svg {
+          width: calc(var(--inline-size, 28px) * 0.56);
+          height: calc(var(--inline-size, 28px) * 0.56);
+          display: block;
+          stroke: currentColor;
         }
 
         .nerve-popover {
           position: fixed;
           z-index: 2147483646;
           display: none;
-          width: 320px;
+          width: var(--popover-width, 320px);
           overflow: hidden;
-          border: 1px solid rgba(148, 163, 184, 0.18);
-          border-radius: 18px;
-          background: rgba(18, 24, 33, 0.98);
-          box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+          border: 1px solid var(--line);
+          border-radius: 12px;
+          background: var(--panel);
+          box-shadow: var(--shadow);
         }
 
         .nerve-popover header {
-          padding: 14px 16px 10px;
-          border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+          padding: 10px 12px 8px;
+          border-bottom: 1px solid var(--line);
         }
 
         .nerve-title {
           margin: 0;
-          font-size: 14px;
+          font-size: 13px;
           font-weight: 700;
-          letter-spacing: -0.02em;
+          letter-spacing: 0;
         }
 
         .nerve-subtitle {
-          margin: 4px 0 0;
-          color: rgba(230, 237, 245, 0.62);
-          font-size: 12px;
+          margin: 3px 0 0;
+          color: var(--muted);
+          font-size: 11px;
         }
 
         .nerve-list,
         .nerve-empty,
         .nerve-state {
-          padding: 10px;
+          padding: 6px;
         }
 
         .nerve-item {
@@ -209,16 +363,15 @@
           align-items: center;
           justify-content: space-between;
           gap: 10px;
-          padding: 10px;
-          border-radius: 16px;
+          min-height: 44px;
+          padding: 8px;
+          border-radius: 9px;
           transition:
-            background 120ms ease,
-            transform 120ms ease;
+            background 120ms ease;
         }
 
         .nerve-item:hover {
-          background: rgba(255, 255, 255, 0.03);
-          transform: translateY(-1px);
+          background: color-mix(in srgb, var(--accent) 8%, transparent);
         }
 
         .nerve-item-title {
@@ -229,7 +382,7 @@
 
         .nerve-item-meta {
           margin: 4px 0 0;
-          color: rgba(230, 237, 245, 0.58);
+          color: var(--muted);
           font-size: 12px;
         }
 
@@ -237,7 +390,7 @@
         .nerve-link,
         .nerve-banner button {
           border: 1px solid transparent;
-          border-radius: 12px;
+          border-radius: 8px;
           cursor: pointer;
           font: inherit;
           font-weight: 700;
@@ -249,18 +402,18 @@
 
         .nerve-action,
         .nerve-banner button.primary {
-          padding: 8px 12px;
-          background: rgba(139, 124, 255, 0.16);
-          color: #e6edf5;
-          border-color: rgba(139, 124, 255, 0.26);
+          padding: 7px 10px;
+          background: var(--primary-soft);
+          color: var(--text);
+          border-color: color-mix(in srgb, var(--primary) 28%, var(--line) 72%);
         }
 
         .nerve-link,
         .nerve-banner button.secondary {
-          padding: 8px 12px;
-          background: rgba(148, 163, 184, 0.08);
-          color: rgba(230, 237, 245, 0.92);
-          border-color: rgba(148, 163, 184, 0.18);
+          padding: 7px 10px;
+          background: color-mix(in srgb, var(--accent) 7%, var(--bg-elevated) 93%);
+          color: var(--muted-strong);
+          border-color: color-mix(in srgb, var(--accent) 18%, var(--line) 82%);
         }
 
         .nerve-action:hover,
@@ -271,14 +424,14 @@
 
         .nerve-action:hover,
         .nerve-banner button.primary:hover {
-          border-color: rgba(139, 124, 255, 0.38);
-          background: rgba(139, 124, 255, 0.22);
+          border-color: color-mix(in srgb, var(--primary) 42%, var(--line) 58%);
+          background: color-mix(in srgb, var(--primary) 20%, var(--bg-elevated) 80%);
         }
 
         .nerve-state p,
         .nerve-empty p {
           margin: 0 0 10px;
-          color: rgba(230, 237, 245, 0.68);
+          color: var(--muted);
           font-size: 12px;
           line-height: 1.5;
         }
@@ -298,10 +451,10 @@
           display: none;
           width: min(360px, calc(100vw - 32px));
           padding: 14px;
-          border: 1px solid rgba(148, 163, 184, 0.16);
+          border: 1px solid var(--line);
           border-radius: 18px;
-          background: rgba(18, 24, 33, 0.98);
-          box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+          background: var(--panel);
+          box-shadow: var(--shadow);
         }
 
         .nerve-banner h3 {
@@ -312,7 +465,7 @@
 
         .nerve-banner p {
           margin: 0 0 12px;
-          color: rgba(230, 237, 245, 0.68);
+          color: var(--muted);
           font-size: 12px;
           line-height: 1.5;
         }
@@ -320,7 +473,7 @@
         .nerve-banner label {
           display: block;
           margin-bottom: 4px;
-          color: rgba(230, 237, 245, 0.84);
+          color: var(--muted-strong);
           font-size: 11px;
           font-weight: 700;
           text-transform: uppercase;
@@ -331,27 +484,34 @@
           width: 100%;
           margin-bottom: 10px;
           padding: 9px 11px;
-          border: 1px solid rgba(148, 163, 184, 0.24);
+          border: 1px solid var(--line-strong);
           border-radius: 14px;
-          background: rgba(26, 34, 48, 0.96);
+          background: var(--field);
           font: inherit;
-          color: #e6edf5;
+          color: var(--text);
           box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
         }
 
         .nerve-banner input:focus {
-          outline: 2px solid rgba(139, 124, 255, 0.32);
-          border-color: rgba(139, 124, 255, 0.44);
+          outline: 2px solid color-mix(in srgb, var(--primary) 34%, transparent);
+          border-color: color-mix(in srgb, var(--primary) 52%, transparent);
         }
 
         .nerve-banner-status {
           margin-bottom: 10px;
-          color: #b7adff;
+          color: var(--primary-strong);
           font-size: 12px;
           font-weight: 700;
         }
       </style>
-      <button class="nerve-button" type="button">Elektrine</button>
+      <button class="nerve-button" type="button" aria-label="Fill with Elektrine" title="Fill with Elektrine">
+        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M7 14a5 5 0 1 1 4 4" />
+          <path d="M7 14 3 18" />
+          <path d="m4 17 3 3" />
+          <path d="m7 14 3 3" />
+        </svg>
+      </button>
       <div class="nerve-popover" role="dialog" aria-label="Elektrine inline nerve"></div>
       <div class="nerve-banner" role="dialog" aria-label="Elektrine save login"></div>
     `
@@ -362,6 +522,54 @@
 
     ui.button.addEventListener("click", handleInlineButtonClick)
     ui.shadow.addEventListener("click", handleShadowClick)
+  }
+
+  async function refreshInlineTheme() {
+    try {
+      const response = await runtimeMessage({ type: MESSAGE_TYPES.GET_THEME })
+
+      if (response.ok) {
+        applyInlineTheme(response.theme || null)
+      }
+    } catch (_error) {
+      applyInlineTheme(null)
+    }
+  }
+
+  function applyInlineTheme(theme) {
+    if (!ui.host) return
+
+    const values = {
+      ...DEFAULT_THEME_VALUES,
+      ...(normalizeTheme(theme)?.values || {})
+    }
+
+    for (const [themeKey, cssVar] of Object.entries(CSS_VAR_BY_THEME_KEY)) {
+      ui.host.style.setProperty(cssVar, values[themeKey])
+    }
+
+    ui.host.style.setProperty("--muted", `${values.color_base_content}b3`)
+    ui.host.style.setProperty("--muted-strong", `${values.color_base_content}db`)
+  }
+
+  function normalizeTheme(theme) {
+    const values = theme?.values && typeof theme.values === "object" ? theme.values : theme
+
+    if (!values || typeof values !== "object") {
+      return null
+    }
+
+    const normalized = {}
+
+    for (const key of Object.keys(DEFAULT_THEME_VALUES)) {
+      const value = values[key]
+
+      if (typeof value === "string" && HEX_COLOR_PATTERN.test(value.trim())) {
+        normalized[key] = value.trim().toLowerCase()
+      }
+    }
+
+    return { values: normalized }
   }
 
   function refreshLoginBindings() {
@@ -396,6 +604,27 @@
     if (field.type === "password") {
       scheduleStagedFillCheck(0)
     }
+  }
+
+  function handleFocusOut(event) {
+    if (event.target !== state.activeField) {
+      return
+    }
+
+    window.setTimeout(() => {
+      const active = document.activeElement
+
+      if (active === ui.host) {
+        return
+      }
+
+      if (!(active instanceof HTMLInputElement) || !loginContextForField(active)) {
+        state.activeField = null
+        state.activeContext = null
+        state.suggestionsContext = null
+        hideInlineButton()
+      }
+    }, 0)
   }
 
   function handleDocumentClick(event) {
@@ -467,6 +696,7 @@
             <p>No matching nerve entries found for this page yet.</p>
           </div>
         `
+        positionPopover()
         return
       }
 
@@ -479,8 +709,10 @@
           ${response.entries.map(renderSuggestionItem).join("")}
         </div>
       `
+      positionPopover()
     } catch (error) {
       renderInlineState("error", error.message)
+      positionPopover()
     }
   }
 
@@ -490,12 +722,13 @@
     let actions = ""
 
     if (status === "locked") {
-      message = "Unlock the nerve from the extension popup, then try again."
+      message = "Unlock Nerve in the Nerve page, then try again."
+      actions = '<button class="nerve-link" data-action="open-manager" type="button">Open Nerve</button>'
     } else if (status === "disconnected") {
       message = "Sign in to Elektrine in extension settings before inline fill can work."
       actions = '<button class="nerve-link" data-action="open-options" type="button">Open settings</button>'
     } else if (status === "unconfigured") {
-      message = "Set up your nerve in the extension popup before inline fill can work."
+      message = "Set up account-password encryption in Elektrine before inline fill can work."
     } else {
       title = "Elektrine error"
       message = errorMessage || "Could not load nerve entries."
@@ -511,6 +744,7 @@
         <div class="nerve-state-actions">${actions}</div>
       </div>
     `
+    positionPopover()
   }
 
   function renderSuggestionItem(entry) {
@@ -541,6 +775,11 @@
 
     if (action === "open-options") {
       await runtimeMessage({ type: MESSAGE_TYPES.OPEN_OPTIONS })
+      return
+    }
+
+    if (action === "open-manager") {
+      await runtimeMessage({ type: MESSAGE_TYPES.OPEN_MANAGER })
       return
     }
 
@@ -750,8 +989,9 @@
     } else if (nerveStatus === "locked") {
       ui.banner.innerHTML = `
         <h3>Unlock Elektrine to save this login</h3>
-        <p>Open the extension popup, unlock your nerve, then click retry here.</p>
+        <p>Open the Nerve page, unlock Nerve, then click retry here.</p>
         <div class="nerve-banner-actions">
+          <button class="primary" data-action="open-manager" type="button">Open Nerve</button>
           <button class="primary" data-action="retry-save" type="button">Retry</button>
           <button class="secondary" data-action="dismiss-save" type="button">Dismiss</button>
         </div>
@@ -767,8 +1007,8 @@
       `
     } else {
       ui.banner.innerHTML = `
-        <h3>Set up your nerve first</h3>
-        <p>Open the extension popup and finish nerve setup before saving logins from pages.</p>
+        <h3>Set up account-password encryption first</h3>
+        <p>Set up encrypted data in Elektrine before saving logins from pages.</p>
         <div class="nerve-banner-actions">
           <button class="secondary" data-action="dismiss-save" type="button">Dismiss</button>
         </div>
@@ -822,9 +1062,26 @@
 
   function showInlineButton(field) {
     const rect = field.getBoundingClientRect()
+    const viewport = viewportRect()
+
+    if (
+      rect.bottom <= viewport.top ||
+      rect.top >= viewport.bottom ||
+      rect.right <= viewport.left ||
+      rect.left >= viewport.right
+    ) {
+      hideInlineButton()
+      return
+    }
+
+    const size = inlineButtonSize(rect)
+    const position = inlineButtonPosition(field, rect, size, viewport)
+
+    applyInlineFieldStyle(field, size)
+
     ui.button.style.display = "inline-flex"
-    ui.button.style.top = `${Math.max(rect.top + 8, 8)}px`
-    ui.button.style.left = `${Math.max(rect.right - 96, 8)}px`
+    ui.button.style.top = `${position.top}px`
+    ui.button.style.left = `${position.left}px`
   }
 
   function hideInlineButton() {
@@ -837,16 +1094,185 @@
 
     if (!rect) return
 
-    const top = Math.min(rect.bottom + 8, window.innerHeight - 16)
-    const left = Math.min(Math.max(rect.left, 8), window.innerWidth - 328)
+    const viewport = viewportRect()
+    const popoverWidth = clamp(rect.width, 280, Math.min(360, viewport.width - 16))
+    const popoverHeight = ui.popover.offsetHeight || 220
+    const belowTop = rect.bottom + 6
+    const aboveTop = rect.top - popoverHeight - 6
+    const top =
+      belowTop + popoverHeight <= viewport.bottom - 8 || aboveTop < viewport.top + 8
+        ? Math.min(belowTop, viewport.bottom - popoverHeight - 8)
+        : aboveTop
+    const left = clamp(rect.left, viewport.left + 8, viewport.right - popoverWidth - 8)
 
-    ui.popover.style.top = `${top}px`
+    ui.popover.style.setProperty("--popover-width", `${popoverWidth}px`)
+    ui.popover.style.top = `${Math.max(top, viewport.top + 8)}px`
     ui.popover.style.left = `${left}px`
   }
 
   function hidePopover() {
     ui.popover.style.display = "none"
     ui.popover.innerHTML = ""
+  }
+
+  function inlineButtonSize(rect) {
+    return Math.round(clamp(rect.height - 8, 22, 30))
+  }
+
+  function inlineButtonPosition(field, rect, size, viewport) {
+    const inset = Math.max(4, Math.min(8, Math.round(rect.height * 0.18)))
+    const centerTop = clamp(
+      rect.top + (rect.height - size) / 2,
+      viewport.top + 6,
+      viewport.bottom - size - 6
+    )
+    const insideLeft = rect.right - size - inset
+    const outsideRight = rect.right + 6
+    const outsideLeft = rect.left - size - 6
+    const canFitInside = rect.width >= size + inset * 2 + 48
+    const canFitRight = outsideRight + size <= viewport.right - 6
+    const canFitLeft = outsideLeft >= viewport.left + 6
+
+    if (
+      canFitInside &&
+      insideLeft >= viewport.left + 6 &&
+      insideLeft + size <= viewport.right - 6 &&
+      !inlineButtonWouldCoverControl(field, insideLeft, centerTop, size)
+    ) {
+      return {
+        top: centerTop,
+        left: insideLeft
+      }
+    }
+
+    if (canFitRight) {
+      return {
+        top: centerTop,
+        left: outsideRight
+      }
+    }
+
+    if (canFitLeft) {
+      return {
+        top: centerTop,
+        left: outsideLeft
+      }
+    }
+
+    return {
+      top: centerTop,
+      left: clamp(insideLeft, viewport.left + 6, viewport.right - size - 6)
+    }
+  }
+
+  function inlineButtonWouldCoverControl(field, left, top, size) {
+    const x = left + size / 2
+    const y = top + size / 2
+    const elements = document.elementsFromPoint(x, y)
+
+    return elements.some((element) => {
+      if (element === field || field.contains(element)) {
+        return false
+      }
+
+      if (element === ui.host || ui.host.contains(element)) {
+        return false
+      }
+
+      return isInteractiveElement(element)
+    })
+  }
+
+  function isInteractiveElement(element) {
+    if (!(element instanceof Element)) {
+      return false
+    }
+
+    return Boolean(
+      element.closest(
+        'button, a, input, select, textarea, [role="button"], [role="switch"], [tabindex]:not([tabindex="-1"])'
+      )
+    )
+  }
+
+  function applyInlineFieldStyle(field, size) {
+    const style = window.getComputedStyle(field)
+    const fieldBg = usableCssColor(style.backgroundColor) ? style.backgroundColor : "var(--field)"
+    const fieldFg = usableCssColor(style.color) ? style.color : "var(--muted-strong)"
+    const fieldBorder = usableCssColor(style.borderTopColor) ? style.borderTopColor : "var(--line)"
+    const radius = normalizeFieldRadius(style.borderTopRightRadius, size)
+
+    ui.button.style.setProperty("--inline-size", `${size}px`)
+    ui.button.style.setProperty("--inline-radius", radius)
+    ui.button.style.setProperty(
+      "--inline-bg",
+      `color-mix(in srgb, ${fieldBg} 84%, var(--primary) 16%)`
+    )
+    ui.button.style.setProperty(
+      "--inline-border",
+      `color-mix(in srgb, ${fieldBorder} 72%, var(--primary) 28%)`
+    )
+    ui.button.style.setProperty("--inline-fg", fieldFg)
+    ui.button.style.setProperty("--inline-shadow", "0 1px 5px rgba(0, 0, 0, 0.16)")
+  }
+
+  function normalizeFieldRadius(value, size) {
+    const radius = Number.parseFloat(value)
+
+    if (!Number.isFinite(radius)) {
+      return `${Math.round(size * 0.32)}px`
+    }
+
+    return `${Math.max(6, Math.min(radius, Math.round(size * 0.45)))}px`
+  }
+
+  function usableCssColor(value) {
+    if (!value || value === "transparent") {
+      return false
+    }
+
+    const rgba = value.match(/^rgba?\(([^)]+)\)$/i)
+
+    if (!rgba) {
+      return true
+    }
+
+    const parts = rgba[1].split(",").map((part) => part.trim())
+    const alpha = parts.length >= 4 ? Number.parseFloat(parts[3]) : 1
+
+    return Number.isNaN(alpha) || alpha > 0.08
+  }
+
+  function viewportRect() {
+    const viewport = window.visualViewport
+
+    if (!viewport) {
+      return {
+        top: 0,
+        right: window.innerWidth,
+        bottom: window.innerHeight,
+        left: 0,
+        width: window.innerWidth,
+        height: window.innerHeight
+      }
+    }
+
+    return {
+      top: viewport.offsetTop,
+      right: viewport.offsetLeft + viewport.width,
+      bottom: viewport.offsetTop + viewport.height,
+      left: viewport.offsetLeft,
+      width: viewport.width,
+      height: viewport.height
+    }
+  }
+
+  function clamp(value, min, max) {
+    if (max < min) {
+      return min
+    }
+
+    return Math.min(Math.max(value, min), max)
   }
 
   function updateInlineUiPosition() {
@@ -1221,7 +1647,7 @@
 
   function stagedFillBlockedMessage(status) {
     if (status === "locked") {
-      return "Unlock the nerve in the extension popup to finish filling this sign-in."
+      return "Unlock Nerve in the Nerve page to finish filling this sign-in."
     }
 
     if (status === "disconnected") {
@@ -1229,7 +1655,7 @@
     }
 
     if (status === "unconfigured") {
-      return "Set up the nerve in the extension popup before using staged autofill."
+      return "Set up account-password encryption in Elektrine before using staged autofill."
     }
 
     return "Elektrine could not finish this staged autofill."
@@ -1287,7 +1713,9 @@
   }
 
   function isSupportedPage() {
-    return /^https:\/\//.test(location.href)
+    return location.protocol === "https:" ||
+      (location.protocol === "http:" &&
+        ["localhost", "127.0.0.1", "::1"].includes(location.hostname))
   }
 
   function safeHost(value) {

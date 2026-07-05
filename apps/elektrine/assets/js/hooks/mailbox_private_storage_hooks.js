@@ -70,7 +70,7 @@ export const MailboxPrivateStorage = {
   },
 
   onVaultChange() {
-    // The shared master vault locked or unlocked: master-mode setup gating and
+    // The shared account-password vault locked or unlocked: setup gating and
     // auto-unlock both depend on it.
     this.renderSetupModeState()
     if (vaultSession.isUnlocked()) {
@@ -225,8 +225,8 @@ export const MailboxPrivateStorage = {
     }
 
     if (this.masterUnlockFields) {
-      // Show the inline unlock only when the master password exists but the
-      // vault is locked for this tab; once unlocked, setup can proceed.
+      // Show the inline unlock only when encrypted data is enabled but the
+      // account-password vault is locked for this tab; once unlocked, setup can proceed.
       const showUnlock = mode === MASTER_MODE && this.masterConfigured && !vaultSession.isUnlocked()
       this.masterUnlockFields.classList.toggle("hidden", !showUnlock)
     }
@@ -246,12 +246,12 @@ export const MailboxPrivateStorage = {
     const passphrase = input?.value || ""
 
     if (!this.masterWrappedDek) {
-      this.setMasterError("Set up your master password first at /account/master-password.")
+      this.setMasterError("Set up account-password encrypted data first.")
       return
     }
 
     if (passphrase.trim() === "") {
-      this.setMasterError("Enter your master passphrase.")
+      this.setMasterError("Enter your account password.")
       return
     }
 
@@ -263,7 +263,9 @@ export const MailboxPrivateStorage = {
       // The vault-change subscription re-renders setup state and auto-unlocks a
       // configured master mailbox.
     } catch (_error) {
-      this.setMasterError("Incorrect master passphrase.")
+      this.setMasterError(
+        "Incorrect account password. If you just reset it, recover encrypted data at /account/encrypted-data."
+      )
     }
   },
 
@@ -274,7 +276,7 @@ export const MailboxPrivateStorage = {
     })
   },
 
-  // True when an auto-unlock is about to run for this panel (the master vault
+  // True when an auto-unlock is about to run for this panel (the encrypted-data vault
   // is already unlocked in this tab). Used to render a quiet "unlocking" state
   // instead of flashing the passphrase prompt on load, then swapping it out.
   autoUnlockPending() {
@@ -338,7 +340,7 @@ export const MailboxPrivateStorage = {
         this.autoUnlockFailed = false
         this.renderLockState()
       } catch (_error) {
-        // master key mismatch or transient error; fall back to the manual prompt
+        // encrypted data key mismatch or transient error; fall back to the manual prompt
         this.autoUnlockFailed = true
         this.renderLockState()
       }
@@ -379,19 +381,19 @@ export const MailboxPrivateStorage = {
     }
 
     if (this.unlockMode === MASTER_MODE) {
-      // If the shared vault is locked for this tab, unlock it inline with the
-      // master passphrase before unwrapping the mailbox key.
+      // If encrypted data is locked for this tab, unlock it inline with the
+      // account password before unwrapping the mailbox key.
       if (!vaultSession.isUnlocked()) {
         const masterInput = this.masterPassphraseInput()
         const masterPassphrase = masterInput?.value || ""
 
         if (!this.masterWrappedDek) {
-          notify("Set up your master password first at /account/master-password.")
+          notify("Set up account-password encrypted data first.")
           return
         }
 
         if (masterPassphrase.trim() === "") {
-          notify("Enter your master passphrase to unlock this mailbox.")
+          notify("Enter your account password to unlock this mailbox.")
           return
         }
 
@@ -400,7 +402,9 @@ export const MailboxPrivateStorage = {
           vaultSession.unlock(mdk)
           if (masterInput) masterInput.value = ""
         } catch (_error) {
-          notify("Incorrect master passphrase.")
+          notify(
+            "Incorrect account password. If you just reset it, recover encrypted data at /account/encrypted-data."
+          )
           return
         }
       }
@@ -411,7 +415,9 @@ export const MailboxPrivateStorage = {
         this.renderLockState()
         notify("Mailbox unlocked for this tab.", "success")
       } catch (_error) {
-        notify("Could not unlock the mailbox with your master password.")
+        notify(
+          "This mailbox was wrapped with an older encrypted-data key. Reset private mailbox storage in Account Settings, then set it up again."
+        )
       }
 
       return
@@ -466,8 +472,8 @@ export const MailboxPrivateStorage = {
       if (!vaultSession.isUnlocked()) {
         notify(
           this.masterConfigured
-            ? "Unlock your master password above first, then enable private storage."
-            : "Set up your master password first at /account/master-password."
+            ? "Enter your account password above first, then enable private storage."
+            : "Set up account-password encrypted data first."
         )
         return
       }
@@ -482,7 +488,7 @@ export const MailboxPrivateStorage = {
         this.verifierInput.value = JSON.stringify(verifier)
         this.setupForm.requestSubmit()
       } catch (_error) {
-        notify("Could not generate mailbox keys with your master password.")
+        notify("Could not generate mailbox keys.")
       }
 
       return
@@ -490,7 +496,7 @@ export const MailboxPrivateStorage = {
 
     if (unlockMode === "account_password") {
       if (accountPassword.trim() === "") {
-        notify("Enter your current account password to enable private mailbox storage.")
+        notify("Enter your current password to enable private mailbox storage.")
         return
       }
     } else {

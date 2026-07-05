@@ -457,7 +457,7 @@ defmodule Elektrine.Social do
         where:
           ((c.type == "timeline" and m.post_type == "post") or
              (is_nil(m.conversation_id) and m.federated == true)) and
-            m.visibility in ["public", "followers"] and
+            m.visibility == "public" and
             m.is_draft != true and
             is_nil(m.deleted_at) and
             is_nil(m.reply_to_id) and
@@ -1517,7 +1517,12 @@ defmodule Elektrine.Social do
 
       replies = Repo.all(replies_query)
 
+      # The SQL admits "followers" replies for any logged-in viewer; enforce the
+      # actual follow relationship (and friends/direct rules) per reply so a
+      # follower-only reply isn't previewed to someone who doesn't follow its
+      # author.
       replies
+      |> Enum.filter(&MessagePolicy.visible?(user_id, &1))
       |> Enum.group_by(& &1.reply_to_id)
       |> Enum.into(%{}, fn {post_id, post_replies} -> {post_id, post_replies} end)
     end

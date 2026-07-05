@@ -196,33 +196,25 @@ export const VideoBackground = {
 export const StatusSelector = {
   mounted() {
     this.handleEvent("status_updated", ({ status }) => this.updateStatusUI(status))
+    this.handleSubmit = (event) => {
+      const form = event.target.closest('form[action="/account/status"]')
+      if (!form || !this.el.contains(form)) return
 
-    this.formSubmitHandlers = new Map()
-    const forms = this.el.querySelectorAll('form[action="/account/status"]')
-    forms.forEach(form => {
-      const handler = (e) => {
-        e.preventDefault()
+      event.preventDefault()
 
-        const statusInput = form.querySelector('input[name="status"]')
-        const status = statusInput?.value
-        if (!status) return
+      const statusInput = form.querySelector('input[name="status"]')
+      const status = statusInput?.value
+      if (!status) return
 
-        this.updateStatusUI(status)
-        this.submitStatus(form, status)
-      }
+      this.updateStatusUI(status)
+      this.submitStatus(form, status)
+    }
 
-      form.addEventListener('submit', handler)
-      this.formSubmitHandlers.set(form, handler)
-    })
+    this.el.addEventListener('submit', this.handleSubmit)
   },
 
   destroyed() {
-    if (this.formSubmitHandlers) {
-      this.formSubmitHandlers.forEach((handler, form) => {
-        form.removeEventListener('submit', handler)
-      })
-      this.formSubmitHandlers.clear()
-    }
+    if (this.handleSubmit) this.el.removeEventListener('submit', this.handleSubmit)
   },
 
   async submitStatus(form, status) {

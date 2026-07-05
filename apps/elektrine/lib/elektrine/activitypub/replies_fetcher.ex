@@ -123,7 +123,13 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
                   fetch_replies_without_post_object(message.activitypub_id, message.id, opts)
               end
 
-            mark_reply_fetch_attempt(message)
+            # Failed attempts don't start the cooldown, so a later retry isn't
+            # silently short-circuited to {:ok, 0} for 15 minutes.
+            case result do
+              {:ok, _} -> mark_reply_fetch_attempt(message)
+              _ -> :ok
+            end
+
             result
         end
     end
@@ -672,25 +678,28 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
               reply_to_id: parent_message_id
             })
 
-          case Messaging.create_federated_message(attrs) do
-            {:ok, message} ->
+          case Messaging.create_federated_message_with_status(attrs) do
+            {:ok, message, :created} ->
               # Increment parent's reply count
               Elektrine.ActivityPub.SideEffects.increment_reply_count(parent_message_id)
 
-              Phoenix.PubSub.broadcast(
-                Elektrine.PubSub,
-                "timeline:public",
-                {:new_public_post,
-                 Repo.preload(message, [:remote_actor, :sender, :link_preview, :hashtags])}
-              )
+              # Only genuinely-public replies belong on the public firehose;
+              # unlisted replies stay visible in-thread but off the timeline.
+              if message.visibility == "public" do
+                Phoenix.PubSub.broadcast(
+                  Elektrine.PubSub,
+                  "timeline:public",
+                  {:new_public_post,
+                   Repo.preload(message, [:remote_actor, :sender, :link_preview, :hashtags])}
+                )
+              end
 
               {:stored, message}
 
-            {:error, %Ecto.Changeset{errors: [activitypub_id: {"has already been taken", _}]}} ->
-              {:existing,
-               object["id"]
-               |> Messaging.get_message_by_activitypub_id()
-               |> refresh_existing_reply_counts(object)}
+            # Lost an insert race against a concurrent worker: the reply already
+            # exists, so refresh its counts but do NOT increment the parent again.
+            {:ok, message, :existing} ->
+              {:existing, refresh_existing_reply_counts(message, object)}
 
             {:error, reason} ->
               Logger.debug("Failed to create reply: #{inspect(reason)}")

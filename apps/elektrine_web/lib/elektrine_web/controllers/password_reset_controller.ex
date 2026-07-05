@@ -5,6 +5,7 @@ defmodule ElektrineWeb.PasswordResetController do
   alias Elektrine.Accounts.User
   alias Elektrine.Auth.RateLimiter
   alias Elektrine.Telemetry.Events
+  alias Elektrine.Vault
   alias ElektrineWeb.AtominePow
 
   def new(conn, _params) do
@@ -90,11 +91,11 @@ defmodule ElektrineWeb.PasswordResetController do
 
   def update(conn, %{"token" => token, "user" => user_params}) do
     case Accounts.reset_password_with_token(token, user_params) do
-      {:ok, _user} ->
+      {:ok, user} ->
         Events.auth(:password_reset_confirm, :success, %{reason: :token_valid})
 
         conn
-        |> put_flash(:info, "Password reset successfully. Please log in with your new password.")
+        |> put_flash(:info, password_reset_success_message(user))
         |> redirect(to: Elektrine.Paths.login_path())
 
       {:error, :invalid_token} ->
@@ -207,6 +208,14 @@ defmodule ElektrineWeb.PasswordResetController do
 
   defp reset_confirmation_message do
     "If an account with that username or recovery email exists, you will receive password reset instructions."
+  end
+
+  defp password_reset_success_message(user) do
+    if Vault.configured?(user.id) do
+      "Password reset successfully. Log in with your new password, then recover encrypted data at /account/encrypted-data before unlocking Nerve, Kairo, or private mail."
+    else
+      "Password reset successfully. Please log in with your new password."
+    end
   end
 
   defp maybe_put_password_reset_captcha_answer(params, nil), do: params

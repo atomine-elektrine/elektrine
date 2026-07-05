@@ -537,13 +537,13 @@ export const ChatE2EE = {
       // Fall back to localStorage once so existing browsers can migrate out of it.
     }
 
-    const legacy = parseJson(localStorage.getItem(key), null)
-    if (legacy) {
-      await secureStorageSet(key, legacy)
+    const storedJson = parseJson(localStorage.getItem(key), null)
+    if (storedJson) {
+      await secureStorageSet(key, storedJson)
       localStorage.removeItem(key)
     }
 
-    return legacy
+    return storedJson
   },
 
   async upgradeDeviceTrustMaterial(device) {
@@ -1218,9 +1218,9 @@ export const ChatE2EE = {
       return bytes
     }
 
-    const legacyKey = localStorage.getItem(storageKey)
-    if (legacyKey) {
-      const bytes = base64ToBytes(legacyKey)
+    const storedKey = localStorage.getItem(storageKey)
+    if (storedKey) {
+      const bytes = base64ToBytes(storedKey)
       localStorage.removeItem(storageKey)
       this.rawConversationKeyCache.set(cacheKey, bytes)
       return bytes

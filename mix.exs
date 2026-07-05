@@ -35,7 +35,7 @@ defmodule ElektrineUmbrella.MixProject do
           elektrine_vpn: :permanent,
           elektrine_nerve: :permanent,
           elektrine_uptime: :permanent,
-          maid: :permanent
+          paige: :permanent
         ]
       ],
       elektrine_dns: [
@@ -58,6 +58,7 @@ defmodule ElektrineUmbrella.MixProject do
         "compile --warnings-as-errors",
         "credo --strict",
         "deps.audit",
+        "hex.audit",
         "deps.unlock --check-unused",
         "test"
       ],

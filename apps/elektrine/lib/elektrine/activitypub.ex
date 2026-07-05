@@ -1008,7 +1008,10 @@ defmodule Elektrine.ActivityPub do
         DomainDeliveryHealth.record_delivery_failure(delivery.inbox_url, error_message)
         attempts = delivery.attempts + 1
 
-        # Exponential backoff: 5min, 15min, 1hr, 3hr, 12hr, 24hr, then give up
+        # Exponential backoff: 5min, 15min, 1hr, 3hr, 12hr, then 24hr per attempt
+        # until the attempt-10 cutoff below. Attempts 7-9 must keep a real
+        # backoff — leaving next_retry_at nil makes the retry query treat them
+        # as immediately due, firing 7→10 back-to-back with no delay.
         next_retry_minutes =
           case attempts do
             1 -> 5
@@ -1016,16 +1019,11 @@ defmodule Elektrine.ActivityPub do
             3 -> 60
             4 -> 180
             5 -> 720
-            6 -> 1440
-            _ -> nil
+            _ -> 1440
           end
 
         next_retry_at =
-          if next_retry_minutes do
-            DateTime.add(DateTime.utc_now(), next_retry_minutes * 60, :second)
-          else
-            nil
-          end
+          DateTime.add(DateTime.utc_now(), next_retry_minutes * 60, :second)
 
         status = if attempts >= 10, do: "failed", else: "pending"
 

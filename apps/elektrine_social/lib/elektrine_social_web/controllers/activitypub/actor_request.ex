@@ -33,7 +33,7 @@ defmodule ElektrineSocialWeb.ActivityPub.ActorRequest do
   def opts_for_actor(user, requested_identifier, conn) do
     base_url = base_url_for_conn(conn)
     canonical_base_url = canonical_base_url_for_request(user, conn)
-    legacy_base_url = legacy_base_url()
+    move_from_base_url = move_from_base_url()
     canonical_actor_uri = ActivityPub.actor_uri(user, canonical_base_url)
     requested_actor_uri = ActivityPub.actor_uri(requested_identifier, base_url)
 
@@ -46,7 +46,7 @@ defmodule ElektrineSocialWeb.ActivityPub.ActorRequest do
     else
       aliases =
         user
-        |> actor_alias_uris(canonical_base_url, legacy_base_url)
+        |> actor_alias_uris(canonical_base_url, move_from_base_url)
         |> append_configured_aliases(user)
 
       %{
@@ -85,13 +85,13 @@ defmodule ElektrineSocialWeb.ActivityPub.ActorRequest do
 
   defp built_in_profile_subdomain_for_user?(_, _), do: false
 
-  defp actor_alias_uris(user, canonical_base_url, legacy_base_url) do
+  defp actor_alias_uris(user, canonical_base_url, move_from_base_url) do
     canonical_actor_uri = ActivityPub.actor_uri(user, canonical_base_url)
 
     [
       username_alias_uri(user, canonical_base_url),
-      legacy_actor_uri(user, legacy_base_url),
-      legacy_username_alias_uri(user, legacy_base_url)
+      move_from_actor_uri(user, move_from_base_url),
+      move_from_username_alias_uri(user, move_from_base_url)
     ]
     |> Enum.reject(&(is_nil(&1) or &1 == canonical_actor_uri))
     |> Enum.uniq()
@@ -116,19 +116,20 @@ defmodule ElektrineSocialWeb.ActivityPub.ActorRequest do
     end
   end
 
-  defp legacy_actor_uri(user, legacy_base_url) when is_binary(legacy_base_url) do
-    ActivityPub.actor_uri(user, legacy_base_url)
+  defp move_from_actor_uri(user, move_from_base_url) when is_binary(move_from_base_url) do
+    ActivityPub.actor_uri(user, move_from_base_url)
   end
 
-  defp legacy_actor_uri(_user, _legacy_base_url), do: nil
+  defp move_from_actor_uri(_user, _move_from_base_url), do: nil
 
-  defp legacy_username_alias_uri(user, legacy_base_url) when is_binary(legacy_base_url) do
-    username_alias_uri(user, legacy_base_url)
+  defp move_from_username_alias_uri(user, move_from_base_url)
+       when is_binary(move_from_base_url) do
+    username_alias_uri(user, move_from_base_url)
   end
 
-  defp legacy_username_alias_uri(_user, _legacy_base_url), do: nil
+  defp move_from_username_alias_uri(_user, _move_from_base_url), do: nil
 
-  defp legacy_base_url do
+  defp move_from_base_url do
     case Domains.activitypub_move_from_domain() do
       nil -> nil
       domain -> ActivityPub.instance_url_for_domain(domain)

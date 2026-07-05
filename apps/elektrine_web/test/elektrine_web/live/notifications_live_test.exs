@@ -44,11 +44,30 @@ defmodule ElektrineWeb.NotificationsLiveTest do
     |> Enum.map(&(Floki.text(&1) |> String.trim()))
   end
 
+  defp count_occurrences(html, pattern) do
+    html
+    |> String.split(pattern)
+    |> length()
+    |> Kernel.-(1)
+  end
+
   test "redirects instead of crashing when mounted without current_user" do
     assert {:ok, socket} =
              ElektrineWeb.NotificationsLive.mount(%{}, %{}, %Phoenix.LiveView.Socket{})
 
     assert socket.redirected == {:redirect, %{status: 302, to: Elektrine.Paths.login_path()}}
+  end
+
+  test "notification stats reserve count space before stats load", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+
+    {:ok, _view, html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/notifications")
+
+    assert count_occurrences(html, "text-transparent select-none") >= 10
+    refute html =~ ~s(animate-pulse rounded bg-base-300)
   end
 
   test "source filter narrows the queue to one lane", %{conn: conn} do

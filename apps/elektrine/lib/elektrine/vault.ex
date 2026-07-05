@@ -1,8 +1,8 @@
 defmodule Elektrine.Vault do
   @moduledoc """
-  Master-key vault context.
+  Encrypted data vault context.
 
-  A user's master password derives a key that wraps a single Master Data Key
+  A user's password derives a key that wraps a single Master Data Key
   (MDK); per-feature keys (Nerve, Kairo, email private storage) are derived from
   the MDK in the browser via HKDF. The server only ever stores and returns the
   wrapped MDK blobs - it never sees the passphrase, the recovery code, or the
@@ -14,7 +14,7 @@ defmodule Elektrine.Vault do
   alias Elektrine.Repo
   alias Elektrine.Vault.MasterKey
 
-  @doc "Whether the user has set up a master password."
+  @doc "Whether the user has set up encrypted data."
   def configured?(%User{id: user_id}), do: configured?(user_id)
 
   def configured?(user_id) when is_integer(user_id) do

@@ -75,9 +75,9 @@ defmodule ElektrineWeb.PortalLive.DashboardData do
       end,
       %{
         id: "search",
-        label: "Maid",
+        label: "Paige",
         detail: "Private search",
-        href: Elektrine.Paths.maid_path(),
+        href: Elektrine.Paths.paige_path(),
         icon: "hero-magnifying-glass",
         tone: "neutral"
       }

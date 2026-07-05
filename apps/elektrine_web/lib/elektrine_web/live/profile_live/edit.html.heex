@@ -334,6 +334,43 @@
                   />
                 </div>
 
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label class="label">
+                      <span class="label-text font-medium">Active from</span>
+                    </label>
+                    <input
+                      type="datetime-local"
+                      name="link[active_from]"
+                      class="input input-bordered w-full"
+                    />
+                  </div>
+
+                  <div>
+                    <label class="label">
+                      <span class="label-text font-medium">Active until</span>
+                    </label>
+                    <input
+                      type="datetime-local"
+                      name="link[active_until]"
+                      class="input input-bordered w-full"
+                    />
+                  </div>
+                </div>
+
+                <label class="label cursor-pointer justify-start gap-3">
+                  <input type="hidden" name="link[pinned]" value="false" />
+                  <input
+                    type="checkbox"
+                    name="link[pinned]"
+                    value="true"
+                    class="checkbox checkbox-primary"
+                  />
+                  <span class="label-text">
+                    Pin and highlight this link above other links.
+                  </span>
+                </label>
+
                 <div class="card-actions">
                   <button type="submit" class="btn btn-primary w-full"> Add Link </button>
                 </div>
@@ -355,7 +392,15 @@
               </div>
 
               <%= if @profile.links && length(@profile.links) > 0 do %>
-                <div class="space-y-2">
+                <% duplicate_urls = duplicate_profile_link_urls(@profile) %>
+                <div :if={duplicate_urls != []} class="alert alert-warning mb-4">
+                  <.icon name="hero-exclamation-triangle" class="h-5 w-5" />
+                  <span>
+                    Duplicate URL warning: {Enum.join(duplicate_urls, ", ")}
+                  </span>
+                </div>
+
+                <div id="profile-links-list" class="space-y-2" phx-hook="ProfileLinkReorder">
                   <%= for link <- @profile.links do %>
                     <%= if @editing_link_id == link.id do %>
                       <!-- Edit Form -->
@@ -581,11 +626,78 @@
                             />
                           </div>
 
+                          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                              <label class="label">
+                                <span class="label-text font-medium text-xs">Active from</span>
+                              </label>
+                              <input
+                                type="datetime-local"
+                                name="link[active_from]"
+                                value={@editing_link_data["active_from"]}
+                                class="input input-bordered input-sm w-full"
+                              />
+                            </div>
+
+                            <div>
+                              <label class="label">
+                                <span class="label-text font-medium text-xs">Active until</span>
+                              </label>
+                              <input
+                                type="datetime-local"
+                                name="link[active_until]"
+                                value={@editing_link_data["active_until"]}
+                                class="input input-bordered input-sm w-full"
+                              />
+                            </div>
+                          </div>
+
+                          <%= if Elektrine.Strings.present?(@editing_link_data["thumbnail_url"]) do %>
+                            <div class="rounded-lg border border-base-content/10 bg-base-100/70 p-3">
+                              <div class="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-base-content/45">
+                                URL Preview
+                              </div>
+                              <div class="flex gap-3">
+                                <img
+                                  src={@editing_link_data["thumbnail_url"]}
+                                  alt=""
+                                  class="h-14 w-14 rounded-md object-cover"
+                                />
+                                <div class="min-w-0 text-sm">
+                                  <div class="truncate font-medium">
+                                    {@editing_link_data["title"]}
+                                  </div>
+                                  <div class="truncate text-xs text-base-content/60">
+                                    {@editing_link_data["url"]}
+                                  </div>
+                                  <div class="mt-1 text-xs text-base-content/50">
+                                    Preview image fetched from link metadata.
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          <% end %>
+
                           <div class="form-control">
                             <label class="label cursor-pointer justify-start gap-3">
+                              <input type="hidden" name="link[pinned]" value="false" />
+                              <input
+                                type="checkbox"
+                                name="link[pinned]"
+                                value="true"
+                                checked={@editing_link_data["pinned"]}
+                                class="checkbox checkbox-primary checkbox-sm"
+                              /> <span class="label-text">Pinned/highlighted</span>
+                            </label>
+                          </div>
+
+                          <div class="form-control">
+                            <label class="label cursor-pointer justify-start gap-3">
+                              <input type="hidden" name="link[is_active]" value="false" />
                               <input
                                 type="checkbox"
                                 name="link[is_active]"
+                                value="true"
                                 checked={@editing_link_data["is_active"]}
                                 class="checkbox checkbox-primary checkbox-sm"
                               /> <span class="label-text">Active</span>
@@ -606,9 +718,20 @@
                       </div>
                     <% else %>
                       <!-- Normal Display -->
-                      <div class="flex items-center justify-between p-3 bg-base-200/50 rounded-lg hover:bg-base-200 transition-colors">
+                      <div
+                        id={"profile-link-row-#{link.id}"}
+                        class="flex items-center justify-between p-3 bg-base-200/50 rounded-lg hover:bg-base-200 transition-colors"
+                        data-profile-link-id={link.id}
+                        draggable="true"
+                      >
                         <div class="flex items-center space-x-3">
                           <div class="flex flex-col gap-1">
+                            <span
+                              class="flex h-4 cursor-grab items-center justify-center text-base-content/35"
+                              title="Drag to reorder"
+                            >
+                              <.icon name="hero-bars-3" class="w-3 h-3" />
+                            </span>
                             <button
                               phx-click="reorder_link"
                               phx-value-id={link.id}
@@ -649,6 +772,33 @@
                                   {if link.display_style == "circular", do: "⭕", else: "▬"}
                                 </span>
                               <% end %>
+
+                              <%= if link.is_active != true do %>
+                                <span class="badge badge-xs badge-ghost">Inactive</span>
+                              <% end %>
+
+                              <%= if link.pinned do %>
+                                <span class="badge badge-xs badge-primary">Pinned</span>
+                              <% end %>
+
+                              <%= if link_schedule_label(link) do %>
+                                <span class="badge badge-xs badge-info">
+                                  {link_schedule_label(link)}
+                                </span>
+                              <% end %>
+
+                              <%= if link.last_check_status do %>
+                                <span class={[
+                                  "badge badge-xs",
+                                  link_health_badge_class(link.last_check_status)
+                                ]}>
+                                  {link.last_check_status}
+                                </span>
+                              <% end %>
+
+                              <%= if duplicate_profile_link_url?(@profile, link) do %>
+                                <span class="badge badge-xs badge-warning">Duplicate</span>
+                              <% end %>
                             </div>
 
                             <p class="text-xs text-base-content/60 truncate max-w-xs">
@@ -658,7 +808,23 @@
                         </div>
 
                         <div class="flex items-center space-x-2 flex-shrink-0">
-                          <span class="badge badge-sm">{link.clicks} clicks</span>
+                          <span class="badge badge-sm" title="Tracked profile-link redirects">
+                            {link.clicks} clicks · {link_ctr(link)} CTR
+                          </span>
+                          <span
+                            :if={link.last_clicked_at}
+                            class="badge badge-sm badge-ghost"
+                            title="Last click"
+                          >
+                            {format_profile_datetime(link.last_clicked_at)}
+                          </span>
+                          <button
+                            phx-click="check_link_health"
+                            phx-value-id={link.id}
+                            class="btn btn-ghost btn-xs"
+                          >
+                            Check
+                          </button>
                           <button
                             phx-click="edit_link"
                             phx-value-id={link.id}
@@ -1431,6 +1597,12 @@
                       type="button"
                       phx-click="set_profile_mode"
                       phx-value-mode="builder"
+                      data-confirm={
+                        if static_mode,
+                          do:
+                            "Switch back to Profile Builder? Your uploaded static files stay stored, but visitors will see the builder profile.",
+                          else: nil
+                      }
                       class={[
                         "rounded-lg border text-left transition-colors px-4 py-3",
                         if(!static_mode,
@@ -1457,6 +1629,10 @@
                           <div class="mt-1 text-xs text-base-content/60">
                             Use Elektrine blocks, links, widgets, and theme controls.
                           </div>
+
+                          <div class="mt-2 text-xs font-medium text-base-content/70">
+                            Visitors see the editable profile builder experience.
+                          </div>
                         </div>
                       </div>
                     </button>
@@ -1464,6 +1640,12 @@
                       type="button"
                       phx-click="set_profile_mode"
                       phx-value-mode="static"
+                      data-confirm={
+                        if !static_mode,
+                          do:
+                            "Switch to Custom Static Site? Visitors will see uploaded static files instead of builder blocks.",
+                          else: nil
+                      }
                       class={[
                         "rounded-lg border text-left transition-colors px-4 py-3",
                         if(static_mode,
@@ -1489,6 +1671,10 @@
 
                           <div class="mt-1 text-xs text-base-content/60">
                             Publish your own HTML, CSS, JavaScript, images, and fonts.
+                          </div>
+
+                          <div class="mt-2 text-xs font-medium text-base-content/70">
+                            Visitors see your static files when an index.html is available.
                           </div>
                         </div>
                       </div>
@@ -1619,47 +1805,190 @@
                   <%= if @static_site_deployment do %>
                     <div class="alert alert-success">
                       <.icon name="hero-check-circle" class="h-5 w-5" />
-                      <span>
-                        Linked: {@static_site_deployment.repo_owner}/{@static_site_deployment.repo_name} on {@static_site_deployment.branch}
-                      </span>
+                      <div class="min-w-0">
+                        <div class="font-medium">
+                          {@static_site_deployment.repo_owner}/{@static_site_deployment.repo_name}
+                        </div>
+                        <div class="text-sm opacity-80">
+                          Branch {@static_site_deployment.branch || "main"} · {site_dir_label(
+                            @static_site_deployment.site_dir
+                          )} · {if @static_site_deployment.webhook_id,
+                            do: "webhook connected",
+                            else: "manual deploys only"}
+                        </div>
+                      </div>
                     </div>
                   <% end %>
                 </div>
 
                 <div class="rounded-lg border border-base-content/10 bg-base-100/70 p-4 sm:p-5 space-y-4">
-                  <h3 class="font-semibold">Deploys</h3>
+                  <div class="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 class="font-semibold">Deployment Status</h3>
+                      <p class="mt-1 text-sm text-base-content/60">
+                        Current repo deploy pipeline.
+                      </p>
+                    </div>
+                  </div>
 
                   <%= if @static_site_deployment do %>
-                    <div class="space-y-3 text-sm">
+                    <% deploy_status = @static_site_deployment.deploy_status || "idle" %>
+                    <div class="space-y-4 text-sm">
+                      <div class="grid grid-cols-2 gap-3">
+                        <div class="rounded-lg bg-base-200/50 p-3">
+                          <div class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/45">
+                            Last deploy
+                          </div>
+                          <div class="mt-1 font-medium">
+                            {format_profile_datetime(@static_site_deployment.last_deployed_at)}
+                          </div>
+                        </div>
+
+                        <div class="rounded-lg bg-base-200/50 p-3">
+                          <div class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/45">
+                            Branch
+                          </div>
+                          <div class="mt-1 truncate font-medium">
+                            {@static_site_deployment.branch || "main"}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="rounded-lg bg-base-200/50 p-3">
+                        <div class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/45">
+                          Commit
+                        </div>
+                        <%= if @static_site_deployment.last_commit_sha do %>
+                          <a
+                            href={@static_site_deployment.last_commit_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="mt-1 block truncate font-mono text-xs link link-primary"
+                          >
+                            {String.slice(@static_site_deployment.last_commit_sha, 0, 12)}
+                          </a>
+                          <div
+                            :if={@static_site_deployment.last_commit_message}
+                            class="mt-1 line-clamp-2 text-xs text-base-content/60"
+                          >
+                            {@static_site_deployment.last_commit_message}
+                          </div>
+                        <% else %>
+                          <div class="mt-1 text-xs text-base-content/60">
+                            No commit metadata recorded yet.
+                          </div>
+                        <% end %>
+                      </div>
+
                       <div class="flex items-center justify-between gap-3 rounded-lg bg-base-200/50 p-3">
                         <span class="text-base-content/65">Status</span>
-                        <span class="badge badge-outline">
-                          {@static_site_deployment.deploy_status || "idle"}
+                        <span class={[
+                          "badge border-0 font-medium",
+                          deploy_status_badge_class(deploy_status)
+                        ]}>
+                          {String.capitalize(deploy_status)}
                         </span>
                       </div>
 
-                      <div
-                        :if={@static_site_deployment.last_deployed_at}
-                        class="text-base-content/65"
-                      >
-                        Last deployed: {@static_site_deployment.last_deployed_at}
+                      <div class="space-y-3">
+                        <%= for step <- deploy_timeline_steps(@static_site_deployment) do %>
+                          <div class="flex gap-3">
+                            <div class={[
+                              "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full",
+                              deploy_step_dot_class(step.state)
+                            ]}>
+                              <.icon name={deploy_step_icon(step.state)} class="h-3.5 w-3.5" />
+                            </div>
+                            <div class="min-w-0">
+                              <div class="font-medium">{step.label}</div>
+                              <div class="text-xs text-base-content/60">{step.meta}</div>
+                            </div>
+                          </div>
+                        <% end %>
                       </div>
 
-                      <div
-                        :if={@static_site_deployment.last_deploy_error}
-                        class="alert alert-error"
-                      >
-                        <.icon name="hero-exclamation-triangle" class="h-5 w-5" />
-                        <span>{@static_site_deployment.last_deploy_error}</span>
+                      <div class="rounded-lg border border-base-content/10 bg-base-200/30 p-3">
+                        <div class="mb-2 flex items-center gap-2 font-medium">
+                          <.icon name="hero-command-line" class="h-4 w-4" /> Deploy Log
+                        </div>
+
+                        <%= if @static_site_deployment.last_deploy_error do %>
+                          <pre class="max-h-32 overflow-auto whitespace-pre-wrap text-xs text-error">{@static_site_deployment.last_deploy_error}</pre>
+                        <% else %>
+                          <%= if @static_site_deployment.last_deploy_log do %>
+                            <pre class="max-h-32 overflow-auto whitespace-pre-wrap text-xs text-base-content/70">{@static_site_deployment.last_deploy_log}</pre>
+                          <% else %>
+                            <p class="text-xs text-base-content/60">
+                              No deploy log recorded for this repository.
+                            </p>
+                          <% end %>
+                        <% end %>
                       </div>
 
-                      <button
-                        type="button"
-                        phx-click="deploy_static_site_from_github"
-                        class="btn btn-primary btn-sm"
-                      >
-                        <.icon name="hero-rocket-launch" class="h-4 w-4" /> Deploy now
-                      </button>
+                      <div class="rounded-lg border border-base-content/10 bg-base-200/30 p-3">
+                        <div class="mb-3 flex items-center gap-2 font-medium">
+                          <.icon name="hero-clock" class="h-4 w-4" /> Deploy History
+                        </div>
+
+                        <%= if @static_site_deploys != [] do %>
+                          <div class="space-y-2">
+                            <%= for deploy <- @static_site_deploys do %>
+                              <div class="flex items-start justify-between gap-3 rounded-md bg-base-100/70 p-2">
+                                <div class="min-w-0">
+                                  <div class="flex flex-wrap items-center gap-2">
+                                    <span class={[
+                                      "badge badge-xs border-0",
+                                      deploy_status_badge_class(deploy.status)
+                                    ]}>
+                                      {String.replace(deploy.status, "_", " ")}
+                                    </span>
+                                    <span class="text-xs text-base-content/60">
+                                      {format_profile_datetime(
+                                        deploy.deployed_at || deploy.inserted_at
+                                      )}
+                                    </span>
+                                  </div>
+                                  <div class="mt-1 truncate text-xs text-base-content/70">
+                                    {deploy.commit_message || deploy.log || deploy.error ||
+                                      "Snapshot saved"}
+                                  </div>
+                                  <div class="mt-1 text-xs text-base-content/50">
+                                    {deploy.file_count} files · {format_bytes(
+                                      deploy.storage_bytes || 0
+                                    )}
+                                  </div>
+                                </div>
+
+                                <button
+                                  :if={deploy.snapshot_storage_key}
+                                  type="button"
+                                  phx-click="rollback_static_site_deploy"
+                                  phx-value-id={deploy.id}
+                                  data-confirm="Rollback your static site to this deploy snapshot?"
+                                  class="btn btn-ghost btn-xs shrink-0"
+                                >
+                                  <.icon name="hero-arrow-uturn-left" class="h-3.5 w-3.5" />
+                                  Rollback
+                                </button>
+                              </div>
+                            <% end %>
+                          </div>
+                        <% else %>
+                          <p class="text-xs text-base-content/60">
+                            Deploy history appears after the next successful repository deploy.
+                          </p>
+                        <% end %>
+                      </div>
+
+                      <div class="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          phx-click="deploy_static_site_from_github"
+                          class="btn btn-primary btn-sm"
+                        >
+                          <.icon name="hero-rocket-launch" class="h-4 w-4" /> Deploy now
+                        </button>
+                      </div>
                     </div>
                   <% else %>
                     <p class="text-sm text-base-content/65">

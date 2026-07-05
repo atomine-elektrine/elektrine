@@ -136,6 +136,7 @@
           playsinline
           preload="auto"
           class="fixed inset-0 w-full h-full object-cover z-0 pointer-events-none"
+          style={"object-position: #{@profile.background_focal_x || 50}% #{@profile.background_focal_y || 50}%; filter: brightness(#{@profile.background_brightness || 100}%) blur(#{@profile.background_overlay_blur || 0}px);"}
           src={Elektrine.Uploads.background_url(@profile.background_url)}
         >
         </video>
@@ -2034,10 +2035,13 @@
         close_mode={:data}
         close_action="close-modal"
         max_width="max-w-md"
+        box_class="profile-modal-surface"
         header_class="flex justify-between items-center mb-4"
+        title_class="text-xl font-bold text-[var(--profile-text)]"
+        close_button_class="text-[var(--profile-text)] hover:bg-[color-mix(in_srgb,var(--profile-accent)_14%,transparent)]"
       >
         <div class="max-h-72 overflow-y-auto" data-role="followers-list"></div>
-        <p class="text-center text-base-content/60 hidden" data-role="followers-empty">
+        <p class="text-center profile-text-muted hidden" data-role="followers-empty">
           No followers yet
         </p>
       </.basic_modal>
@@ -2049,7 +2053,10 @@
           close_mode={:phx}
           close_action="close_modal"
           max_width="max-w-md"
+          box_class="profile-modal-surface"
           header_class="flex justify-between items-center mb-4"
+          title_class="text-xl font-bold text-[var(--profile-text)]"
+          close_button_class="text-[var(--profile-text)] hover:bg-[color-mix(in_srgb,var(--profile-accent)_14%,transparent)]"
         >
           <div class="max-h-72 overflow-y-auto">
             <%= if length(@followers_list) > 0 do %>
@@ -2064,7 +2071,7 @@
                           "/remote/#{follower.remote_actor.username}@#{follower.remote_actor.domain}"
                         )
                       }
-                      class="flex items-center gap-3 p-2 hover:bg-base-200 rounded-lg"
+                      class="profile-modal-row flex items-center gap-3 p-2 rounded-lg"
                     >
                       <%= if avatar_url = safe_external_image_url(follower.remote_actor.avatar_url) do %>
                         <img
@@ -2085,7 +2092,7 @@
                             )
                           )}
                         </p>
-                        <p class="text-xs opacity-70 truncate">
+                        <p class="text-xs profile-text-muted truncate">
                           @{follower.remote_actor.username}@{follower.remote_actor.domain}
                         </p>
                       </div>
@@ -2099,7 +2106,7 @@
                           ~p"/#{follower.user.handle || follower.user.username}"
                         )
                       }
-                      class="flex items-center gap-3 p-2 hover:bg-base-200 rounded-lg"
+                      class="profile-modal-row flex items-center gap-3 p-2 rounded-lg"
                     >
                       <.user_avatar user={follower.user} size="md" />
                       <div class="flex-1">
@@ -2111,7 +2118,7 @@
                             )
                           )}
                         </span>
-                        <p class="text-xs opacity-70">
+                        <p class="text-xs profile-text-muted">
                           @{follower.user.handle || follower.user.username}@{Elektrine.Domains.default_user_handle_domain()}
                         </p>
                       </div>
@@ -2120,7 +2127,7 @@
                 <% end %>
               </div>
             <% else %>
-              <p class="text-center text-base-content/60">No followers yet</p>
+              <p class="text-center profile-text-muted">No followers yet</p>
             <% end %>
           </div>
         </.basic_modal>
@@ -2136,10 +2143,13 @@
         close_mode={:data}
         close_action="close-modal"
         max_width="max-w-md"
+        box_class="profile-modal-surface"
         header_class="flex justify-between items-center mb-4"
+        title_class="text-xl font-bold text-[var(--profile-text)]"
+        close_button_class="text-[var(--profile-text)] hover:bg-[color-mix(in_srgb,var(--profile-accent)_14%,transparent)]"
       >
         <div class="max-h-72 overflow-y-auto" data-role="following-list"></div>
-        <p class="text-center text-base-content/60 hidden" data-role="following-empty">
+        <p class="text-center profile-text-muted hidden" data-role="following-empty">
           Not following anyone yet
         </p>
       </.basic_modal>
@@ -2151,7 +2161,10 @@
           close_mode={:phx}
           close_action="close_modal"
           max_width="max-w-md"
+          box_class="profile-modal-surface"
           header_class="flex justify-between items-center mb-4"
+          title_class="text-xl font-bold text-[var(--profile-text)]"
+          close_button_class="text-[var(--profile-text)] hover:bg-[color-mix(in_srgb,var(--profile-accent)_14%,transparent)]"
         >
           <div class="max-h-72 overflow-y-auto">
             <%= if length(@following_list) > 0 do %>
@@ -2159,7 +2172,7 @@
                 <%= for following <- @following_list do %>
                   <%= if following.type == "remote" do %>
                     <!-- Remote user from Mastodon -->
-                    <div class="flex items-center gap-3 p-2 hover:bg-base-200 rounded-lg">
+                    <div class="profile-modal-row flex items-center gap-3 p-2 rounded-lg">
                       <.link
                         href={
                           profile_url(
@@ -2189,7 +2202,7 @@
                               )
                             )}
                           </p>
-                          <p class="text-xs opacity-70 truncate">
+                          <p class="text-xs profile-text-muted truncate">
                             @{following.remote_actor.username}@{following.remote_actor.domain}
                           </p>
                         </div>
@@ -2198,7 +2211,7 @@
                         <button
                           phx-click="unfollow_remote"
                           phx-value-remote-actor-id={following.remote_actor.id}
-                          class="btn btn-ghost btn-sm transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80"
+                          class="btn btn-ghost btn-sm text-[var(--profile-text)] transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80"
                         >
                           <span class="phx-click-loading:hidden">Unfollow</span>
                           <span class="hidden phx-click-loading:inline-flex items-center">
@@ -2209,7 +2222,7 @@
                     </div>
                   <% else %>
                     <!-- Local user -->
-                    <div class="flex items-center gap-3 p-2 hover:bg-base-200 rounded-lg">
+                    <div class="profile-modal-row flex items-center gap-3 p-2 rounded-lg">
                       <.link
                         href={
                           profile_url(
@@ -2229,7 +2242,7 @@
                               )
                             )}
                           </span>
-                          <p class="text-xs opacity-70">
+                          <p class="text-xs profile-text-muted">
                             @{following.user.handle || following.user.username}@{Elektrine.Domains.default_user_handle_domain()}
                           </p>
                         </div>
@@ -2238,7 +2251,7 @@
                         <button
                           phx-click="unfollow_local"
                           phx-value-followed-id={following.user.id}
-                          class="btn btn-ghost btn-sm transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80"
+                          class="btn btn-ghost btn-sm text-[var(--profile-text)] transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80"
                         >
                           <span class="phx-click-loading:hidden">Unfollow</span>
                           <span class="hidden phx-click-loading:inline-flex items-center">
@@ -2251,7 +2264,7 @@
                 <% end %>
               </div>
             <% else %>
-              <p class="text-center text-base-content/60">Not following anyone yet</p>
+              <p class="text-center profile-text-muted">Not following anyone yet</p>
             <% end %>
           </div>
         </.basic_modal>
@@ -2267,6 +2280,9 @@
         close_mode={:data}
         close_action="close-modal"
         max_width="max-w-md"
+        box_class="profile-modal-surface"
+        title_class="text-xl font-bold text-[var(--profile-text)]"
+        close_button_class="text-[var(--profile-text)] hover:bg-[color-mix(in_srgb,var(--profile-accent)_14%,transparent)]"
       >
         <.profile_share_modal_body
           profile_static={true}
@@ -2282,6 +2298,9 @@
           close_mode={:phx}
           close_action="close_share_modal"
           max_width="max-w-md"
+          box_class="profile-modal-surface"
+          title_class="text-xl font-bold text-[var(--profile-text)]"
+          close_button_class="text-[var(--profile-text)] hover:bg-[color-mix(in_srgb,var(--profile-accent)_14%,transparent)]"
         >
           <.profile_share_modal_body
             profile_static={false}

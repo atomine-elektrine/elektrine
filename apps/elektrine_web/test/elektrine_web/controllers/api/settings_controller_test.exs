@@ -3,6 +3,7 @@ defmodule ElektrineWeb.API.SettingsControllerTest do
 
   alias Elektrine.Accounts
   alias Elektrine.Accounts.ClientAppSettings
+  alias Elektrine.Vault
   alias ElektrineWeb.Plugs.APIAuth
 
   import Elektrine.AccountsFixtures
@@ -106,6 +107,62 @@ defmodule ElektrineWeb.API.SettingsControllerTest do
                json_response(conn, 422)
 
       assert %{"password_confirmation" => [_ | _]} = errors
+    end
+
+    test "requires encrypted data rewrap through prefixed route", %{conn: conn} do
+      user = user_fixture()
+      {:ok, token} = APIAuth.generate_token(user.id)
+
+      assert {:ok, _master_key} =
+               Vault.setup(user.id, %{
+                 "wrapped_dek" => wrapped_payload("old-dek"),
+                 "wrapped_dek_recovery" => wrapped_payload("old-recovery")
+               })
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer #{token}")
+        |> post("/api/pleroma/change_password", %{
+          "password" => valid_user_password(),
+          "new_password" => "new valid password 123",
+          "new_password_confirmation" => "new valid password 123"
+        })
+
+      assert %{"error" => "Failed to update password", "errors" => errors} =
+               json_response(conn, 422)
+
+      assert %{"current_password" => ["Encrypted data must be rewrapped" <> _]} = errors
+    end
+
+    test "updates password and encrypted data wrapper through prefixed route", %{conn: conn} do
+      user = user_fixture()
+      {:ok, token} = APIAuth.generate_token(user.id)
+
+      assert {:ok, _master_key} =
+               Vault.setup(user.id, %{
+                 "wrapped_dek" => wrapped_payload("old-dek"),
+                 "wrapped_dek_recovery" => wrapped_payload("old-recovery")
+               })
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer #{token}")
+        |> post("/api/pleroma/change_password", %{
+          "password" => valid_user_password(),
+          "new_password" => "new valid password 123",
+          "new_password_confirmation" => "new valid password 123",
+          "vault_wrapped_dek" => wrapped_payload("new-dek"),
+          "vault_wrapped_dek_recovery" => wrapped_payload("old-recovery")
+        })
+
+      assert %{"message" => "Password updated successfully"} = json_response(conn, 200)
+      assert {:ok, _user} = Accounts.authenticate_user(user.username, "new valid password 123")
+
+      master_key = Vault.get(user.id)
+      assert master_key.wrapped_dek["ciphertext"] == wrapped_payload("new-dek")["ciphertext"]
+
+      assert master_key.wrapped_dek_recovery["ciphertext"] ==
+               wrapped_payload("old-recovery")["ciphertext"]
     end
   end
 
@@ -230,5 +287,17 @@ defmodule ElektrineWeb.API.SettingsControllerTest do
                "details" => %{"app" => [_ | _]}
              } = json_response(conn, 422)
     end
+  end
+
+  defp wrapped_payload(value) do
+    %{
+      "version" => 1,
+      "algorithm" => "AES-GCM",
+      "kdf" => "PBKDF2-SHA256",
+      "iterations" => 210_000,
+      "salt" => Base.encode64("1234567890123456"),
+      "iv" => Base.encode64("123456789012"),
+      "ciphertext" => Base.encode64("ciphertext:" <> value)
+    }
   end
 end

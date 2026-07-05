@@ -6,6 +6,7 @@ defmodule ElektrineWeb.API.PasswordResetController do
   use ElektrineWeb, :controller
 
   alias Elektrine.Accounts
+  alias Elektrine.Vault
 
   def request(conn, params) do
     case reset_identifier(params) do
@@ -24,12 +25,15 @@ defmodule ElektrineWeb.API.PasswordResetController do
     attrs = reset_attrs(params)
 
     with token when is_binary(token) and token != "" <- attrs["token"],
-         {:ok, _user} <-
+         {:ok, user} <-
            Accounts.reset_password_with_token(token, %{
              password: attrs["password"],
              password_confirmation: attrs["password_confirmation"]
            }) do
-      json(conn, %{status: "ok"})
+      json(conn, %{
+        status: "ok",
+        encrypted_data_recovery_required: Vault.configured?(user.id)
+      })
     else
       {:error, :invalid_token} ->
         conn

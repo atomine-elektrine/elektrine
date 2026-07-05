@@ -18,9 +18,9 @@ defmodule Elektrine.Platform.ENav do
         active_icon: "hero-squares-2x2-solid"
       },
       %{
-        id: "maid",
-        label: "Maid",
-        href: "/maid",
+        id: "paige",
+        label: "Paige",
+        href: "/paige",
         platform_module: nil,
         access_module: nil,
         icon: "hero-magnifying-glass",
@@ -70,15 +70,6 @@ defmodule Elektrine.Platform.ENav do
         access_module: :gallery,
         icon: "hero-video-camera",
         active_icon: "hero-video-camera-solid"
-      },
-      %{
-        id: "friends",
-        label: "Friends",
-        href: "/friends",
-        platform_module: :chat,
-        access_module: :friends,
-        icon: "hero-user-group",
-        active_icon: "hero-user-group-solid"
       },
       %{
         id: "email",
@@ -143,6 +134,15 @@ defmodule Elektrine.Platform.ENav do
         href: "/account/profile/edit",
         icon: "hero-user-circle",
         active_icon: "hero-user-circle-solid"
+      },
+      %{
+        id: "friends",
+        label: "Friends",
+        href: "/friends",
+        platform_module: :chat,
+        access_module: :friends,
+        icon: "hero-user-group",
+        active_icon: "hero-user-group-solid"
       },
       %{
         id: "lists",

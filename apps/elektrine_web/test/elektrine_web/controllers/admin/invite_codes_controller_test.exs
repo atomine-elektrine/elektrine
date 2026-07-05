@@ -7,11 +7,11 @@ defmodule ElektrineWeb.Admin.InviteCodesControllerTest do
 
   setup do
     previous_trust_level = Elektrine.System.self_service_invite_min_trust_level()
-    previous_maid_trust_level = Elektrine.System.module_min_trust_level(:maid)
+    previous_paige_trust_level = Elektrine.System.module_min_trust_level(:paige)
 
     on_exit(fn ->
       Elektrine.System.set_self_service_invite_min_trust_level(previous_trust_level)
-      Elektrine.System.set_module_min_trust_level(:maid, previous_maid_trust_level)
+      Elektrine.System.set_module_min_trust_level(:paige, previous_paige_trust_level)
     end)
 
     :ok
@@ -72,7 +72,7 @@ defmodule ElektrineWeb.Admin.InviteCodesControllerTest do
       assert html =~ "Priority creator invite"
       assert html =~ "Invite-only"
       assert html =~ "Self-Service Invite Access"
-      assert html =~ "Maid"
+      assert html =~ "Paige"
       assert html =~ "TL1+"
     end
   end
@@ -102,7 +102,7 @@ defmodule ElektrineWeb.Admin.InviteCodesControllerTest do
   end
 
   describe "POST /pripyat/invite-codes/module-access" do
-    test "updates the Maid trust threshold", %{conn: conn} do
+    test "updates the Paige trust threshold", %{conn: conn} do
       admin = admin_user_fixture()
       request_path = "/pripyat/invite-codes/module-access"
 
@@ -117,11 +117,11 @@ defmodule ElektrineWeb.Admin.InviteCodesControllerTest do
       conn =
         post(conn, request_path, %{
           "_admin_action_grant" => action_grant,
-          "module_access" => %{"maid" => "2"}
+          "module_access" => %{"paige" => "2"}
         })
 
       assert redirected_to(conn) == "/pripyat/invite-codes"
-      assert Elektrine.System.module_min_trust_level(:maid) == 2
+      assert Elektrine.System.module_min_trust_level(:paige) == 2
     end
   end
 

@@ -149,6 +149,7 @@ defmodule Elektrine.Accounts.User do
     field :pgp_wkd_hash, :string
 
     has_one :profile, Elektrine.Profiles.UserProfile
+    has_many :sessions, Elektrine.Accounts.UserSession
     has_many :badges, Elektrine.Profiles.UserBadge, foreign_key: :user_id
     has_one :activity_stats, Elektrine.Accounts.UserActivityStats
     has_many :trust_level_logs, Elektrine.Accounts.TrustLevelLog
@@ -414,6 +415,24 @@ defmodule Elektrine.Accounts.User do
     |> Elektrine.Theme.validate_overrides(:theme_overrides)
     |> validate_preferred_email_domain(user)
     |> validate_bluesky_settings()
+  end
+
+  @doc """
+  A changeset for notification-only settings updates.
+  """
+  def notification_settings_changeset(user, attrs) do
+    cast(user, attrs, [
+      :notify_on_new_follower,
+      :notify_on_direct_message,
+      :notify_on_mention,
+      :notify_on_reply,
+      :notify_on_like,
+      :notify_on_email_received,
+      :notify_on_discussion_reply,
+      :notify_on_comment,
+      :block_notifications_from_strangers,
+      :hide_notification_contents
+    ])
   end
 
   @doc """

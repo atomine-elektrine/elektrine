@@ -103,6 +103,7 @@ defmodule ElektrineWeb.UserSettingsLive do
      |> assign(:pending_deletion, nil)
      |> assign(:email_restriction_status, %{restricted: false})
      |> assign(:master_password_configured, false)
+     |> assign(:user_sessions, [])
      |> assign(:rss_subscriptions, [])
      |> assign(:new_feed_url, "")
      |> assign(:adding_feed, false)
@@ -188,6 +189,7 @@ defmodule ElektrineWeb.UserSettingsLive do
       socket
       |> assign(:email_restriction_status, email_restriction_status)
       |> assign(:master_password_configured, Elektrine.Vault.configured?(user.id))
+      |> assign(:user_sessions, Accounts.list_user_sessions(user.id))
       |> assign(:loading_security, false)
     else
       socket
@@ -490,6 +492,50 @@ defmodule ElektrineWeb.UserSettingsLive do
 
       {:error, _reason} ->
         {:noreply, socket |> notify_error("Failed to send verification email. Please try again.")}
+    end
+  end
+
+  @impl true
+  def handle_event("revoke_user_session", %{"id" => session_id}, socket) do
+    if recent_auth_valid?(socket) do
+      user = socket.assigns.current_user
+      current_session_id = socket.assigns[:current_user_session_id]
+
+      with {id, ""} <- Integer.parse(session_id),
+           true <- id != current_session_id,
+           {:ok, _session} <- Accounts.revoke_user_session(user.id, id, "revoked_by_user") do
+        {:noreply,
+         socket
+         |> assign(:user_sessions, Accounts.list_user_sessions(user.id))
+         |> notify_success("Session revoked.")}
+      else
+        false ->
+          {:noreply, notify_error(socket, "Use Log out to end the current session.")}
+
+        {:error, :not_found} ->
+          {:noreply, notify_error(socket, "Session not found.")}
+
+        _ ->
+          {:noreply, notify_error(socket, "Could not revoke session.")}
+      end
+    else
+      {:noreply, notify_error(socket, recent_auth_required_message())}
+    end
+  end
+
+  @impl true
+  def handle_event("revoke_other_user_sessions", _params, socket) do
+    if recent_auth_valid?(socket) do
+      user = socket.assigns.current_user
+      current_session_id = socket.assigns[:current_user_session_id]
+      _ = Accounts.revoke_other_user_sessions(user.id, current_session_id)
+
+      {:noreply,
+       socket
+       |> assign(:user_sessions, Accounts.list_user_sessions(user.id))
+       |> notify_success("Other sessions signed out.")}
+    else
+      {:noreply, notify_error(socket, recent_auth_required_message())}
     end
   end
 
@@ -1715,6 +1761,34 @@ defmodule ElektrineWeb.UserSettingsLive do
   def format_fingerprint(fingerprint), do: Integrations.format_fingerprint(fingerprint)
 
   def wkd_hash(username), do: Integrations.wkd_hash(username)
+
+  def active_user_sessions(sessions) when is_list(sessions) do
+    Enum.reject(sessions, & &1.revoked_at)
+  end
+
+  def active_user_sessions(_sessions), do: []
+
+  def session_auth_method_label("trusted_device"), do: "Trusted device"
+  def session_auth_method_label("backup_code"), do: "Backup code"
+  def session_auth_method_label("totp"), do: "2FA"
+  def session_auth_method_label("passkey"), do: "Passkey"
+  def session_auth_method_label("password"), do: "Password"
+  def session_auth_method_label(method) when is_binary(method), do: String.capitalize(method)
+  def session_auth_method_label(_method), do: "Password"
+
+  def relative_session_time(%DateTime{} = datetime) do
+    diff = DateTime.diff(DateTime.utc_now(), datetime, :second)
+
+    cond do
+      diff < 60 -> "just now"
+      diff < 3600 -> "#{div(diff, 60)}m ago"
+      diff < 86_400 -> "#{div(diff, 3600)}h ago"
+      diff < 604_800 -> "#{div(diff, 86_400)}d ago"
+      true -> Calendar.strftime(datetime, "%b %d, %Y")
+    end
+  end
+
+  def relative_session_time(_datetime), do: "unknown"
 
   defp tab_enabled?("email"), do: Modules.enabled?(:email)
   defp tab_enabled?(_tab), do: true

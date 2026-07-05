@@ -46,11 +46,27 @@
           </div>
           <div class="surface-subtle rounded-lg p-3">
             <p class="text-xs uppercase tracking-wide text-base-content/60">Unread groups</p>
-            <p class="mt-1 text-2xl font-semibold">{@notification_stats.waiting_groups}</p>
+            <p class="mt-1 text-2xl font-semibold tabular-nums">
+              <%= if @loading_notifications do %>
+                <span class="inline-block min-w-8 text-transparent select-none" aria-hidden="true">
+                  &nbsp;
+                </span>
+              <% else %>
+                {@notification_stats.waiting_groups}
+              <% end %>
+            </p>
           </div>
           <div class="surface-subtle rounded-lg p-3">
             <p class="text-xs uppercase tracking-wide text-base-content/60">Visible</p>
-            <p class="mt-1 text-2xl font-semibold">{length(@filtered_notifications)}</p>
+            <p class="mt-1 text-2xl font-semibold tabular-nums">
+              <%= if @loading_notifications do %>
+                <span class="inline-block min-w-8 text-transparent select-none" aria-hidden="true">
+                  &nbsp;
+                </span>
+              <% else %>
+                {length(@filtered_notifications)}
+              <% end %>
+            </p>
           </div>
         </div>
 
@@ -117,7 +133,16 @@
               >
                 {notification_state_label(filter)}
                 <span class="opacity-70">
-                  ({notification_state_count(filter, @notification_stats)})
+                  <%= if @loading_notifications do %>
+                    <span
+                      class="inline-block min-w-[4ch] text-transparent select-none"
+                      aria-hidden="true"
+                    >
+                      (88)
+                    </span>
+                  <% else %>
+                    ({notification_state_count(filter, @notification_stats)})
+                  <% end %>
                 </span>
               </button>
             <% end %>
@@ -133,7 +158,16 @@
             >
               {notification_source_label(source)}
               <span class="opacity-70">
-                ({Map.get(@notification_stats.source_counts || %{}, source, 0)})
+                <%= if @loading_notifications do %>
+                  <span
+                    class="inline-block min-w-[4ch] text-transparent select-none"
+                    aria-hidden="true"
+                  >
+                    (88)
+                  </span>
+                <% else %>
+                  ({Map.get(@notification_stats.source_counts || %{}, source, 0)})
+                <% end %>
               </span>
             </button>
           <% end %>

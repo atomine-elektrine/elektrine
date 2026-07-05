@@ -48,6 +48,7 @@ import {
   ImageFallback,
 } from "./ui_hooks";
 import { FileExplorer } from "./file_explorer_hook";
+import { PaigeSearch } from "./paige_search_hook";
 import {
   CopyEmail,
   CopyToClipboard,
@@ -99,7 +100,7 @@ import {
 // Password manager hooks
 import { Nerve } from "./nerve_hooks";
 
-// Master password (shared zero-knowledge vault)
+// Account-password encrypted data vault
 import { VaultManager } from "./vault_hooks";
 import { KairoVault } from "./kairo_hooks";
 import { KairoGraph } from "./kairo_graph_hook";
@@ -115,10 +116,11 @@ import { PrivateMailboxMessages } from "./mailbox_private_messages_hook";
 import { PasskeyRegister, PasskeyAuth } from "./passkey_hooks";
 
 // Presence hooks
-import { ActivityTracker, DeviceDetector } from "./presence_hooks";
+import { ActivityTracker } from "./presence_hooks";
 
-// Static site hooks
+// Static site and profile-builder hooks
 import { DragDrop, CodeEditor } from "./static_site_hooks";
+import { ProfileLinkReorder } from "./profile_link_reorder_hook";
 
 // Export all hooks as a single object
 export const Hooks = {
@@ -155,6 +157,7 @@ export const Hooks = {
   FlashAutoDismiss,
   CopyToClipboard,
   FileExplorer,
+  PaigeSearch,
   CopyButton,
   TimelineReply,
   ScrollToTop,
@@ -205,10 +208,10 @@ export const Hooks = {
   // Static Site
   DragDrop,
   CodeEditor,
+  ProfileLinkReorder,
 
   // Presence
   ActivityTracker,
-  DeviceDetector,
 
   // Passkey
   PasskeyRegister,

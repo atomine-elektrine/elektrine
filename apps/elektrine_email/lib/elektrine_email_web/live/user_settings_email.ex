@@ -442,7 +442,7 @@ defmodule ElektrineEmailWeb.UserSettingsEmail do
             </h3>
             <p class="text-xs sm:text-sm text-base-content/70 mt-1">
               {gettext(
-                "Store protected email with a browser-generated mailbox key. By default, the key is wrapped with your account password so the mailbox can unlock after password login."
+                "Store protected email with a browser-generated mailbox key. Use your normal account password to unlock private mail in this browser."
               )}
             </p>
           </div>
@@ -466,9 +466,9 @@ defmodule ElektrineEmailWeb.UserSettingsEmail do
                 <div>
                   <h4 class="font-semibold text-sm">{gettext("Unlock Mailbox")}</h4>
                   <p class="text-xs text-base-content/70 mt-1" data-private-mailbox-locked-content>
-                    <%= if @private_mailbox_unlock_mode == "account_password" do %>
+                    <%= if @private_mailbox_unlock_mode in ["account_password", "master"] do %>
                       {gettext(
-                        "This mailbox uses your account password by default. Password logins can unlock it automatically in this tab, and passkey or remembered sessions can unlock it with your account password."
+                        "This mailbox unlocks with your account password. If your account password was reset, use the encrypted data recovery flow in Account Settings."
                       )}
                     <% else %>
                       {gettext(
@@ -482,13 +482,13 @@ defmodule ElektrineEmailWeb.UserSettingsEmail do
                   <%= if @private_mailbox_unlock_mode == "master" do %>
                     <p class="text-xs text-base-content/70">
                       {gettext(
-                        "This mailbox unlocks with your account master password. Enter it once below to unlock it for this tab."
+                        "Enter your account password once below. The browser unlocks the shared encryption key for this tab only."
                       )}
                     </p>
                     <input
                       type="password"
                       class="input input-bordered w-full"
-                      placeholder={gettext("Master passphrase")}
+                      placeholder={gettext("Account password")}
                       autocomplete="current-password"
                       data-private-mailbox-master-unlock-input
                     />
@@ -499,7 +499,7 @@ defmodule ElektrineEmailWeb.UserSettingsEmail do
                       class="input input-bordered w-full"
                       placeholder={
                         if @private_mailbox_unlock_mode == "account_password",
-                          do: gettext("Enter account password"),
+                          do: gettext("Account password"),
                           else: gettext("Enter mailbox passphrase")
                       }
                       autocomplete="current-password"
@@ -521,6 +521,16 @@ defmodule ElektrineEmailWeb.UserSettingsEmail do
                     {ElektrineEmailWeb.EmailLive.EmailHelpers.private_mailbox_locked_status(
                       @private_mailbox_unlock_mode
                     )}
+                  </p>
+                  <p
+                    :if={@private_mailbox_unlock_mode == "master"}
+                    class="text-xs text-base-content/60"
+                    data-private-mailbox-locked-content
+                  >
+                    {gettext("Changed or reset your password?")}
+                    <.link navigate={~p"/account/encrypted-data"} class="link link-primary">
+                      {gettext("Recover encrypted data")}
+                    </.link>
                   </p>
                 </div>
 
@@ -563,12 +573,26 @@ defmodule ElektrineEmailWeb.UserSettingsEmail do
                     </button>
                   <% end %>
                 </div>
+
+                <div class="rounded-lg border border-warning/30 bg-warning/5 p-3 space-y-2">
+                  <p class="text-xs text-base-content/70">
+                    {gettext(
+                      "If encrypted data was reset and this mailbox still cannot unlock, use the single encrypted-data reset. It clears stale mailbox keys and lets you set up private storage again."
+                    )}
+                  </p>
+                  <.link
+                    navigate={~p"/account/encrypted-data"}
+                    class="btn btn-warning btn-outline btn-sm w-full"
+                  >
+                    {gettext("Open Encrypted Data Reset")}
+                  </.link>
+                </div>
               <% else %>
                 <div>
                   <h4 class="font-semibold text-sm">{gettext("Set Up Private Mailbox")}</h4>
                   <p class="text-xs text-base-content/70 mt-1">
                     {gettext(
-                      "Generate a mailbox keypair in this browser, then choose whether to wrap it with your account password or a separate mailbox passphrase."
+                      "Generate a mailbox keypair in this browser, then unlock it with your normal account password."
                     )}
                   </p>
                 </div>
@@ -587,10 +611,10 @@ defmodule ElektrineEmailWeb.UserSettingsEmail do
                           data-private-mailbox-setup-mode
                         >
                           <option value="master">
-                            {gettext("Use master password (recommended)")}
+                            {gettext("Use account password with recovery code (recommended)")}
                           </option>
-                          <option value="account_password" selected>
-                            {gettext("Use account password")}
+                          <option value="account_password">
+                            {gettext("Use account password directly")}
                           </option>
                           <option value="separate_passphrase">
                             {gettext("Use separate mailbox passphrase")}
@@ -605,7 +629,7 @@ defmodule ElektrineEmailWeb.UserSettingsEmail do
                     >
                       <p class="text-xs text-base-content/70">
                         {gettext(
-                          "Wraps the mailbox key with your account master password, so one unlock covers Nerve, Kairo, and this mailbox. No extra passphrase to remember."
+                          "Recommended. Your account password unlocks the same encrypted data key used by Nerve, Kairo, and this mailbox. The recovery code can restore access after an account-password reset."
                         )}
                       </p>
                       <%= if @master_vault_configured do %>
@@ -614,12 +638,12 @@ defmodule ElektrineEmailWeb.UserSettingsEmail do
                           data-private-mailbox-master-unlock-fields
                         >
                           <p class="text-xs text-base-content/70">
-                            {gettext("Enter your master passphrase once to unlock it for this tab.")}
+                            {gettext("Enter your account password once to unlock it for this tab.")}
                           </p>
                           <input
                             type="password"
                             class="input input-bordered input-sm w-full"
-                            placeholder={gettext("Master passphrase")}
+                            placeholder={gettext("Account password")}
                             autocomplete="current-password"
                             data-private-mailbox-master-unlock-input
                           />
@@ -628,15 +652,15 @@ defmodule ElektrineEmailWeb.UserSettingsEmail do
                             class="btn btn-outline btn-sm"
                             data-private-mailbox-master-unlock
                           >
-                            {gettext("Unlock master password")}
+                            {gettext("Unlock with account password")}
                           </button>
                           <p class="text-xs text-error hidden" data-private-mailbox-master-error></p>
                         </div>
                       <% else %>
                         <p class="text-xs text-warning">
-                          {gettext("Set up your master password first at")}
-                          <a href="/account/master-password" class="link link-primary">
-                            /account/master-password
+                          {gettext("Set up account-password encrypted data first at")}
+                          <a href="/account/encrypted-data" class="link link-primary">
+                            /account/encrypted-data
                           </a>.
                         </p>
                       <% end %>
@@ -653,7 +677,7 @@ defmodule ElektrineEmailWeb.UserSettingsEmail do
                       />
                       <p class="text-xs text-base-content/60">
                         {gettext(
-                          "Recommended. This makes password login the default unlock path. Passkey and remembered sessions can still unlock manually with your account password."
+                          "Direct mode also uses your account password, but it does not share the Nerve/Kairo encrypted data key or recovery flow."
                         )}
                       </p>
                     </div>
@@ -721,7 +745,7 @@ defmodule ElektrineEmailWeb.UserSettingsEmail do
                 </li>
                 <li>
                   {gettext(
-                    "The browser unlocks content locally after password login or after you enter the mailbox unlock secret in this tab."
+                    "The browser unlocks content locally after you enter your account password or mailbox passphrase in this tab."
                   )}
                 </li>
                 <li>
@@ -1013,9 +1037,9 @@ defmodule ElektrineEmailWeb.UserSettingsEmail do
     |> assign_master_vault_state()
   end
 
-  # The wrapped Master Data Key lets the mailbox card unlock the shared vault
-  # inline (unwrap with the master passphrase in the browser), so the user does
-  # not have to bounce to /account/master-password and navigate back.
+  # The wrapped Master Data Key lets the mailbox card unlock encrypted data
+  # inline, so the user does
+  # not have to bounce to /account/encrypted-data and navigate back.
   defp assign_master_vault_state(socket) do
     user = socket.assigns[:current_user] || socket.assigns[:user]
     master = user && Elektrine.Vault.get(user.id)

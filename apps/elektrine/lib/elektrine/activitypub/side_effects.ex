@@ -188,6 +188,36 @@ defmodule Elektrine.ActivityPub.SideEffects do
   def increment_reply_count(nil), do: :ok
 
   @doc """
+  Decrements the reply count on a parent message, flooring at zero, and mirrors
+  the result into MessageStats. Called when a reply is deleted so counts don't
+  drift upward forever.
+  """
+  def decrement_reply_count(parent_message_id) when not is_nil(parent_message_id) do
+    import Ecto.Query
+
+    Elektrine.Repo.update_all(
+      from(m in Elektrine.Social.Message,
+        where: m.id == ^parent_message_id and m.reply_count > 0
+      ),
+      inc: [reply_count: -1]
+    )
+
+    reply_count =
+      from(m in Elektrine.Social.Message,
+        where: m.id == ^parent_message_id,
+        select: coalesce(m.reply_count, 0)
+      )
+      |> Elektrine.Repo.one()
+      |> Kernel.||(0)
+
+    Elektrine.Social.MessageStats.upsert_counts(parent_message_id, %{reply_count: reply_count})
+
+    :ok
+  end
+
+  def decrement_reply_count(nil), do: :ok
+
+  @doc """
   Updates engagement counts on a cached remote post.
   Called when we receive new interactions for posts we've cached.
   """

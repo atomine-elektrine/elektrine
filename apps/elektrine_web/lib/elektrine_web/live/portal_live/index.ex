@@ -78,8 +78,6 @@ defmodule ElektrineWeb.PortalLive.Index do
         |> assign(:remote_reply_errors, %{})
         |> assign(:filter, @default_filter)
         |> assign(:attention_filter, @default_attention_filter)
-        |> assign(:online_users, [])
-        |> assign(:user_statuses, %{})
         |> assign(:platform_stats, cached_platform_stats || default_platform_stats())
         |> assign(:personal_stats, cached_personal_stats || default_personal_stats())
         |> assign(:timezone, timezone)
@@ -89,6 +87,7 @@ defmodule ElektrineWeb.PortalLive.Index do
         |> assign(:loading_dashboard, is_nil(cached_dashboard))
         |> assign(:portal_credits, atomine_credit_balance(user.id))
         |> assign(:dashboard, cached_dashboard || DashboardData.default())
+        |> assign(:portal_view, "feed")
         |> assign(:reader_params, %{})
         |> assign(:dashboard_last_refreshed_at, nil)
         |> assign(:data_loaded, false)
@@ -139,6 +138,7 @@ defmodule ElektrineWeb.PortalLive.Index do
       socket
       |> assign(:filter, filter)
       |> assign(:attention_filter, attention_filter)
+      |> assign(:portal_view, normalize_portal_view(params["view"]))
       |> assign(:reader_params, reader_params)
 
     socket =
@@ -1918,6 +1918,9 @@ defmodule ElektrineWeb.PortalLive.Index do
   defp normalize_filter(_) do
     @default_filter
   end
+
+  defp normalize_portal_view("reader"), do: "reader"
+  defp normalize_portal_view(_), do: "feed"
 
   defp maybe_switch_portal_filter(socket, previous_filter, filter) do
     cond do

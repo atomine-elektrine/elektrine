@@ -11,16 +11,24 @@ defmodule Kairo do
   alias Kairo.{Project, Source}
 
   @default_source_limit 50
-  @max_source_limit 200
+  @max_source_limit 1000
 
-  def list_projects(%User{id: user_id}), do: list_projects(user_id)
+  def list_projects(user_or_id, opts \\ [])
 
-  def list_projects(user_id) do
+  def list_projects(%User{id: user_id}, opts), do: list_projects(user_id, opts)
+
+  def list_projects(user_id, opts) do
     Project
     |> where([project], project.user_id == ^user_id)
+    |> maybe_filter_project_status(Keyword.get(opts, :status))
     |> order_by([project], asc: project.name)
     |> Repo.all()
   end
+
+  defp maybe_filter_project_status(query, nil), do: query
+
+  defp maybe_filter_project_status(query, status),
+    do: where(query, [project], project.status == ^status)
 
   def get_project(%User{id: user_id}, id), do: get_project(user_id, id)
 
@@ -55,6 +63,36 @@ defmodule Kairo do
     |> tap_storage_update(user_id)
   end
 
+  def update_project(%User{id: user_id}, id, attrs), do: update_project(user_id, id, attrs)
+
+  def update_project(user_id, id, attrs) do
+    case get_project(user_id, id) do
+      %Project{} = project ->
+        project
+        |> Project.changeset(strip_owner_attrs(normalize_attrs(attrs)))
+        |> Repo.update()
+
+      nil ->
+        {:error, :not_found}
+    end
+  end
+
+  # Deleting a project releases its sources back to the inbox (the FK nilifies
+  # project_id); only the grouping is destroyed.
+  def delete_project(%User{id: user_id}, id), do: delete_project(user_id, id)
+
+  def delete_project(user_id, id) do
+    case get_project(user_id, id) do
+      %Project{} = project ->
+        project
+        |> Repo.delete()
+        |> tap_storage_update(user_id)
+
+      nil ->
+        {:error, :not_found}
+    end
+  end
+
   def list_sources(user_or_id, opts \\ [])
 
   def list_sources(%User{id: user_id}, opts), do: list_sources(user_id, opts)
@@ -70,11 +108,25 @@ defmodule Kairo do
     |> maybe_filter_project(Keyword.get(opts, :project_id))
     |> maybe_filter_status(Keyword.get(opts, :status))
     |> maybe_filter_source_type(Keyword.get(opts, :source_type))
-    |> order_by([source], desc: source.inserted_at)
+    |> order_by([source], desc: source.inserted_at, desc: source.id)
     |> limit(^limit)
+    |> offset(^clamp_offset(Keyword.get(opts, :offset)))
     |> preload(:project)
     |> Repo.all()
     |> Enum.map(&decrypt_at_rest_content/1)
+  end
+
+  def count_sources(user_or_id, opts \\ [])
+
+  def count_sources(%User{id: user_id}, opts), do: count_sources(user_id, opts)
+
+  def count_sources(user_id, opts) do
+    Source
+    |> where([source], source.user_id == ^user_id)
+    |> maybe_filter_project(Keyword.get(opts, :project_id))
+    |> maybe_filter_status(Keyword.get(opts, :status))
+    |> maybe_filter_source_type(Keyword.get(opts, :source_type))
+    |> Repo.aggregate(:count)
   end
 
   def get_source(%User{id: user_id}, id), do: get_source(user_id, id)
@@ -120,13 +172,58 @@ defmodule Kairo do
         attrs
         |> Map.put("user_id", user_id)
         |> Map.put_new("status", "received")
-        |> maybe_put_raw_hash()
 
       case %Source{} |> Source.changeset(attrs) |> Repo.insert() |> tap_storage_update(user_id) do
-        {:ok, source} -> {:ok, decrypt_at_rest_content(source)}
-        other -> other
+        {:ok, source} ->
+          maybe_enqueue_url_fetch(source)
+          {:ok, decrypt_at_rest_content(source)}
+
+        {:error, %Ecto.Changeset{} = changeset} ->
+          # Idempotent ingest: re-submitting identical content returns the
+          # already-stored source instead of an error.
+          case existing_duplicate(user_id, changeset) do
+            %Source{} = source -> {:ok, source}
+            nil -> {:error, changeset}
+          end
+
+        other ->
+          other
       end
     end
+  end
+
+  defp existing_duplicate(user_id, changeset) do
+    raw_hash = Ecto.Changeset.get_field(changeset, :raw_hash)
+
+    with true <- duplicate_error?(changeset),
+         true <- is_binary(raw_hash) do
+      Source
+      |> where([source], source.user_id == ^user_id and source.raw_hash == ^raw_hash)
+      |> preload(:project)
+      |> Repo.one()
+      |> decrypt_at_rest_content()
+    else
+      _ -> nil
+    end
+  end
+
+  defp duplicate_error?(changeset) do
+    Enum.any?(changeset.errors, fn
+      {:raw_hash, {_message, meta}} -> meta[:constraint] == :unique
+      _other -> false
+    end)
+  end
+
+  # URL sources ingested without a body are hydrated by a background fetch.
+  defp maybe_enqueue_url_fetch(%Source{} = source) do
+    if source.source_type == "url" and not source.encrypted and
+         is_nil(source.content_encrypted) and is_binary(source.url) and
+         source.status == "received" and
+         Application.get_env(:elektrine, :kairo_fetch_url_sources, true) do
+      _ = Kairo.UrlFetchWorker.enqueue(source)
+    end
+
+    :ok
   end
 
   def update_source(%User{id: user_id}, id, attrs), do: update_source(user_id, id, attrs)
@@ -134,13 +231,9 @@ defmodule Kairo do
   def update_source(user_id, id, attrs) do
     case get_source(user_id, id) do
       %Source{} = source ->
-        attrs = normalize_attrs(attrs)
+        attrs = strip_owner_attrs(normalize_attrs(attrs))
 
         with {:ok, attrs} <- resolve_project_id(user_id, attrs) do
-          attrs =
-            attrs
-            |> maybe_put_updated_raw_hash(source)
-
           case source
                |> Source.changeset(attrs)
                |> Repo.update()
@@ -237,40 +330,19 @@ defmodule Kairo do
 
   defp parse_id(_id), do: :error
 
-  # Plaintext sources get a server-computed content hash for dedup. Encrypted
-  # sources keep whatever blind HMAC the client supplied (or none) - the server
-  # never sees the plaintext, so it cannot and must not hash it.
-  defp maybe_put_raw_hash(attrs) do
-    if encrypted?(attrs["encrypted"]) do
-      attrs
-    else
-      Map.put_new(attrs, "raw_hash", raw_hash(attrs))
+  # Attrs that clients must never set on an existing record - ownership is
+  # fixed at create time.
+  defp strip_owner_attrs(attrs), do: Map.drop(attrs, ["user_id", "id"])
+
+  defp clamp_offset(offset) when is_binary(offset) do
+    case Integer.parse(offset) do
+      {offset, ""} -> clamp_offset(offset)
+      _other -> 0
     end
   end
 
-  defp maybe_put_updated_raw_hash(attrs, %Source{encrypted: true}), do: attrs
-
-  defp maybe_put_updated_raw_hash(attrs, %Source{} = source) do
-    merged =
-      source
-      |> Map.take([:source_type, :title, :url, :content, :content_format, :metadata, :tags])
-      |> Map.new(fn {key, value} -> {to_string(key), value} end)
-      |> Map.merge(attrs)
-
-    Map.put(attrs, "raw_hash", raw_hash(merged))
-  end
-
-  defp encrypted?(true), do: true
-  defp encrypted?("true"), do: true
-  defp encrypted?(_), do: false
-
-  defp raw_hash(attrs) do
-    attrs
-    |> Map.take(["source_type", "title", "url", "content", "content_format", "metadata", "tags"])
-    |> :erlang.term_to_binary()
-    |> then(&:crypto.hash(:sha256, &1))
-    |> Base.encode16(case: :lower)
-  end
+  defp clamp_offset(offset) when is_integer(offset) and offset > 0, do: offset
+  defp clamp_offset(_offset), do: 0
 
   defp clamp_limit(limit) when is_binary(limit) do
     case Integer.parse(limit) do

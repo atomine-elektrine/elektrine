@@ -34,36 +34,17 @@ defmodule ElektrineVPNWeb do
         {:noreply, assign(socket, :timezone, timezone)}
       end
 
-      def handle_event("user_activity", params, socket) do
-        ElektrineWeb.Live.Hooks.PresenceEvents.handle_presence_event(
-          "user_activity",
-          params,
-          socket
-        )
-      end
-
-      def handle_event("auto_away_timeout", params, socket) do
-        ElektrineWeb.Live.Hooks.PresenceEvents.handle_presence_event(
-          "auto_away_timeout",
-          params,
-          socket
-        )
-      end
-
-      def handle_event("device_detected", params, socket) do
-        ElektrineWeb.Live.Hooks.PresenceEvents.handle_presence_event(
-          "device_detected",
-          params,
-          socket
-        )
-      end
-
-      def handle_event("connection_changed", params, socket) do
-        ElektrineWeb.Live.Hooks.PresenceEvents.handle_presence_event(
-          "connection_changed",
-          params,
-          socket
-        )
+      # Presence events are handled by ElektrineWeb's PresenceHook where it is
+      # mounted; these no-op fallbacks keep stray client events from crashing
+      # LiveViews that don't track presence.
+      def handle_event(event, _params, socket)
+          when event in [
+                 "user_activity",
+                 "auto_away_timeout",
+                 "device_detected",
+                 "connection_changed"
+               ] do
+        {:noreply, socket}
       end
     end
   end

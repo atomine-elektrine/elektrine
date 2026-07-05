@@ -22,6 +22,24 @@ defmodule ElektrineWeb.API.KairoController do
     end
   end
 
+  def update_project(conn, %{"id" => id} = params) do
+    attrs = Map.get(params, "project", Map.delete(params, "id"))
+
+    case Kairo.update_project(conn.assigns.current_user, id, attrs) do
+      {:ok, project} -> Response.ok(conn, %{project: project_json(project)})
+      {:error, :not_found} -> {:error, :not_found}
+      {:error, changeset} -> {:error, changeset}
+    end
+  end
+
+  def delete_project(conn, %{"id" => id}) do
+    case Kairo.delete_project(conn.assigns.current_user, id) do
+      {:ok, project} -> Response.ok(conn, %{project: project_json(project), deleted: true})
+      {:error, :not_found} -> {:error, :not_found}
+      {:error, changeset} -> {:error, changeset}
+    end
+  end
+
   def sources(conn, params) do
     sources =
       conn.assigns.current_user
@@ -55,9 +73,39 @@ defmodule ElektrineWeb.API.KairoController do
     end
   end
 
+  def update_source(conn, %{"id" => id} = params) do
+    attrs = Map.get(params, "source", Map.delete(params, "id"))
+
+    case Kairo.update_source(conn.assigns.current_user, id, attrs) do
+      {:ok, source} ->
+        Response.ok(conn, %{source: source_json(source, true)})
+
+      {:error, :not_found} ->
+        {:error, :not_found}
+
+      {:error, :project_not_found} ->
+        Response.error(conn, :not_found, "project_not_found", "Kairo project not found")
+
+      {:error, :invalid_project_id} ->
+        Response.error(conn, :bad_request, "invalid_project_id", "Project id is invalid")
+
+      {:error, changeset} ->
+        {:error, changeset}
+    end
+  end
+
+  def delete_source(conn, %{"id" => id}) do
+    case Kairo.delete_source(conn.assigns.current_user, id) do
+      {:ok, source} -> Response.ok(conn, %{source: source_json(source, false), deleted: true})
+      {:error, :not_found} -> {:error, :not_found}
+      {:error, changeset} -> {:error, changeset}
+    end
+  end
+
   defp source_filters(params) do
     []
     |> maybe_put_filter(:limit, Map.get(params, "limit"))
+    |> maybe_put_filter(:offset, Map.get(params, "offset"))
     |> maybe_put_filter(:status, Map.get(params, "status"))
     |> maybe_put_filter(:source_type, Map.get(params, "source_type"))
     |> maybe_put_filter(:project_id, parse_optional_id(Map.get(params, "project_id")))

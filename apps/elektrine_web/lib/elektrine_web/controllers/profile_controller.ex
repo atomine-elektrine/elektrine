@@ -381,6 +381,7 @@ defmodule ElektrineWeb.ProfileController do
       end
 
     profile_context = build_profile_context(profile.user, current_user)
+    Profiles.increment_link_impressions(Enum.map(profile.links || [], & &1.id))
 
     conn
     |> assign(:user, profile.user)

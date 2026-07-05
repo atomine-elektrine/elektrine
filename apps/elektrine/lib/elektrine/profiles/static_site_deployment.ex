@@ -18,9 +18,14 @@ defmodule Elektrine.Profiles.StaticSiteDeployment do
     field :webhook_id, :string
     field :deploy_status, :string, default: "idle"
     field :last_deploy_error, :string
+    field :last_deploy_log, :string
+    field :last_commit_sha, :string
+    field :last_commit_url, :string
+    field :last_commit_message, :string
     field :last_deployed_at, :utc_datetime
 
     belongs_to :user, Elektrine.Accounts.User
+    has_many :deploys, Elektrine.Profiles.StaticSiteDeploy, foreign_key: :deployment_id
 
     timestamps()
   end
@@ -39,6 +44,10 @@ defmodule Elektrine.Profiles.StaticSiteDeployment do
       :webhook_id,
       :deploy_status,
       :last_deploy_error,
+      :last_deploy_log,
+      :last_commit_sha,
+      :last_commit_url,
+      :last_commit_message,
       :last_deployed_at
     ])
     |> update_change(:provider, &normalize/1)
@@ -64,6 +73,7 @@ defmodule Elektrine.Profiles.StaticSiteDeployment do
     |> validate_format(:branch, ~r/^[A-Za-z0-9._\/-]+$/)
     |> validate_change(:branch, &validate_branch_path/2)
     |> validate_length(:build_command, max: 2_000)
+    |> validate_length(:last_commit_sha, max: 80)
     |> foreign_key_constraint(:user_id)
     |> unique_constraint([:provider, :repo_owner, :repo_name])
   end

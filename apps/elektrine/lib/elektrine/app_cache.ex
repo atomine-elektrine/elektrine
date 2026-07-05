@@ -10,6 +10,7 @@ defmodule Elektrine.AppCache do
   @user_ttl :timer.minutes(30)
   @system_ttl :timer.hours(1)
   @search_ttl :timer.minutes(5)
+  @web_search_ttl :timer.minutes(10)
   @admin_ttl :timer.minutes(10)
   @contact_ttl :timer.minutes(15)
   # Increased from 15 min to reduce HTTP/DB load
@@ -163,6 +164,27 @@ defmodule Elektrine.AppCache do
 
     key = {:search, user_id, query_hash, page, per_page}
     fetch_ok(key, @search_ttl, fetch_fn)
+  end
+
+  @doc """
+  Caches external web-search results (shared across users; queries hit paid
+  provider APIs).
+
+  The fetch function must return `{:commit, value}` to cache the value or
+  `{:ignore, value}` to return it without caching — e.g. degraded results
+  that shouldn't stick for the whole TTL.
+  """
+  def get_web_search_results(key, fetch_fn) do
+    case fetch_with_telemetry({:web_search, key}, fn _key ->
+           case fetch_fn.() do
+             {:commit, value} -> {:commit, value, expire: @web_search_ttl}
+             {:ignore, value} -> {:ignore, value}
+           end
+         end) do
+      {:ok, value} -> value
+      {:commit, value} -> value
+      {:ignore, value} -> value
+    end
   end
 
   @doc """

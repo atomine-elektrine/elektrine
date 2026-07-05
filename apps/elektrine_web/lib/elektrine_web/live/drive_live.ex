@@ -49,7 +49,6 @@ defmodule ElektrineWeb.DriveLive do
      |> assign(:new_folder_name, "")
      |> assign(:tree_expanded_paths, MapSet.new())
      |> assign(:folder_tree, [])
-     |> assign(:context_menu, nil)
      |> assign(:active_file, nil)
      |> assign(:active_folder, nil)
      |> assign(:storage_info, Storage.get_storage_info(user.id))
@@ -148,16 +147,14 @@ defmodule ElektrineWeb.DriveLive do
     {:noreply,
      socket
      |> assign(:show_new_folder_form, not socket.assigns.show_new_folder_form)
-     |> assign(:new_folder_name, "")
-     |> assign(:context_menu, nil)}
+     |> assign(:new_folder_name, "")}
   end
 
   def handle_event("cancel_new_folder", _params, socket) do
     {:noreply,
      socket
      |> assign(:show_new_folder_form, false)
-     |> assign(:new_folder_name, "")
-     |> assign(:context_menu, nil)}
+     |> assign(:new_folder_name, "")}
   end
 
   def handle_event("delete_file", %{"id" => id}, socket) do
@@ -196,17 +193,11 @@ defmodule ElektrineWeb.DriveLive do
   end
 
   def handle_event("start_rename", %{"type" => type, "id" => id}, socket) do
-    {:noreply,
-     socket
-     |> assign(:rename_target, %{type: type, id: id})
-     |> assign(:context_menu, nil)}
+    {:noreply, assign(socket, :rename_target, %{type: type, id: id})}
   end
 
   def handle_event("start_rename", %{"type" => type, "path" => path}, socket) do
-    {:noreply,
-     socket
-     |> assign(:rename_target, %{type: type, path: path})
-     |> assign(:context_menu, nil)}
+    {:noreply, assign(socket, :rename_target, %{type: type, path: path})}
   end
 
   def handle_event("cancel_rename", _params, socket) do
@@ -219,13 +210,12 @@ defmodule ElektrineWeb.DriveLive do
     with {:ok, file_id} <- parse_id(id),
          %Drive.StoredFile{} = file <- Enum.find(Drive.list_files(user.id), &(&1.id == file_id)) do
       if socket.assigns.active_file && socket.assigns.active_file.id == file.id do
-        {:noreply, assign(socket, :context_menu, nil)}
+        {:noreply, socket}
       else
         {:noreply,
          socket
          |> assign(:active_file, file)
-         |> assign(:active_folder, nil)
-         |> assign(:context_menu, nil)}
+         |> assign(:active_folder, nil)}
       end
     else
       _ -> {:noreply, put_flash(socket, :error, "File not found")}
@@ -247,8 +237,7 @@ defmodule ElektrineWeb.DriveLive do
       {:noreply,
        socket
        |> assign(:active_folder, folder)
-       |> assign(:active_file, nil)
-       |> assign(:context_menu, nil)}
+       |> assign(:active_file, nil)}
     else
       {:noreply, put_flash(socket, :error, "Folder not found")}
     end
@@ -350,94 +339,6 @@ defmodule ElektrineWeb.DriveLive do
        :folder_tree,
        build_folder_tree(all_folders, socket.assigns.current_folder, next_expanded_paths)
      )}
-  end
-
-  def handle_event("show_context_menu", params, socket) do
-    x = parse_position(Map.get(params, "x"))
-    y = parse_position(Map.get(params, "y"))
-
-    context_menu = %{
-      x: x,
-      y: y,
-      kind: Map.get(params, "kind"),
-      token: Map.get(params, "token"),
-      id: Map.get(params, "id"),
-      path: Map.get(params, "path")
-    }
-
-    {:noreply, assign(socket, :context_menu, context_menu)}
-  end
-
-  def handle_event("hide_context_menu", _params, socket) do
-    {:noreply, assign(socket, :context_menu, nil)}
-  end
-
-  def handle_event("context_action", %{"action" => action} = params, socket) do
-    socket = assign(socket, :context_menu, nil)
-
-    case {action, Map.get(params, "kind")} do
-      {"open", "folder"} ->
-        handle_event("open_folder", %{"path" => Map.get(params, "path", "")}, socket)
-
-      {"open", "file"} ->
-        handle_event("open_file", %{"id" => Map.get(params, "id", "")}, socket)
-
-      {"manage", "folder"} ->
-        handle_event("open_manage_folder", %{"path" => Map.get(params, "path", "")}, socket)
-
-      {"manage", "file"} ->
-        handle_event("open_manage_file", %{"id" => Map.get(params, "id", "")}, socket)
-
-      {"rename", "folder"} ->
-        handle_event(
-          "start_rename",
-          %{"type" => "folder", "path" => Map.get(params, "path", "")},
-          socket
-        )
-
-      {"rename", "file"} ->
-        handle_event(
-          "start_rename",
-          %{"type" => "file", "id" => Map.get(params, "id", "")},
-          socket
-        )
-
-      {"move", "folder"} ->
-        handle_event(
-          "start_move",
-          %{"type" => "folder", "path" => Map.get(params, "path", "")},
-          socket
-        )
-
-      {"move", "file"} ->
-        handle_event(
-          "start_move",
-          %{"type" => "file", "id" => Map.get(params, "id", "")},
-          socket
-        )
-
-      {"delete", "folder"} ->
-        handle_event("delete_folder", %{"path" => Map.get(params, "path", "")}, socket)
-
-      {"delete", "file"} ->
-        handle_event("delete_file", %{"id" => Map.get(params, "id", "")}, socket)
-
-      {"new_folder", "blank"} ->
-        handle_event("toggle_new_folder", %{}, socket)
-
-      {"clear_selection", "blank"} ->
-        handle_event("clear_selection", %{}, socket)
-
-      {"refresh", "blank"} ->
-        handle_event(
-          "open_folder",
-          %{"path" => Map.get(params, "path", socket.assigns.current_folder)},
-          socket
-        )
-
-      _ ->
-        {:noreply, socket}
-    end
   end
 
   def handle_event("move_file", %{"move" => %{"id" => id, "folder" => folder}}, socket) do
@@ -693,7 +594,6 @@ defmodule ElektrineWeb.DriveLive do
         socket.assigns.tree_expanded_paths || MapSet.new()
       )
     )
-    |> assign(:context_menu, nil)
     |> assign(:storage_info, Storage.get_storage_info(user_id))
   end
 
@@ -745,6 +645,11 @@ defmodule ElektrineWeb.DriveLive do
   defp file_token(id), do: "file:#{id}"
   defp folder_token(path), do: "folder:#{path}"
   defp selected?(selected_items, token), do: MapSet.member?(selected_items, token)
+
+  defp all_visible_selected?(selected_items, folders, files) do
+    visible = length(folders) + length(files)
+    visible > 0 and MapSet.size(selected_items) >= visible
+  end
 
   defp build_folder_tree(folders, current_folder, tree_expanded_paths) do
     paths = folders |> Enum.map(& &1.path) |> Enum.sort()
@@ -809,13 +714,6 @@ defmodule ElektrineWeb.DriveLive do
     |> Enum.all?(&MapSet.member?(expanded_paths, &1))
   end
 
-  defp parse_position(value) do
-    case Integer.parse(to_string(value || "0")) do
-      {int, ""} -> int
-      _ -> 0
-    end
-  end
-
   defp quick_filter_class(active_filter, value) do
     if active_filter == value do
       "bg-primary text-primary-content shadow-sm"
@@ -832,13 +730,6 @@ defmodule ElektrineWeb.DriveLive do
     case sort_by do
       "name_asc" -> "name_desc"
       _ -> "name_asc"
-    end
-  end
-
-  defp next_table_sort(sort_by, :location) do
-    case sort_by do
-      "path_asc" -> "path_desc"
-      _ -> "path_asc"
     end
   end
 
@@ -860,14 +751,6 @@ defmodule ElektrineWeb.DriveLive do
     case sort_by do
       "name_asc" -> "hero-chevron-up"
       "name_desc" -> "hero-chevron-down"
-      _ -> nil
-    end
-  end
-
-  defp table_sort_icon(sort_by, :location) do
-    case sort_by do
-      "path_asc" -> "hero-chevron-up"
-      "path_desc" -> "hero-chevron-down"
       _ -> nil
     end
   end
@@ -896,21 +779,18 @@ defmodule ElektrineWeb.DriveLive do
     end
   end
 
-  defp current_folder_name(""), do: "My Drive"
-
-  defp current_folder_name(folder) when is_binary(folder),
-    do: folder |> String.split("/", trim: true) |> List.last()
-
   defp file_display_name(file), do: file.original_filename || Path.basename(file.path)
 
   defp file_parent_label(file, current_folder), do: parent_folder_label(file.path, current_folder)
 
+  # Where the item lives, shown only when it is outside the folder being viewed
+  # (search and quick filters return items from subfolders).
   defp parent_folder_label(path, current_folder) do
     parent = path |> String.split("/", trim: true) |> Enum.drop(-1) |> Enum.join("/")
 
     cond do
-      parent == "" -> "Root"
-      parent == current_folder -> "Current folder"
+      parent == current_folder -> nil
+      parent == "" -> "My Drive"
       true -> parent
     end
   end
@@ -940,28 +820,6 @@ defmodule ElektrineWeb.DriveLive do
   end
 
   defp file_icon_name(_), do: "hero-document"
-
-  defp kind_badge_class(content_type) do
-    cond do
-      is_binary(content_type) and String.starts_with?(content_type, "image/") ->
-        "bg-info/15 text-info"
-
-      is_binary(content_type) and String.starts_with?(content_type, "video/") ->
-        "bg-secondary/15 text-secondary"
-
-      is_binary(content_type) and String.starts_with?(content_type, "audio/") ->
-        "bg-accent/15 text-accent"
-
-      content_type == "application/pdf" ->
-        "bg-error/15 text-error"
-
-      is_binary(content_type) and String.starts_with?(content_type, "text/") ->
-        "bg-success/15 text-success"
-
-      true ->
-        "bg-base-200 text-base-content/70"
-    end
-  end
 
   defp storage_usage_percent(%{used_bytes: used, available_bytes: available})
        when is_integer(used) and is_integer(available) do

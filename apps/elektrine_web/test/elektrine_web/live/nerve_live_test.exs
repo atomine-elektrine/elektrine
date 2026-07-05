@@ -5,6 +5,7 @@ defmodule ElektrineWeb.NerveLiveTest do
 
   alias Elektrine.AccountsFixtures
   alias Elektrine.Nerve
+  alias Elektrine.Vault
 
   defp log_in_user(conn, user) do
     token =
@@ -18,6 +19,13 @@ defmodule ElektrineWeb.NerveLiveTest do
     conn
     |> Phoenix.ConnTest.init_test_session(%{})
     |> Plug.Conn.put_session(:user_token, token)
+  end
+
+  defp setup_master_vault(user) do
+    Vault.setup(user.id, %{
+      "wrapped_dek" => encrypted_payload("dek"),
+      "wrapped_dek_recovery" => encrypted_payload("recovery")
+    })
   end
 
   test "redirects unauthenticated users to login", %{conn: conn} do
@@ -34,6 +42,8 @@ defmodule ElektrineWeb.NerveLiveTest do
              Nerve.setup_nerve(user.id, %{
                "encrypted_verifier" => encrypted_payload("verifier")
              })
+
+    assert {:ok, _master_key} = setup_master_vault(user)
 
     {:ok, view, _html} =
       conn
@@ -65,9 +75,8 @@ defmodule ElektrineWeb.NerveLiveTest do
     html = render(view)
     assert html =~ "Unlock Nerve"
     assert html =~ "Browser Extension"
-    assert html =~ "Connected Devices"
-    assert html =~ "Site Connections"
-    assert html =~ "This Browser"
+    assert html =~ "Kairo Capture"
+    assert html =~ "Your data"
 
     render_submit(view, "create", %{
       "entry" => %{
@@ -100,6 +109,8 @@ defmodule ElektrineWeb.NerveLiveTest do
                "encrypted_verifier" => encrypted_payload("verifier")
              })
 
+    assert {:ok, _master_key} = setup_master_vault(user)
+
     {:ok, entry} =
       Nerve.create_entry(user.id, %{
         "title" => "Disposable",
@@ -121,13 +132,15 @@ defmodule ElektrineWeb.NerveLiveTest do
     refute render(view) =~ "Encrypted entry"
   end
 
-  test "can delete a nerve and start over", %{conn: conn} do
+  test "does not present Nerve deletion as encrypted-data recovery", %{conn: conn} do
     user = AccountsFixtures.user_fixture()
 
     assert {:ok, _settings} =
              Nerve.setup_nerve(user.id, %{
                "encrypted_verifier" => encrypted_payload("verifier")
              })
+
+    assert {:ok, _master_key} = setup_master_vault(user)
 
     {:ok, _entry} =
       Nerve.create_entry(user.id, %{
@@ -141,15 +154,10 @@ defmodule ElektrineWeb.NerveLiveTest do
       |> log_in_user(user)
       |> live(~p"/account/nerve")
 
-    assert render(view) =~ "Delete Nerve"
-
-    view
-    |> element("#delete-nerve-button")
-    |> render_click()
-
-    refute Nerve.nerve_configured?(user.id)
-    assert Nerve.list_entries(user.id, include_secrets: true) == []
-    assert render(view) =~ "Set Nerve Passphrase"
+    html = render(view)
+    refute html =~ "Delete Nerve"
+    refute html =~ "Lost access to encrypted data?"
+    refute has_element?(view, "#delete-nerve-button")
   end
 
   defp encrypted_payload(value) do

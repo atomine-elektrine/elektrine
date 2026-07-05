@@ -360,9 +360,9 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.FilterSettings do
           <label class="flex items-start justify-between gap-3 rounded-lg bg-base-200/55 p-3">
             <input type="hidden" name="mailbox[auto_reply_enabled]" value="false" />
             <span>
-              <span class="block font-medium">Auto-Reply</span>
+              <span class="block font-medium">Allow Auto-Replies</span>
               <span class="text-sm text-base-content/60">
-                Allow this mailbox to send automatic replies when your auto-reply is active.
+                Mailbox-level switch. Configure and turn on the reply itself in the Auto-Reply tab.
               </span>
             </span>
             <input
@@ -441,7 +441,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.FilterSettings do
 
       <div class="space-y-3">
         <%= for filter <- @filters do %>
-          <div class="card p-4">
+          <div class="surface-subtle rounded-lg p-4">
             <div class="flex items-start justify-between gap-4">
               <div class="flex min-w-0 flex-1 items-start gap-4">
                 <input
@@ -510,20 +510,12 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.FilterSettings do
       <.form for={@auto_reply_form} phx-submit="save_auto_reply" class="space-y-6">
         
     <!-- Status Toggle -->
-        <div class="flex items-center justify-between p-4 bg-base-200/50 rounded-lg border border-base-content/10">
-          <div class="flex items-center gap-3">
-            <div class={["p-2 rounded-lg", (@auto_reply.enabled && "bg-success/20") || "bg-base-300"]}>
-              <.icon
-                name={if @auto_reply.enabled, do: "hero-paper-airplane", else: "hero-pause"}
-                class={["h-5 w-5", (@auto_reply.enabled && "text-success") || "text-base-content/50"]}
-              />
-            </div>
-            <div>
-              <p class="font-medium">Auto-Reply Status</p>
-              <p class="text-sm text-base-content/60">
-                {if @auto_reply.enabled, do: "Sending automatic replies", else: "Currently disabled"}
-              </p>
-            </div>
+        <div class="flex items-center justify-between gap-3 p-4 surface-subtle rounded-lg">
+          <div>
+            <p class="font-medium">Auto-Reply Status</p>
+            <p class="text-sm text-base-content/60">
+              {if @auto_reply.enabled, do: "Sending automatic replies", else: "Currently disabled"}
+            </p>
           </div>
           <label class="cursor-pointer">
             <input
@@ -531,12 +523,12 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.FilterSettings do
               name="auto_reply[enabled]"
               value="true"
               checked={@auto_reply.enabled}
-              class="toggle toggle-success toggle-lg"
+              class="toggle toggle-secondary"
             />
           </label>
         </div>
 
-        <div class="divider text-xs text-base-content/50 my-2">SCHEDULE</div>
+        <h3 class="text-sm font-semibold text-base-content/70">Schedule</h3>
         
     <!-- Schedule Section -->
         <div class="bg-base-200/50 rounded-lg p-4 space-y-4">
@@ -572,7 +564,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.FilterSettings do
           </div>
         </div>
 
-        <div class="divider text-xs text-base-content/50 my-2">MESSAGE</div>
+        <h3 class="text-sm font-semibold text-base-content/70">Message</h3>
         
     <!-- Message Section -->
         <div class="space-y-4">
@@ -605,7 +597,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.FilterSettings do
           </div>
         </div>
 
-        <div class="divider text-xs text-base-content/50 my-2">ADVANCED OPTIONS</div>
+        <h3 class="text-sm font-semibold text-base-content/70">Advanced options</h3>
         
     <!-- Options Section -->
         <div class="bg-base-200/50 rounded-lg p-4">
@@ -667,16 +659,11 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.FilterSettings do
     ~H"""
     <!-- Header -->
     <div class="flex items-center justify-between mb-6">
-      <div class="flex items-center gap-3">
-        <div class="p-2 bg-secondary/10 rounded-lg">
-          <.icon name="hero-funnel" class="h-5 w-5 text-secondary" />
-        </div>
-        <div>
-          <h3 class="font-bold text-lg">
-            {if @edit_item, do: "Edit Filter", else: "Create Filter"}
-          </h3>
-          <p class="text-sm text-base-content/60">Automatically organize incoming emails</p>
-        </div>
+      <div>
+        <h3 class="text-lg font-semibold tracking-tight">
+          {if @edit_item, do: "Edit Filter", else: "Create Filter"}
+        </h3>
+        <p class="text-sm text-base-content/60">Automatically organize incoming emails</p>
       </div>
       <button type="button" phx-click="close_modal" class="btn btn-ghost btn-sm btn-circle">
         <.icon name="hero-x-mark" class="h-5 w-5" />
@@ -699,7 +686,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.FilterSettings do
         />
       </div>
 
-      <div class="divider text-xs text-base-content/50 my-2">CONDITIONS (OPTIONAL)</div>
+      <h3 class="text-sm font-semibold text-base-content/70">Conditions (optional)</h3>
       
     <!-- Conditions Section -->
       <div class="bg-base-200/50 rounded-lg p-4 space-y-4">
@@ -788,7 +775,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.FilterSettings do
         </div>
       </div>
 
-      <div class="divider text-xs text-base-content/50 my-2">ACTIONS (OPTIONAL)</div>
+      <h3 class="text-sm font-semibold text-base-content/70">Actions (optional)</h3>
       
     <!-- Actions Section -->
       <div class="bg-base-200/50 rounded-lg p-4">
@@ -866,7 +853,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.FilterSettings do
         </div>
       </div>
 
-      <div class="divider text-xs text-base-content/50 my-2">OPTIONS</div>
+      <h3 class="text-sm font-semibold text-base-content/70">Options</h3>
       
     <!-- Options Section -->
       <div class="flex flex-col sm:flex-row sm:items-center gap-4">

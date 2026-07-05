@@ -118,6 +118,12 @@ defmodule ElektrineWeb.ProfileLive.Show do
             ]
           end
 
+        if connected?(socket) do
+          links
+          |> Enum.map(&Map.get(&1, :id))
+          |> Profiles.increment_link_impressions()
+        end
+
         is_custom =
           profile != nil &&
             (profile.links != nil || profile.description != nil || profile.background_url != nil)

@@ -21,6 +21,7 @@ defmodule Elektrine.Accounts do
   alias Elektrine.Accounts.InviteCodeUse
   alias Elektrine.Accounts.User
   alias Elektrine.Accounts.UsernameHistory
+  alias Elektrine.Accounts.UserSession
   alias Elektrine.Async
   alias Elektrine.Platform.Modules
 
@@ -108,6 +109,8 @@ defmodule Elektrine.Accounts do
   defp stringify_account_attrs(attrs) do
     Map.new(attrs, fn {key, value} -> {to_string(key), value} end)
   end
+
+  defp stringify_session_attrs(attrs), do: stringify_account_attrs(attrs)
 
   @doc """
   Returns the list of users.
@@ -199,6 +202,119 @@ defmodule Elektrine.Accounts do
   end
 
   def get_user_session_stamp(_), do: nil
+
+  @doc """
+  Creates a tracked browser session for a successful sign-in.
+  """
+  def create_user_session(user_or_id, attrs \\ %{})
+
+  def create_user_session(%User{id: user_id}, attrs) when is_map(attrs) do
+    create_user_session(user_id, attrs)
+  end
+
+  def create_user_session(user_id, attrs) when is_integer(user_id) and is_map(attrs) do
+    %UserSession{}
+    |> UserSession.changeset(Map.put(stringify_session_attrs(attrs), "user_id", user_id))
+    |> Repo.insert()
+  end
+
+  @doc """
+  Lists recent browser sessions for account security settings.
+  """
+  def list_user_sessions(user_id) when is_integer(user_id) do
+    UserSession
+    |> where([session], session.user_id == ^user_id)
+    |> order_by([session],
+      asc: fragment("? IS NOT NULL", session.revoked_at),
+      desc: session.last_seen_at,
+      desc: session.inserted_at
+    )
+    |> limit(50)
+    |> Repo.all()
+  end
+
+  def list_user_sessions(_), do: []
+
+  def get_active_user_session(user_id, session_id)
+      when is_integer(user_id) and is_integer(session_id) do
+    UserSession
+    |> where([session], session.id == ^session_id)
+    |> where([session], session.user_id == ^user_id)
+    |> where([session], is_nil(session.revoked_at))
+    |> Repo.one()
+  end
+
+  def get_active_user_session(_user_id, _session_id), do: nil
+
+  def touch_user_session(%UserSession{} = session) do
+    touch_user_session(session.id)
+  end
+
+  def touch_user_session(session_id) when is_integer(session_id) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    cutoff = DateTime.add(now, -5 * 60, :second)
+
+    from(session in UserSession,
+      where:
+        session.id == ^session_id and is_nil(session.revoked_at) and
+          session.last_seen_at < ^cutoff
+    )
+    |> Repo.update_all(set: [last_seen_at: now])
+  end
+
+  def touch_user_session(_session_id), do: {0, nil}
+
+  def revoke_user_session(user_id, session_id, reason \\ "revoked")
+
+  def revoke_user_session(user_id, session_id, reason)
+      when is_integer(user_id) and is_integer(session_id) do
+    case Repo.get_by(UserSession, id: session_id, user_id: user_id) do
+      %UserSession{} = session ->
+        session
+        |> UserSession.revoke_changeset(reason)
+        |> Repo.update()
+
+      nil ->
+        {:error, :not_found}
+    end
+  end
+
+  def revoke_user_session(_user_id, _session_id, _reason), do: {:error, :not_found}
+
+  def revoke_other_user_sessions(
+        user_id,
+        current_session_id,
+        reason \\ "signed_out_other_sessions"
+      )
+
+  def revoke_other_user_sessions(user_id, current_session_id, reason)
+      when is_integer(user_id) and is_integer(current_session_id) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    from(session in UserSession,
+      where:
+        session.user_id == ^user_id and session.id != ^current_session_id and
+          is_nil(session.revoked_at)
+    )
+    |> Repo.update_all(set: [revoked_at: now, revoked_reason: reason])
+  end
+
+  def revoke_other_user_sessions(user_id, _current_session_id, reason) when is_integer(user_id) do
+    revoke_all_user_sessions(user_id, reason)
+  end
+
+  def revoke_all_user_sessions(user_id, reason \\ "signed_out_all_sessions")
+
+  def revoke_all_user_sessions(user_id, reason) when is_integer(user_id) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    from(session in UserSession,
+      where: session.user_id == ^user_id and is_nil(session.revoked_at)
+    )
+    |> Repo.update_all(set: [revoked_at: now, revoked_reason: reason])
+  end
+
+  def revoke_all_user_sessions(_user_id, _reason), do: {0, nil}
 
   @doc """
   Gets a user by username.
@@ -331,6 +447,17 @@ defmodule Elektrine.Accounts do
       error ->
         error
     end
+  end
+
+  @doc """
+  Updates notification-only user settings without validating unrelated profile fields.
+  """
+  def update_notification_settings(%User{} = user, attrs) do
+    attrs = sanitize_update_attrs(attrs)
+
+    user
+    |> User.notification_settings_changeset(attrs)
+    |> Repo.update()
   end
 
   defp sanitize_update_attrs(attrs) when is_map(attrs) do
@@ -591,11 +718,18 @@ defmodule Elektrine.Accounts do
   Invalidates existing browser/session tokens for a user.
   """
   def invalidate_auth_sessions(%User{} = user) do
-    user
-    |> Ecto.Changeset.change(%{
-      auth_valid_after: DateTime.utc_now() |> DateTime.truncate(:second)
-    })
-    |> Repo.update()
+    case user
+         |> Ecto.Changeset.change(%{
+           auth_valid_after: DateTime.utc_now() |> DateTime.truncate(:second)
+         })
+         |> Repo.update() do
+      {:ok, updated_user} ->
+        _ = revoke_all_user_sessions(user.id, "global_invalidation")
+        {:ok, updated_user}
+
+      error ->
+        error
+    end
   end
 
   ## Invite Codes

@@ -321,6 +321,22 @@ defmodule Elektrine.Email.MailboxPrivateStorageTest do
     assert swapped_verifier_changeset.errors[:private_storage_verifier]
   end
 
+  test "reset_user_private_storage clears stale mailbox key wrappers" do
+    user = AccountsFixtures.user_fixture()
+    mailbox = private_mailbox_fixture(user)
+
+    assert Mailbox.private_storage_configured?(mailbox)
+
+    assert {:ok, 1} = Email.reset_user_private_storage(user.id)
+
+    mailbox = Email.get_user_mailbox(user.id)
+    refute mailbox.private_storage_enabled
+    refute Mailbox.private_storage_configured?(mailbox)
+    assert is_nil(mailbox.private_storage_public_key)
+    assert is_nil(mailbox.private_storage_wrapped_private_key)
+    assert is_nil(mailbox.private_storage_verifier)
+  end
+
   defp private_mailbox_fixture(user) do
     mailbox =
       Email.get_user_mailbox(user.id) ||

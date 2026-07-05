@@ -2,23 +2,40 @@ defmodule ElektrineWeb.SettingsLive.EditPassword do
   use ElektrineWeb, :live_view
 
   alias Elektrine.Accounts
+  alias Elektrine.Vault
+  alias ElektrineWeb.Platform.Integrations
 
   on_mount {ElektrineWeb.Live.AuthHooks, :require_authenticated_user}
 
   def mount(_params, _session, socket) do
     user = socket.assigns.current_user
     changeset = Accounts.change_user_password(user)
+    email_assigns = Integrations.edit_password_assigns(user.id)
 
     {:ok,
-     assign(socket,
+     socket
+     |> assign(email_assigns)
+     |> assign(
        page_title: "Change Password",
        changeset: changeset,
-       user: user
+       user: user,
+       master_vault: Vault.get(user.id)
      )}
   end
 
   def render(assigns) do
     ~H"""
+    <% private_mailbox_configured =
+      not is_nil(@private_mailbox) and
+        ElektrineWeb.Platform.Integrations.private_mailbox_configured?(@private_mailbox)
+
+    private_mailbox_unlock_mode =
+      if private_mailbox_configured do
+        ElektrineWeb.Platform.Integrations.private_mailbox_unlock_mode(@private_mailbox)
+      else
+        "account_password"
+      end %>
+
     <.account_page
       title="Change Password"
       subtitle="Update your account password and confirm the change with your current credentials."
@@ -36,10 +53,34 @@ defmodule ElektrineWeb.SettingsLive.EditPassword do
             action={~p"/account/password"}
             method="put"
             bare={true}
+            data-private-mailbox-password-form="true"
+            data-vault-configured={to_string(not is_nil(@master_vault))}
+            data-vault-wrapped-dek={@master_vault && Jason.encode!(@master_vault.wrapped_dek)}
+            data-vault-wrapped-dek-recovery={
+              @master_vault && Jason.encode!(@master_vault.wrapped_dek_recovery)
+            }
+            data-private-mailbox-configured={to_string(private_mailbox_configured)}
+            data-private-mailbox-unlock-mode={private_mailbox_unlock_mode}
+            data-private-mailbox-id={if @private_mailbox, do: @private_mailbox.id}
+            data-private-mailbox-wrapped-key={
+              if @private_mailbox && @private_mailbox.private_storage_wrapped_private_key,
+                do: Jason.encode!(@private_mailbox.private_storage_wrapped_private_key),
+                else: ""
+            }
+            data-private-mailbox-verifier={
+              if @private_mailbox && @private_mailbox.private_storage_verifier,
+                do: Jason.encode!(@private_mailbox.private_storage_verifier),
+                else: ""
+            }
           >
             <.error :if={@changeset.action}>
               Oops, something went wrong! Please check the errors below.
             </.error>
+
+            <div class="rounded-xl border border-info/30 bg-info/10 p-3 text-sm text-base-content/80">
+              If encrypted data is enabled, this browser will rewrap it with your new password
+              before the change is saved. Your recovery code is not needed.
+            </div>
 
             <.input field={f[:current_password]} type="password" label="Current password" required />
             <.input field={f[:password]} type="password" label="New password" required />
@@ -72,6 +113,16 @@ defmodule ElektrineWeb.SettingsLive.EditPassword do
                 </label>
               </div>
             <% end %>
+
+            <input type="hidden" name="user[vault_wrapped_dek]" value="" />
+            <input type="hidden" name="user[vault_wrapped_dek_recovery]" value="" />
+            <input type="hidden" name="user[private_mailbox_wrapped_private_key]" value="" />
+            <input type="hidden" name="user[private_mailbox_verifier]" value="" />
+            <input
+              type="hidden"
+              name="user[private_mailbox_unlock_mode]"
+              value={private_mailbox_unlock_mode}
+            />
 
             <:actions>
               <.button>Change password</.button>

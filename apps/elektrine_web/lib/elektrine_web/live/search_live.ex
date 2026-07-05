@@ -1,6 +1,7 @@
 defmodule ElektrineWeb.SearchLive do
   use ElektrineWeb, :live_view
   alias Elektrine.Search
+  alias Elektrine.Search.DomainRules
   alias Elektrine.Search.RateLimiter, as: SearchRateLimiter
   alias Elektrine.Security.SafeExternalURL
   import ElektrineWeb.Components.Platform.ENav
@@ -18,7 +19,9 @@ defmodule ElektrineWeb.SearchLive do
      |> assign(:show_suggestions, false)
      |> assign(:active_lens, "all")
      |> assign(:command_mode, false)
-     |> assign_web_search_access()}
+     |> assign(:web_degraded?, false)
+     |> assign_web_search_access()
+     |> assign_domain_rules()}
   end
 
   @impl true
@@ -132,7 +135,7 @@ defmodule ElektrineWeb.SearchLive do
      |> assign(:suggestions, [])
      |> assign(:show_suggestions, false)
      |> assign(:command_mode, false)
-     |> push_patch(to: ~p"/maid")}
+     |> push_patch(to: ~p"/paige")}
   end
 
   def handle_event("set_lens", %{"lens" => lens}, socket) do
@@ -143,6 +146,31 @@ defmodule ElektrineWeb.SearchLive do
       {:noreply, assign(socket, :active_lens, lens)}
     else
       {:noreply, push_patch(socket, to: search_path(query, lens))}
+    end
+  end
+
+  def handle_event("set_domain_rule", %{"domain" => domain, "action" => action}, socket) do
+    with %{} = user <- socket.assigns.current_user,
+         true <- socket.assigns.web_search_allowed?,
+         {:ok, _rule} <- DomainRules.set_rule(user, domain, action) do
+      {:noreply, socket |> assign_domain_rules() |> rerun_current_search()}
+    else
+      {:error, :rule_limit_reached} ->
+        {:noreply, put_flash(socket, :error, "You have reached the domain rule limit.")}
+
+      _error ->
+        {:noreply, put_flash(socket, :error, "Could not save the domain rule.")}
+    end
+  end
+
+  def handle_event("remove_domain_rule", %{"domain" => domain}, socket) do
+    case socket.assigns.current_user do
+      nil ->
+        {:noreply, socket}
+
+      user ->
+        DomainRules.remove_rule(user, domain)
+        {:noreply, socket |> assign_domain_rules() |> rerun_current_search()}
     end
   end
 
@@ -196,17 +224,32 @@ defmodule ElektrineWeb.SearchLive do
         merged_search(user, query,
           limit: lens_limit(lens),
           include_web?: include_web? and web_search_allowed?,
-          lens: lens
+          lens: lens,
+          domain_rules: socket.assigns.domain_rules
         )
 
       socket
       |> assign(:results, search_results.results)
       |> assign(:total_count, search_results.total_count)
+      |> assign(:web_degraded?, search_results.web_degraded?)
       |> assign(:web_search_allowed?, web_search_allowed?)
       |> assign(:searched?, true)
       |> assign(:loading, false)
       |> assign(:show_suggestions, false)
     end)
+  end
+
+  defp assign_domain_rules(socket) do
+    user = socket.assigns[:current_user]
+    assign(socket, :domain_rules, DomainRules.rules_map(user && user.id))
+  end
+
+  defp rerun_current_search(socket) do
+    if socket.assigns.searched? and socket.assigns.query != "" do
+      perform_search(socket, socket.assigns.query)
+    else
+      socket
+    end
   end
 
   defp assign_pending_query(socket, query) do
@@ -243,7 +286,7 @@ defmodule ElektrineWeb.SearchLive do
       [q: query]
       |> maybe_put_lens_param(lens)
 
-    "/maid?" <> URI.encode_query(params)
+    "/paige?" <> URI.encode_query(params)
   end
 
   defp maybe_put_lens_param(params, lens) when lens in [nil, "", "all"], do: params
@@ -252,27 +295,33 @@ defmodule ElektrineWeb.SearchLive do
   defp assign_web_search_access(socket) do
     socket
     |> assign(:web_search_allowed?, web_search_allowed?(socket.assigns[:current_user]))
-    |> assign(:web_search_min_trust_level, Elektrine.System.module_min_trust_level(:maid))
+    |> assign(:web_search_min_trust_level, Elektrine.System.module_min_trust_level(:paige))
   end
 
-  defp web_search_allowed?(user), do: Elektrine.System.user_can_access_module?(user, :maid)
+  defp web_search_allowed?(user), do: Elektrine.System.user_can_access_module?(user, :paige)
 
   defp merged_search(user, query, opts) do
     limit = Keyword.fetch!(opts, :limit)
     include_web? = Keyword.get(opts, :include_web?, true)
     lens = Keyword.get(opts, :lens, "all") |> normalize_lens()
+    domain_rules = Keyword.get(opts, :domain_rules, %{})
 
     app_results = app_search(user, query, limit, lens)
-    web_results = external_search(query, limit, lens, include_web?)
+    {web_results, web_degraded?} = external_search(query, limit, lens, include_web?)
 
     app_results = apply_lens_to_app_results(app_results.results, lens)
+    web_results = DomainRules.apply_rules(web_results, domain_rules)
 
     results =
       (app_results ++ web_results)
       |> Enum.sort_by(&(-Map.get(&1, :relevance, 0)))
       |> Enum.take(limit)
 
-    %{results: results, total_count: length(app_results) + length(web_results)}
+    %{
+      results: results,
+      total_count: length(app_results) + length(web_results),
+      web_degraded?: web_degraded?
+    }
   end
 
   defp app_search(nil, _query, _limit, _lens), do: %{results: [], total_count: 0}
@@ -283,11 +332,11 @@ defmodule ElektrineWeb.SearchLive do
 
   defp app_search(user, query, limit, _lens), do: Search.global_search(user, query, limit: limit)
 
-  defp external_search(_query, _limit, _lens, false), do: []
+  defp external_search(_query, _limit, _lens, false), do: {[], false}
 
   defp external_search(_query, _limit, lens, true)
        when lens in ["elektrine", "forums"],
-       do: []
+       do: {[], false}
 
   defp external_search(query, limit, "images", true),
     do: search_external(query, min(limit, 200), :images)
@@ -301,9 +350,11 @@ defmodule ElektrineWeb.SearchLive do
   defp external_search(query, limit, "all", true) do
     web_limit = max(limit - 8, 1)
 
-    search_external(query, min(web_limit, 20), :web) ++
-      search_external(query, 12, :images) ++
+    combine_external([
+      search_external(query, min(web_limit, 20), :web),
+      search_external(query, 12, :images),
       search_external(query, 12, :videos)
+    ])
   end
 
   defp external_search(query, limit, "web", true),
@@ -311,6 +362,10 @@ defmodule ElektrineWeb.SearchLive do
 
   defp external_search(query, limit, _lens, true),
     do: search_external(query, min(limit, 20), :web)
+
+  defp combine_external(parts) do
+    {Enum.flat_map(parts, &elem(&1, 0)), Enum.any?(parts, &elem(&1, 1))}
+  end
 
   defp apply_lens_to_app_results(results, "elektrine"), do: results
 
@@ -328,29 +383,32 @@ defmodule ElektrineWeb.SearchLive do
 
     cond do
       String.length(query) < 2 ->
-        []
+        {[], false}
 
       String.starts_with?(query, ">") ->
-        []
+        {[], false}
 
       true ->
-        case Maid.search(query, limit: limit, kind: kind) do
-          {:ok, results} ->
-            results
-            |> Enum.with_index()
-            |> Enum.flat_map(fn {result, index} ->
-              case external_result(result, index, kind) do
-                nil -> []
-                safe_result -> [safe_result]
-              end
-            end)
+        case ElektrineWeb.WebSearch.search(query, limit: limit, kind: kind) do
+          {:ok, results, meta} ->
+            safe_results =
+              results
+              |> Enum.with_index()
+              |> Enum.flat_map(fn {result, index} ->
+                case external_result(result, index, kind) do
+                  nil -> []
+                  safe_result -> [safe_result]
+                end
+              end)
+
+            {safe_results, meta.degraded?}
 
           {:error, _reason} ->
-            []
+            {[], true}
         end
     end
   rescue
-    _error -> []
+    _error -> {[], true}
   end
 
   defp external_result(result, index, kind) do
@@ -404,189 +462,87 @@ defmodule ElektrineWeb.SearchLive do
   def render(assigns) do
     ~H"""
     <div class="mx-auto max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
-      <.e_nav active_tab="maid" current_user={@current_user} />
+      <.e_nav active_tab="paige" current_user={@current_user} />
 
-      <div class="space-y-6">
-        <section class="card panel-card overflow-visible shadow-sm">
-          <div class={[
-            "card-body",
-            if(@query == "", do: "px-4 py-10 sm:px-8 sm:py-14", else: "p-4 sm:p-5")
-          ]}>
-            <div class={[
-              "mx-auto",
-              if(@query == "", do: "max-w-3xl text-center", else: "max-w-5xl")
-            ]}>
-              <div :if={@query == ""} class="mb-8 space-y-3">
-                <p class="text-xs font-semibold uppercase tracking-[0.28em] text-base-content/45">
-                  Search
-                </p>
-                <h1 class="text-4xl font-black tracking-tight text-base-content sm:text-6xl">
-                  Maid
-                </h1>
-                <p class="mx-auto max-w-2xl text-sm leading-6 text-base-content/65 sm:text-base">
-                  {maid_intro(@web_search_allowed?)}
-                </p>
-              </div>
+      <%= if @query == "" do %>
+        <div class="space-y-6">
+          <section class="card panel-card overflow-visible shadow-sm">
+            <div class="card-body px-4 py-10 sm:px-8 sm:py-14">
+              <div class="mx-auto w-full max-w-3xl text-center">
+                <div class="mb-8 space-y-3">
+                  <p class="text-xs font-semibold uppercase tracking-[0.28em] text-base-content/45">
+                    Search
+                  </p>
+                  <h1 class="text-4xl font-black tracking-tight text-base-content sm:text-6xl">
+                    Paige
+                  </h1>
+                  <p class="mx-auto max-w-2xl text-sm leading-6 text-base-content/65 sm:text-base">
+                    {paige_intro(@web_search_allowed?)}
+                  </p>
+                </div>
 
-              <div class="relative" phx-click-away="clear_suggestions">
-                <form phx-submit="search" class="w-full">
-                  <div class="join flex w-full">
-                    <label class="input input-bordered join-item flex min-w-0 flex-1 items-center gap-2 rounded-l-full rounded-r-none">
-                      <.icon name="hero-magnifying-glass" class="h-4 w-4 opacity-60" />
-                      <input
-                        id="global-search-input"
-                        type="text"
-                        name="query"
-                        value={@query}
-                        placeholder="Maid..."
-                        class="grow bg-transparent"
-                        autocomplete="off"
-                      />
-
-                      <button
-                        type="button"
-                        phx-click="clear_search"
-                        data-search-clear="true"
-                        aria-label="Clear search"
-                        class={[
-                          "btn btn-ghost btn-xs",
-                          if(@query == "", do: "pointer-events-none invisible", else: nil)
-                        ]}
-                      >
-                        <.icon name="hero-x-mark" class="h-4 w-4" />
-                      </button>
-                    </label>
-
-                    <button
-                      type="submit"
-                      class="btn btn-outline join-item rounded-l-none rounded-r-full px-4"
-                      aria-label="Search"
-                      title="Search"
-                    >
-                      <.icon name="hero-magnifying-glass" class="h-4 w-4" />
-                    </button>
-                  </div>
-                </form>
-
-                <%= if @show_suggestions and @suggestions != [] do %>
-                  <div class="dropdown-content absolute left-0 right-0 z-30 mt-2 overflow-hidden rounded-lg">
-                    <%= for suggestion <- @suggestions do %>
-                      <button
-                        type="button"
-                        class="flex w-full items-center justify-between gap-3 border-b border-[color:var(--surface-floating-border)] px-5 py-3 text-left transition-colors last:border-b-0 hover:bg-[color-mix(in_srgb,var(--surface-floating-bg-fallback)_82%,var(--color-base-300)_18%)]"
-                        phx-click="search"
-                        phx-value-query={suggestion.text}
-                      >
-                        <span class="truncate text-sm font-medium">{suggestion.text}</span>
-                        <span class="badge badge-ghost badge-sm shrink-0">
-                          {format_suggestion_type(suggestion.type)}
-                        </span>
-                      </button>
-                    <% end %>
-                  </div>
-                <% end %>
-              </div>
-
-              <div class="mt-4">
-                <.pill_switcher
-                  event="set_lens"
-                  param="lens"
-                  active={@active_lens}
-                  options={lenses(@web_search_allowed?)}
+                <.search_form
+                  query={@query}
+                  command_mode={@command_mode}
+                  suggestions={@suggestions}
+                  show_suggestions={@show_suggestions}
+                  hero
                 />
-              </div>
 
-              <div
-                :if={web_search_locked?(@active_lens, @web_search_allowed?)}
-                class="mt-4 rounded-xl border border-warning/30 bg-warning/10 p-4 text-left text-sm text-base-content/75"
-              >
-                <div class="flex gap-3">
-                  <.icon name="hero-lock-closed" class="mt-0.5 h-5 w-5 shrink-0 text-warning" />
-                  <div>
-                    <p class="font-semibold text-base-content">Web search is trust-walled</p>
-                    <p>
-                      Admin settings require TL{@web_search_min_trust_level}+ for web, image,
-                      video, and news search. Maid app search is still available.
-                    </p>
-                  </div>
+                <div class="mt-4 flex justify-center">
+                  <.pill_switcher
+                    event="set_lens"
+                    param="lens"
+                    active={@active_lens}
+                    options={lenses(@web_search_allowed?)}
+                    class="justify-center"
+                  />
                 </div>
-              </div>
 
-              <div class="mt-4 flex flex-wrap items-center gap-2">
-                <span class="hidden text-xs font-semibold uppercase tracking-[0.18em] text-base-content/40 sm:inline">
-                  Quick actions
-                </span>
-                <button
-                  class="btn btn-sm btn-ghost rounded-full"
-                  phx-click="search"
-                  phx-value-query=">compose email"
-                >
-                  Compose Email
-                </button>
-                <button
-                  class="btn btn-sm btn-ghost rounded-full"
-                  phx-click="search"
-                  phx-value-query=">open chat"
-                >
-                  Open Chat
-                </button>
-                <button
-                  class="btn btn-sm btn-ghost rounded-full"
-                  phx-click="search"
-                  phx-value-query=">open notifications"
-                >
-                  Notifications
-                </button>
-                <button
-                  class="btn btn-sm btn-ghost rounded-full"
-                  phx-click="search"
-                  phx-value-query="settings"
-                >
-                  Settings
-                </button>
-              </div>
-            </div>
-          </div>
-        </section>
+                <.trust_wall_notice
+                  :if={web_search_locked?(@active_lens, @web_search_allowed?)}
+                  min_trust_level={@web_search_min_trust_level}
+                  class="mt-4"
+                />
 
-        <%= if @loading do %>
-          <div class="flex justify-center py-8">
-            <.spinner size="md" class="text-primary" />
-          </div>
-        <% end %>
-
-        <%= if not @loading and @searched? do %>
-          <%= if @results != [] do %>
-            <div class="w-full space-y-3">
-              <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[color:var(--surface-panel-border)] pb-2 text-sm text-base-content/65">
-                <p>
-                  About <span class="font-semibold text-base-content">{@total_count}</span>
-                  result{plural_suffix(@total_count)} for
-                  <span class="font-semibold text-base-content">{@query}</span>
-                </p>
-                <span :if={@command_mode} class="badge badge-neutral badge-sm">Command mode</span>
-              </div>
-
-              <.lens_results results={@results} active_lens={@active_lens} />
-            </div>
-          <% else %>
-            <div class="card panel-card">
-              <div class="card-body p-4 sm:p-5">
-                <div class="flex items-start gap-3 text-sm text-base-content/65">
-                  <span class="surface-subtle mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded text-base-content/45">
-                    <.icon name="hero-magnifying-glass" class="h-4 w-4" />
+                <div class="mt-6 flex flex-wrap items-center justify-center gap-2">
+                  <span class="hidden text-xs font-semibold uppercase tracking-[0.18em] text-base-content/40 sm:inline">
+                    Quick actions
                   </span>
-                  <div>
-                    <h2 class="font-semibold text-base-content">No matches found</h2>
-                    <p>{lens_empty_description(@active_lens)}</p>
-                  </div>
+                  <button
+                    class={quick_action_class()}
+                    phx-click="search"
+                    phx-value-query=">compose email"
+                  >
+                    <.icon name="hero-pencil-square" class="h-4 w-4 text-primary" /> Compose Email
+                  </button>
+                  <button
+                    class={quick_action_class()}
+                    phx-click="search"
+                    phx-value-query=">open chat"
+                  >
+                    <.icon name="hero-chat-bubble-left-right" class="h-4 w-4 text-secondary" />
+                    Open Chat
+                  </button>
+                  <button
+                    class={quick_action_class()}
+                    phx-click="search"
+                    phx-value-query=">open notifications"
+                  >
+                    <.icon name="hero-bell" class="h-4 w-4 text-warning" /> Notifications
+                  </button>
+                  <button
+                    class={quick_action_class()}
+                    phx-click="search"
+                    phx-value-query="settings"
+                  >
+                    <.icon name="hero-cog-6-tooth" class="h-4 w-4 text-info" /> Settings
+                  </button>
                 </div>
               </div>
             </div>
-          <% end %>
-        <% end %>
+          </section>
 
-        <%= if @query == "" and not @loading do %>
           <div class="grid gap-4 md:grid-cols-3">
             <button
               class="card panel-card text-left shadow-sm transition hover:border-base-content/20"
@@ -594,7 +550,9 @@ defmodule ElektrineWeb.SearchLive do
               phx-value-query="people"
             >
               <div class="card-body gap-2 p-4 sm:p-5">
-                <.icon name="hero-user-circle" class="h-6 w-6 text-base-content/70" />
+                <span class="surface-subtle flex h-9 w-9 items-center justify-center rounded text-primary">
+                  <.icon name="hero-user-circle" class="h-5 w-5" />
+                </span>
                 <h2 class="font-semibold">People and profiles</h2>
                 <p class="text-sm text-base-content/65">
                   Find local people, federated actors, and profile settings.
@@ -607,7 +565,9 @@ defmodule ElektrineWeb.SearchLive do
               phx-value-query="email"
             >
               <div class="card-body gap-2 p-4 sm:p-5">
-                <.icon name="hero-envelope" class="h-6 w-6 text-base-content/70" />
+                <span class="surface-subtle flex h-9 w-9 items-center justify-center rounded text-secondary">
+                  <.icon name="hero-envelope" class="h-5 w-5" />
+                </span>
                 <h2 class="font-semibold">Mail and files</h2>
                 <p class="text-sm text-base-content/65">
                   Search inboxes, attachments, drive entries, and app content.
@@ -621,7 +581,9 @@ defmodule ElektrineWeb.SearchLive do
               phx-value-query="web search"
             >
               <div class="card-body gap-2 p-4 sm:p-5">
-                <.icon name="hero-globe-alt" class="h-6 w-6 text-base-content/70" />
+                <span class="surface-subtle flex h-9 w-9 items-center justify-center rounded text-accent">
+                  <.icon name="hero-globe-alt" class="h-5 w-5" />
+                </span>
                 <h2 class="font-semibold">Web</h2>
                 <p class="text-sm text-base-content/65">
                   Search across the wider web.
@@ -629,11 +591,282 @@ defmodule ElektrineWeb.SearchLive do
               </div>
             </button>
           </div>
-        <% end %>
+
+          <section
+            :if={@web_search_allowed? and @domain_rules != %{}}
+            class="card panel-card shadow-sm"
+          >
+            <div class="card-body gap-3 p-4 sm:p-5">
+              <div>
+                <h2 class="text-sm font-semibold text-base-content">Domain rules</h2>
+                <p class="text-xs text-base-content/55">
+                  These sites are pinned, raised, lowered, or blocked in your web results.
+                </p>
+              </div>
+              <ul class="divide-y divide-base-300">
+                <li
+                  :for={{domain, action} <- Enum.sort(@domain_rules)}
+                  class="flex items-center justify-between gap-3 py-2 text-sm"
+                >
+                  <span class="truncate">{domain}</span>
+                  <span class="flex shrink-0 items-center gap-2">
+                    <span class="badge badge-ghost badge-sm">{domain_rule_label(action)}</span>
+                    <button
+                      type="button"
+                      class="btn btn-ghost btn-xs"
+                      phx-click="remove_domain_rule"
+                      phx-value-domain={domain}
+                      aria-label={"Remove rule for #{domain}"}
+                    >
+                      <.icon name="hero-x-mark" class="h-4 w-4" />
+                    </button>
+                  </span>
+                </li>
+              </ul>
+            </div>
+          </section>
+        </div>
+      <% else %>
+        <div class="space-y-6">
+          <section class="card panel-card overflow-visible shadow-sm">
+            <div class="card-body p-4 sm:p-5">
+              <div class="mx-auto w-full max-w-5xl space-y-4">
+                <.search_form
+                  query={@query}
+                  command_mode={@command_mode}
+                  suggestions={@suggestions}
+                  show_suggestions={@show_suggestions}
+                />
+
+                <.pill_switcher
+                  event="set_lens"
+                  param="lens"
+                  active={@active_lens}
+                  options={lenses(@web_search_allowed?)}
+                />
+
+                <.trust_wall_notice
+                  :if={web_search_locked?(@active_lens, @web_search_allowed?)}
+                  min_trust_level={@web_search_min_trust_level}
+                />
+              </div>
+            </div>
+          </section>
+
+          <.results_skeleton :if={@loading} />
+
+          <%= if not @loading and @searched? do %>
+            <%= if @results != [] do %>
+              <div class="w-full space-y-3">
+                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[color:var(--surface-panel-border)] pb-2 text-sm text-base-content/65">
+                  <p>
+                    About <span class="font-semibold text-base-content">{@total_count}</span>
+                    result{plural_suffix(@total_count)} for
+                    <span class="font-semibold text-base-content">{@query}</span>
+                  </p>
+                  <span :if={@web_degraded?} class="flex items-center gap-1 text-xs text-warning">
+                    <.icon name="hero-exclamation-triangle" class="h-4 w-4" />
+                    Some web sources were unavailable — results may be incomplete.
+                  </span>
+                </div>
+
+                <.lens_results
+                  results={@results}
+                  active_lens={@active_lens}
+                  domain_rules={@domain_rules}
+                  can_rank_domains?={@current_user != nil and @web_search_allowed?}
+                />
+              </div>
+            <% else %>
+              <div class="w-full">
+                <div class="card panel-card">
+                  <div class="card-body gap-4 p-4 sm:p-5">
+                    <div class="flex items-start gap-3">
+                      <span class="surface-subtle flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-base-content/45">
+                        <.icon name="hero-magnifying-glass" class="h-5 w-5" />
+                      </span>
+                      <div class="min-w-0 text-sm text-base-content/65">
+                        <h2 class="text-base font-semibold text-base-content">
+                          No matches for “{@query}”
+                        </h2>
+                        <p>{lens_empty_description(@active_lens)}</p>
+                        <p :if={@web_degraded?} class="mt-1 text-warning">
+                          Some web sources were unavailable — try again in a moment.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div class="flex flex-wrap gap-2">
+                      <button class="btn btn-sm rounded-full" phx-click="clear_search">
+                        <.icon name="hero-arrow-uturn-left" class="h-4 w-4" /> Start over
+                      </button>
+                      <button
+                        :if={
+                          @web_search_allowed? and
+                            @active_lens not in ["web", "images", "videos", "news"]
+                        }
+                        class="btn btn-primary btn-sm rounded-full"
+                        phx-click="set_lens"
+                        phx-value-lens="web"
+                      >
+                        <.icon name="hero-globe-alt" class="h-4 w-4" /> Search the web
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            <% end %>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+    """
+  end
+
+  attr :query, :string, required: true
+  attr :command_mode, :boolean, default: false
+  attr :suggestions, :list, default: []
+  attr :show_suggestions, :boolean, default: false
+  attr :hero, :boolean, default: false
+
+  defp search_form(assigns) do
+    ~H"""
+    <div
+      id="paige-search"
+      phx-hook="PaigeSearch"
+      phx-click-away="clear_suggestions"
+      class="relative"
+    >
+      <form phx-submit="search" class="w-full">
+        <div class="join flex w-full">
+          <label class="input input-bordered join-item flex min-w-0 flex-1 items-center gap-2 rounded-l-full rounded-r-none">
+            <.icon
+              name={if @command_mode, do: "hero-command-line", else: "hero-magnifying-glass"}
+              class={"h-4 w-4 shrink-0 " <> if(@command_mode, do: "text-primary", else: "opacity-60")}
+            />
+            <input
+              id="global-search-input"
+              type="text"
+              name="query"
+              value={@query}
+              placeholder="Paige..."
+              class="grow bg-transparent"
+              autocomplete="off"
+              autofocus={@hero}
+            />
+
+            <span
+              :if={@command_mode}
+              class="badge badge-primary badge-sm hidden shrink-0 sm:inline-flex"
+            >
+              Command
+            </span>
+            <button
+              type="button"
+              phx-click="clear_search"
+              data-search-clear="true"
+              aria-label="Clear search"
+              class={[
+                "btn btn-ghost btn-xs",
+                if(@query == "", do: "pointer-events-none invisible", else: nil)
+              ]}
+            >
+              <.icon name="hero-x-mark" class="h-4 w-4" />
+            </button>
+          </label>
+
+          <button
+            type="submit"
+            class="btn btn-primary join-item rounded-l-none rounded-r-full px-4"
+            aria-label="Search"
+            title="Search"
+          >
+            <.icon name="hero-magnifying-glass" class="h-4 w-4" />
+          </button>
+        </div>
+      </form>
+
+      <p :if={@hero} class="mt-3 text-xs text-base-content/45">
+        Press <kbd class="kbd kbd-xs">/</kbd>
+        to focus — type <kbd class="kbd kbd-xs">&gt;</kbd>
+        for commands
+      </p>
+
+      <div
+        :if={@show_suggestions and @suggestions != []}
+        class="dropdown-content absolute left-0 right-0 z-30 mt-2 overflow-hidden rounded-lg text-left"
+      >
+        <button
+          :for={suggestion <- @suggestions}
+          type="button"
+          data-suggestion-item
+          phx-click="search"
+          phx-value-query={suggestion.text}
+          class="flex w-full items-center gap-3 border-b border-[color:var(--surface-floating-border)] px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-[color-mix(in_srgb,var(--surface-floating-bg-fallback)_82%,var(--color-base-300)_18%)] focus:bg-[color-mix(in_srgb,var(--surface-floating-bg-fallback)_82%,var(--color-base-300)_18%)] focus:outline-none"
+        >
+          <.icon name={suggestion_icon(suggestion.type)} class="h-4 w-4 shrink-0 opacity-50" />
+          <span class="min-w-0 flex-1 truncate text-sm font-medium">{suggestion.text}</span>
+          <span class="badge badge-ghost badge-sm shrink-0">
+            {format_suggestion_type(suggestion.type)}
+          </span>
+        </button>
       </div>
     </div>
     """
   end
+
+  attr :min_trust_level, :any, required: true
+  attr :class, :string, default: nil
+
+  defp trust_wall_notice(assigns) do
+    ~H"""
+    <div class={[
+      "rounded-xl border border-warning/30 bg-warning/10 p-4 text-left text-sm text-base-content/75",
+      @class
+    ]}>
+      <div class="flex gap-3">
+        <.icon name="hero-lock-closed" class="mt-0.5 h-5 w-5 shrink-0 text-warning" />
+        <div>
+          <p class="font-semibold text-base-content">Web search is trust-walled</p>
+          <p>
+            Admin settings require TL{@min_trust_level}+ for web, image,
+            video, and news search. Paige app search is still available.
+          </p>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  defp results_skeleton(assigns) do
+    ~H"""
+    <div class="w-full space-y-3">
+      <div class="skeleton h-4 w-48"></div>
+      <div class="card panel-card overflow-hidden">
+        <div class="divide-y divide-base-300">
+          <div :for={_placeholder <- 1..5} class="flex gap-3 px-4 py-4 sm:px-5">
+            <div class="skeleton h-8 w-8 shrink-0 rounded"></div>
+            <div class="min-w-0 flex-1 space-y-2">
+              <div class="skeleton h-3 w-40"></div>
+              <div class="skeleton h-4 w-3/4"></div>
+              <div class="skeleton h-3 w-full"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  defp quick_action_class do
+    "btn btn-sm btn-ghost gap-2 rounded-full"
+  end
+
+  defp suggestion_icon("action"), do: "hero-command-line"
+  defp suggestion_icon("settings"), do: "hero-cog-6-tooth"
+  defp suggestion_icon("person"), do: "hero-user-circle"
+  defp suggestion_icon("email_domain"), do: "hero-at-symbol"
+  defp suggestion_icon(_type), do: "hero-magnifying-glass"
 
   # Helper functions for formatting
   defp lenses(web_search_allowed?) do
@@ -661,8 +894,8 @@ defmodule ElektrineWeb.SearchLive do
     if web_search_allowed?, do: base_lenses ++ web_lenses, else: base_lenses
   end
 
-  defp maid_intro(true), do: "Search Elektrine, the web, and focused lenses."
-  defp maid_intro(false), do: "Search Elektrine and focused lenses."
+  defp paige_intro(true), do: "Search Elektrine, the web, and focused lenses."
+  defp paige_intro(false), do: "Search Elektrine and focused lenses."
 
   defp web_search_locked?(lens, false), do: lens in ["web", "images", "videos", "news"]
   defp web_search_locked?(_lens, _web_search_allowed?), do: false
@@ -677,6 +910,8 @@ defmodule ElektrineWeb.SearchLive do
 
   attr :results, :list, required: true
   attr :active_lens, :string, required: true
+  attr :domain_rules, :map, default: %{}
+  attr :can_rank_domains?, :boolean, default: false
 
   defp lens_results(%{active_lens: "images"} = assigns) do
     ~H"""
@@ -762,7 +997,12 @@ defmodule ElektrineWeb.SearchLive do
     <% rest_results = Enum.drop(normal_results, 7) %>
 
     <div class="space-y-3">
-      <.result_list :if={first_results != []} results={first_results} />
+      <.result_list
+        :if={first_results != []}
+        results={first_results}
+        domain_rules={@domain_rules}
+        can_rank_domains?={@can_rank_domains?}
+      />
 
       <.media_strip
         :if={image_results(@results) != []}
@@ -770,7 +1010,12 @@ defmodule ElektrineWeb.SearchLive do
         results={image_results(@results)}
       />
 
-      <.result_list :if={middle_results != []} results={middle_results} />
+      <.result_list
+        :if={middle_results != []}
+        results={middle_results}
+        domain_rules={@domain_rules}
+        can_rank_domains?={@can_rank_domains?}
+      />
 
       <.media_strip
         :if={video_results(@results) != []}
@@ -778,25 +1023,40 @@ defmodule ElektrineWeb.SearchLive do
         results={video_results(@results)}
       />
 
-      <.result_list :if={rest_results != []} results={rest_results} />
+      <.result_list
+        :if={rest_results != []}
+        results={rest_results}
+        domain_rules={@domain_rules}
+        can_rank_domains?={@can_rank_domains?}
+      />
     </div>
     """
   end
 
   defp lens_results(assigns) do
     ~H"""
-    <.result_list results={@results} />
+    <.result_list
+      results={@results}
+      domain_rules={@domain_rules}
+      can_rank_domains?={@can_rank_domains?}
+    />
     """
   end
 
   attr :results, :list, required: true
+  attr :domain_rules, :map, default: %{}
+  attr :can_rank_domains?, :boolean, default: false
 
   defp result_list(assigns) do
     ~H"""
-    <div class="card panel-card overflow-hidden">
-      <div class="divide-y divide-base-300">
+    <div class="card panel-card overflow-visible">
+      <div class="divide-y divide-base-300 [&>*:first-child]:rounded-t-[var(--radius-box)] [&>*:last-child]:rounded-b-[var(--radius-box)]">
         <%= for result <- @results do %>
-          <.search_result_link result={result} />
+          <.search_result_link
+            result={result}
+            domain_rules={@domain_rules}
+            can_rank_domains?={@can_rank_domains?}
+          />
         <% end %>
       </div>
     </div>
@@ -878,19 +1138,29 @@ defmodule ElektrineWeb.SearchLive do
   defp type_badge_class(_type), do: "badge-ghost"
 
   attr :result, :map, required: true
+  attr :domain_rules, :map, default: %{}
+  attr :can_rank_domains?, :boolean, default: false
 
-  defp search_result_link(%{result: %{type: "web"}} = assigns) do
+  defp search_result_link(%{result: %{type: type}} = assigns)
+       when type in ["web", "news", "image", "video"] do
     ~H"""
     <%= if result_url = safe_optional_url(@result.url) do %>
       <% result = Map.put(@result, :url, result_url) %>
-      <a
-        href={result_url}
-        target="_blank"
-        rel="noopener noreferrer"
-        class="group block px-4 py-3 transition hover:bg-[color-mix(in_srgb,var(--surface-panel-bg-fallback)_82%,var(--color-base-300)_18%)] sm:px-5"
-      >
-        <.search_result_content result={result} />
-      </a>
+      <div class="group flex items-start transition hover:bg-[color-mix(in_srgb,var(--surface-panel-bg-fallback)_82%,var(--color-base-300)_18%)]">
+        <a
+          href={result_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          class="block min-w-0 flex-1 px-4 py-3 sm:px-5"
+        >
+          <.search_result_content result={result} />
+        </a>
+        <.domain_rule_menu
+          :if={@can_rank_domains?}
+          domain={result_host(result_url)}
+          rules={@domain_rules}
+        />
+      </div>
     <% end %>
     """
   end
@@ -905,6 +1175,63 @@ defmodule ElektrineWeb.SearchLive do
     </.link>
     """
   end
+
+  attr :domain, :string, required: true
+  attr :rules, :map, required: true
+
+  defp domain_rule_menu(assigns) do
+    assigns = assign(assigns, :current, Map.get(assigns.rules, assigns.domain))
+
+    ~H"""
+    <div :if={@domain} class="dropdown dropdown-end mr-2 mt-2 shrink-0 sm:mr-3">
+      <button
+        tabindex="0"
+        type="button"
+        class="btn btn-ghost btn-xs btn-square text-base-content/45 transition hover:text-base-content"
+        aria-label={"Adjust ranking for #{@domain}"}
+        title={"Adjust ranking for #{@domain}"}
+      >
+        <.icon name="hero-adjustments-horizontal" class="h-4 w-4" />
+      </button>
+      <ul
+        tabindex="0"
+        class="dropdown-content menu z-40 w-56 rounded-box border border-base-300 bg-base-100 p-2 shadow-lg"
+      >
+        <li class="menu-title truncate">{@domain}</li>
+        <li :for={{action, label, icon} <- domain_rule_actions()}>
+          <button
+            type="button"
+            phx-click="set_domain_rule"
+            phx-value-domain={@domain}
+            phx-value-action={action}
+            class={@current == action && "active"}
+          >
+            <.icon name={icon} class="h-4 w-4" /> {label}
+          </button>
+        </li>
+        <li :if={@current}>
+          <button type="button" phx-click="remove_domain_rule" phx-value-domain={@domain}>
+            <.icon name="hero-x-mark" class="h-4 w-4" /> Clear rule
+          </button>
+        </li>
+      </ul>
+    </div>
+    """
+  end
+
+  defp domain_rule_actions do
+    [
+      {:pin, "Pin domain", "hero-star"},
+      {:raise, "Raise ranking", "hero-arrow-up"},
+      {:lower, "Lower ranking", "hero-arrow-down"},
+      {:block, "Block domain", "hero-no-symbol"}
+    ]
+  end
+
+  defp domain_rule_label(:pin), do: "Pinned"
+  defp domain_rule_label(:raise), do: "Raised"
+  defp domain_rule_label(:lower), do: "Lowered"
+  defp domain_rule_label(:block), do: "Blocked"
 
   attr :result, :map, required: true
 

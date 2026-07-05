@@ -365,6 +365,7 @@ defmodule ElektrineWeb.PortalLive.Reader do
   defp portal_patch(assigns, overrides) do
     params =
       [
+        view: "reader",
         filter: assigns[:filter] || "all",
         attention: assigns[:attention_filter] || "all",
         rss_source: assigns[:rss_source_filter] || "all",

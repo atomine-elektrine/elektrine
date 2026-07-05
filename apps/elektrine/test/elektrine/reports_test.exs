@@ -77,8 +77,8 @@ defmodule Elektrine.ReportsTest do
                  reason: "spam"
                })
 
-      assert_receive {:report_telemetry, [:elektrine, :reports, :operation], %{count: 1},
-                      metadata}
+      {[:elektrine, :reports, :operation], %{count: 1}, metadata} =
+        assert_receive_report_telemetry("create", %{report_id: Integer.to_string(report.id)})
 
       assert metadata.operation == "create"
       assert metadata.outcome == "success"
@@ -108,16 +108,16 @@ defmodule Elektrine.ReportsTest do
                  resolution_notes: "confirmed"
                })
 
-      assert_receive {:report_telemetry, [:elektrine, :reports, :operation], %{count: 1},
-                      action_metadata}
+      {[:elektrine, :reports, :operation], %{count: 1}, action_metadata} =
+        assert_receive_report_telemetry("action", %{action: "content_removed"})
 
       assert action_metadata.operation == "action"
       assert action_metadata.outcome == "success"
       assert action_metadata.action == "content_removed"
       assert action_metadata.reviewer_id == Integer.to_string(admin.id)
 
-      assert_receive {:report_telemetry, [:elektrine, :reports, :operation], %{count: 1},
-                      review_metadata}
+      {[:elektrine, :reports, :operation], %{count: 1}, review_metadata} =
+        assert_receive_report_telemetry("review", %{status: "resolved"})
 
       assert review_metadata.operation == "review"
       assert review_metadata.outcome == "success"
@@ -186,7 +186,25 @@ defmodule Elektrine.ReportsTest do
     receive do
       {:report_telemetry, _, _, _} -> flush_report_telemetry()
     after
-      0 -> :ok
+      10 -> :ok
     end
+  end
+
+  defp assert_receive_report_telemetry(operation, filters) do
+    receive do
+      {:report_telemetry, event, measurements, metadata} ->
+        if metadata.operation == operation and telemetry_metadata_matches?(metadata, filters) do
+          {event, measurements, metadata}
+        else
+          assert_receive_report_telemetry(operation, filters)
+        end
+    after
+      500 ->
+        flunk("expected report telemetry for #{operation} with #{inspect(filters)}")
+    end
+  end
+
+  defp telemetry_metadata_matches?(metadata, filters) do
+    Enum.all?(filters, fn {key, value} -> Map.get(metadata, key) == value end)
   end
 end

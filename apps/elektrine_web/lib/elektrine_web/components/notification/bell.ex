@@ -8,7 +8,7 @@ defmodule ElektrineWeb.Components.Notification.Bell do
     ~H"""
     <div class="indicator">
       <%= if @count > 0 do %>
-        <span class="indicator-item badge badge-secondary badge-xs animate-pulse">
+        <span class="indicator-item badge badge-secondary badge-xs">
           {if @count > 99, do: "99+", else: @count}
         </span>
       <% end %>
@@ -27,7 +27,7 @@ defmodule ElektrineWeb.Components.Notification.Bell do
     ~H"""
     <div class="indicator" id="notification-bell">
       <%= if @count > 0 do %>
-        <span class="indicator-item badge badge-secondary badge-xs animate-pulse">
+        <span class="indicator-item badge badge-secondary badge-xs">
           {if @count > 99, do: "99+", else: @count}
         </span>
       <% end %>

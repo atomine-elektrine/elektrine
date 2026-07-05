@@ -463,7 +463,7 @@ defmodule ElektrineWeb.PageLive.Home do
             tag: "Web search",
             title: "Private web search",
             detail:
-              "Search the open web with Maid, which blends results from several engines and never profiles you"
+              "Search the open web with Paige, which blends results from several engines and never profiles you"
           },
           %{
             tag: "Calendar",

@@ -364,12 +364,19 @@ defmodule ElektrineWeb.Live.AuthHooks do
   defp parse_session_int(_), do: nil
 
   defp mount_current_user(socket, session) do
+    {current_user, current_user_session} =
+      if user_token = session["user_token"] do
+        fetch_user_by_token(user_token)
+      else
+        {nil, nil}
+      end
+
     socket =
       Phoenix.Component.assign_new(socket, :current_user, fn ->
-        if user_token = session["user_token"] do
-          fetch_user_by_token(user_token)
-        end
+        current_user
       end)
+      |> assign(:current_user_session, current_user_session)
+      |> assign(:current_user_session_id, current_user_session && current_user_session.id)
 
     socket = assign_live_locale(socket, session)
 
@@ -438,24 +445,41 @@ defmodule ElektrineWeb.Live.AuthHooks do
            max_age: 60 * 60 * 24 * 60
          ) do
       {:ok, claims} -> claims |> session_user_id() |> fetch_user_for_claims(claims)
-      {:error, _} -> nil
+      {:error, _} -> {nil, nil}
     end
   rescue
-    _ -> nil
+    _ -> {nil, nil}
   end
 
   defp session_user_id(%{"user_id" => user_id}) when is_integer(user_id), do: user_id
   defp session_user_id(_claims), do: nil
 
-  defp fetch_user_for_claims(nil, _claims), do: nil
+  defp session_id(%{"session_id" => session_id}) when is_integer(session_id), do: session_id
+  defp session_id(_claims), do: nil
+
+  defp fetch_user_for_claims(nil, _claims), do: {nil, nil}
 
   defp fetch_user_for_claims(user_id, claims) do
     user = Accounts.get_user!(user_id)
 
-    if session_claims_valid?(user, claims) do
-      user
+    with true <- session_claims_valid?(user, claims),
+         {:ok, user_session} <- validate_tracked_session(user_id, session_id(claims)) do
+      {user, user_session}
     else
-      nil
+      _ -> {nil, nil}
+    end
+  end
+
+  defp validate_tracked_session(_user_id, nil), do: {:ok, nil}
+
+  defp validate_tracked_session(user_id, session_id) do
+    case Accounts.get_active_user_session(user_id, session_id) do
+      nil ->
+        {:error, :revoked}
+
+      user_session ->
+        _ = Accounts.touch_user_session(user_session)
+        {:ok, user_session}
     end
   end
 

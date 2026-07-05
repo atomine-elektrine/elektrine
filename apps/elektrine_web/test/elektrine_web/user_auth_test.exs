@@ -53,7 +53,7 @@ defmodule ElektrineWeb.UserAuthTest do
       assert Accounts.get_user!(user.id).last_login_ip == "203.0.113.88"
     end
 
-    test "does not record Docker gateway as login IP when no public forwarded IP is available", %{
+    test "records the leftmost chain entry as login IP when every hop is a trusted proxy", %{
       conn: conn
     } do
       Application.put_env(:elektrine, :trusted_proxy_cidrs, ["172.30.0.0/24"])
@@ -68,7 +68,7 @@ defmodule ElektrineWeb.UserAuthTest do
         |> UserAuth.log_in_user(user)
 
       assert redirected_to(conn)
-      assert Accounts.get_user!(user.id).last_login_ip == "unknown"
+      assert Accounts.get_user!(user.id).last_login_ip == "172.30.0.1"
     end
 
     test "allows admin access with a valid elevated session", %{conn: conn} do
@@ -272,6 +272,72 @@ defmodule ElektrineWeb.UserAuthTest do
   end
 
   describe "fetch_current_user/2" do
+    test "tracks browser sessions and rejects revoked sessions", %{conn: conn} do
+      user = user_fixture()
+
+      conn =
+        conn
+        |> init_test_session(%{})
+        |> put_private(:phoenix_endpoint, ElektrineWeb.Endpoint)
+        |> put_req_header(
+          "user-agent",
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/126 Safari/537.36"
+        )
+        |> UserAuth.log_in_user(user)
+
+      token = get_session(conn, :user_token)
+      session_id = get_session(conn, :user_session_id)
+
+      assert is_binary(token)
+      assert is_integer(session_id)
+
+      assert %{browser: "Chrome", platform: "macOS"} =
+               Accounts.get_active_user_session(user.id, session_id)
+
+      conn =
+        build_conn()
+        |> init_test_session(user_token: token)
+        |> UserAuth.fetch_current_user([])
+
+      assert conn.assigns.current_user.id == user.id
+      assert conn.assigns.current_user_session.id == session_id
+
+      assert {:ok, _} = Accounts.revoke_user_session(user.id, session_id)
+
+      conn =
+        build_conn()
+        |> init_test_session(user_token: token)
+        |> UserAuth.fetch_current_user([])
+
+      assert conn.assigns.current_user == nil
+      assert conn.assigns.current_user_session == nil
+    end
+
+    test "logout revokes only the current tracked session", %{conn: conn} do
+      user = user_fixture()
+      {:ok, other_session} = Accounts.create_user_session(user, %{auth_method: "password"})
+
+      logged_in_conn =
+        conn
+        |> init_test_session(%{})
+        |> put_private(:phoenix_endpoint, ElektrineWeb.Endpoint)
+        |> UserAuth.log_in_user(user)
+
+      token = get_session(logged_in_conn, :user_token)
+      current_session_id = get_session(logged_in_conn, :user_session_id)
+
+      conn =
+        build_conn()
+        |> init_test_session(user_token: token, user_session_id: current_session_id)
+        |> UserAuth.fetch_current_user([])
+
+      conn = UserAuth.log_out_user(conn)
+
+      assert redirected_to(conn) == ~p"/"
+      assert Accounts.get_active_user_session(user.id, current_session_id) == nil
+      assert Accounts.get_active_user_session(user.id, other_session.id)
+    end
+
     test "clears admin sessions on admin host when off VPN", %{
       conn: conn
     } do

@@ -1,7 +1,8 @@
 defmodule ElektrineWeb.KairoLive.Index do
   use ElektrineWeb, :live_view
 
-  @source_limit 200
+  @source_page 200
+  @max_sources 1000
 
   @impl true
   def mount(_params, _session, socket) do
@@ -18,9 +19,11 @@ defmodule ElektrineWeb.KairoLive.Index do
          |> assign(:selected_id, nil)
          |> assign(:view_mode, "reader")
          |> assign(:composing, false)
+         |> assign(:adding_link, false)
          |> assign(:editing_source_id, nil)
          |> assign(:compose, empty_compose())
          |> assign(:compose_tab, "write")
+         |> assign(:source_limit, @source_page)
          |> load_kairo(user)}
     end
   end
@@ -38,6 +41,122 @@ defmodule ElektrineWeb.KairoLive.Index do
 
       {:error, _changeset} ->
         {:noreply, put_flash(socket, :error, "Project could not be created")}
+    end
+  end
+
+  def handle_event("rename_project", %{"project" => %{"id" => id, "name" => name}}, socket) do
+    user = socket.assigns.current_user
+
+    case Kairo.update_project(user, id, %{"name" => name}) do
+      {:ok, _project} ->
+        {:noreply, socket |> put_flash(:info, "Project renamed") |> load_kairo(user)}
+
+      {:error, :not_found} ->
+        {:noreply, put_flash(socket, :error, "Project not found")}
+
+      {:error, _changeset} ->
+        {:noreply, put_flash(socket, :error, "Project could not be renamed")}
+    end
+  end
+
+  def handle_event("toggle_archive_project", %{"id" => id}, socket) do
+    user = socket.assigns.current_user
+
+    with %Kairo.Project{} = project <- Kairo.get_project(user, id),
+         next_status = if(project.status == "archived", do: "active", else: "archived"),
+         {:ok, updated} <- Kairo.update_project(user, id, %{"status" => next_status}) do
+      verb = if updated.status == "archived", do: "archived", else: "restored"
+      {:noreply, socket |> put_flash(:info, "Project #{verb}") |> load_kairo(user)}
+    else
+      _ -> {:noreply, put_flash(socket, :error, "Project could not be updated")}
+    end
+  end
+
+  def handle_event("delete_project", %{"id" => id}, socket) do
+    user = socket.assigns.current_user
+
+    case Kairo.delete_project(user, id) do
+      {:ok, project} ->
+        active =
+          if socket.assigns.active_project == project.id,
+            do: nil,
+            else: socket.assigns.active_project
+
+        {:noreply,
+         socket
+         |> assign(:active_project, active)
+         |> put_flash(:info, "Project deleted - its sources moved to the inbox")
+         |> load_kairo(user)}
+
+      _error ->
+        {:noreply, put_flash(socket, :error, "Project could not be deleted")}
+    end
+  end
+
+  def handle_event("load_more", _params, socket) do
+    limit = min(socket.assigns.source_limit + @source_page, @max_sources)
+
+    {:noreply,
+     socket
+     |> assign(:source_limit, limit)
+     |> load_kairo(socket.assigns.current_user)}
+  end
+
+  def handle_event("toggle_add_link", _params, socket) do
+    {:noreply, assign(socket, :adding_link, not socket.assigns.adding_link)}
+  end
+
+  def handle_event("save_link", %{"link" => link}, socket) do
+    user = socket.assigns.current_user
+
+    attrs = %{
+      "source_type" => "url",
+      "url" => link["url"],
+      "title" => link["title"],
+      "tags" => link["tags"],
+      "project_id" => blank_to_nil(link["project_id"])
+    }
+
+    case Kairo.create_source(user, attrs) do
+      {:ok, source} ->
+        {:noreply,
+         socket
+         |> assign(:adding_link, false)
+         |> assign(:selected_id, source.id)
+         |> put_flash(:info, "Link saved - fetching its content in the background")
+         |> load_kairo(user)}
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, "Enter a valid URL first.")}
+    end
+  end
+
+  # Zero-knowledge save: the KairoVault hook encrypts the body client-side and
+  # pushes the ciphertext envelope; plaintext content is never persisted.
+  def handle_event("save_encrypted_note", %{"note" => note, "payload" => payload}, socket) do
+    user = socket.assigns.current_user
+
+    attrs = %{
+      "source_type" => "markdown",
+      "content_format" => "markdown",
+      "title" => note["title"],
+      "tags" => note["tags"],
+      "project_id" => blank_to_nil(note["project_id"]),
+      "encrypted" => true,
+      "encrypted_content" => payload
+    }
+
+    case Kairo.create_source(user, attrs) do
+      {:ok, source} ->
+        {:reply, %{ok: true},
+         socket
+         |> assign(:composing, false)
+         |> assign(:selected_id, source.id)
+         |> put_flash(:info, "Encrypted note saved")
+         |> load_kairo(user)}
+
+      {:error, _changeset} ->
+        {:reply, %{ok: false, error: "Could not save the encrypted note."}, socket}
     end
   end
 
@@ -104,6 +223,14 @@ defmodule ElektrineWeb.KairoLive.Index do
 
   def handle_event("compose_change", %{"note" => note}, socket) do
     {:noreply, assign(socket, :compose, Map.merge(empty_compose(), note))}
+  end
+
+  def handle_event("save_note", %{"note" => %{"encrypt" => "true"}}, socket) do
+    # Backstop: encrypted notes are saved by the KairoVault hook via
+    # save_encrypted_note. If the plain submit fires anyway (vault locked, JS
+    # unavailable), refuse rather than store the plaintext.
+    {:noreply,
+     put_flash(socket, :error, "Enter your account password to save an encrypted note.")}
   end
 
   def handle_event("save_note", %{"note" => note}, socket) do
@@ -204,7 +331,8 @@ defmodule ElektrineWeb.KairoLive.Index do
     end
   end
 
-  defp empty_compose, do: %{"title" => "", "content" => "", "project_id" => "", "tags" => ""}
+  defp empty_compose,
+    do: %{"title" => "", "content" => "", "project_id" => "", "tags" => "", "encrypt" => ""}
 
   defp compose_from_source(source) do
     %{
@@ -249,8 +377,8 @@ defmodule ElektrineWeb.KairoLive.Index do
 
   defp parse_id(id) when is_binary(id) do
     case Integer.parse(id) do
-      {int, _} -> int
-      :error -> nil
+      {int, ""} -> int
+      _other -> nil
     end
   end
 
@@ -258,7 +386,8 @@ defmodule ElektrineWeb.KairoLive.Index do
     socket
     |> assign(:page_title, "Kairo")
     |> assign(:projects, Kairo.list_projects(user))
-    |> assign(:sources, Kairo.list_sources(user, limit: @source_limit))
+    |> assign(:sources, Kairo.list_sources(user, limit: socket.assigns.source_limit))
+    |> assign(:sources_total, Kairo.count_sources(user))
     |> assign(:master_vault, Elektrine.Vault.get(user.id))
     |> assign(:project_form, to_form(%{"name" => "", "description" => ""}, as: :project))
     |> assign_view()
@@ -280,6 +409,10 @@ defmodule ElektrineWeb.KairoLive.Index do
 
     socket
     |> assign(:all_tags, all_tags(sources))
+    |> assign(
+      :active_project_record,
+      Enum.find(socket.assigns.projects, &(&1.id == socket.assigns.active_project))
+    )
     |> assign(:folders, folders(visible, socket.assigns.projects))
     |> assign(:visible_count, length(visible))
     |> assign(:selected, selected)
@@ -386,7 +519,7 @@ defmodule ElektrineWeb.KairoLive.Index do
   defp query_match?(source, query) do
     needle = String.downcase(String.trim(query))
 
-    [source.title, source.url, source.source_type | source.tags || []]
+    [source.title, source.url, source.source_type, source.content | source.tags || []]
     |> Enum.reject(&is_nil/1)
     |> Enum.any?(&String.contains?(String.downcase(&1), needle))
   end
@@ -440,8 +573,6 @@ defmodule ElektrineWeb.KairoLive.Index do
 
   defp present?(value), do: is_binary(value) and String.trim(value) != ""
 
-  defp format_datetime(nil), do: "not ingested"
-
   defp format_datetime(%DateTime{} = datetime) do
     Calendar.strftime(datetime, "%Y-%m-%d %H:%M UTC")
   end
@@ -456,47 +587,29 @@ defmodule ElektrineWeb.KairoLive.Index do
         <div>
           <h1 class="text-2xl font-bold text-base-content sm:text-3xl">Kairo</h1>
           <p class="mt-1 text-base-content/70">
-            Browse your durable knowledge. Sources are ingested via the
-            <.link
+            Notes, links, and sources you save here or ingest via the <.link
               navigate={~p"/account?tab=developer"}
               class="link"
-            >
-              API
-            </.link>
-            and encrypted at rest; flag a source <code>encrypted</code>
-            for
-            zero-knowledge.
+            >API</.link>.
           </p>
         </div>
-        <div class="flex items-center gap-3">
-          <div class="join">
-            <button
-              type="button"
-              phx-click="toggle_view"
-              phx-value-mode="reader"
-              class={["btn btn-sm join-item", @view_mode == "reader" && "btn-active"]}
-            >
-              <.icon name="hero-list-bullet" class="h-4 w-4" /> List
-            </button>
-            <button
-              type="button"
-              phx-click="toggle_view"
-              phx-value-mode="graph"
-              class={["btn btn-sm join-item", @view_mode == "graph" && "btn-active"]}
-            >
-              <.icon name="hero-share" class="h-4 w-4" /> Graph
-            </button>
-          </div>
-          <div class="stats stats-horizontal border border-base-300 bg-base-200 shadow-none">
-            <div class="stat px-4 py-2">
-              <div class="stat-title text-xs">Sources</div>
-              <div class="stat-value text-xl">{length(@sources)}</div>
-            </div>
-            <div class="stat px-4 py-2">
-              <div class="stat-title text-xs">Projects</div>
-              <div class="stat-value text-xl">{length(@projects)}</div>
-            </div>
-          </div>
+        <div class="join">
+          <button
+            type="button"
+            phx-click="toggle_view"
+            phx-value-mode="reader"
+            class={["btn btn-sm join-item", @view_mode == "reader" && "btn-active"]}
+          >
+            <.icon name="hero-list-bullet" class="h-4 w-4" /> List
+          </button>
+          <button
+            type="button"
+            phx-click="toggle_view"
+            phx-value-mode="graph"
+            class={["btn btn-sm join-item", @view_mode == "graph" && "btn-active"]}
+          >
+            <.icon name="hero-share" class="h-4 w-4" /> Graph
+          </button>
         </div>
       </div>
 
@@ -510,9 +623,55 @@ defmodule ElektrineWeb.KairoLive.Index do
           <%!-- Explorer --%>
           <aside class="card panel-card flex flex-col overflow-hidden border border-base-300 lg:max-h-[calc(100vh-11rem)]">
             <div class="space-y-2 border-b border-base-300 p-3">
-              <button type="button" phx-click="new_note" class="btn btn-primary btn-sm w-full">
-                <.icon name="hero-pencil-square" class="h-4 w-4" /> New note
-              </button>
+              <div class="flex gap-2">
+                <button type="button" phx-click="new_note" class="btn btn-primary btn-sm flex-1">
+                  <.icon name="hero-pencil-square" class="h-4 w-4" /> New note
+                </button>
+                <button
+                  type="button"
+                  phx-click="toggle_add_link"
+                  class={["btn btn-sm", if(@adding_link, do: "btn-active", else: "btn-outline")]}
+                  title="Save a link"
+                >
+                  <.icon name="hero-link" class="h-4 w-4" />
+                </button>
+              </div>
+
+              <form
+                :if={@adding_link}
+                phx-submit="save_link"
+                class="space-y-2 rounded-lg border border-base-300 bg-base-200/40 p-2"
+              >
+                <input
+                  type="url"
+                  name="link[url]"
+                  required
+                  placeholder="https://…"
+                  autocomplete="off"
+                  class="input input-bordered input-sm w-full"
+                />
+                <input
+                  type="text"
+                  name="link[title]"
+                  placeholder="Title (optional, fetched if empty)"
+                  autocomplete="off"
+                  class="input input-bordered input-sm w-full"
+                />
+                <div class="grid grid-cols-2 gap-2">
+                  <select name="link[project_id]" class="select select-bordered select-sm">
+                    <option value="">Inbox</option>
+                    <option :for={project <- @projects} value={project.id}>{project.name}</option>
+                  </select>
+                  <input
+                    type="text"
+                    name="link[tags]"
+                    placeholder="tags, comma"
+                    autocomplete="off"
+                    class="input input-bordered input-sm w-full"
+                  />
+                </div>
+                <button type="submit" class="btn btn-secondary btn-sm w-full">Save link</button>
+              </form>
 
               <form id="kairo-search-form" phx-change="search" phx-submit="search" class="relative">
                 <input
@@ -537,15 +696,15 @@ defmodule ElektrineWeb.KairoLive.Index do
               </form>
 
               <div
-                :if={@has_encrypted_sources}
-                class="hidden flex-col gap-2 rounded-lg border border-warning/30 bg-warning/5 p-2"
+                :if={@has_encrypted_sources || @composing}
+                class="!mt-3 hidden flex-col gap-2 rounded-lg border border-warning/30 bg-warning/5 p-2"
                 data-kairo-locked-hint
               >
                 <%= if @master_vault do %>
                   <input
                     type="password"
                     class="input input-bordered input-xs w-full"
-                    placeholder="Master passphrase"
+                    placeholder="Account password"
                     autocomplete="current-password"
                     data-kairo-master-unlock-input
                   />
@@ -554,12 +713,12 @@ defmodule ElektrineWeb.KairoLive.Index do
                     class="btn btn-outline btn-xs w-full"
                     data-kairo-master-unlock
                   >
-                    Unlock to decrypt
+                    Unlock with account password
                   </button>
                 <% else %>
                   <span class="text-xs text-warning">
-                    <.link navigate={~p"/account/master-password"} class="link">
-                      Set up master password
+                    <.link navigate={~p"/account/encrypted-data"} class="link">
+                      Set up account-password encryption
                     </.link>
                     to decrypt
                   </span>
@@ -577,12 +736,19 @@ defmodule ElektrineWeb.KairoLive.Index do
                     type="button"
                     phx-click="filter_project"
                     phx-value-project={project.id}
+                    title={if(project.status == "archived", do: "Archived", else: nil)}
                     class={[
                       "badge badge-sm cursor-pointer gap-1",
-                      if(@active_project == project.id, do: "badge-primary", else: "badge-outline")
+                      if(@active_project == project.id, do: "badge-primary", else: "badge-outline"),
+                      project.status == "archived" && "opacity-50"
                     ]}
                   >
-                    <.icon name="hero-folder" class="h-3 w-3" /> {project.name}
+                    <.icon
+                      name={
+                        if(project.status == "archived", do: "hero-archive-box", else: "hero-folder")
+                      }
+                      class="h-3 w-3"
+                    /> {project.name}
                   </button>
                   <button
                     :if={Enum.any?(@sources, &is_nil(&1.project_id))}
@@ -596,6 +762,45 @@ defmodule ElektrineWeb.KairoLive.Index do
                   >
                     <.icon name="hero-inbox" class="h-3 w-3" /> Inbox
                   </button>
+                </div>
+
+                <div :if={@active_project_record} class="!mt-3">
+                  <div class="space-y-2 rounded-lg border border-base-300 bg-base-200/40 p-2">
+                    <form phx-submit="rename_project" class="flex gap-1">
+                      <input type="hidden" name="project[id]" value={@active_project_record.id} />
+                      <input
+                        type="text"
+                        name="project[name]"
+                        value={@active_project_record.name}
+                        required
+                        class="input input-bordered input-xs min-w-0 flex-1"
+                      />
+                      <button type="submit" class="btn btn-outline btn-xs" title="Rename">
+                        <.icon name="hero-check" class="h-3 w-3" />
+                      </button>
+                    </form>
+                    <div class="flex gap-1">
+                      <button
+                        type="button"
+                        phx-click="toggle_archive_project"
+                        phx-value-id={@active_project_record.id}
+                        class="btn btn-outline btn-xs flex-1"
+                      >
+                        {if @active_project_record.status == "archived",
+                          do: "Unarchive",
+                          else: "Archive"}
+                      </button>
+                      <button
+                        type="button"
+                        phx-click="delete_project"
+                        phx-value-id={@active_project_record.id}
+                        data-confirm="Delete this project? Its sources will move to the inbox."
+                        class="btn btn-error btn-outline btn-xs flex-1"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -653,10 +858,10 @@ defmodule ElektrineWeb.KairoLive.Index do
                         )
                       ]}
                     >
-                      <span :if={source.encrypted} title="Encrypted">🔒</span>
                       <.icon
-                        :if={!source.encrypted}
-                        name="hero-document-text"
+                        name={
+                          if(source.encrypted, do: "hero-lock-closed", else: "hero-document-text")
+                        }
                         class="h-4 w-4 shrink-0"
                       />
                       <span class="truncate">{source_label(source)}</span>
@@ -664,6 +869,15 @@ defmodule ElektrineWeb.KairoLive.Index do
                   </li>
                 </ul>
               </details>
+
+              <button
+                :if={length(@sources) < @sources_total}
+                type="button"
+                phx-click="load_more"
+                class="btn btn-ghost btn-xs w-full"
+              >
+                Load more ({length(@sources)} of {@sources_total} loaded)
+              </button>
             </nav>
 
             <div class="border-t border-base-300 p-2">
@@ -697,7 +911,7 @@ defmodule ElektrineWeb.KairoLive.Index do
               >
               </div>
               <div class="pointer-events-none absolute bottom-2 left-3 text-xs text-base-content/40">
-                connected files share a tag · drag to reposition · scroll to zoom · click to open
+                Connected sources share a tag
               </div>
             </div>
 
@@ -799,12 +1013,38 @@ defmodule ElektrineWeb.KairoLive.Index do
                 {Phoenix.HTML.raw(Elektrine.Markdown.to_html(@compose["content"] || ""))}
               </div>
 
+              <label
+                :if={is_nil(@editing_source) && @master_vault}
+                class="flex cursor-pointer items-center gap-2 text-sm text-base-content/70"
+              >
+                <input
+                  type="checkbox"
+                  name="note[encrypt]"
+                  value="true"
+                  checked={@compose["encrypt"] == "true"}
+                  class="checkbox checkbox-xs"
+                /> Encrypt — the server never sees the content
+              </label>
+              <p class="hidden text-xs text-error" data-kairo-encrypt-error></p>
+
               <div class="flex justify-end gap-2">
                 <button type="button" phx-click="cancel_note" class="btn btn-ghost btn-sm">
                   Cancel
                 </button>
-                <button type="submit" class="btn btn-primary btn-sm">
+                <button
+                  :if={@compose["encrypt"] != "true"}
+                  type="submit"
+                  class="btn btn-primary btn-sm"
+                >
                   {if @editing_source, do: "Save changes", else: "Save note"}
+                </button>
+                <button
+                  :if={@compose["encrypt"] == "true"}
+                  type="button"
+                  data-kairo-encrypt-save
+                  class="btn btn-primary btn-sm"
+                >
+                  <.icon name="hero-lock-closed" class="h-3.5 w-3.5" /> Save encrypted
                 </button>
               </div>
             </form>
@@ -848,14 +1088,21 @@ defmodule ElektrineWeb.KairoLive.Index do
                   </div>
                 </div>
                 <div class="flex flex-wrap items-center gap-2 text-xs text-base-content/60">
-                  <span class="badge badge-outline badge-sm">{@selected.source_type}</span>
-                  <span class="badge badge-sm">{@selected.status}</span>
-                  <span :if={@selected.encrypted} class="badge badge-warning badge-outline badge-sm">
-                    🔒 encrypted
+                  <span :if={@selected.status not in ["stored", "compiled"]} class="badge badge-sm">
+                    {@selected.status}
                   </span>
-                  <span :if={@selected.project}>· {@selected.project.name}</span>
-                  <span>· {format_datetime(@selected.ingested_at)}</span>
+                  <span :if={@selected.encrypted} class="badge badge-warning badge-outline badge-sm">
+                    <.icon name="hero-lock-closed" class="h-3 w-3" /> encrypted
+                  </span>
+                  <span :if={@selected.project}>{@selected.project.name}</span>
+                  <span :if={@selected.ingested_at}>{format_datetime(@selected.ingested_at)}</span>
                 </div>
+                <p
+                  :if={@selected.status == "failed" && @selected.error_message}
+                  class="text-xs text-error"
+                >
+                  Fetch failed: {@selected.error_message}
+                </p>
                 <a
                   :if={present_url?(@selected.url)}
                   href={@selected.url}
@@ -893,7 +1140,7 @@ defmodule ElektrineWeb.KairoLive.Index do
                   data-kairo-decrypt
                   data-kairo-payload={Jason.encode!(@selected.encrypted_content)}
                 >
-                  🔒 Decrypt content
+                  <.icon name="hero-lock-open" class="h-4 w-4" /> Decrypt content
                 </button>
                 <pre
                   class="mt-1 hidden max-w-none whitespace-pre-wrap break-words rounded bg-base-100 p-3 text-sm"
@@ -917,8 +1164,10 @@ defmodule ElektrineWeb.KairoLive.Index do
                       phx-value-id={source.id}
                       class="flex w-full items-center gap-1.5 truncate rounded px-2 py-1 text-left text-sm hover:bg-base-300/40"
                     >
-                      <span :if={source.encrypted}>🔒</span>
-                      <.icon :if={!source.encrypted} name="hero-link" class="h-3.5 w-3.5 shrink-0" />
+                      <.icon
+                        name={if(source.encrypted, do: "hero-lock-closed", else: "hero-link")}
+                        class="h-3.5 w-3.5 shrink-0"
+                      />
                       <span class="truncate">{source_label(source)}</span>
                     </button>
                   </li>

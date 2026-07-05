@@ -126,7 +126,7 @@ defmodule Elektrine.Social.Messages do
 
                     # Federate to ActivityPub (async)
                     if conversation.type == "timeline" &&
-                         message.visibility in ["public", "followers"] do
+                         message.visibility in ["public", "unlisted", "followers"] do
                       Elektrine.Async.start(fn ->
                         preloaded = Repo.preload(message, :sender)
                         Elektrine.ActivityPub.Outbox.federate_post(preloaded)
@@ -1587,6 +1587,24 @@ defmodule Elektrine.Social.Messages do
   Creates a message from a federated source (ActivityPub).
   """
   def create_federated_message(attrs) do
+    case create_federated_message_with_status(attrs) do
+      {:ok, message, _status} -> {:ok, message}
+      error -> error
+    end
+  end
+
+  @doc """
+  Like `create_federated_message/1`, but reports whether the row was freshly
+  inserted (`:created`) or already existed under this `activitypub_id`
+  (`:existing`).
+
+  Callers that run "new message" side effects (reply-count increments,
+  notifications, fan-out) MUST use this and skip those effects on `:existing`.
+  Because the insert is `on_conflict: :nothing`, a duplicate returns
+  `{:ok, %Message{id: nil}}`, which is otherwise indistinguishable from a fresh
+  insert and would silently re-run every side effect on each redelivery/boost.
+  """
+  def create_federated_message_with_status(attrs) do
     insert_opts = [
       on_conflict: :nothing,
       conflict_target: {:unsafe_fragment, "(activitypub_id) WHERE activitypub_id IS NOT NULL"},
@@ -1599,14 +1617,14 @@ defmodule Elektrine.Social.Messages do
     |> case do
       {:ok, %Message{id: nil}} ->
         case get_message_by_activitypub_id(activitypub_id_from_attrs(attrs)) do
-          %Message{} = message -> {:ok, message}
+          %Message{} = message -> {:ok, message, :existing}
           nil -> {:error, :federated_message_conflict}
         end
 
-      {:ok, message} = result ->
+      {:ok, message} ->
         invalidate_activitypub_ref_cache_for_message(message)
         Accounts.notify_subscribers_for_message(message)
-        result
+        {:ok, message, :created}
 
       error ->
         error
@@ -1617,7 +1635,7 @@ defmodule Elektrine.Social.Messages do
 
       if unique_activitypub_violation?(error) && is_binary(activitypub_id) do
         case get_message_by_activitypub_id(activitypub_id) do
-          %Message{} = message -> {:ok, message}
+          %Message{} = message -> {:ok, message, :existing}
           nil -> reraise error, __STACKTRACE__
         end
       else
@@ -2001,6 +2019,7 @@ defmodule Elektrine.Social.Messages do
           )
           |> Repo.update_all([])
 
+          sync_stat_count(message_id, :like_count)
           {:ok, :liked}
 
         {:error, %Ecto.Changeset{errors: [message_id: _]}} ->
@@ -2034,6 +2053,7 @@ defmodule Elektrine.Social.Messages do
         )
         |> Repo.update_all([])
 
+        sync_stat_count(message_id, :like_count)
         {:ok, :unliked}
     end
   end
@@ -2069,6 +2089,7 @@ defmodule Elektrine.Social.Messages do
           )
           |> Repo.update_all([])
 
+          sync_stat_count(message_id, :dislike_count)
           {:ok, :disliked}
 
         {:error, %Ecto.Changeset{errors: [message_id: _]}} ->
@@ -2102,6 +2123,7 @@ defmodule Elektrine.Social.Messages do
         )
         |> Repo.update_all([])
 
+        sync_stat_count(message_id, :dislike_count)
         {:ok, :undisliked}
     end
   end
@@ -2186,6 +2208,8 @@ defmodule Elektrine.Social.Messages do
         )
         |> Repo.update_all([])
 
+        AppCache.invalidate_social_message(message_id)
+        MessageStats.upsert_counts(message_id, %{share_count: share_count(message_id)})
         {:ok, :unboosted}
     end
   end
@@ -2609,6 +2633,17 @@ defmodule Elektrine.Social.Messages do
     from(m in Message, where: m.id == ^message_id, select: coalesce(m.share_count, 0))
     |> Repo.one()
     |> Kernel.||(0)
+  end
+
+  # Reads the current canonical count for one field and mirrors it into the
+  # MessageStats display table, so the two never drift on like/dislike/unboost.
+  defp sync_stat_count(message_id, field) when field in [:like_count, :dislike_count] do
+    current =
+      from(m in Message, where: m.id == ^message_id, select: field(m, ^field))
+      |> Repo.one()
+      |> Kernel.||(0)
+
+    MessageStats.upsert_counts(message_id, %{field => current})
   end
 
   defp normalize_non_negative_count(value) when is_integer(value), do: max(value, 0)

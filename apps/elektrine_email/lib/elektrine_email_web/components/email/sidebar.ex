@@ -101,7 +101,7 @@ defmodule ElektrineEmailWeb.Components.Email.Sidebar do
             </div>
 
             <%= if @storage_info do %>
-              <div class="rounded-lg border border-base-300/60 bg-base-100/60 p-3">
+              <div class="border-t border-base-300/50 pt-3">
                 <div class="flex items-center justify-between gap-2 text-xs mb-2">
                   <span class="font-medium uppercase tracking-wide text-base-content/60">
                     {gettext("Storage")}
@@ -116,13 +116,13 @@ defmodule ElektrineEmailWeb.Components.Email.Sidebar do
                     class={
                       cond do
                         @storage_info.over_limit ->
-                          "h-full bg-gradient-to-r from-red-700 to-red-800 transition-all duration-300"
+                          "h-full bg-error transition-all duration-300"
 
                         @storage_info.percentage > 0.8 ->
-                          "h-full bg-gradient-to-r from-warning to-warning transition-all duration-300"
+                          "h-full bg-warning transition-all duration-300"
 
                         true ->
-                          "h-full bg-gradient-to-r from-secondary to-secondary transition-all duration-300"
+                          "h-full bg-secondary transition-all duration-300"
                       end
                     }
                     style={"width: #{min(@storage_info.percentage * 100, 100)}%"}
@@ -150,157 +150,34 @@ defmodule ElektrineEmailWeb.Components.Email.Sidebar do
             <div class="space-y-3">
               <div class="overflow-x-auto pb-1">
                 <div class="flex min-w-max items-center gap-2">
-                  <a
-                    href={Elektrine.Paths.email_index_path(tab: "inbox")}
-                    data-phx-link="patch"
-                    data-phx-link-state="push"
-                    class={[
+                  <%= for item <- nav_items(@unread_count) do %>
+                    <% pill_class = [
                       "btn btn-sm rounded-full whitespace-nowrap",
-                      if(@current_page == "inbox",
+                      if(@current_page == item.key,
                         do: "btn-secondary",
                         else: "btn-ghost bg-base-100/60"
                       )
-                    ]}
-                  >
-                    <.icon name="hero-inbox" class="h-4 w-4" />
-                    {gettext("Inbox")}
-                    <%= if @unread_count > 0 do %>
-                      <span class="badge badge-secondary badge-xs">{@unread_count}</span>
+                    ] %>
+                    <%= if item[:navigate] do %>
+                      <.link navigate={item.navigate} class={pill_class}>
+                        <.icon name={item.icon} class="h-4 w-4" />
+                        {item.label}
+                      </.link>
+                    <% else %>
+                      <a
+                        href={Elektrine.Paths.email_index_path(tab: item.key)}
+                        data-phx-link="patch"
+                        data-phx-link-state="push"
+                        class={pill_class}
+                      >
+                        <.icon name={item.icon} class="h-4 w-4" />
+                        {item.label}
+                        <%= if item[:count] && item.count > 0 do %>
+                          <span class="badge badge-secondary badge-xs">{item.count}</span>
+                        <% end %>
+                      </a>
                     <% end %>
-                  </a>
-                  <a
-                    href={Elektrine.Paths.email_index_path(tab: "sent")}
-                    data-phx-link="patch"
-                    data-phx-link-state="push"
-                    class={[
-                      "btn btn-sm rounded-full whitespace-nowrap",
-                      if(@current_page == "sent",
-                        do: "btn-secondary",
-                        else: "btn-ghost bg-base-100/60"
-                      )
-                    ]}
-                  >
-                    <.icon name="hero-paper-airplane" class="h-4 w-4" />
-                    {gettext("Sent")}
-                  </a>
-                  <a
-                    href={Elektrine.Paths.email_index_path(tab: "drafts")}
-                    data-phx-link="patch"
-                    data-phx-link-state="push"
-                    class={[
-                      "btn btn-sm rounded-full whitespace-nowrap",
-                      if(@current_page == "drafts",
-                        do: "btn-secondary",
-                        else: "btn-ghost bg-base-100/60"
-                      )
-                    ]}
-                  >
-                    <.icon name="hero-document" class="h-4 w-4" />
-                    {gettext("Drafts")}
-                  </a>
-                  <a
-                    href={Elektrine.Paths.email_index_path(tab: "search")}
-                    data-phx-link="patch"
-                    data-phx-link-state="push"
-                    class={[
-                      "btn btn-sm rounded-full whitespace-nowrap",
-                      if(@current_page == "search",
-                        do: "btn-secondary",
-                        else: "btn-ghost bg-base-100/60"
-                      )
-                    ]}
-                  >
-                    <.icon name="hero-magnifying-glass" class="h-4 w-4" />
-                    {gettext("Search")}
-                  </a>
-                  <a
-                    href={Elektrine.Paths.email_index_path(tab: "archive")}
-                    data-phx-link="patch"
-                    data-phx-link-state="push"
-                    class={[
-                      "btn btn-sm rounded-full whitespace-nowrap",
-                      if(@current_page == "archive",
-                        do: "btn-secondary",
-                        else: "btn-ghost bg-base-100/60"
-                      )
-                    ]}
-                  >
-                    <.icon name="hero-archive-box" class="h-4 w-4" />
-                    {gettext("Archive")}
-                  </a>
-                  <a
-                    href={Elektrine.Paths.email_index_path(tab: "spam")}
-                    data-phx-link="patch"
-                    data-phx-link-state="push"
-                    class={[
-                      "btn btn-sm rounded-full whitespace-nowrap",
-                      if(@current_page == "spam",
-                        do: "btn-secondary",
-                        else: "btn-ghost bg-base-100/60"
-                      )
-                    ]}
-                  >
-                    <.icon name="hero-exclamation-triangle" class="h-4 w-4" />
-                    {gettext("Spam")}
-                  </a>
-                  <a
-                    href={Elektrine.Paths.email_index_path(tab: "trash")}
-                    data-phx-link="patch"
-                    data-phx-link-state="push"
-                    class={[
-                      "btn btn-sm rounded-full whitespace-nowrap",
-                      if(@current_page == "trash",
-                        do: "btn-secondary",
-                        else: "btn-ghost bg-base-100/60"
-                      )
-                    ]}
-                  >
-                    <.icon name="hero-trash" class="h-4 w-4" />
-                    {gettext("Trash")}
-                  </a>
-                  <a
-                    href={Elektrine.Paths.email_index_path(tab: "contacts")}
-                    data-phx-link="patch"
-                    data-phx-link-state="push"
-                    class={[
-                      "btn btn-sm rounded-full whitespace-nowrap",
-                      if(@current_page == "contacts",
-                        do: "btn-secondary",
-                        else: "btn-ghost bg-base-100/60"
-                      )
-                    ]}
-                  >
-                    <.icon name="hero-user-group" class="h-4 w-4" />
-                    {gettext("Contacts")}
-                  </a>
-                  <a
-                    href={Elektrine.Paths.email_index_path(tab: "calendar")}
-                    data-phx-link="patch"
-                    data-phx-link-state="push"
-                    class={[
-                      "btn btn-sm rounded-full whitespace-nowrap",
-                      if(@current_page == "calendar",
-                        do: "btn-secondary",
-                        else: "btn-ghost bg-base-100/60"
-                      )
-                    ]}
-                  >
-                    <.icon name="hero-calendar" class="h-4 w-4" />
-                    {gettext("Calendar")}
-                  </a>
-                  <.link
-                    navigate={~p"/email/settings"}
-                    class={[
-                      "btn btn-sm rounded-full whitespace-nowrap",
-                      if(@current_page == "settings",
-                        do: "btn-secondary",
-                        else: "btn-ghost bg-base-100/60"
-                      )
-                    ]}
-                  >
-                    <.icon name="hero-cog-6-tooth" class="h-4 w-4" />
-                    {gettext("Settings")}
-                  </.link>
+                  <% end %>
                 </div>
               </div>
 
@@ -384,7 +261,7 @@ defmodule ElektrineEmailWeb.Components.Email.Sidebar do
                       <span class="font-medium">{gettext("Storage Used")}</span>
                       <span class={
                         cond do
-                          @storage_info.over_limit -> "text-red-800 font-semibold"
+                          @storage_info.over_limit -> "text-error font-semibold"
                           @storage_info.percentage > 0.8 -> "text-warning font-medium"
                           true -> "text-base-content/60"
                         end
@@ -400,13 +277,13 @@ defmodule ElektrineEmailWeb.Components.Email.Sidebar do
                             class={
                               cond do
                                 @storage_info.over_limit ->
-                                  "h-full bg-gradient-to-r from-red-700 to-red-800 transition-all duration-300"
+                                  "h-full bg-error transition-all duration-300"
 
                                 @storage_info.percentage > 0.8 ->
-                                  "h-full bg-gradient-to-r from-warning to-warning transition-all duration-300"
+                                  "h-full bg-warning transition-all duration-300"
 
                                 true ->
-                                  "h-full bg-gradient-to-r from-secondary to-secondary transition-all duration-300"
+                                  "h-full bg-secondary transition-all duration-300"
                               end
                             }
                             style={"width: #{min(@storage_info.percentage * 100, 100)}%"}
@@ -415,7 +292,7 @@ defmodule ElektrineEmailWeb.Components.Email.Sidebar do
                       </div>
                       <span class={
                         cond do
-                          @storage_info.over_limit -> "text-red-800 font-semibold text-xs"
+                          @storage_info.over_limit -> "text-error font-semibold text-xs"
                           @storage_info.percentage > 0.8 -> "text-warning font-medium text-xs"
                           true -> "text-base-content/60 text-xs"
                         end
@@ -426,7 +303,7 @@ defmodule ElektrineEmailWeb.Components.Email.Sidebar do
 
                     <%= cond do %>
                       <% @storage_info.over_limit -> %>
-                        <div class="mt-2 text-xs text-red-800 font-medium flex items-center">
+                        <div class="mt-2 text-xs text-error font-medium flex items-center">
                           <.icon name="hero-exclamation-triangle" class="h-3 w-3 mr-1" />
                           {gettext("Storage limit exceeded")}
                         </div>
@@ -452,159 +329,34 @@ defmodule ElektrineEmailWeb.Components.Email.Sidebar do
         >
           <div class="card-body p-3">
             <ul class="menu menu-lg rounded-box w-full">
-              <li>
-                <a
-                  href={Elektrine.Paths.email_index_path(tab: "inbox")}
-                  data-phx-link="patch"
-                  data-phx-link-state="push"
-                  class={
-                    if(@current_page == "inbox",
-                      do: "bg-secondary/10 text-secondary font-semibold rounded-lg",
-                      else: "text-base-content hover:bg-secondary/5 hover:text-secondary"
-                    )
-                  }
-                >
-                  <.icon name="hero-inbox" class="h-5 w-5" /> {gettext("Inbox")}
-                  <%= if @unread_count > 0 do %>
-                    <div class="badge badge-sm badge-secondary animate-pulse">
-                      {@unread_count}
-                    </div>
+              <%= for item <- nav_items(@unread_count) do %>
+                <% menu_item_class =
+                  if(@current_page == item.key,
+                    do: "bg-secondary/10 text-secondary font-semibold rounded-lg",
+                    else: "text-base-content hover:bg-secondary/5 hover:text-secondary"
+                  ) %>
+                <li>
+                  <%= if item[:navigate] do %>
+                    <.link navigate={item.navigate} class={menu_item_class}>
+                      <.icon name={item.icon} class="h-5 w-5" /> {item.label}
+                    </.link>
+                  <% else %>
+                    <a
+                      href={Elektrine.Paths.email_index_path(tab: item.key)}
+                      data-phx-link="patch"
+                      data-phx-link-state="push"
+                      class={menu_item_class}
+                    >
+                      <.icon name={item.icon} class="h-5 w-5" /> {item.label}
+                      <%= if item[:count] && item.count > 0 do %>
+                        <div class="badge badge-sm badge-secondary">
+                          {item.count}
+                        </div>
+                      <% end %>
+                    </a>
                   <% end %>
-                </a>
-              </li>
-              <li>
-                <a
-                  href={Elektrine.Paths.email_index_path(tab: "sent")}
-                  data-phx-link="patch"
-                  data-phx-link-state="push"
-                  class={
-                    if(@current_page == "sent",
-                      do: "bg-secondary/10 text-secondary font-semibold rounded-lg",
-                      else: "text-base-content hover:bg-secondary/5 hover:text-secondary"
-                    )
-                  }
-                >
-                  <.icon name="hero-paper-airplane" class="h-5 w-5" /> {gettext("Sent")}
-                </a>
-              </li>
-              <li>
-                <a
-                  href={Elektrine.Paths.email_index_path(tab: "drafts")}
-                  data-phx-link="patch"
-                  data-phx-link-state="push"
-                  class={
-                    if(@current_page == "drafts",
-                      do: "bg-secondary/10 text-secondary font-semibold rounded-lg",
-                      else: "text-base-content hover:bg-secondary/5 hover:text-secondary"
-                    )
-                  }
-                >
-                  <.icon name="hero-document" class="h-5 w-5" /> {gettext("Drafts")}
-                </a>
-              </li>
-              <li>
-                <a
-                  href={Elektrine.Paths.email_index_path(tab: "search")}
-                  data-phx-link="patch"
-                  data-phx-link-state="push"
-                  class={
-                    if(@current_page == "search",
-                      do: "bg-secondary/10 text-secondary font-semibold rounded-lg",
-                      else: "text-base-content hover:bg-secondary/5 hover:text-secondary"
-                    )
-                  }
-                >
-                  <.icon name="hero-magnifying-glass" class="h-5 w-5" /> {gettext("Search")}
-                </a>
-              </li>
-              <li>
-                <a
-                  href={Elektrine.Paths.email_index_path(tab: "spam")}
-                  data-phx-link="patch"
-                  data-phx-link-state="push"
-                  class={
-                    if(@current_page == "spam",
-                      do: "bg-secondary/10 text-secondary font-semibold rounded-lg",
-                      else: "text-base-content hover:bg-secondary/5 hover:text-secondary"
-                    )
-                  }
-                >
-                  <.icon name="hero-exclamation-triangle" class="h-5 w-5" /> {gettext("Spam")}
-                </a>
-              </li>
-              <li>
-                <a
-                  href={Elektrine.Paths.email_index_path(tab: "trash")}
-                  data-phx-link="patch"
-                  data-phx-link-state="push"
-                  class={
-                    if(@current_page == "trash",
-                      do: "bg-secondary/10 text-secondary font-semibold rounded-lg",
-                      else: "text-base-content hover:bg-secondary/5 hover:text-secondary"
-                    )
-                  }
-                >
-                  <.icon name="hero-trash" class="h-5 w-5" /> {gettext("Trash")}
-                </a>
-              </li>
-              <li>
-                <a
-                  href={Elektrine.Paths.email_index_path(tab: "archive")}
-                  data-phx-link="patch"
-                  data-phx-link-state="push"
-                  class={
-                    if(@current_page == "archive",
-                      do: "bg-secondary/10 text-secondary font-semibold rounded-lg",
-                      else: "text-base-content hover:bg-secondary/5 hover:text-secondary"
-                    )
-                  }
-                >
-                  <.icon name="hero-archive-box" class="h-5 w-5" /> {gettext("Archive")}
-                </a>
-              </li>
-
-              <li>
-                <a
-                  href={Elektrine.Paths.email_index_path(tab: "contacts")}
-                  data-phx-link="patch"
-                  data-phx-link-state="push"
-                  class={
-                    if(@current_page == "contacts",
-                      do: "bg-secondary/10 text-secondary font-semibold rounded-lg",
-                      else: "text-base-content hover:bg-secondary/5 hover:text-secondary"
-                    )
-                  }
-                >
-                  <.icon name="hero-user-group" class="h-5 w-5" /> {gettext("Contacts")}
-                </a>
-              </li>
-              <li>
-                <a
-                  href={Elektrine.Paths.email_index_path(tab: "calendar")}
-                  data-phx-link="patch"
-                  data-phx-link-state="push"
-                  class={
-                    if(@current_page == "calendar",
-                      do: "bg-secondary/10 text-secondary font-semibold rounded-lg",
-                      else: "text-base-content hover:bg-secondary/5 hover:text-secondary"
-                    )
-                  }
-                >
-                  <.icon name="hero-calendar" class="h-5 w-5" /> {gettext("Calendar")}
-                </a>
-              </li>
-              <li>
-                <.link
-                  navigate={~p"/email/settings"}
-                  class={
-                    if @current_page == "settings",
-                      do: "bg-secondary/10 text-secondary font-semibold rounded-lg",
-                      else: "text-base-content hover:bg-secondary/5 hover:text-secondary"
-                  }
-                >
-                  <.icon name="hero-cog-6-tooth" class="h-5 w-5" /> {gettext("Settings")}
-                </.link>
-              </li>
+                </li>
+              <% end %>
               
     <!-- Custom Folders -->
               <%= if length(@custom_folders) > 0 do %>
@@ -670,5 +422,28 @@ defmodule ElektrineEmailWeb.Components.Email.Sidebar do
       </div>
     </.sticky_sidebar>
     """
+  end
+
+  # Single source of truth for the folder navigation, rendered by both the
+  # mobile pill row and the desktop menu. Items with :navigate render as
+  # live navigation links; the rest patch to the matching index tab.
+  defp nav_items(unread_count) do
+    [
+      %{key: "inbox", label: gettext("Inbox"), icon: "hero-inbox", count: unread_count},
+      %{key: "sent", label: gettext("Sent"), icon: "hero-paper-airplane"},
+      %{key: "drafts", label: gettext("Drafts"), icon: "hero-document"},
+      %{key: "search", label: gettext("Search"), icon: "hero-magnifying-glass"},
+      %{key: "spam", label: gettext("Spam"), icon: "hero-exclamation-triangle"},
+      %{key: "trash", label: gettext("Trash"), icon: "hero-trash"},
+      %{key: "archive", label: gettext("Archive"), icon: "hero-archive-box"},
+      %{key: "contacts", label: gettext("Contacts"), icon: "hero-user-group"},
+      %{key: "calendar", label: gettext("Calendar"), icon: "hero-calendar"},
+      %{
+        key: "settings",
+        label: gettext("Settings"),
+        icon: "hero-cog-6-tooth",
+        navigate: ~p"/email/settings"
+      }
+    ]
   end
 end

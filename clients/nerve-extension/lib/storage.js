@@ -1,5 +1,6 @@
 const SETTINGS_KEYS = ["serverUrl"]
 const TOKEN_KEY = "apiToken"
+const THEME_KEY = "theme"
 const PASSPHRASE_KEY = "vaultPassphrase"
 const STAGED_FILLS_KEY = "stagedEntryFills"
 const PENDING_SAVE_MEMORY_TTL_MS = 5 * 60 * 1000
@@ -62,11 +63,13 @@ function storageRemove(areaName, keys) {
 
 export async function getSettings() {
   const values = await storageGet("local", SETTINGS_KEYS)
-  const tokenValues = await storageGet("session", TOKEN_KEY)
+  const tokenValues = await storageGet("session", [TOKEN_KEY, THEME_KEY])
+  const apiToken = tokenValues[TOKEN_KEY] || ""
 
   return {
     serverUrl: values.serverUrl || "",
-    apiToken: tokenValues[TOKEN_KEY] || ""
+    apiToken,
+    theme: apiToken ? tokenValues[THEME_KEY] || null : null
   }
 }
 
@@ -75,18 +78,18 @@ export async function saveSettings(settings) {
     serverUrl: (settings.serverUrl || "").trim()
   })
 
-  await storageSet("session", {
-    [TOKEN_KEY]: (settings.apiToken || "").trim()
-  })
-}
+  const apiToken = (settings.apiToken || "").trim()
+  const sessionValues = { [TOKEN_KEY]: apiToken }
 
-export async function getSessionPassphrase() {
-  const values = await storageGet("session", PASSPHRASE_KEY)
-  return values[PASSPHRASE_KEY] || ""
-}
+  if (Object.prototype.hasOwnProperty.call(settings, "theme")) {
+    sessionValues[THEME_KEY] = settings.theme || null
+  }
 
-export async function setSessionPassphrase(passphrase) {
-  await storageSet("session", { [PASSPHRASE_KEY]: passphrase })
+  await storageSet("session", sessionValues)
+
+  if (!apiToken) {
+    await storageRemove("session", THEME_KEY)
+  }
 }
 
 export async function clearSessionPassphrase() {

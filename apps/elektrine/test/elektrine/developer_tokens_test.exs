@@ -64,6 +64,54 @@ defmodule Elektrine.DeveloperTokensTest do
     end
   end
 
+  describe "create_nerve_extension_token/2" do
+    test "replaces stale extension tokens before enforcing the token limit" do
+      user = user_fixture()
+
+      for idx <- 1..(Developer.max_tokens_per_user() - 1) do
+        assert {:ok, _token} =
+                 Developer.create_api_token(user.id, %{
+                   name: "manual-token-#{idx}",
+                   scopes: ["read:account"]
+                 })
+      end
+
+      assert {:ok, stale_extension_token} =
+               Developer.create_api_token(user.id, %{
+                 name: "Nerve browser extension",
+                 scopes: ["read:nerve", "write:nerve"]
+               })
+
+      assert Developer.count_api_tokens(user.id) == Developer.max_tokens_per_user()
+
+      expires_at =
+        DateTime.utc_now()
+        |> DateTime.add(3600, :second)
+        |> DateTime.truncate(:second)
+
+      assert {:ok, replacement_token} =
+               Developer.create_nerve_extension_token(user.id, expires_at)
+
+      assert String.starts_with?(replacement_token.token, "ekt_")
+      assert Developer.count_api_tokens(user.id) == Developer.max_tokens_per_user()
+
+      active_tokens = Developer.list_api_tokens(user.id)
+
+      active_extension_tokens =
+        Enum.filter(active_tokens, &(&1.name == "Nerve browser extension"))
+
+      assert Enum.map(active_extension_tokens, & &1.id) == [replacement_token.id]
+      refute Enum.any?(active_tokens, &(&1.id == stale_extension_token.id))
+
+      assert replacement_token.scopes == [
+               "read:kairo",
+               "read:nerve",
+               "write:kairo",
+               "write:nerve"
+             ]
+    end
+  end
+
   describe "verify_api_token/2" do
     test "revokes tokens older than the user's auth boundary" do
       user = user_fixture()

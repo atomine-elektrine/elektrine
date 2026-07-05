@@ -46,17 +46,7 @@
       <div class="space-y-6">
         <div class="card panel-card">
           <div class="card-body p-4 space-y-3">
-            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 class="text-base font-semibold">Domains</h2>
-                <p class="text-sm text-base-content/60">
-                  Choose the host or zone to inspect.
-                </p>
-              </div>
-              <.link navigate={~p"/analytics/profile"} class="btn btn-ghost btn-sm">
-                Profile Analytics
-              </.link>
-            </div>
+            <h2 class="text-base font-semibold">Domains</h2>
 
             <%= if @domains == [] do %>
               <div class="rounded-xl border border-dashed border-base-content/15 px-4 py-6 text-sm text-base-content/60">
@@ -256,12 +246,7 @@
                   <div class="card bg-base-200/40">
                     <div class="card-body p-6">
                       <div class="flex items-center justify-between gap-4">
-                        <div>
-                          <h3 class="card-title text-base">Last 24 Hours</h3>
-                          <p class="mt-1 text-sm text-base-content/55">
-                            Hourly authoritative DNS query volume.
-                          </p>
-                        </div>
+                        <h3 class="card-title text-base">Last 24 Hours</h3>
                         <span class="badge badge-outline">UTC</span>
                       </div>
 

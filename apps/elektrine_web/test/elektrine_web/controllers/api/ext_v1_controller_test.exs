@@ -684,7 +684,7 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
       assert error["code"] == "invalid_token_format"
     end
 
-    test "Nerve delete nerve endpoint removes entries", %{conn: conn} do
+    test "Nerve delete-all endpoint is not exposed", %{conn: conn} do
       user = user_fixture()
 
       assert {:ok, _entry} =
@@ -700,9 +700,7 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
         delete_conn
         |> delete("/api/ext/v1/nerve")
 
-      assert %{"data" => data} = json_response(delete_conn, 200)
-      assert data["message"] == "Nerve entries deleted"
-      assert data["deleted_entries"] == 1
+      assert response(delete_conn, 404)
 
       list_conn =
         build_conn()
@@ -710,7 +708,7 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
         |> get("/api/ext/v1/nerve/entries")
 
       assert %{"data" => list_data} = json_response(list_conn, 200)
-      assert list_data["entries"] == []
+      assert [_entry] = list_data["entries"]
     end
 
     test "Nerve endpoints reject account scopes without nerve scopes", %{conn: conn} do

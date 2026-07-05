@@ -18,6 +18,68 @@ defmodule KairoTest do
       assert project.status == "active"
       assert project.autonomy_level == 1
     end
+
+    test "update_project/3 renames and archives, enforcing ownership" do
+      user = user_fixture()
+      other_user = user_fixture()
+      {:ok, project} = Kairo.create_project(user, %{"name" => "Old Name"})
+
+      assert {:ok, renamed} = Kairo.update_project(user, project.id, %{"name" => "New Name"})
+      assert renamed.name == "New Name"
+
+      assert {:ok, archived} = Kairo.update_project(user, project.id, %{"status" => "archived"})
+      assert archived.status == "archived"
+
+      assert {:error, :not_found} =
+               Kairo.update_project(other_user, project.id, %{"name" => "stolen"})
+    end
+
+    test "update_project/3 cannot reassign ownership" do
+      user = user_fixture()
+      other_user = user_fixture()
+      {:ok, project} = Kairo.create_project(user, %{"name" => "Mine"})
+
+      assert {:ok, updated} =
+               Kairo.update_project(user, project.id, %{
+                 "name" => "Still Mine",
+                 "user_id" => other_user.id
+               })
+
+      assert updated.user_id == user.id
+    end
+
+    test "list_projects/2 filters by status" do
+      user = user_fixture()
+      {:ok, active} = Kairo.create_project(user, %{"name" => "Active"})
+      {:ok, archived} = Kairo.create_project(user, %{"name" => "Archived"})
+      {:ok, _} = Kairo.update_project(user, archived.id, %{"status" => "archived"})
+
+      assert [_one, _two] = Kairo.list_projects(user)
+      assert [%{id: id}] = Kairo.list_projects(user, status: "active")
+      assert id == active.id
+    end
+
+    test "delete_project/2 releases its sources to the inbox" do
+      user = user_fixture()
+      other_user = user_fixture()
+      {:ok, project} = Kairo.create_project(user, %{"name" => "Doomed"})
+
+      {:ok, source} =
+        Kairo.create_source(user, %{
+          "source_type" => "markdown",
+          "title" => "Keeper",
+          "content" => "survives project deletion",
+          "project_id" => project.id
+        })
+
+      assert {:error, :not_found} = Kairo.delete_project(other_user, project.id)
+      assert {:ok, _project} = Kairo.delete_project(user, project.id)
+
+      assert Kairo.get_project(user, project.id) == nil
+      reloaded = Kairo.get_source(user, source.id)
+      assert reloaded.project_id == nil
+      assert reloaded.content == "survives project deletion"
+    end
   end
 
   describe "sources" do
@@ -195,6 +257,83 @@ defmodule KairoTest do
 
       assert {:ok, _deleted} = Kairo.delete_source(user, source.id)
       assert Kairo.get_source(user, source.id) == nil
+    end
+
+    test "create_source/2 is idempotent for identical content" do
+      user = user_fixture()
+
+      attrs = %{
+        "source_type" => "markdown",
+        "title" => "Dedup me",
+        "content" => "same body",
+        "tags" => "a, b"
+      }
+
+      assert {:ok, first} = Kairo.create_source(user, attrs)
+      assert {:ok, second} = Kairo.create_source(user, attrs)
+      assert second.id == first.id
+      assert Kairo.count_sources(user) == 1
+
+      # A different user ingesting the same content gets their own copy.
+      other_user = user_fixture()
+      assert {:ok, other} = Kairo.create_source(other_user, attrs)
+      assert other.id != first.id
+    end
+
+    test "raw_hash is stable across a no-op update and changes with content" do
+      user = user_fixture()
+
+      {:ok, source} =
+        Kairo.create_source(user, %{
+          "source_type" => "markdown",
+          "title" => "Stable",
+          "content" => "body"
+        })
+
+      assert {:ok, unchanged} = Kairo.update_source(user, source.id, %{"title" => "Stable"})
+      assert unchanged.raw_hash == source.raw_hash
+
+      assert {:ok, changed} = Kairo.update_source(user, source.id, %{"content" => "new body"})
+      assert changed.raw_hash != source.raw_hash
+    end
+
+    test "update_source/3 cannot reassign ownership" do
+      user = user_fixture()
+      other_user = user_fixture()
+
+      {:ok, source} =
+        Kairo.create_source(user, %{
+          "source_type" => "markdown",
+          "title" => "Mine",
+          "content" => "owner stays fixed"
+        })
+
+      assert {:ok, updated} =
+               Kairo.update_source(user, source.id, %{
+                 "title" => "Still mine",
+                 "user_id" => other_user.id
+               })
+
+      assert updated.user_id == user.id
+    end
+
+    test "list_sources/2 paginates with offset and count_sources/2 reports totals" do
+      user = user_fixture()
+
+      for index <- 1..3 do
+        {:ok, _} =
+          Kairo.create_source(user, %{
+            "source_type" => "markdown",
+            "title" => "Note #{index}",
+            "content" => "body #{index}"
+          })
+      end
+
+      assert Kairo.count_sources(user) == 3
+
+      all = Kairo.list_sources(user)
+      page = Kairo.list_sources(user, limit: 2, offset: 2)
+      assert Enum.map(page, & &1.id) == all |> Enum.drop(2) |> Enum.map(& &1.id)
     end
   end
 end

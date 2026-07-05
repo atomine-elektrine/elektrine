@@ -125,9 +125,12 @@ defmodule ElektrineWeb.ProfileTheme do
     "background-color: #{profile_color(profile, :background_color)};"
   end
 
-  defp custom_profile_background_style(%{background_url: url, background_type: "image"})
+  defp custom_profile_background_style(%{background_url: url, background_type: "image"} = profile)
        when is_binary(url) and url != "" do
-    "background-image: url(#{Uploads.background_url(url)}); background-size: cover; background-position: center; background-repeat: no-repeat; background-attachment: fixed;"
+    x = profile_percent(profile, :background_focal_x, 50)
+    y = profile_percent(profile, :background_focal_y, 50)
+
+    "background-image: url(#{Uploads.background_url(url)}); background-size: cover; background-position: #{x}% #{y}%; background-repeat: no-repeat; background-attachment: fixed;"
   end
 
   defp custom_profile_background_style(%{background_type: "solid", background_color: color})
@@ -174,5 +177,17 @@ defmodule ElektrineWeb.ProfileTheme do
 
   defp custom_profile_gradient_style do
     "background: linear-gradient(135deg, color-mix(in srgb, var(--profile-bg) 78%, var(--color-base-100) 22%) 0%, color-mix(in srgb, var(--profile-bg) 68%, var(--color-base-100) 32%) 25%, color-mix(in srgb, var(--profile-bg) 58%, var(--color-base-100) 42%) 50%, color-mix(in srgb, var(--profile-bg) 66%, var(--color-base-100) 34%) 75%, color-mix(in srgb, var(--profile-bg) 82%, var(--color-base-100) 18%) 100%);"
+  end
+
+  defp profile_percent(profile, field, fallback) do
+    value = Map.get(profile || %{}, field, fallback)
+
+    value
+    |> case do
+      number when is_integer(number) or is_float(number) -> number
+      _ -> fallback
+    end
+    |> max(0)
+    |> min(100)
   end
 end

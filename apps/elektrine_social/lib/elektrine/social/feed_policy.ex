@@ -23,7 +23,7 @@ defmodule Elektrine.Social.FeedPolicy do
   def filter_home_posts(nil, posts, _opts), do: posts
 
   def filter_home_posts(user_id, posts, opts) when is_integer(user_id) and is_list(posts) do
-    relationships = TimelineRelationships.load(user_id, posts)
+    relationships = TimelineRelationships.load(user_id, relationship_policy_posts(posts))
 
     Enum.filter(posts, fn post ->
       visible_in_home?(user_id, post, opts, relationships)
@@ -33,7 +33,7 @@ defmodule Elektrine.Social.FeedPolicy do
   def visible_in_home?(user_id, message, opts \\ [])
 
   def visible_in_home?(user_id, %Message{} = message, opts) when is_integer(user_id) do
-    relationships = TimelineRelationships.load(user_id, [message])
+    relationships = TimelineRelationships.load(user_id, relationship_policy_posts([message]))
     visible_in_home?(user_id, message, opts, relationships)
   end
 
@@ -66,7 +66,34 @@ defmodule Elektrine.Social.FeedPolicy do
       not hidden_by_viewer_preference?(message, opts) and
       not Filters.filtered?(user_id, message, Keyword.get(opts, :context, :home)) and
       not filtered_by_keywords?(message, Keyword.get(opts, :keyword_filters, [])) and
-      not filtered_by_community?(message, Keyword.get(opts, :blocked_community_uris, []))
+      not filtered_by_community?(message, Keyword.get(opts, :blocked_community_uris, [])) and
+      boosted_content_visible?(user_id, message, opts, relationships)
+  end
+
+  # A boost's own wrapper can pass every check while the content it carries is
+  # from a blocked/muted user or matches a keyword/community filter. The
+  # renderer shows the wrapped `shared_message` unconditionally, so the boosted
+  # content must be filtered here too.
+  defp boosted_content_visible?(
+         user_id,
+         %{shared_message: %Message{} = shared},
+         opts,
+         relationships
+       ) do
+    not TimelineRelationships.blocked_message?(relationships, shared) and
+      MessagePolicy.visible?(user_id, shared) and
+      not Filters.filtered?(user_id, shared, Keyword.get(opts, :context, :home)) and
+      not filtered_by_keywords?(shared, Keyword.get(opts, :keyword_filters, [])) and
+      not filtered_by_community?(shared, Keyword.get(opts, :blocked_community_uris, []))
+  end
+
+  defp boosted_content_visible?(_user_id, _message, _opts, _relationships), do: true
+
+  defp relationship_policy_posts(posts) do
+    Enum.flat_map(posts, fn
+      %Message{shared_message: %Message{} = shared} = post -> [post, shared]
+      post -> [post]
+    end)
   end
 
   defp deleted_or_draft?(message), do: not is_nil(message.deleted_at) or message.is_draft == true

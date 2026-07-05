@@ -11,6 +11,7 @@ import topbar from "../vendor/topbar"
 
 // Import hooks
 import { Hooks } from "./hooks"
+import { detectDevice } from "./hooks/presence_hooks"
 import { initTimezoneDetectors } from "./hooks/form_hooks"
 import { initBackupCodesPrinters } from "./hooks/backup_codes_printer"
 import { initPrivateMailboxAuthForms } from "./hooks/mailbox_private_auth_forms"
@@ -71,7 +72,7 @@ const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute
 
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 10000,
-  params: { _csrf_token: csrfToken },
+  params: { _csrf_token: csrfToken, ...detectDevice() },
   hooks: Hooks,
   heartbeatIntervalMs: 15000
 })

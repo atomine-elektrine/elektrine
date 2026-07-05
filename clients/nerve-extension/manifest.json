@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "Elektrine Nerve",
   "version": "0.1.0",
-  "description": "Autofill and manage Elektrine Nerve entries from the browser toolbar.",
-  "permissions": ["storage", "tabs", "activeTab", "clipboardWrite"],
+  "description": "Autofill, capture pages, and manage Elektrine Nerve entries from the browser toolbar.",
+  "permissions": ["storage", "tabs", "activeTab", "clipboardWrite", "identity", "contextMenus"],
   "host_permissions": [
     "https://*/*",
     "http://localhost/*",

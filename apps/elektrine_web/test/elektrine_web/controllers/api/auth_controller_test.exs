@@ -4,6 +4,7 @@ defmodule ElektrineWeb.API.AuthControllerTest do
   alias Elektrine.Accounts
   alias Elektrine.Accounts.Authentication
   alias Elektrine.AccountsFixtures
+  alias Elektrine.Developer
   alias ElektrineWeb.Plugs.APIAuth
 
   describe "POST /api/auth/login" do
@@ -23,8 +24,88 @@ defmodule ElektrineWeb.API.AuthControllerTest do
 
       response = json_response(conn, 200)
       assert response["token"]
+      assert response["token_type"] == "api"
       assert response["user"]["id"] == user.id
       assert response["user"]["username"] == user.username
+    end
+
+    test "returns a scoped Nerve PAT for browser extension sign-in", %{conn: conn, user: user} do
+      {:ok, user} =
+        Accounts.update_user(user, %{
+          theme_overrides: %{"color_primary" => "#112233", "color_base_100" => "#223344"}
+        })
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/auth/login", %{
+          username: user.username,
+          password: AccountsFixtures.valid_user_password(),
+          client: "nerve_extension"
+        })
+
+      response = json_response(conn, 200)
+      assert response["token_type"] == "pat"
+      assert String.starts_with?(response["token"], "ekt_")
+      assert response["user"]["theme"]["overrides"]["color_primary"] == "#112233"
+      assert response["user"]["theme"]["values"]["color_primary"] == "#112233"
+      assert response["user"]["theme"]["values"]["color_base_200"] == "#1a1a1d"
+
+      conn =
+        build_conn()
+        |> put_req_header("authorization", "Bearer #{response["token"]}")
+        |> get("/api/ext/v1/nerve/entries")
+
+      assert %{
+               "data" => %{
+                 "entries" => [],
+                 "theme" => %{"values" => %{"color_primary" => "#112233"}}
+               }
+             } = json_response(conn, 200)
+
+      conn =
+        build_conn()
+        |> put_req_header("authorization", "Bearer #{response["token"]}")
+        |> post("/api/ext/v1/kairo/sources", %{
+          "source" => %{
+            "source_type" => "text",
+            "title" => "Captured selection",
+            "content" => "quoted text"
+          }
+        })
+
+      assert %{"data" => %{"source" => %{"title" => "Captured selection"}}} =
+               json_response(conn, 201)
+    end
+
+    test "browser extension sign-in replaces stale extension PATs at the token limit", %{
+      conn: conn,
+      user: user
+    } do
+      seed_token_limit_with_stale_extension(user)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/auth/login", %{
+          username: user.username,
+          password: AccountsFixtures.valid_user_password(),
+          client: "nerve_extension"
+        })
+
+      response = json_response(conn, 200)
+      assert response["token_type"] == "pat"
+      assert String.starts_with?(response["token"], "ekt_")
+      assert Developer.count_api_tokens(user.id) == Developer.max_tokens_per_user()
+
+      active_extension_tokens =
+        user.id
+        |> Developer.list_api_tokens()
+        |> Enum.filter(&(&1.name == "Nerve browser extension"))
+
+      assert Enum.map(active_extension_tokens, & &1.token_prefix) == [
+               String.slice(response["token"], 0, 12)
+             ]
     end
 
     test "hides admin API login outside the private admin network", %{conn: conn, user: user} do
@@ -196,5 +277,21 @@ defmodule ElektrineWeb.API.AuthControllerTest do
       {:ok, secret} -> secret
       :error -> encoded_secret
     end
+  end
+
+  defp seed_token_limit_with_stale_extension(user) do
+    for idx <- 1..(Developer.max_tokens_per_user() - 1) do
+      assert {:ok, _token} =
+               Developer.create_api_token(user.id, %{
+                 name: "manual-token-#{idx}",
+                 scopes: ["read:account"]
+               })
+    end
+
+    assert {:ok, _token} =
+             Developer.create_api_token(user.id, %{
+               name: "Nerve browser extension",
+               scopes: ["read:nerve", "write:nerve"]
+             })
   end
 end

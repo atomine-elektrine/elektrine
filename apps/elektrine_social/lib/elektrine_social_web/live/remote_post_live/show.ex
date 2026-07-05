@@ -2769,7 +2769,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       if should_continue_syncing do
         # Keep expensive remote thread hydration off the LiveView process so
         # websocket heartbeats are not starved on large community threads.
-        _ = Elektrine.ActivityPub.ThreadBackfillWorker.enqueue(local_message.id)
+        _ =
+          Elektrine.ActivityPub.ThreadBackfillWorker.enqueue(local_message.id, force: force_sync)
 
         if is_binary(post_id) do
           Process.send_after(

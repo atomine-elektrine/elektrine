@@ -22,6 +22,8 @@ defmodule Elektrine.Developer do
   alias Elektrine.Security.FilePath
 
   @localhost_hosts ["localhost", "127.0.0.1", "::1"]
+  @nerve_extension_token_name "Nerve browser extension"
+  @nerve_extension_scopes ["read:nerve", "write:nerve", "read:kairo", "write:kairo"]
 
   defp export_dir, do: Application.get_env(:elektrine, :export_dir, "/tmp/elektrine/exports")
 
@@ -108,6 +110,37 @@ defmodule Elektrine.Developer do
   end
 
   @doc """
+  Creates a replaceable PAT for the Nerve browser extension.
+
+  Only one active extension token is kept per user. Reconnecting the extension
+  revokes stale extension tokens first so they do not exhaust the user's normal
+  PAT quota.
+  """
+  def create_nerve_extension_token(user_id) do
+    expires_at =
+      DateTime.utc_now()
+      |> DateTime.add(ApiToken.default_expiration_days() * 24 * 60 * 60, :second)
+      |> DateTime.truncate(:second)
+
+    create_nerve_extension_token(user_id, expires_at)
+  end
+
+  def create_nerve_extension_token(user_id, expires_at) do
+    Repo.transaction(fn ->
+      revoke_nerve_extension_tokens(user_id)
+
+      case create_api_token(user_id, %{
+             name: @nerve_extension_token_name,
+             scopes: @nerve_extension_scopes,
+             expires_at: expires_at
+           }) do
+        {:ok, token} -> token
+        {:error, changeset} -> Repo.rollback(changeset)
+      end
+    end)
+  end
+
+  @doc """
   Revokes an API token.
   """
   def revoke_api_token(user_id, token_id) do
@@ -134,6 +167,18 @@ defmodule Elektrine.Developer do
       |> Repo.update_all(set: [revoked_at: now])
 
     {:ok, count}
+  end
+
+  defp revoke_nerve_extension_tokens(user_id) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    ApiToken
+    |> where(
+      [t],
+      t.user_id == ^user_id and is_nil(t.revoked_at) and
+        t.name == ^@nerve_extension_token_name
+    )
+    |> Repo.update_all(set: [revoked_at: now])
   end
 
   @doc """

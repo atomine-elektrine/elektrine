@@ -1,11 +1,12 @@
 /**
- * KairoVault - zero-knowledge decryption for Kairo sources.
- * Sources are ingested via the API (encrypted client-side there); this page only
- * reads them. Encrypted rows decrypt on demand under the Kairo subkey of the
- * unlocked master key, which can be unlocked inline for the tab.
+ * KairoVault - zero-knowledge encryption/decryption for Kairo sources.
+ * Encrypted rows decrypt on demand under the Kairo subkey of the unlocked
+ * encrypted data key, which can be unlocked inline for the tab. The composer can also
+ * encrypt new notes client-side before they are pushed to the server, so the
+ * plaintext body is never persisted.
  */
 
-import { decryptValue, unwrapWithSecret } from "./vault_crypto"
+import { decryptValue, encryptValue, unwrapWithSecret } from "./vault_crypto"
 import * as vaultSession from "./vault_session"
 
 const FEATURE = "kairo"
@@ -45,6 +46,13 @@ export const KairoVault = {
     if (decrypt) {
       event.preventDefault()
       this.decryptRow(decrypt)
+      return
+    }
+
+    const encryptSave = event.target.closest("[data-kairo-encrypt-save]")
+    if (encryptSave) {
+      event.preventDefault()
+      this.saveEncryptedNote()
     }
   },
 
@@ -59,11 +67,11 @@ export const KairoVault = {
     }
 
     if (!wrapped) {
-      return setError("Set up your master password first at /account/master-password.")
+      return setError("Set up account-password encryption first.")
     }
 
     if (!input || input.value.trim() === "") {
-      return setError("Enter your master passphrase.")
+      return setError("Enter your account password.")
     }
 
     try {
@@ -73,7 +81,9 @@ export const KairoVault = {
       setError("")
       // The vault-change subscription re-renders the lock state.
     } catch (_error) {
-      setError("Incorrect master passphrase.")
+      setError(
+        "Incorrect account password. If you just reset it, recover encrypted data at /account/encrypted-data."
+      )
     }
   },
 
@@ -87,12 +97,61 @@ export const KairoVault = {
     }
   },
 
+  async saveEncryptedNote() {
+    const form = this.el.querySelector("#kairo-note-form")
+    if (!form) return
+
+    const error = this.el.querySelector("[data-kairo-encrypt-error]")
+    const setError = (message) => {
+      if (!error) return
+      error.textContent = message || ""
+      error.classList.toggle("hidden", !message)
+    }
+
+    if (!vaultSession.isUnlocked()) {
+      return setError("Enter your account password to save encrypted notes.")
+    }
+
+    const field = (name) => {
+      const input = form.querySelector(`[name="note[${name}]"]`)
+      return input ? input.value : ""
+    }
+
+    const content = field("content")
+    const title = field("title")
+    if (content.trim() === "" && title.trim() === "") {
+      return setError("Add a title or some content first.")
+    }
+
+    try {
+      const key = await vaultSession.featureKey(FEATURE)
+      const payload = await encryptValue(content, key, AAD)
+
+      this.pushEvent(
+        "save_encrypted_note",
+        {
+          note: { title, tags: field("tags"), project_id: field("project_id") },
+          payload
+        },
+        (reply) => {
+          if (reply && reply.ok) {
+            setError("")
+          } else {
+            setError((reply && reply.error) || "Could not save the encrypted note.")
+          }
+        }
+      )
+    } catch (_error) {
+      setError("Encryption failed in this browser.")
+    }
+  },
+
   async decryptRow(button) {
     const output = button.parentElement.querySelector("[data-kairo-output]")
     if (!output) return
 
     if (!vaultSession.isUnlocked()) {
-      output.textContent = "Unlock your master password to read this."
+      output.textContent = "Enter your account password to read this."
       output.classList.remove("hidden")
       return
     }

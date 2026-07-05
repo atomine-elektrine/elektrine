@@ -257,6 +257,34 @@ defmodule ElektrineWeb.API.MetaController do
         platform_module: :kairo
       },
       %{
+        method: "PATCH",
+        path: "/api/ext/v1/kairo/projects/:id",
+        summary: "Update a Kairo project (rename, archive)",
+        required_scopes: ["write:kairo"],
+        platform_module: :kairo
+      },
+      %{
+        method: "DELETE",
+        path: "/api/ext/v1/kairo/projects/:id",
+        summary: "Delete a Kairo project (its sources return to the inbox)",
+        required_scopes: ["write:kairo"],
+        platform_module: :kairo
+      },
+      %{
+        method: "PATCH",
+        path: "/api/ext/v1/kairo/sources/:id",
+        summary: "Update a Kairo source",
+        required_scopes: ["write:kairo"],
+        platform_module: :kairo
+      },
+      %{
+        method: "DELETE",
+        path: "/api/ext/v1/kairo/sources/:id",
+        summary: "Delete a Kairo source",
+        required_scopes: ["write:kairo"],
+        platform_module: :kairo
+      },
+      %{
         method: "GET",
         path: "/api/ext/v1/email/messages",
         summary: "List email messages across the user's mailboxes",

@@ -1,8 +1,6 @@
-<!-- Presence hooks for auto-away and device detection -->
+<!-- Presence hook for auto-away detection -->
 <%= if @current_user && Map.has_key?(assigns, :socket) do %>
   <div id="activity-tracker" phx-hook="ActivityTracker" class="hidden"></div>
-
-  <div id="device-detector" phx-hook="DeviceDetector" class="hidden"></div>
 <% end %>
 <%= if (assigns[:conn] && Plug.Conn.get_session(@conn, :impersonating_admin_id)) || (assigns[:is_impersonating] && @is_impersonating) do %>
   <div class="bg-warning text-warning-content p-2">
@@ -78,7 +76,7 @@
 
     <div class="navbar-center hidden min-w-0 flex-1 justify-center lg:flex">
       <div class="form-control w-full">
-        <form action="/maid" method="get" class="w-full">
+        <form action="/paige" method="get" class="w-full">
           <div class="join mx-auto flex w-full max-w-96">
             <label class="input input-bordered join-item flex min-w-0 flex-1 items-center gap-2 rounded-l-full rounded-r-none">
               <.icon name="hero-magnifying-glass" class="h-4 w-4 opacity-60" />
@@ -86,7 +84,7 @@
                 type="text"
                 name="q"
                 data-search-input="true"
-                placeholder={gettext("Maid...")}
+                placeholder={gettext("Paige...")}
                 class="min-w-0 grow bg-transparent"
                 id="global-search"
               />
@@ -317,232 +315,214 @@
             <.user_avatar user={@current_user} size="md" class="w-10 h-10" />
           </div>
 
-          <% user_menu_profile_class =
-            "flex items-center gap-3 rounded px-2 py-2 -mx-2 -my-2 text-base-content hover:bg-base-200 focus:bg-base-200" %>
-          <% user_menu_link_base =
-            "gap-3 rounded px-3 py-2 text-base-content/80 hover:bg-base-200 focus:bg-base-200" %>
-          <% user_menu_primary_class =
-            user_menu_link_base <> " hover:text-primary focus:text-primary" %>
-          <% user_menu_secondary_class =
-            user_menu_link_base <> " hover:text-secondary focus:text-secondary" %>
-          <% user_menu_success_class =
-            user_menu_link_base <> " hover:text-success focus:text-success" %>
-          <% user_menu_info_class = user_menu_link_base <> " hover:text-info focus:text-info" %>
-          <% user_menu_accent_class =
-            user_menu_link_base <> " hover:text-accent focus:text-accent" %>
-          <% user_menu_warning_class =
-            "gap-3 rounded px-3 py-2 text-warning hover:bg-base-200 focus:bg-base-200" %>
-          <% user_menu_danger_class =
-            "gap-3 rounded px-3 py-2 text-error hover:bg-base-200 focus:bg-base-200" %>
+          <% user_menu_item_class =
+            "gap-3 rounded-lg px-3 py-2 text-base-content/80 hover:bg-base-200 hover:text-base-content focus:bg-base-200 focus:text-base-content" %>
+          <% user_menu_tile_class =
+            "flex flex-col items-center gap-1.5 rounded-xl px-1 py-3 text-base-content/70 transition-colors hover:bg-base-200 hover:text-base-content focus:bg-base-200 focus:text-base-content" %>
+          <% user_menu_section_label_class =
+            "px-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-base-content/40" %>
 
-          <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 p-2 rounded-box w-56">
-            <!-- User Info Header -->
-            <li class="menu-title px-3 py-2">
+          <div
+            tabindex="0"
+            class="dropdown-content mt-3 w-72 divide-y divide-base-300/60 overflow-hidden rounded-box p-0"
+          >
+            <!-- Profile header -->
+            <div class="flex items-center gap-2 bg-base-200/40 px-3 py-3">
               <.link
                 navigate={~p"/#{@current_user.handle || @current_user.username}"}
-                class={user_menu_profile_class}
+                class="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-1 py-1 hover:bg-base-200 focus:bg-base-200"
               >
-                <.user_avatar user={@current_user} size="sm" />
-                <div>
-                  <div class="font-semibold text-sm">
+                <.user_avatar user={@current_user} size="md" class="w-10 h-10" />
+                <div class="min-w-0">
+                  <div class="truncate text-sm font-semibold text-base-content">
                     {@current_user.display_name || @current_user.username}
                   </div>
 
-                  <div class="text-xs opacity-60">
+                  <div class="truncate text-xs text-base-content/60">
                     @{@current_user.handle || @current_user.username}
                   </div>
                 </div>
               </.link>
-            </li>
 
-            <div class="divider my-1"></div>
-
-            <li class="menu-title">
-              <span class="text-xs opacity-75">{gettext("Your Stuff")}</span>
-            </li>
-
-            <li>
-              <.link
-                navigate={Elektrine.Paths.notifications_path()}
-                class={user_menu_warning_class}
-              >
-                <.icon
-                  name={
-                    if assigns[:notification_count] && @notification_count > 0,
-                      do: "hero-bell-alert",
-                      else: "hero-bell"
-                  }
-                  class="w-4 h-4"
-                /> <span>{gettext("Notifications")}</span>
-                <%= if assigns[:notification_count] && @notification_count > 0 do %>
-                  <span class="ml-auto badge badge-xs badge-error text-error-content">
-                    {if @notification_count > 99, do: "99+", else: @notification_count}
-                  </span>
-                <% end %>
-              </.link>
-            </li>
-
-            <%= if platform_module_enabled?(:social) do %>
-              <li>
-                <.link
-                  navigate={Elektrine.Paths.timeline_path(filter: "saved", view: "all")}
-                  class={user_menu_secondary_class}
-                >
-                  <.icon name="hero-bookmark" class="w-4 h-4" /> {gettext("Saved Posts")}
-                </.link>
-              </li>
-            <% end %>
-
-            <%= if platform_module_enabled?(:chat) do %>
-              <li>
-                <.link
-                  navigate={Elektrine.Paths.friends_path()}
-                  class={user_menu_success_class}
-                >
-                  <.icon name="hero-user-group" class="w-4 h-4" /> {gettext("Friends")}
-                </.link>
-              </li>
-            <% end %>
-
-            <%= if platform_module_enabled?(:social) do %>
-              <li>
-                <.link
-                  navigate={Elektrine.Paths.lists_path()}
-                  class={user_menu_info_class}
-                >
-                  <.icon name="hero-queue-list" class="w-4 h-4" /> {gettext("Lists")}
-                </.link>
-              </li>
-            <% end %>
-
-            <li>
               <.link
                 navigate={~p"/account/profile/edit"}
-                class={user_menu_primary_class}
+                class="btn btn-ghost btn-sm btn-circle flex-shrink-0"
+                title={gettext("Edit Profile")}
               >
-                <.icon name="hero-pencil-square" class="w-4 h-4" /> {gettext("Edit Profile")}
+                <.icon name="hero-pencil-square" class="w-4 h-4" />
+                <span class="sr-only">{gettext("Edit Profile")}</span>
               </.link>
-            </li>
-
-            <div class="divider my-1"></div>
-
-            <li class="menu-title"><span class="text-xs opacity-75">{gettext("Apps")}</span></li>
-
-            <%= if platform_module_enabled?(:email) do %>
+            </div>
+            <!-- Your stuff -->
+            <ul class="menu menu-sm w-full p-2">
               <li>
                 <.link
-                  navigate={Elektrine.Paths.email_index_path()}
-                  class={user_menu_primary_class}
+                  navigate={Elektrine.Paths.notifications_path()}
+                  class={user_menu_item_class}
                 >
-                  <.icon name="hero-inbox" class="w-4 h-4" /> {gettext("Email")}
+                  <.icon
+                    name={
+                      if assigns[:notification_count] && @notification_count > 0,
+                        do: "hero-bell-alert",
+                        else: "hero-bell"
+                    }
+                    class="w-4 h-4 text-warning"
+                  /> <span>{gettext("Notifications")}</span>
+                  <%= if assigns[:notification_count] && @notification_count > 0 do %>
+                    <span class="ml-auto badge badge-xs badge-error text-error-content">
+                      {if @notification_count > 99, do: "99+", else: @notification_count}
+                    </span>
+                  <% end %>
                 </.link>
               </li>
-            <% end %>
 
-            <%= if platform_module_enabled?(:social) do %>
+              <%= if platform_module_enabled?(:social) do %>
+                <li>
+                  <.link
+                    navigate={Elektrine.Paths.timeline_path(filter: "saved", view: "all")}
+                    class={user_menu_item_class}
+                  >
+                    <.icon name="hero-bookmark" class="w-4 h-4 text-secondary" /> {gettext(
+                      "Saved Posts"
+                    )}
+                  </.link>
+                </li>
+              <% end %>
+
+              <%= if platform_module_enabled?(:chat) do %>
+                <li>
+                  <.link
+                    navigate={Elektrine.Paths.friends_path()}
+                    class={user_menu_item_class}
+                  >
+                    <.icon name="hero-user-group" class="w-4 h-4 text-success" /> {gettext(
+                      "Friends"
+                    )}
+                  </.link>
+                </li>
+              <% end %>
+
+              <%= if platform_module_enabled?(:social) do %>
+                <li>
+                  <.link
+                    navigate={Elektrine.Paths.lists_path()}
+                    class={user_menu_item_class}
+                  >
+                    <.icon name="hero-queue-list" class="w-4 h-4 text-info" /> {gettext("Lists")}
+                  </.link>
+                </li>
+              <% end %>
+            </ul>
+            <!-- Apps launcher -->
+            <%= if Enum.any?([:email, :social, :vpn, :dns, :kairo], &platform_module_enabled?/1) do %>
+              <div class="p-2">
+                <div class={user_menu_section_label_class}>{gettext("Apps")}</div>
+
+                <div class="grid grid-cols-3 gap-1">
+                  <%= if platform_module_enabled?(:email) do %>
+                    <.link
+                      navigate={Elektrine.Paths.email_index_path()}
+                      class={user_menu_tile_class}
+                    >
+                      <.icon name="hero-inbox" class="w-5 h-5 text-primary" />
+                      <span class="text-[11px] font-medium">{gettext("Email")}</span>
+                    </.link>
+                  <% end %>
+
+                  <%= if platform_module_enabled?(:social) do %>
+                    <.link
+                      navigate={Elektrine.Paths.timeline_path()}
+                      class={user_menu_tile_class}
+                    >
+                      <.icon name="hero-rectangle-stack" class="w-5 h-5 text-secondary" />
+                      <span class="text-[11px] font-medium">{gettext("Timeline")}</span>
+                    </.link>
+                  <% end %>
+
+                  <%= if platform_module_enabled?(:vpn) do %>
+                    <.link
+                      navigate={Elektrine.Paths.vpn_path()}
+                      class={user_menu_tile_class}
+                    >
+                      <.icon name="hero-shield-check" class="w-5 h-5 text-success" />
+                      <span class="text-[11px] font-medium">{gettext("VPN")}</span>
+                    </.link>
+                  <% end %>
+
+                  <%= if platform_module_enabled?(:dns) do %>
+                    <.link navigate={~p"/dns"} class={user_menu_tile_class}>
+                      <.icon name="hero-globe-alt" class="w-5 h-5 text-accent" />
+                      <span class="text-[11px] font-medium">{gettext("DNS")}</span>
+                    </.link>
+                  <% end %>
+
+                  <%= if platform_module_enabled?(:kairo) do %>
+                    <.link navigate={~p"/kairo"} class={user_menu_tile_class}>
+                      <.icon name="hero-circle-stack" class="w-5 h-5 text-info" />
+                      <span class="text-[11px] font-medium">{gettext("Kairo")}</span>
+                    </.link>
+                  <% end %>
+                </div>
+              </div>
+            <% end %>
+            <!-- Account -->
+            <ul class="menu menu-sm w-full p-2">
+              <%= if @current_user.is_admin do %>
+                <li>
+                  <.link
+                    navigate={~p"/pripyat"}
+                    class={user_menu_item_class}
+                  >
+                    <.icon name="hero-cog-6-tooth" class="w-4 h-4 text-primary" /> {gettext(
+                      "Admin Panel"
+                    )}
+                  </.link>
+                </li>
+              <% end %>
+
               <li>
                 <.link
-                  navigate={Elektrine.Paths.timeline_path()}
-                  class={user_menu_secondary_class}
+                  navigate={~p"/account/storage"}
+                  class={user_menu_item_class}
                 >
-                  <.icon name="hero-rectangle-stack" class="w-4 h-4" /> {gettext("Timeline")}
+                  <.icon name="hero-circle-stack" class="w-4 h-4 text-info" /> {gettext("Storage")}
                 </.link>
-              </li>
-            <% end %>
-
-            <%= if platform_module_enabled?(:vpn) do %>
-              <li>
-                <.link
-                  navigate={Elektrine.Paths.vpn_path()}
-                  class={user_menu_primary_class}
-                >
-                  <.icon name="hero-shield-check" class="w-4 h-4" /> {gettext("VPN")}
-                </.link>
-              </li>
-            <% end %>
-
-            <%= if platform_module_enabled?(:dns) do %>
-              <li>
-                <.link
-                  navigate={~p"/dns"}
-                  class={user_menu_accent_class}
-                >
-                  <.icon name="hero-globe-alt" class="w-4 h-4" /> {gettext("DNS")}
-                </.link>
-              </li>
-            <% end %>
-
-            <%= if platform_module_enabled?(:kairo) do %>
-              <li>
-                <.link navigate={~p"/kairo"} class={user_menu_accent_class}>
-                  <.icon name="hero-circle-stack" class="w-4 h-4" /> {gettext("Kairo")}
-                </.link>
-              </li>
-            <% end %>
-
-            <%= if @current_user.is_admin do %>
-              <div class="divider my-1"></div>
-
-              <li class="menu-title">
-                <span class="text-xs opacity-75">{gettext("Administration")}</span>
               </li>
 
               <li>
                 <.link
-                  navigate={~p"/pripyat"}
-                  class={user_menu_primary_class}
+                  navigate={~p"/account"}
+                  class={user_menu_item_class}
                 >
-                  <.icon name="hero-cog-6-tooth" class="w-4 h-4" /> {gettext("Admin Panel")}
+                  <.icon name="hero-user-circle" class="w-4 h-4" /> {gettext("Account Settings")}
                 </.link>
               </li>
-            <% end %>
 
-            <div class="divider my-1"></div>
+              <li>
+                <a
+                  href={ Elektrine.EmailAddresses.mailto("support") <> "?subject=Issue Report - Elektrine Beta" }
+                  class={user_menu_item_class}
+                >
+                  <.icon name="hero-exclamation-triangle" class="w-4 h-4 text-warning" /> {gettext(
+                    "Report Issue"
+                  )}
+                </a>
+              </li>
 
-            <li class="menu-title">
-              <span class="text-xs opacity-75">{gettext("Account")}</span>
-            </li>
-
-            <li>
-              <.link
-                navigate={~p"/account/storage"}
-                class={user_menu_info_class}
-              >
-                <.icon name="hero-circle-stack" class="w-4 h-4" /> {gettext("Storage")}
-              </.link>
-            </li>
-
-            <li>
-              <.link
-                navigate={~p"/account"}
-                class={user_menu_primary_class}
-              >
-                <.icon name="hero-user-circle" class="w-4 h-4" /> {gettext("Account Settings")}
-              </.link>
-            </li>
-
-            <li>
-              <a
-                href={ Elektrine.EmailAddresses.mailto("support") <> "?subject=Issue Report - Elektrine Beta" }
-                class={user_menu_warning_class}
-              >
-                <.icon name="hero-exclamation-triangle" class="w-4 h-4" /> {gettext(
-                  "Report Issue"
-                )}
-              </a>
-            </li>
-
-            <li>
-              <.link
-                href={~p"/logout"}
-                method="delete"
-                data-test="logout-link"
-                class={user_menu_danger_class}
-              >
-                <.icon name="hero-arrow-right-on-rectangle" class="w-4 h-4" /> {gettext("Log out")}
-              </.link>
-            </li>
-          </ul>
+              <li>
+                <.link
+                  href={~p"/logout"}
+                  method="delete"
+                  data-test="logout-link"
+                  class="gap-3 rounded-lg px-3 py-2 text-error hover:bg-error/10 focus:bg-error/10"
+                >
+                  <.icon name="hero-arrow-right-on-rectangle" class="w-4 h-4" /> {gettext(
+                    "Log out"
+                  )}
+                </.link>
+              </li>
+            </ul>
+          </div>
         </div>
       <% else %>
         <.link
@@ -590,7 +570,7 @@
           class="pointer-events-auto inline-block"
         >
           <span
-            class="footer-wordmark-glow inline-block whitespace-nowrap select-none bg-clip-text text-[clamp(2.15rem,6.5vw,4.5rem)] font-black tracking-[0.14em] text-transparent"
+            class="footer-wordmark-glow inline-block whitespace-nowrap select-none bg-clip-text font-pixel text-[clamp(2.15rem,6.5vw,4.5rem)] font-black tracking-[0.14em] text-transparent"
             style={footer_wordmark_style(assigns)}
           >
             313k7r1n3

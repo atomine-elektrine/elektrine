@@ -1,10 +1,10 @@
-const ITERATIONS = 600000
 const VERSION = 2
 const ALGORITHM = "AES-GCM"
 const KDF = "PBKDF2-SHA256"
+const PBKDF2_ITERATIONS = 600000
+const HKDF_PREFIX = "elektrine-vault:"
 const PASSWORD_LENGTH = 24
 export const MIN_PASSPHRASE_LENGTH = 14
-export const VERIFIER_TEXT = "elektrine-nerve-verifier-v1"
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
@@ -36,10 +36,10 @@ function base64ToBytes(value) {
   return bytes
 }
 
-async function deriveAesKey(passphrase, salt, iterations) {
-  const passphraseKey = await crypto.subtle.importKey(
+async function deriveWrappingKey(secret, salt, iterations) {
+  const baseKey = await crypto.subtle.importKey(
     "raw",
-    encoder.encode(passphrase),
+    encoder.encode(secret),
     { name: "PBKDF2" },
     false,
     ["deriveKey"]
@@ -47,7 +47,7 @@ async function deriveAesKey(passphrase, salt, iterations) {
 
   return crypto.subtle.deriveKey(
     { name: "PBKDF2", salt, iterations, hash: "SHA-256" },
-    passphraseKey,
+    baseKey,
     { name: ALGORITHM, length: 256 },
     false,
     ["encrypt", "decrypt"]
@@ -58,11 +58,17 @@ export function isClientPayload(payload) {
   return (
     payload &&
     payload.algorithm === ALGORITHM &&
-    payload.kdf === KDF &&
-    typeof payload.iterations === "number" &&
-    typeof payload.salt === "string" &&
     typeof payload.iv === "string" &&
     typeof payload.ciphertext === "string"
+  )
+}
+
+export function isWrappedPayload(payload) {
+  return (
+    isClientPayload(payload) &&
+    payload.kdf === KDF &&
+    typeof payload.iterations === "number" &&
+    typeof payload.salt === "string"
   )
 }
 
@@ -103,10 +109,43 @@ export function nerveMetadataAssociatedData() {
   return { purpose: "elektrine-nerve-metadata" }
 }
 
-export async function encryptValue(plaintext, passphrase, associatedData = null) {
-  const salt = randomBytes(16)
+export async function unwrapWithSecret(payload, secret) {
+  if (!isWrappedPayload(payload)) {
+    throw new Error("Encrypted data key payload is not valid.")
+  }
+
+  const salt = base64ToBytes(payload.salt)
+  const iv = base64ToBytes(payload.iv)
+  const ciphertext = base64ToBytes(payload.ciphertext)
+  const key = await deriveWrappingKey(secret, salt, Number(payload.iterations))
+  const plaintext = await crypto.subtle.decrypt({ name: ALGORITHM, iv }, key, ciphertext)
+
+  return new Uint8Array(plaintext)
+}
+
+async function importHkdfBase(mdkBytes) {
+  return crypto.subtle.importKey("raw", mdkBytes, { name: "HKDF" }, false, ["deriveKey"])
+}
+
+export async function deriveFeatureKey(mdkBytes, feature) {
+  const base = await importHkdfBase(mdkBytes)
+
+  return crypto.subtle.deriveKey(
+    {
+      name: "HKDF",
+      hash: "SHA-256",
+      salt: new Uint8Array(0),
+      info: encoder.encode(HKDF_PREFIX + feature)
+    },
+    base,
+    { name: ALGORITHM, length: 256 },
+    false,
+    ["encrypt", "decrypt"]
+  )
+}
+
+export async function encryptValue(plaintext, key, associatedData = null) {
   const iv = randomBytes(12)
-  const key = await deriveAesKey(passphrase, salt, ITERATIONS)
   const ciphertextBuffer = await crypto.subtle.encrypt(
     aesGcmParams(iv, associatedData),
     key,
@@ -116,35 +155,21 @@ export async function encryptValue(plaintext, passphrase, associatedData = null)
   return {
     version: VERSION,
     algorithm: ALGORITHM,
-    kdf: KDF,
-    iterations: ITERATIONS,
-    salt: bytesToBase64(salt),
     iv: bytesToBase64(iv),
     ciphertext: bytesToBase64(new Uint8Array(ciphertextBuffer))
   }
 }
 
-export async function decryptValue(payload, passphrase, associatedData = null) {
+export async function decryptValue(payload, key, associatedData = null) {
   if (!isClientPayload(payload)) {
     throw new Error("Nerve payload is not valid client-side ciphertext.")
   }
 
   const iv = base64ToBytes(payload.iv)
-  const salt = base64ToBytes(payload.salt)
   const ciphertext = base64ToBytes(payload.ciphertext)
-  const key = await deriveAesKey(passphrase, salt, payload.iterations)
-  const plaintextBuffer = await crypto.subtle.decrypt(
-    Number(payload.version) >= 2 ? aesGcmParams(iv, associatedData) : { name: ALGORITHM, iv },
-    key,
-    ciphertext
-  )
+  const plaintextBuffer = await crypto.subtle.decrypt(aesGcmParams(iv, associatedData), key, ciphertext)
 
   return decoder.decode(plaintextBuffer)
-}
-
-export async function verifyPassphrase(verifierPayload, passphrase) {
-  const plaintext = await decryptValue(verifierPayload, passphrase)
-  return plaintext === VERIFIER_TEXT
 }
 
 export function createPassword() {

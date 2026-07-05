@@ -1,13 +1,17 @@
 /**
- * Presence-related LiveView hooks
- * Handles activity tracking for auto-away detection and device type detection
+ * Presence-related LiveView hooks.
+ *
+ * ActivityTracker drives auto-away detection client-side: it pushes
+ * "auto_away_timeout" after five idle minutes and "user_activity" with
+ * clear_away when the user returns. Ordinary activity is handled entirely in
+ * the browser (resetting the idle timer) and sends nothing to the server.
+ *
+ * Device info (type, browser, timezone) is sent once in the LiveSocket
+ * connect params (see detectDevice below), not via events.
  */
 
 // Auto-away timeout in milliseconds (5 minutes)
 const AUTO_AWAY_TIMEOUT = 5 * 60 * 1000;
-
-// Activity report throttle (only report activity every 30 seconds)
-const ACTIVITY_THROTTLE = 30 * 1000;
 
 function isHookConnected(hook) {
   return Boolean(hook?.liveSocket?.isConnected?.() && hook?.el?.isConnected);
@@ -19,49 +23,69 @@ function safePushEvent(hook, event, payload) {
 }
 
 /**
- * ActivityTracker - Tracks user activity for auto-away detection
- * 
- * Attach to a root element (e.g., body or main container) to track:
- * - Mouse movements
- * - Keyboard input
- * - Touch events
- * - Scroll events
- * - Click events
- * 
- * Reports activity to server which resets the auto-away timer.
+ * Detects device type, browser, and timezone for presence metadata.
+ * Called once at LiveSocket setup and sent as connect params.
+ */
+export function detectDevice() {
+  const ua = navigator.userAgent;
+  const isMobile = /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+  const isTablet = /iPad|Android/i.test(ua) && !/Mobile/i.test(ua);
+
+  let deviceType = 'desktop';
+  if (isTablet) {
+    deviceType = 'tablet';
+  } else if (isMobile) {
+    deviceType = 'mobile';
+  }
+
+  let browser = 'unknown';
+  if (ua.includes('Firefox')) browser = 'firefox';
+  else if (ua.includes('Edg')) browser = 'edge';
+  else if (ua.includes('Chrome')) browser = 'chrome';
+  else if (ua.includes('Safari')) browser = 'safari';
+  else if (ua.includes('Opera') || ua.includes('OPR')) browser = 'opera';
+
+  return {
+    device_type: deviceType,
+    browser: browser,
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+  };
+}
+
+/**
+ * ActivityTracker - Tracks user activity for auto-away detection.
+ *
+ * Attach to a root element (e.g., body or main container) to track mouse,
+ * keyboard, touch, scroll, click, and visibility events.
  */
 export const ActivityTracker = {
   mounted() {
-    this.lastActivityReport = 0;
     this.isAway = false;
     this.awayTimeout = null;
     this.boundHandleActivity = this.handleActivity.bind(this);
-    
-    // Track various user activities
+
     const events = ['mousemove', 'keydown', 'touchstart', 'scroll', 'click', 'focus'];
     events.forEach(event => {
       document.addEventListener(event, this.boundHandleActivity, { passive: true });
     });
-    
-    // Also track visibility changes
+
     this.boundHandleVisibilityChange = this.handleVisibilityChange.bind(this);
     document.addEventListener('visibilitychange', this.boundHandleVisibilityChange);
-    
-    // Start the away timer
+
     this.resetAwayTimer();
-    
-    // Listen for status updates from server
+
+    // Keep local state in sync with the server's view of auto-away.
     this.handleEvent("auto_away_set", ({ was_auto }) => {
       if (was_auto) {
         this.isAway = true;
       }
     });
-    
+
     this.handleEvent("auto_away_cleared", () => {
       this.isAway = false;
     });
   },
-  
+
   destroyed() {
     const events = ['mousemove', 'keydown', 'touchstart', 'scroll', 'click', 'focus'];
     events.forEach(event => {
@@ -71,125 +95,39 @@ export const ActivityTracker = {
     if (this.boundHandleVisibilityChange) {
       document.removeEventListener('visibilitychange', this.boundHandleVisibilityChange);
     }
-    
+
     if (this.awayTimeout) {
       clearTimeout(this.awayTimeout);
     }
   },
-  
+
   handleActivity() {
-    const now = Date.now();
-    
-    // Reset the away timer on any activity
     this.resetAwayTimer();
-    
-    // If user was auto-away, clear it
+
+    // Only tell the server anything when there's a state change to make:
+    // returning from auto-away.
     if (this.isAway) {
       this.isAway = false;
       void safePushEvent(this, "user_activity", { clear_away: true });
-      this.lastActivityReport = now;
-      return;
-    }
-    
-    // Throttle activity reports to reduce server load
-    if (now - this.lastActivityReport >= ACTIVITY_THROTTLE) {
-      this.lastActivityReport = now;
-      void safePushEvent(this, "user_activity", { timestamp: now });
     }
   },
-  
+
   handleVisibilityChange() {
     if (document.visibilityState === 'visible') {
-      // User returned to tab - treat as activity
       this.handleActivity();
-    } else {
-      // User left tab - could start a shorter away timer here if desired
     }
   },
-  
+
   resetAwayTimer() {
     if (this.awayTimeout) {
       clearTimeout(this.awayTimeout);
     }
-    
+
     this.awayTimeout = setTimeout(() => {
-      // User has been inactive - notify server to set auto-away
       if (!this.isAway) {
         this.isAway = true;
         void safePushEvent(this, "auto_away_timeout", {});
       }
     }, AUTO_AWAY_TIMEOUT);
-  }
-};
-
-/**
- * DeviceDetector - Detects device type and reports to presence
- * 
- * Attach to root element to detect:
- * - Device type (desktop, tablet, mobile)
- * - Browser info
- * - Connection type (if available)
- */
-export const DeviceDetector = {
-  mounted() {
-    const deviceInfo = this.detectDevice();
-    
-    // Report device info to server
-    void safePushEvent(this, "device_detected", deviceInfo);
-    
-    // Listen for connection changes
-    if (navigator.connection) {
-      this.connectionHandler = () => {
-        void safePushEvent(this, "connection_changed", {
-          type: navigator.connection.effectiveType,
-          downlink: navigator.connection.downlink
-        });
-      };
-
-      navigator.connection.addEventListener('change', this.connectionHandler);
-    }
-  },
-
-  destroyed() {
-    if (navigator.connection && this.connectionHandler) {
-      navigator.connection.removeEventListener('change', this.connectionHandler);
-      this.connectionHandler = null;
-    }
-  },
-  
-  detectDevice() {
-    const ua = navigator.userAgent;
-    const isMobile = /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(ua);
-    const isTablet = /iPad|Android/i.test(ua) && !/Mobile/i.test(ua);
-    
-    let deviceType = 'desktop';
-    if (isTablet) {
-      deviceType = 'tablet';
-    } else if (isMobile) {
-      deviceType = 'mobile';
-    }
-    
-    // Detect browser
-    let browser = 'unknown';
-    if (ua.includes('Firefox')) browser = 'firefox';
-    else if (ua.includes('Edg')) browser = 'edge';
-    else if (ua.includes('Chrome')) browser = 'chrome';
-    else if (ua.includes('Safari')) browser = 'safari';
-    else if (ua.includes('Opera') || ua.includes('OPR')) browser = 'opera';
-    
-    // Get connection info if available
-    let connectionType = null;
-    if (navigator.connection) {
-      connectionType = navigator.connection.effectiveType;
-    }
-    
-    return {
-      device_type: deviceType,
-      browser: browser,
-      screen_width: window.screen.width,
-      screen_height: window.screen.height,
-      connection_type: connectionType,
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
-    };
   }
 };

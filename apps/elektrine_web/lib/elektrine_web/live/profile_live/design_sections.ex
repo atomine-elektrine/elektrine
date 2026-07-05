@@ -126,65 +126,175 @@ defmodule ElektrineWeb.ProfileLive.DesignSections do
             class="space-y-4"
           >
             <%= if @profile.background_url do %>
-              <div class="relative">
-                <%= if @profile.background_type == "video" do %>
-                  <video
-                    src={Elektrine.Uploads.background_url(@profile.background_url)}
-                    class="w-full h-48 object-cover rounded-lg"
-                    autoplay
-                    loop
-                    muted
-                  >
-                  </video>
-                <% else %>
-                  <img
-                    src={Elektrine.Uploads.background_url(@profile.background_url)}
-                    alt="Current background"
-                    class="w-full h-48 object-cover rounded-lg"
-                  />
-                <% end %>
+              <div class="space-y-2">
+                <div class="flex items-center justify-between gap-3">
+                  <div>
+                    <div class="text-sm font-medium">Current background</div>
+                    <div class="text-xs text-base-content/60">
+                      {if @profile.background_type == "video", do: "Video", else: "Image"} · {format_upload_bytes(
+                        @profile.background_size || 0
+                      )}
+                    </div>
+                  </div>
 
-                <button
-                  type="button"
-                  phx-click="remove_background"
-                  class="absolute top-2 right-2 btn btn-secondary btn-sm"
-                >
-                  <.icon name="hero-trash" class="w-4 h-4" /> Remove
-                </button>
+                  <button
+                    type="button"
+                    phx-click="remove_background"
+                    class="btn btn-outline btn-error btn-sm"
+                  >
+                    <.icon name="hero-trash" class="w-4 h-4" /> Remove
+                  </button>
+                </div>
+
+                <div class="relative overflow-hidden rounded-lg border border-base-content/10">
+                  <%= if @profile.background_type == "video" do %>
+                    <video
+                      src={Elektrine.Uploads.background_url(@profile.background_url)}
+                      class="h-48 w-full object-cover"
+                      autoplay
+                      loop
+                      muted
+                    >
+                    </video>
+                  <% else %>
+                    <img
+                      src={Elektrine.Uploads.background_url(@profile.background_url)}
+                      alt={@profile.background_alt_text || "Current background"}
+                      class="h-48 w-full object-cover"
+                      style={"object-position: #{@profile.background_focal_x || 50}% #{@profile.background_focal_y || 50}%;"}
+                    />
+                  <% end %>
+                </div>
               </div>
             <% end %>
 
             <%= for entry <- @uploads.background.entries do %>
-              <div class="flex items-center gap-2 p-3 bg-base-200 rounded-lg">
-                <.icon
-                  name={if @profile.background_type == "video", do: "hero-film", else: "hero-photo"}
-                  class="w-6 h-6 flex-shrink-0"
-                />
-                <div class="flex-1 min-w-0">
-                  <p class="text-sm font-medium truncate">{entry.client_name}</p>
+              <div class="space-y-2 rounded-lg bg-base-200 p-3">
+                <div class="flex items-center gap-2">
+                  <.icon
+                    name={if @profile.background_type == "video", do: "hero-film", else: "hero-photo"}
+                    class="w-6 h-6 flex-shrink-0"
+                  />
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium truncate">{entry.client_name}</p>
+                    <p class="text-xs text-base-content/60">
+                      {format_upload_bytes(entry.client_size || 0)}
+                    </p>
 
-                  <progress
-                    class="progress progress-primary w-full h-2 mt-1"
-                    value={entry.progress}
-                    max="100"
+                    <progress
+                      class="progress progress-primary w-full h-2 mt-1"
+                      value={entry.progress}
+                      max="100"
+                    >
+                    </progress>
+                  </div>
+
+                  <button
+                    type="button"
+                    phx-click="cancel_background_upload"
+                    phx-value-ref={entry.ref}
+                    class="btn btn-ghost btn-sm btn-circle flex-shrink-0"
                   >
-                  </progress>
+                    <.icon name="hero-x-mark" class="w-4 h-4" />
+                  </button>
                 </div>
 
-                <button
-                  type="button"
-                  phx-click="cancel_background_upload"
-                  phx-value-ref={entry.ref}
-                  class="btn btn-ghost btn-sm btn-circle flex-shrink-0"
+                <div
+                  :if={upload_size_notice(entry)}
+                  class="rounded-md border border-warning/25 bg-warning/10 p-2 text-xs text-warning"
                 >
-                  <.icon name="hero-x-mark" class="w-4 h-4" />
-                </button>
+                  {upload_size_notice(entry)}
+                </div>
               </div>
             <% end %>
 
+            <div class="rounded-lg border border-base-content/10 bg-base-200/35 p-3 text-sm text-base-content/70">
+              Replacing uploads overwrite the current background after Save. Focal point controls how
+              image and video backgrounds are cropped across screen sizes.
+            </div>
+
+            <div class="grid gap-4 md:grid-cols-2">
+              <div class="md:col-span-2">
+                <label class="label">
+                  <span class="label-text font-medium">Background alt text</span>
+                </label>
+                <input
+                  type="text"
+                  name="profile[background_alt_text]"
+                  value={@profile.background_alt_text}
+                  maxlength="250"
+                  class="input input-bordered w-full"
+                />
+              </div>
+
+              <div>
+                <label class="label">
+                  <span class="label-text font-medium">Focal point X</span>
+                  <span class="label-text-alt">{round(@profile.background_focal_x || 50)}%</span>
+                </label>
+                <input
+                  type="range"
+                  name="profile[background_focal_x]"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={@profile.background_focal_x || 50}
+                  class="range range-primary"
+                />
+              </div>
+
+              <div>
+                <label class="label">
+                  <span class="label-text font-medium">Focal point Y</span>
+                  <span class="label-text-alt">{round(@profile.background_focal_y || 50)}%</span>
+                </label>
+                <input
+                  type="range"
+                  name="profile[background_focal_y]"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={@profile.background_focal_y || 50}
+                  class="range range-primary"
+                />
+              </div>
+
+              <div>
+                <label class="label">
+                  <span class="label-text font-medium">Brightness</span>
+                  <span class="label-text-alt">{@profile.background_brightness || 100}%</span>
+                </label>
+                <input
+                  type="range"
+                  name="profile[background_brightness]"
+                  min="25"
+                  max="150"
+                  step="5"
+                  value={@profile.background_brightness || 100}
+                  class="range range-primary"
+                />
+              </div>
+
+              <div>
+                <label class="label">
+                  <span class="label-text font-medium">Background blur</span>
+                  <span class="label-text-alt">{@profile.background_overlay_blur || 0}px</span>
+                </label>
+                <input
+                  type="range"
+                  name="profile[background_overlay_blur]"
+                  min="0"
+                  max="40"
+                  step="1"
+                  value={@profile.background_overlay_blur || 0}
+                  class="range range-primary"
+                />
+              </div>
+            </div>
+
             <label class="btn btn-ghost w-full">
               <.icon name="hero-arrow-up-tray" class="w-5 h-5 mr-2" />
-              Choose {if @profile.background_type == "video", do: "Video", else: "Image"}
+              Replace with {if @profile.background_type == "video", do: "Video", else: "Image"}
               <.live_file_input upload={@uploads.background} class="hidden" />
             </label>
             <button type="submit" class="btn btn-primary w-full">
@@ -196,6 +306,24 @@ defmodule ElektrineWeb.ProfileLive.DesignSections do
     <% end %>
     """
   end
+
+  defp upload_size_notice(%{client_size: size})
+       when is_integer(size) and size > 8 * 1024 * 1024 do
+    "Large file warning: #{format_upload_bytes(size)} may load slowly on mobile profiles."
+  end
+
+  defp upload_size_notice(_entry), do: nil
+
+  defp format_upload_bytes(bytes) when is_integer(bytes) and bytes >= 1_048_576 do
+    "#{Float.round(bytes / 1_048_576, 1)} MB"
+  end
+
+  defp format_upload_bytes(bytes) when is_integer(bytes) and bytes >= 1024 do
+    "#{Float.round(bytes / 1024, 1)} KB"
+  end
+
+  defp format_upload_bytes(bytes) when is_integer(bytes), do: "#{bytes} B"
+  defp format_upload_bytes(_bytes), do: "0 B"
 
   attr :profile, :map, required: true
 

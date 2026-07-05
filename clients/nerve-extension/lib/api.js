@@ -119,23 +119,6 @@ export function getEntry(settings, entryId) {
   return request(settings, `/api/ext/v1/nerve/entries/${entryId}`)
 }
 
-export function setupNerve(settings, encryptedVerifier) {
-  return request(settings, "/api/ext/v1/nerve/setup", {
-    method: "POST",
-    body: {
-      nerve: {
-        encrypted_verifier: encryptedVerifier
-      }
-    }
-  })
-}
-
-export function deleteNerve(settings) {
-  return request(settings, "/api/ext/v1/nerve", {
-    method: "DELETE"
-  })
-}
-
 export function createEntry(settings, attrs) {
   return request(settings, "/api/ext/v1/nerve/entries", {
     method: "POST",
@@ -154,19 +137,40 @@ export function updateEntry(settings, entryId, attrs) {
   })
 }
 
-export function loginWithAccount(serverUrl, username, password) {
+export function createKairoSource(settings, attrs) {
+  return request(settings, "/api/ext/v1/kairo/sources", {
+    method: "POST",
+    body: {
+      source: attrs
+    }
+  })
+}
+
+export function isPersonalAccessToken(token) {
+  return ((token || "").trim()).startsWith("ekt_")
+}
+
+export function loginWithAccount(serverUrl, username, password, options = {}) {
   return request(
     { serverUrl, apiToken: "" },
     "/api/auth/login",
     {
       method: "POST",
       auth: false,
-      body: { username, password }
+      body: {
+        username,
+        password,
+        ...options
+      }
     }
   )
 }
 
 export function logoutWithAccount(settings) {
+  if (isPersonalAccessToken(settings.apiToken)) {
+    return Promise.resolve({ message: "Signed out locally." })
+  }
+
   return request(settings, "/api/auth/logout", {
     method: "POST"
   })

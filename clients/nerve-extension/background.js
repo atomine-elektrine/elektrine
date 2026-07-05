@@ -1,14 +1,16 @@
-import { createEntry, getEntry, listEntries, updateEntry } from "./lib/api.js"
+import { createEntry, createKairoSource, getEntry, listEntries, updateEntry } from "./lib/api.js"
 import {
+  deriveFeatureKey,
   decryptValue,
   encryptValue,
   isClientPayload,
   nerveEntryAssociatedData,
   nerveMetadataAssociatedData,
-  verifyPassphrase
+  unwrapWithSecret
 } from "./lib/crypto.js"
 import {
   clearPendingSave,
+  clearSessionPassphrase as clearStoredSessionPassphrase,
   clearStagedFill,
   getPendingSave,
   getStagedFill,
@@ -16,16 +18,24 @@ import {
   setPendingSave,
   setStagedFill
 } from "./lib/storage.js"
+import { kairoErrorMessage, kairoSourceAttrs } from "./lib/kairo_capture.js"
 
 const PENDING_SAVE_EXPIRY_MS = 5 * 60 * 1000
 const STAGED_FILL_EXPIRY_MS = 3 * 60 * 1000
 const VAULT_SESSION_IDLE_TIMEOUT_MS = 15 * 60 * 1000
+const FEATURE = "nerve"
+const KAIRO_CONTEXT_MENUS = {
+  PAGE: "kairo-capture-page",
+  SELECTION: "kairo-capture-selection"
+}
 let sessionPassphrase = ""
 let sessionPassphraseExpiresAt = 0
 let sessionPassphraseTimer = null
 
 const MESSAGE_TYPES = {
   OPEN_OPTIONS: "ui:open-options",
+  OPEN_MANAGER: "ui:open-manager",
+  GET_THEME: "nerve:get-theme",
   GET_INLINE_STATE: "nerve:get-inline-state",
   GET_SUGGESTIONS: "nerve:get-suggestions",
   FILL_ENTRY: "nerve:fill-entry",
@@ -38,7 +48,8 @@ const MESSAGE_TYPES = {
   DISMISS_PENDING_SAVE: "nerve:dismiss-pending-save",
   GET_SESSION_PASSPHRASE: "nerve:get-session-passphrase",
   SET_SESSION_PASSPHRASE: "nerve:set-session-passphrase",
-  CLEAR_SESSION_PASSPHRASE: "nerve:clear-session-passphrase"
+  CLEAR_SESSION_PASSPHRASE: "nerve:clear-session-passphrase",
+  SESSION_CHANGED: "nerve:session-changed"
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -55,11 +66,40 @@ if (chrome.tabs?.onRemoved) {
   })
 }
 
+if (chrome.runtime?.onInstalled) {
+  chrome.runtime.onInstalled.addListener(() => {
+    installContextMenus()
+  })
+}
+
+if (chrome.runtime?.onStartup) {
+  chrome.runtime.onStartup.addListener(() => {
+    installContextMenus()
+  })
+}
+
+if (chrome.contextMenus?.onClicked) {
+  chrome.contextMenus.onClicked.addListener((info, tab) => {
+    if (Object.values(KAIRO_CONTEXT_MENUS).includes(info.menuItemId)) {
+      void captureContextToKairo(info, tab)
+    }
+  })
+}
+
 async function handleMessage(message, sender) {
   switch (message.type) {
     case MESSAGE_TYPES.OPEN_OPTIONS:
       chrome.runtime.openOptionsPage()
       return { opened: true }
+
+    case MESSAGE_TYPES.OPEN_MANAGER:
+      assertContentScriptSender(sender)
+      openManagerPage(sender.tab?.id)
+      return { opened: true }
+
+    case MESSAGE_TYPES.GET_THEME:
+      assertContentScriptSender(sender)
+      return themeState()
 
     case MESSAGE_TYPES.GET_INLINE_STATE:
       assertContentScriptSender(sender)
@@ -105,23 +145,90 @@ async function handleMessage(message, sender) {
 
     case MESSAGE_TYPES.GET_SESSION_PASSPHRASE:
       assertExtensionPageSender(sender)
-      expireSessionPassphraseIfNeeded()
-      return { passphrase: sessionPassphrase }
+      return { passphrase: await currentSessionPassphrase() }
 
     case MESSAGE_TYPES.SET_SESSION_PASSPHRASE:
       assertExtensionPageSender(sender)
       sessionPassphrase = typeof message.passphrase === "string" ? message.passphrase : ""
+      await clearStoredSessionPassphrase()
       scheduleSessionPassphraseExpiry()
+      await broadcastNerveSessionChanged("unlocked")
       return { stored: true }
 
     case MESSAGE_TYPES.CLEAR_SESSION_PASSPHRASE:
       assertExtensionPageSender(sender)
-      clearSessionPassphrase()
+      await clearRuntimeSessionPassphrase({ broadcast: true })
       return { cleared: true }
 
     default:
       throw new Error("Unsupported message type.")
   }
+}
+
+function installContextMenus() {
+  if (!chrome.contextMenus?.removeAll || !chrome.contextMenus?.create) {
+    return
+  }
+
+  chrome.contextMenus.removeAll(() => {
+    contextMenuCreate({
+      id: KAIRO_CONTEXT_MENUS.PAGE,
+      title: "Capture page to Kairo",
+      contexts: ["page"],
+      documentUrlPatterns: ["http://*/*", "https://*/*"]
+    })
+
+    contextMenuCreate({
+      id: KAIRO_CONTEXT_MENUS.SELECTION,
+      title: "Capture selection to Kairo",
+      contexts: ["selection"],
+      documentUrlPatterns: ["http://*/*", "https://*/*"]
+    })
+  })
+}
+
+function contextMenuCreate(options) {
+  chrome.contextMenus.create(options, () => {
+    void chrome.runtime.lastError
+  })
+}
+
+async function captureContextToKairo(info, tab) {
+  try {
+    const settings = await getSettings()
+
+    if (!settings.serverUrl || !settings.apiToken) {
+      throw new Error("Connect your Elektrine account before capturing.")
+    }
+
+    const capture = {
+      url: info.pageUrl || tab?.url || "",
+      title: tab?.title || safeHost(info.pageUrl || tab?.url) || "Captured page",
+      selectionText: info.menuItemId === KAIRO_CONTEXT_MENUS.SELECTION ? info.selectionText || "" : ""
+    }
+
+    await createKairoSource(settings, kairoSourceAttrs(capture))
+    await setActionBadge("OK", "#6f8b74")
+  } catch (error) {
+    console.warn("Kairo capture failed:", kairoErrorMessage(error))
+    await setActionBadge("!", "#a56b68")
+  }
+}
+
+async function setActionBadge(text, color) {
+  if (!chrome.action?.setBadgeText) {
+    return
+  }
+
+  await chrome.action.setBadgeText({ text })
+
+  if (chrome.action.setBadgeBackgroundColor) {
+    await chrome.action.setBadgeBackgroundColor({ color })
+  }
+
+  setTimeout(() => {
+    chrome.action.setBadgeText({ text: "" })
+  }, 1800)
 }
 
 function assertContentScriptSender(sender) {
@@ -133,7 +240,7 @@ function assertContentScriptSender(sender) {
 function assertExtensionPageSender(sender) {
   const extensionOrigin = chrome.runtime.getURL("")
 
-  if (sender?.tab || typeof sender?.url !== "string" || !sender.url.startsWith(extensionOrigin)) {
+  if (typeof sender?.url !== "string" || !sender.url.startsWith(extensionOrigin)) {
     throw new Error("Message is not allowed from this sender.")
   }
 }
@@ -156,7 +263,16 @@ async function inlineState() {
   const session = await getNerveSession()
 
   return {
-    status: session.status
+    status: session.status,
+    theme: session.theme || null
+  }
+}
+
+async function themeState() {
+  const settings = await getSettings()
+
+  return {
+    theme: settings.apiToken ? settings.theme || null : null
   }
 }
 
@@ -343,13 +459,13 @@ async function savePendingEntry(tabId, payload) {
   attrs.website = ""
   attrs.encrypted_metadata = await encryptValue(
     JSON.stringify(metadata),
-    session.passphrase,
+    session.key,
     nerveMetadataAssociatedData()
   )
 
   attrs.encrypted_password = await encryptValue(
     pending.password,
-    session.passphrase,
+    session.key,
     nerveEntryAssociatedData(metadata, "password")
   )
 
@@ -369,17 +485,17 @@ async function savePendingEntry(tabId, payload) {
 
 async function loadEntryCredentials(session, entryId) {
   const data = await getEntry(session.settings, entryId)
-  const entry = await hydrateEntryMetadata(data.entry, session.passphrase)
+  const entry = await hydrateEntryMetadata(data.entry, session.key)
 
   return {
     username: entry.login_username || "",
     password: await decryptValue(
       entry.encrypted_password,
-      session.passphrase,
+      session.key,
       nerveEntryAssociatedData(entry, "password")
     ),
     notes: entry.encrypted_notes
-      ? await decryptValue(entry.encrypted_notes, session.passphrase, nerveEntryAssociatedData(entry, "notes"))
+      ? await decryptValue(entry.encrypted_notes, session.key, nerveEntryAssociatedData(entry, "notes"))
       : ""
   }
 }
@@ -395,61 +511,58 @@ async function getNerveSession() {
   const settings = await getSettings()
 
   if (!settings.serverUrl || !settings.apiToken) {
-    return { status: "disconnected", settings, entries: [] }
+    return { status: "disconnected", settings, theme: null, entries: [] }
   }
 
   const data = await listEntries(settings)
   const entries = Array.isArray(data.entries) ? data.entries : []
+  const theme = data.theme || settings.theme || null
 
-  if (!data.nerve_configured) {
-    return { status: "unconfigured", settings, entries }
+  if (!data.master_configured) {
+    return { status: "unconfigured", settings, theme, entries }
   }
 
-  expireSessionPassphraseIfNeeded()
-  const passphrase = sessionPassphrase
+  const passphrase = await currentSessionPassphrase()
 
   if (!passphrase) {
-    return { status: "locked", settings, entries }
+    return { status: "locked", settings, theme, entries }
   }
 
-  if (data.nerve_verifier) {
-    try {
-      const valid = await verifyPassphrase(data.nerve_verifier, passphrase)
+  let key
 
-      if (!valid) {
-        sessionPassphrase = ""
-        return { status: "locked", settings, entries }
-      }
-    } catch (_error) {
-      sessionPassphrase = ""
-      return { status: "locked", settings, entries }
-    }
+  try {
+    const mdk = await unwrapWithSecret(data.master_wrapped_dek, passphrase)
+    key = await deriveFeatureKey(mdk, FEATURE)
+  } catch (_error) {
+    await clearRuntimeSessionPassphrase({ broadcast: true })
+    return { status: "locked", settings, theme, entries }
   }
 
   scheduleSessionPassphraseExpiry()
-  const hydratedEntries = await hydrateEntries(entries, passphrase)
+  const hydratedEntries = await hydrateEntries(entries, key)
 
   return {
     status: "ready",
     settings,
-    passphrase,
+    theme,
+    key,
     entries: hydratedEntries
   }
 }
 
-async function hydrateEntries(entries, passphrase) {
-  return Promise.all(entries.map((entry) => hydrateEntryMetadata(entry, passphrase)))
+async function hydrateEntries(entries, key) {
+  return Promise.all(entries.map((entry) => hydrateEntryMetadata(entry, key)))
 }
 
-async function hydrateEntryMetadata(entry, passphrase) {
-  if (!entry || !passphrase || !isClientPayload(entry.encrypted_metadata)) {
+async function hydrateEntryMetadata(entry, key) {
+  if (!entry || !key || !isClientPayload(entry.encrypted_metadata)) {
     return entry
   }
 
   try {
     const decrypted = await decryptValue(
       entry.encrypted_metadata,
-      passphrase,
+      key,
       nerveMetadataAssociatedData()
     )
     const metadata = JSON.parse(decrypted)
@@ -467,7 +580,7 @@ async function hydrateEntryMetadata(entry, passphrase) {
 
 function scheduleSessionPassphraseExpiry() {
   if (!sessionPassphrase) {
-    clearSessionPassphrase()
+    void clearRuntimeSessionPassphrase()
     return
   }
 
@@ -477,16 +590,29 @@ function scheduleSessionPassphraseExpiry() {
     clearTimeout(sessionPassphraseTimer)
   }
 
-  sessionPassphraseTimer = setTimeout(clearSessionPassphrase, VAULT_SESSION_IDLE_TIMEOUT_MS)
+  sessionPassphraseTimer = setTimeout(() => {
+    void clearRuntimeSessionPassphrase({ broadcast: true })
+  }, VAULT_SESSION_IDLE_TIMEOUT_MS)
 }
 
-function expireSessionPassphraseIfNeeded() {
-  if (sessionPassphrase && sessionPassphraseExpiresAt > 0 && Date.now() >= sessionPassphraseExpiresAt) {
-    clearSessionPassphrase()
+async function currentSessionPassphrase() {
+  if (await expireSessionPassphraseIfNeeded()) {
+    return ""
   }
+
+  return sessionPassphrase
 }
 
-function clearSessionPassphrase() {
+async function expireSessionPassphraseIfNeeded() {
+  if (sessionPassphrase && sessionPassphraseExpiresAt > 0 && Date.now() >= sessionPassphraseExpiresAt) {
+    await clearRuntimeSessionPassphrase({ broadcast: true })
+    return true
+  }
+
+  return false
+}
+
+async function clearRuntimeSessionPassphrase({ broadcast = false } = {}) {
   sessionPassphrase = ""
   sessionPassphraseExpiresAt = 0
 
@@ -494,6 +620,51 @@ function clearSessionPassphrase() {
     clearTimeout(sessionPassphraseTimer)
     sessionPassphraseTimer = null
   }
+
+  await clearStoredSessionPassphrase()
+
+  if (broadcast) {
+    await broadcastNerveSessionChanged("locked")
+  }
+}
+
+async function broadcastNerveSessionChanged(status) {
+  if (!chrome.tabs?.query || !chrome.tabs?.sendMessage) {
+    return
+  }
+
+  const tabs = await queryPageTabs()
+
+  await Promise.allSettled(
+    tabs
+      .filter((tab) => tab.id && allowedPageUrl(tab.url))
+      .map((tab) => sendTabMessage(tab.id, {
+        type: MESSAGE_TYPES.SESSION_CHANGED,
+        status
+      }))
+  )
+}
+
+function queryPageTabs() {
+  return new Promise((resolve) => {
+    chrome.tabs.query({ url: ["http://*/*", "https://*/*"] }, (tabs) => {
+      if (chrome.runtime.lastError) {
+        resolve([])
+        return
+      }
+
+      resolve(Array.isArray(tabs) ? tabs : [])
+    })
+  })
+}
+
+function sendTabMessage(tabId, message) {
+  return new Promise((resolve) => {
+    chrome.tabs.sendMessage(tabId, message, () => {
+      void chrome.runtime.lastError
+      resolve()
+    })
+  })
 }
 
 function shouldPromptForPendingSave(pending, page) {
@@ -598,12 +769,22 @@ function fillBlockedMessage(status) {
     case "disconnected":
       return "Sign in to Elektrine in extension settings first."
     case "unconfigured":
-      return "Set up the nerve in the extension popup first."
+      return "Set up account-password encryption in Elektrine first."
     case "locked":
-      return "Unlock the nerve in the extension popup first."
+      return "Unlock Nerve in the Nerve page first."
     default:
       return "Nerve access is not available."
   }
+}
+
+function openManagerPage(tabId) {
+  const params = new URLSearchParams()
+
+  if (tabId) {
+    params.set("tabId", String(tabId))
+  }
+
+  chrome.tabs.create({ url: chrome.runtime.getURL(`manager.html?${params.toString()}`) })
 }
 
 function defaultTitle(pending) {

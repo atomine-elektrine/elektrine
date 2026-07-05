@@ -7,6 +7,7 @@ defmodule ElektrineNerveWeb.API.NerveController do
 
   alias Elektrine.Nerve
   alias Elektrine.Nerve.Payloads
+  alias Elektrine.Theme
   alias Elektrine.Vault
   alias ElektrineNerveWeb.API.Response
 
@@ -26,10 +27,11 @@ defmodule ElektrineNerveWeb.API.NerveController do
       conn,
       %{
         entries: entries,
-        # Nerve now unlocks with the account master password; the wrapped MDK is
+        # Nerve unlocks with the account password; the wrapped MDK is
         # the verifier (unwrap with the passphrase to derive the Nerve subkey).
         master_configured: not is_nil(master),
-        master_wrapped_dek: master && master.wrapped_dek
+        master_wrapped_dek: master && master.wrapped_dek,
+        theme: Theme.api_payload(user)
       },
       %{pagination: %{limit: limit, offset: offset, total_count: length(all_entries)}}
     )
@@ -38,30 +40,16 @@ defmodule ElektrineNerveWeb.API.NerveController do
   @doc """
   POST /api/ext/v1/nerve/setup
 
-  Deprecated: Nerve no longer has its own passphrase. The master password is set
-  up in account settings.
+  Deprecated: Nerve no longer has its own passphrase. Encrypted data is enabled
+  in account settings.
   """
   def setup(conn, _params) do
     Response.error(
       conn,
       :bad_request,
       "master_password_required",
-      "Nerve now uses your account master password. Set it up at /account/master-password."
+      "Nerve uses your account password. Set up encrypted data at /account/encrypted-data."
     )
-  end
-
-  @doc """
-  DELETE /api/ext/v1/nerve
-  """
-  def delete_nerve(conn, _params) do
-    user = conn.assigns.current_user
-
-    {:ok, result} = Nerve.delete_nerve(user.id)
-
-    Response.ok(conn, %{
-      message: "Nerve entries deleted",
-      deleted_entries: result.deleted_entries
-    })
   end
 
   @doc """

@@ -50,7 +50,7 @@ defmodule ElektrineNerveWeb.NerveLive do
 
       {:error, :nerve_not_configured} ->
         {:noreply,
-         put_flash(socket, :error, "Set up your Nerve passphrase before saving entries.")}
+         put_flash(socket, :error, "Set up account-password encryption before saving entries.")}
 
       {:error, changeset} ->
         {:noreply, assign(socket, :form, to_form(%{changeset | action: :insert}, as: :entry))}
@@ -93,22 +93,9 @@ defmodule ElektrineNerveWeb.NerveLive do
   end
 
   @impl true
-  def handle_event("delete_nerve", _params, socket) do
-    user = socket.assigns.current_user
-
-    {:ok, _result} = Nerve.delete_nerve(user.id)
-
-    {:noreply,
-     socket
-     |> assign(:entries, [])
-     |> assign(:form, entry_form(user.id))
-     |> put_flash(:info, "All Nerve entries deleted.")}
-  end
-
-  @impl true
   def render(assigns) do
     ~H"""
-    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-2">
+    <div class="mx-auto max-w-7xl px-4 pb-6 sm:px-6 lg:px-8">
       <div
         id="nerve-live"
         phx-hook="Nerve"
@@ -125,20 +112,20 @@ defmodule ElektrineNerveWeb.NerveLive do
           <div>
             <h1 class="text-2xl font-bold text-base-content sm:text-3xl">Nerve</h1>
             <p class="mt-1 text-base-content/70">
-              The browser extension and external API that let the web and your other tools reach
-              your Elektrine data, encrypted with your master password.
+              Encrypted passwords, autofill, and page capture for the browser extension,
+              unlocked with your account password.
             </p>
           </div>
 
-          <Elektrine.Components.ExperimentalNotice.experimental_notice message="Nerve is experimental. Keep separate backups of anything important you store here while it's being tested." />
+          <Elektrine.Components.ExperimentalNotice.experimental_notice message="Nerve is experimental. Keep separate backups of anything important you store here." />
 
           <div class="grid gap-6 lg:grid-cols-2">
-            <div class="card panel-card border border-base-300 shadow-lg">
+            <div class="card panel-card">
               <div class="card-body p-4 sm:p-6">
                 <%= if @vault_configured do %>
                   <h2 class="card-title mb-4 text-lg">Unlock Nerve</h2>
                   <p class="mb-4 text-sm text-base-content/70">
-                    Nerve unlocks with your account master password. It stays in this browser session only.
+                    Nerve unlocks with your account password. The encryption key stays in this browser session only.
                   </p>
 
                   <div class="space-y-3">
@@ -146,7 +133,7 @@ defmodule ElektrineNerveWeb.NerveLive do
                       id="nerve-passphrase"
                       type="password"
                       class="input input-bordered w-full"
-                      placeholder="Master passphrase"
+                      placeholder="Account password"
                       autocomplete="current-password"
                       data-vault-unlock-input
                     />
@@ -155,7 +142,7 @@ defmodule ElektrineNerveWeb.NerveLive do
                       <button type="button" class="btn btn-primary btn-sm flex-1" data-vault-unlock>
                         Unlock
                       </button>
-                      <button type="button" class="btn btn-outline btn-sm flex-1" data-vault-lock>
+                      <button type="button" class="btn btn-surface btn-sm flex-1" data-vault-lock>
                         Lock
                       </button>
                     </div>
@@ -171,66 +158,25 @@ defmodule ElektrineNerveWeb.NerveLive do
                     <p class="text-xs text-error" data-vault-error></p>
                   </div>
                 <% else %>
-                  <h2 class="card-title mb-4 text-lg">Set up your master password</h2>
+                  <h2 class="card-title mb-4 text-lg">Set up account-password encryption</h2>
                   <p class="mb-4 text-sm text-base-content/70">
-                    Nerve uses your account master password to encrypt entries. Set it up once and it
-                    unlocks Nerve, Kairo, and private email.
+                    Nerve uses your account password to unlock encrypted entries. Set this up once
+                    and it unlocks Nerve, Kairo, and private email.
                   </p>
-                  <.link href="/account/master-password" class="btn btn-primary btn-sm">
-                    Set up master password
+                  <.link href="/account/encrypted-data" class="btn btn-primary btn-sm">
+                    Set up encryption
                   </.link>
                 <% end %>
               </div>
             </div>
 
-            <div class="card panel-card border border-base-300 shadow-lg">
+            <div class="card panel-card">
               <div class="card-body p-4 sm:p-6">
-                <h2 class="card-title mb-4 text-lg">What Nerve does</h2>
-                <ul class="space-y-3 text-sm text-base-content/70">
-                  <li class="flex gap-2">
-                    <span class="hero-key h-5 w-5 shrink-0 text-base-content/50"></span>
-                    <span>
-                      <span class="font-medium text-base-content">Passwords &amp; autofill</span>
-                      - store logins encrypted and fill them on matching sites from the extension.
-                    </span>
-                  </li>
-                  <li class="flex gap-2">
-                    <span class="hero-inbox-arrow-down h-5 w-5 shrink-0 text-base-content/50"></span>
-                    <span>
-                      <span class="font-medium text-base-content">Kairo capture</span>
-                      - clip pages and content straight into <.link href="/kairo" class="link">Kairo</.link>.
-                    </span>
-                  </li>
-                  <li class="flex gap-2">
-                    <span class="hero-puzzle-piece h-5 w-5 shrink-0 text-base-content/50"></span>
-                    <span>
-                      <span class="font-medium text-base-content">More integrations</span>
-                      - anything Elektrine needs to reach from outside the app.
-                    </span>
-                  </li>
-                </ul>
-                <p class="mt-4 text-xs text-base-content/60">
-                  Everything is encrypted with your master password and decrypted only in your
-                  browser. Lose the passphrase and saved secrets can't be recovered.
+                <h2 class="card-title mb-4 text-lg">Your data</h2>
+                <p class="text-sm text-base-content/70">
+                  Entries are encrypted under your account vault key and decrypted only in your
+                  browser. If your account password is reset, use your recovery code to keep access.
                 </p>
-
-                <%= if @vault_configured do %>
-                  <div class="mt-5 rounded-lg border border-error/30 bg-error/5 p-4">
-                    <p class="mb-3 text-sm text-base-content/70">
-                      Lost your passphrase? Delete Nerve and all saved entries, then create a
-                      new one.
-                    </p>
-                    <button
-                      id="delete-nerve-button"
-                      type="button"
-                      phx-click="delete_nerve"
-                      data-confirm="Delete Nerve and all saved entries? This cannot be undone."
-                      class="btn btn-error btn-outline btn-sm"
-                    >
-                      Delete Nerve
-                    </button>
-                  </div>
-                <% end %>
               </div>
             </div>
           </div>
@@ -240,17 +186,12 @@ defmodule ElektrineNerveWeb.NerveLive do
           </h2>
 
           <div class="grid gap-6 xl:grid-cols-3">
-            <div class="card panel-card border border-base-300 shadow-lg">
+            <div class="card panel-card">
               <div class="card-body p-4 sm:p-6">
-                <div class="mb-4 flex items-start justify-between gap-3">
-                  <div>
-                    <h2 class="card-title mt-1 text-lg">Install Browser Extension</h2>
-                  </div>
-                  <span class="badge badge-primary badge-outline">Extension</span>
-                </div>
+                <h2 class="card-title mb-4 text-lg">Browser Extension</h2>
 
                 <p class="text-sm text-base-content/70">
-                  Add the browser extension to unlock autofill, page capture, and future relay actions from the sites you use.
+                  Autofill saved entries and capture pages from the sites you use.
                 </p>
 
                 <div class="mt-5 grid gap-2">
@@ -262,120 +203,62 @@ defmodule ElektrineNerveWeb.NerveLive do
                   </a>
                   <a
                     href="/account/nerve/extension/firefox/download"
-                    class="btn btn-outline btn-sm"
+                    class="btn btn-surface btn-sm"
                   >
                     Download Firefox XPI
                   </a>
                 </div>
 
-                <ol class="mt-5 list-decimal space-y-2 pl-5 text-xs text-base-content/60">
-                  <li>Install the browser extension.</li>
-                  <li>Open the browser extension and unlock Nerve in this browser.</li>
-                  <li>Use saved entries on matching sites.</li>
-                </ol>
+                <p class="mt-5 text-xs text-base-content/60">
+                  After installing, open the extension and unlock Nerve.
+                </p>
               </div>
             </div>
 
-            <div class="card panel-card border border-base-300 shadow-lg">
+            <div class="card panel-card">
               <div class="card-body p-4 sm:p-6">
-                <div class="mb-4 flex items-start justify-between gap-3">
-                  <div>
-                    <h2 class="card-title mt-1 text-lg">Kairo Capture</h2>
-                  </div>
-                  <span class="badge badge-outline">Beta</span>
-                </div>
+                <h2 class="card-title mb-4 text-lg">Kairo Capture</h2>
 
                 <p class="text-sm text-base-content/70">
-                  Clip the page you're on - or selected text - straight into your Kairo knowledge
-                  base. The extension posts to your Kairo sources over the external API.
+                  Clip the page you're on - or selected text - straight into <.link
+                    href="/kairo"
+                    class="link"
+                  >Kairo</.link>.
                 </p>
 
                 <div class="mt-5 grid gap-2">
                   <.link href="/kairo" class="btn btn-primary btn-sm">Open Kairo</.link>
-                  <.link href="/account?tab=developer" class="btn btn-outline btn-sm">
+                  <.link href="/account?tab=developer" class="btn btn-surface btn-sm">
                     Manage API tokens
                   </.link>
                 </div>
 
-                <ol class="mt-5 list-decimal space-y-2 pl-5 text-xs text-base-content/60">
-                  <li>Install the browser extension and unlock Nerve.</li>
-                  <li>
-                    Create a token with the <code class="rounded bg-base-300 px-1">write:kairo</code>
-                    scope.
-                  </li>
-                  <li>Capture pages into Kairo from any site.</li>
-                </ol>
+                <p class="mt-5 text-xs text-base-content/60">
+                  Requires an API token with the
+                  <code class="rounded bg-base-300/70 px-1">write:kairo</code>
+                  scope.
+                </p>
               </div>
             </div>
 
-            <div class="card panel-card border border-base-300 shadow-lg">
+            <div class="card panel-card">
               <div class="card-body p-4 sm:p-6">
-                <div class="mb-4 flex items-start justify-between gap-3">
-                  <div>
-                    <h2 class="card-title mt-1 text-lg">This Browser</h2>
-                  </div>
-                  <span class={[
-                    @vault_configured && "badge-success",
-                    !@vault_configured && "badge-ghost",
-                    "badge"
-                  ]}>
-                    {if @vault_configured, do: "Ready", else: "Setup needed"}
-                  </span>
-                </div>
-
-                <div class="rounded-xl border border-base-300 bg-base-200/50 p-4">
-                  <div class="flex items-center justify-between gap-3">
-                    <div>
-                      <p class="font-medium">Local browser session</p>
-                      <p class="text-xs text-base-content/60">
-                        {if @vault_configured,
-                          do: "Unlock Nerve here to decrypt entries locally.",
-                          else: "Create a passphrase before connecting devices."}
-                      </p>
-                    </div>
-                    <span class="flex h-8 w-8 items-center justify-center rounded-full bg-base-300 text-sm font-semibold text-base-content/45">
-                      B
-                    </span>
-                  </div>
-                </div>
-
-                <div class="mt-4 rounded-xl border border-dashed border-base-300 p-4 text-sm text-base-content/60">
-                  Paired browser extension devices will appear here when device registration is enabled.
-                </div>
-              </div>
-            </div>
-
-            <div class="card panel-card border border-base-300 shadow-lg">
-              <div class="card-body p-4 sm:p-6">
-                <div class="mb-4 flex items-start justify-between gap-3">
-                  <div>
-                    <h2 class="card-title mt-1 text-lg">Known Sites</h2>
-                  </div>
-                  <span class="badge badge-outline">{length(site_connection_rows(@entries))}</span>
-                </div>
+                <h2 class="card-title mb-4 text-lg">Known Sites</h2>
 
                 <%= case site_connection_rows(@entries) do %>
                   <% [] -> %>
-                    <div class="rounded-xl border border-dashed border-base-300 p-4 text-sm text-base-content/60">
-                      Save entries with websites to see matching sites here. Future relay permissions will live in this section.
+                    <div class="rounded-xl border border-dashed border-base-content/20 p-4 text-sm text-base-content/60">
+                      Entries with a website are grouped by site here.
                     </div>
                   <% sites -> %>
                     <div class="space-y-3">
-                      <div
-                        :for={site <- sites}
-                        class="rounded-xl border border-base-300 bg-base-200/50 p-3"
-                      >
-                        <div class="flex items-center justify-between gap-3">
-                          <div class="min-w-0">
-                            <p class="truncate font-medium">{site.host}</p>
-                            <p class="text-xs text-base-content/60">
-                              {site.entry_count} saved {if site.entry_count == 1,
-                                do: "entry",
-                                else: "entries"}
-                            </p>
-                          </div>
-                          <span class="badge badge-ghost whitespace-nowrap">Stored</span>
-                        </div>
+                      <div :for={site <- sites} class="surface-muted rounded-xl p-3">
+                        <p class="truncate font-medium">{site.host}</p>
+                        <p class="text-xs text-base-content/60">
+                          {site.entry_count} saved {if site.entry_count == 1,
+                            do: "entry",
+                            else: "entries"}
+                        </p>
                       </div>
                     </div>
                 <% end %>
@@ -385,7 +268,7 @@ defmodule ElektrineNerveWeb.NerveLive do
 
           <h2 class="text-lg font-semibold text-base-content">Passwords</h2>
 
-          <div class="card panel-card border border-base-300 shadow-lg">
+          <div class="card panel-card">
             <div class="card-body p-4 sm:p-6">
               <h2 class="card-title mb-4 text-lg">Add Entry</h2>
 
@@ -444,7 +327,7 @@ defmodule ElektrineNerveWeb.NerveLive do
                     <div class="form-control">
                       <div class="label py-0 mb-1">
                         <span class="label-text">Password</span>
-                        <button type="button" class="btn btn-xs btn-outline" data-nerve-generate>
+                        <button type="button" class="btn btn-xs btn-surface" data-nerve-generate>
                           Generate
                         </button>
                       </div>
@@ -503,31 +386,25 @@ defmodule ElektrineNerveWeb.NerveLive do
                 </form>
               <% else %>
                 <p class="text-sm text-base-content/70">
-                  Set your Nerve passphrase first. After setup, this form will unlock.
+                  Set up account-password encryption first. After setup, this form will unlock.
                 </p>
               <% end %>
             </div>
           </div>
 
-          <div class="card panel-card border border-base-300 shadow-lg">
+          <div class="card panel-card">
             <div class="card-body p-4 sm:p-6">
               <h2 class="card-title mb-4 text-lg">Saved Entries</h2>
 
               <%= if not @vault_configured do %>
                 <div class="py-10 text-center">
-                  <div class="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-base-200 text-base-content/25">
-                    <span class="text-lg font-semibold">V</span>
-                  </div>
                   <p class="text-sm text-base-content/60">
-                    Set up Nerve to start saving entries
+                    Set up account-password encryption to start saving entries
                   </p>
                 </div>
               <% else %>
                 <%= if @entries == [] do %>
                   <div class="py-10 text-center">
-                    <div class="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-base-200 text-base-content/25">
-                      <span class="text-lg font-semibold">V</span>
-                    </div>
                     <p class="text-sm text-base-content/60">No entries yet</p>
                   </div>
                 <% else %>
@@ -609,7 +486,7 @@ defmodule ElektrineNerveWeb.NerveLive do
                             class="hidden"
                           >
                             <td colspan="5">
-                              <div class="rounded-lg bg-base-200 p-4 space-y-3">
+                              <div class="surface-muted rounded-lg p-4 space-y-3">
                                 <div>
                                   <p class="mb-1 text-xs uppercase tracking-wide text-base-content/60">
                                     Password

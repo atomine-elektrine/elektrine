@@ -23,6 +23,7 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
        |> assign(:record_types, DNS.supported_record_types())
        |> assign(:zones, zones)
        |> assign(:active_zone, active_zone)
+       |> assign(:zone_tab, normalize_zone_tab(params["tab"], zone_tabs(active_zone, user)))
        |> assign(:linked_domains, linked_domains(active_zone, user.id))
        |> assign(:domain_health, DNS.domain_health(active_zone))
        |> assign(:service_health, service_health(active_zone))
@@ -50,6 +51,13 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
      socket
      |> assign(:zones, zones)
      |> assign(:active_zone, active_zone)
+     |> assign(
+       :zone_tab,
+       normalize_zone_tab(
+         params["tab"],
+         zone_tabs(active_zone, socket.assigns.current_user)
+       )
+     )
      |> assign(:linked_domains, linked_domains(active_zone, socket.assigns.current_user.id))
      |> assign(:domain_health, DNS.domain_health(active_zone))
      |> assign(:service_health, service_health(active_zone))
@@ -464,22 +472,13 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                 <ElektrineWeb.Components.Platform.ENav.product_header
                   title="Zones"
                   description="Authoritative zones and records."
-                >
-                  <:actions>
-                    <div class="badge badge-outline badge-sm">
-                      {length(@zones)} zone{if length(@zones) == 1, do: "", else: "s"}
-                    </div>
-                  </:actions>
-                </ElektrineWeb.Components.Platform.ENav.product_header>
+                />
               </div>
 
               <%= if @zones == [] do %>
                 <div class="px-5 py-4 text-sm text-base-content/65">No zones yet.</div>
               <% else %>
                 <div class="overflow-hidden">
-                  <div class="border-b border-base-content/10 px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-base-content/50">
-                    <span>Zone</span>
-                  </div>
                   <%= for zone <- @zones do %>
                     <.link
                       navigate={~p"/dns?zone_id=#{zone.id}"}
@@ -559,11 +558,10 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
           <section :if={!@active_zone && !@zone_scan} class="card panel-card">
             <div class="card-body p-6 sm:p-8">
               <div class="mx-auto max-w-2xl text-center">
-                <div class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
-                  No DNS zones
-                </div>
-                <h2 class="mt-2 text-2xl font-semibold tracking-tight">Add a domain to manage DNS</h2>
-                <p class="mt-3 text-sm text-base-content/65">No zones configured.</p>
+                <h2 class="text-2xl font-semibold tracking-tight">Add a domain to manage DNS</h2>
+                <p class="mt-3 text-sm text-base-content/65">
+                  Use the New zone form to scan or provision your first zone.
+                </p>
               </div>
             </div>
           </section>
@@ -673,7 +671,7 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
           <%= if @active_zone do %>
             <section class="card panel-card">
               <div class="card-body p-0">
-                <div class="flex flex-col gap-5 border-b border-base-content/10 px-5 py-4 lg:flex-row lg:items-start lg:justify-between">
+                <div class="flex flex-col gap-5 px-5 py-4 lg:flex-row lg:items-start lg:justify-between">
                   <div class="space-y-3">
                     <div>
                       <h2 class="font-mono text-xl font-semibold tracking-tight">
@@ -705,13 +703,7 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                     >
                       <.icon name="hero-chart-bar" class="h-4 w-4" /> Analytics
                     </.link>
-                    <%= if builtin_zone?(@active_zone, @current_user) do %>
-                      <%= unless builtin_zone_hosted_by_platform?(@current_user) do %>
-                        <span class="text-sm text-base-content/60">
-                          Apex is user-managed in DNS.
-                        </span>
-                      <% end %>
-                    <% else %>
+                    <%= unless builtin_zone?(@active_zone, @current_user) do %>
                       <button
                         type="button"
                         phx-click="zone_verify"
@@ -720,105 +712,50 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                       >
                         <.icon name="hero-check-badge" class="h-4 w-4" /> Check setup
                       </button>
-                      <button
-                        type="button"
-                        phx-click="zone_delete"
-                        phx-value-id={@active_zone.id}
-                        data-confirm="Delete this DNS zone and all records?"
-                        class="btn btn-sm btn-error btn-outline"
-                      >
-                        <.icon name="hero-trash" class="h-4 w-4" /> Delete
-                      </button>
                     <% end %>
                   </div>
                 </div>
 
-                <div class="space-y-5 px-5 py-4">
-                  <%= if builtin_zone?(@active_zone, @current_user) do %>
-                    <div class="rounded-2xl border border-info/20 bg-info/5 px-4 py-3 text-sm">
-                      <%= if builtin_zone_hosted_by_platform?(@current_user) do %>
-                        <span>
-                          <code>{@active_zone.domain}</code>
-                          is platform-hosted. Apex `@` accepts only `TXT` and `CAA` here.
-                        </span>
-                      <% else %>
-                        <span>
-                          <code>{@active_zone.domain}</code>
-                          is DNS-managed. Platform hosting is paused.
-                        </span>
-                      <% end %>
-                    </div>
+                <div :if={@active_zone.last_error} class="px-5 pb-4">
+                  <div class="rounded-xl border border-warning/20 bg-warning/10 px-4 py-3 text-sm">
+                    {@active_zone.last_error}
+                  </div>
+                </div>
 
-                    <div class="rounded-2xl border border-base-content/10 bg-base-200/20 px-4 py-4">
-                      <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                        <div class="space-y-1">
-                          <h3 class="text-sm font-semibold uppercase tracking-[0.16em] text-base-content/60">
-                            Built-in host ownership
-                          </h3>
-                        </div>
-                        <div class="join self-start lg:self-auto">
-                          <button
-                            type="button"
-                            phx-click="builtin_zone_mode_set"
-                            phx-value-mode="platform"
-                            class={builtin_zone_mode_button_class(@current_user, "platform")}
-                          >
-                            Platform
-                          </button>
-                          <button
-                            type="button"
-                            phx-click="builtin_zone_mode_set"
-                            phx-value-mode="external_dns"
-                            class={builtin_zone_mode_button_class(@current_user, "external_dns")}
-                          >
-                            External DNS
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  <% end %>
+                <div :if={builtin_zone?(@active_zone, @current_user)} class="px-5 pb-4">
+                  <div class="rounded-2xl border border-info/20 bg-info/5 px-4 py-3 text-sm">
+                    <%= if builtin_zone_hosted_by_platform?(@current_user) do %>
+                      <span>
+                        <code>{@active_zone.domain}</code>
+                        is platform-hosted. Apex `@` accepts only `TXT` and `CAA` here.
+                      </span>
+                    <% else %>
+                      <span>
+                        <code>{@active_zone.domain}</code> is DNS-managed. Platform hosting is paused.
+                      </span>
+                    <% end %>
+                  </div>
+                </div>
 
-                  <%= if @active_zone.last_error do %>
-                    <div class="rounded-xl border border-warning/20 bg-warning/10 px-4 py-3 text-sm">
-                      {@active_zone.last_error}
-                    </div>
-                  <% end %>
-
-                  <.simple_form
-                    for={@zone_settings_form}
-                    bare={true}
-                    phx-submit="zone_update"
-                    class="rounded-2xl border border-base-content/10 bg-base-200/20 px-4 py-4"
+                <div
+                  role="tablist"
+                  class="tabs tabs-bordered border-t border-base-content/10 px-5"
+                >
+                  <.link
+                    :for={{key, label} <- zone_tabs(@active_zone, @current_user)}
+                    patch={~p"/dns?zone_id=#{@active_zone.id}&tab=#{key}"}
+                    role="tab"
+                    class={["tab", @zone_tab == key && "tab-active"]}
                   >
-                    <div class="mb-4">
-                      <h3 class="text-sm font-semibold uppercase tracking-[0.16em] text-base-content/60">
-                        Zone settings
-                      </h3>
-                    </div>
-                    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                      <.input
-                        field={@zone_settings_form[:default_ttl]}
-                        id="zone_settings_default_ttl"
-                        type="number"
-                        label="Default TTL"
-                      />
-                      <.input
-                        field={@zone_settings_form[:force_https]}
-                        type="checkbox"
-                        label="Force HTTPS"
-                      />
-                    </div>
-                    <:actions>
-                      <.button>Save settings</.button>
-                    </:actions>
-                  </.simple_form>
+                    {label}
+                  </.link>
                 </div>
               </div>
             </section>
           <% end %>
 
           <div :if={@active_zone} class="space-y-6">
-            <section class="card panel-card">
+            <section :if={@zone_tab == "records"} class="card panel-card">
               <div class="card-body p-0">
                 <div class="border-b border-base-content/10 px-5 py-4">
                   <h3 class="text-sm font-semibold uppercase tracking-[0.16em] text-base-content/60">
@@ -837,87 +774,12 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                         phx-change="record_validate"
                         phx-submit="record_create"
                       >
-                        <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                          <div class="space-y-1">
-                            <.input
-                              field={@record_form[:name]}
-                              label="Name"
-                              placeholder="@ or www"
-                              required
-                            />
-                            <p class="text-xs text-base-content/55">
-                              {record_name_field_help(@active_zone, @current_user)}
-                            </p>
-                          </div>
-
-                          <div class="space-y-1">
-                            <.input
-                              field={@record_form[:type]}
-                              type="select"
-                              label="Type"
-                              options={Enum.map(@record_types, &{&1, &1})}
-                            />
-                            <p class="text-xs text-base-content/55">
-                              {record_type_help(@record_form)}
-                            </p>
-                          </div>
-
-                          <% value_spec = record_value_spec(@record_form) %>
-                          <div class={[
-                            "space-y-1",
-                            if(value_spec.type == "textarea", do: "md:col-span-2 xl:col-span-3")
-                          ]}>
-                            <.input
-                              field={@record_form[:content]}
-                              type={value_spec.type}
-                              label={value_spec.label}
-                              placeholder={value_spec.placeholder}
-                              rows={if value_spec.type == "textarea", do: "5"}
-                              required
-                            />
-                            <p class="text-xs text-base-content/55">
-                              {record_value_help(@record_form)}
-                            </p>
-                          </div>
-
-                          <div class="space-y-1">
-                            <.input field={@record_form[:ttl]} type="number" label="TTL" />
-                            <p class="text-xs text-base-content/55">{ttl_help_text(@active_zone)}</p>
-                          </div>
-
-                          <div class="space-y-1 rounded-xl border border-base-content/10 bg-base-100/50 p-3">
-                            <.input
-                              field={@record_form[:private]}
-                              type="checkbox"
-                              label="Private record"
-                            />
-                            <p class="text-xs text-base-content/55">
-                              Only recursive/private DNS clients can resolve this record. Public authoritative queries will not receive it.
-                            </p>
-                          </div>
-
-                          <div class="space-y-1 rounded-xl border border-base-content/10 bg-base-100/50 p-3">
-                            <.input
-                              field={@record_form[:proxied]}
-                              type="checkbox"
-                              label="Proxy through Elektrine"
-                            />
-                            <p class="text-xs text-base-content/55">
-                              Return Elektrine edge addresses publicly and keep this record value as the protected origin.
-                            </p>
-                          </div>
-
-                          <%= for spec <- record_param_specs(@record_form) do %>
-                            <div class="space-y-1">
-                              <.input
-                                field={@record_form[spec.field]}
-                                type={spec.type}
-                                label={spec.label}
-                                placeholder={spec.placeholder}
-                              />
-                            </div>
-                          <% end %>
-                        </div>
+                        <.record_fields
+                          record_form={@record_form}
+                          active_zone={@active_zone}
+                          current_user={@current_user}
+                          record_types={@record_types}
+                        />
                         <:actions>
                           <.button>Save changes</.button>
                         </:actions>
@@ -1005,12 +867,7 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
               </div>
             </section>
 
-            <section
-              :if={
-                @active_zone.status != "verified" and not builtin_zone?(@active_zone, @current_user)
-              }
-              class="card panel-card"
-            >
+            <section :if={@zone_tab == "setup"} class="card panel-card">
               <div class="card-body p-0">
                 <div class="border-b border-base-content/10 px-5 py-4">
                   <h3 class="text-sm font-semibold uppercase tracking-[0.16em] text-base-content/60">
@@ -1051,11 +908,11 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
             </section>
           </div>
 
-          <section :if={@active_zone} class="card panel-card">
+          <section :if={@active_zone && @zone_tab == "records"} class="card panel-card">
             <div class="card-body p-0">
               <div class="border-b border-base-content/10 px-5 py-4">
                 <h3 class="text-sm font-semibold uppercase tracking-[0.16em] text-base-content/60">
-                  New record
+                  Add record
                 </h3>
               </div>
               <div class="p-5">
@@ -1115,85 +972,12 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                   phx-change="record_validate"
                   phx-submit="record_create"
                 >
-                  <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-                    <div class="space-y-1">
-                      <.input
-                        field={@record_form[:name]}
-                        label="Name"
-                        placeholder={record_name_placeholder(@active_zone, @current_user)}
-                        required
-                      />
-                      <p class="text-xs text-base-content/55">
-                        {record_name_field_help(@active_zone, @current_user)}
-                      </p>
-                    </div>
-
-                    <div class="space-y-1">
-                      <.input
-                        field={@record_form[:type]}
-                        type="select"
-                        label="Type"
-                        options={Enum.map(@record_types, &{&1, &1})}
-                      />
-                      <p class="text-xs text-base-content/55">{record_type_help(@record_form)}</p>
-                    </div>
-
-                    <% value_spec = record_value_spec(@record_form) %>
-                    <div class={[
-                      "space-y-1",
-                      if(value_spec.type == "textarea",
-                        do: "md:col-span-2 xl:col-span-1 2xl:col-span-2"
-                      )
-                    ]}>
-                      <.input
-                        field={@record_form[:content]}
-                        type={value_spec.type}
-                        label={value_spec.label}
-                        placeholder={value_spec.placeholder}
-                        rows={if value_spec.type == "textarea", do: "5"}
-                        required
-                      />
-                      <p class="text-xs text-base-content/55">{record_value_help(@record_form)}</p>
-                    </div>
-
-                    <div class="space-y-1">
-                      <.input field={@record_form[:ttl]} type="number" label="TTL" />
-                      <p class="text-xs text-base-content/55">{ttl_help_text(@active_zone)}</p>
-                    </div>
-
-                    <div class="space-y-1 rounded-xl border border-base-content/10 bg-base-100/50 p-3">
-                      <.input
-                        field={@record_form[:private]}
-                        type="checkbox"
-                        label="Private record"
-                      />
-                      <p class="text-xs text-base-content/55">
-                        Only recursive/private DNS clients can resolve this record. Public authoritative queries will not receive it.
-                      </p>
-                    </div>
-
-                    <div class="space-y-1 rounded-xl border border-base-content/10 bg-base-100/50 p-3">
-                      <.input
-                        field={@record_form[:proxied]}
-                        type="checkbox"
-                        label="Proxy through Elektrine"
-                      />
-                      <p class="text-xs text-base-content/55">
-                        Return Elektrine edge addresses publicly and keep this record value as the protected origin.
-                      </p>
-                    </div>
-
-                    <%= for spec <- record_param_specs(@record_form) do %>
-                      <div class="space-y-1">
-                        <.input
-                          field={@record_form[spec.field]}
-                          type={spec.type}
-                          label={spec.label}
-                          placeholder={spec.placeholder}
-                        />
-                      </div>
-                    <% end %>
-                  </div>
+                  <.record_fields
+                    record_form={@record_form}
+                    active_zone={@active_zone}
+                    current_user={@current_user}
+                    record_types={@record_types}
+                  />
                   <:actions>
                     <.button>Add record</.button>
                   </:actions>
@@ -1202,10 +986,7 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
             </div>
           </section>
 
-          <section
-            :if={@active_zone && !builtin_zone?(@active_zone, @current_user)}
-            class="card panel-card"
-          >
+          <section :if={@active_zone && @zone_tab == "health"} class="card panel-card">
             <div class="card-body p-0">
               <div class="border-b border-base-content/10 px-5 py-4">
                 <h3 class="text-sm font-semibold uppercase tracking-[0.16em] text-base-content/60">
@@ -1277,10 +1058,7 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
             </div>
           </section>
 
-          <section
-            :if={@active_zone && !builtin_zone?(@active_zone, @current_user)}
-            class="card panel-card"
-          >
+          <section :if={@active_zone && @zone_tab == "health"} class="card panel-card">
             <div class="card-body p-0">
               <div class="border-b border-base-content/10 px-5 py-4">
                 <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -1343,10 +1121,7 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
             </div>
           </section>
 
-          <section
-            :if={@active_zone && !builtin_zone?(@active_zone, @current_user)}
-            class="card panel-card"
-          >
+          <section :if={@active_zone && @zone_tab == "services"} class="card panel-card">
             <div class="card-body p-0">
               <div class="border-b border-base-content/10 px-5 py-4">
                 <h3 class="text-sm font-semibold uppercase tracking-[0.16em] text-base-content/60">
@@ -1516,10 +1291,202 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
               </div>
             </div>
           </section>
+
+          <section :if={@active_zone && @zone_tab == "settings"} class="card panel-card">
+            <div class="card-body p-0">
+              <div class="border-b border-base-content/10 px-5 py-4">
+                <h3 class="text-sm font-semibold uppercase tracking-[0.16em] text-base-content/60">
+                  Zone settings
+                </h3>
+              </div>
+              <div class="space-y-5 p-5">
+                <.simple_form
+                  for={@zone_settings_form}
+                  bare={true}
+                  phx-submit="zone_update"
+                  class="rounded-2xl border border-base-content/10 bg-base-200/20 px-4 py-4"
+                >
+                  <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    <.input
+                      field={@zone_settings_form[:default_ttl]}
+                      id="zone_settings_default_ttl"
+                      type="number"
+                      label="Default TTL"
+                    />
+                    <.input
+                      field={@zone_settings_form[:force_https]}
+                      type="checkbox"
+                      label="Force HTTPS"
+                    />
+                  </div>
+                  <:actions>
+                    <.button>Save settings</.button>
+                  </:actions>
+                </.simple_form>
+
+                <div
+                  :if={builtin_zone?(@active_zone, @current_user)}
+                  class="rounded-2xl border border-base-content/10 bg-base-200/20 px-4 py-4"
+                >
+                  <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div class="space-y-1">
+                      <h4 class="text-sm font-semibold">Built-in host ownership</h4>
+                      <p class="text-xs text-base-content/55">
+                        Who serves the apex of your built-in domain.
+                      </p>
+                    </div>
+                    <div class="join self-start lg:self-auto">
+                      <button
+                        type="button"
+                        phx-click="builtin_zone_mode_set"
+                        phx-value-mode="platform"
+                        class={builtin_zone_mode_button_class(@current_user, "platform")}
+                      >
+                        Platform
+                      </button>
+                      <button
+                        type="button"
+                        phx-click="builtin_zone_mode_set"
+                        phx-value-mode="external_dns"
+                        class={builtin_zone_mode_button_class(@current_user, "external_dns")}
+                      >
+                        External DNS
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  :if={!builtin_zone?(@active_zone, @current_user)}
+                  class="rounded-2xl border border-error/20 bg-error/5 px-4 py-4"
+                >
+                  <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <p class="text-sm text-base-content/70">
+                      Delete this zone and all of its records.
+                    </p>
+                    <button
+                      type="button"
+                      phx-click="zone_delete"
+                      phx-value-id={@active_zone.id}
+                      data-confirm="Delete this DNS zone and all records?"
+                      class="btn btn-sm btn-error btn-outline"
+                    >
+                      <.icon name="hero-trash" class="h-4 w-4" /> Delete zone
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
         </main>
       </div>
     </div>
     """
+  end
+
+  # Shared field set for the new-record and edit-record forms.
+  attr :record_form, :any, required: true
+  attr :active_zone, :any, required: true
+  attr :current_user, :any, required: true
+  attr :record_types, :list, required: true
+
+  defp record_fields(assigns) do
+    assigns = assign(assigns, :value_spec, record_value_spec(assigns.record_form))
+
+    ~H"""
+    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div class="space-y-1">
+        <.input
+          field={@record_form[:name]}
+          label="Name"
+          placeholder={record_name_placeholder(@active_zone, @current_user)}
+          required
+        />
+        <p class="text-xs text-base-content/55">
+          {record_name_field_help(@active_zone, @current_user)}
+        </p>
+      </div>
+
+      <div class="space-y-1">
+        <.input
+          field={@record_form[:type]}
+          type="select"
+          label="Type"
+          options={Enum.map(@record_types, &{&1, &1})}
+        />
+        <p class="text-xs text-base-content/55">{record_type_help(@record_form)}</p>
+      </div>
+
+      <div class={[
+        "space-y-1",
+        if(@value_spec.type == "textarea", do: "md:col-span-2 xl:col-span-3")
+      ]}>
+        <.input
+          field={@record_form[:content]}
+          type={@value_spec.type}
+          label={@value_spec.label}
+          placeholder={@value_spec.placeholder}
+          rows={if @value_spec.type == "textarea", do: "5"}
+          required
+        />
+        <p class="text-xs text-base-content/55">{record_value_help(@record_form)}</p>
+      </div>
+
+      <div class="space-y-1">
+        <.input field={@record_form[:ttl]} type="number" label="TTL" />
+        <p class="text-xs text-base-content/55">{ttl_help_text(@active_zone)}</p>
+      </div>
+
+      <div class="space-y-1 rounded-xl border border-base-content/10 bg-base-100/50 p-3">
+        <.input field={@record_form[:private]} type="checkbox" label="Private record" />
+        <p class="text-xs text-base-content/55">
+          Only recursive/private DNS clients can resolve this record. Public authoritative queries will not receive it.
+        </p>
+      </div>
+
+      <div class="space-y-1 rounded-xl border border-base-content/10 bg-base-100/50 p-3">
+        <.input field={@record_form[:proxied]} type="checkbox" label="Proxy through Elektrine" />
+        <p class="text-xs text-base-content/55">
+          Return Elektrine edge addresses publicly and keep this record value as the protected origin.
+        </p>
+      </div>
+
+      <%= for spec <- record_param_specs(@record_form) do %>
+        <div class="space-y-1">
+          <.input
+            field={@record_form[spec.field]}
+            type={spec.type}
+            label={spec.label}
+            placeholder={spec.placeholder}
+          />
+        </div>
+      <% end %>
+    </div>
+    """
+  end
+
+  # Tabs available for the active zone. Built-in zones only expose records and
+  # settings; the setup tab appears only while delegation is unverified.
+  defp zone_tabs(nil, _user), do: []
+
+  defp zone_tabs(%Zone{} = zone, user) do
+    if builtin_zone?(zone, user) do
+      [{"records", "Records"}, {"settings", "Settings"}]
+    else
+      [{"records", "Records"}, {"services", "Services"}, {"health", "Health"}] ++
+        if(zone.status != "verified", do: [{"setup", "Setup"}], else: []) ++
+        [{"settings", "Settings"}]
+    end
+  end
+
+  defp normalize_zone_tab(tab, tabs) do
+    keys = Enum.map(tabs, &elem(&1, 0))
+
+    cond do
+      tab in keys -> tab
+      keys == [] -> "records"
+      true -> hd(keys)
+    end
   end
 
   defp params_with_user(socket, params),

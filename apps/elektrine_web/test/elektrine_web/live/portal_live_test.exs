@@ -6,7 +6,7 @@ defmodule ElektrineWeb.PortalLiveTest do
   import Elektrine.SocialFixtures,
     only: [discussion_post_fixture: 1, media_post_fixture: 1, post_fixture: 1]
 
-  alias Elektrine.{AccountsFixtures, Friends, Messaging, Profiles, Repo, RSS, Social}
+  alias Elektrine.{AccountsFixtures, Messaging, Profiles, Repo, RSS, Social}
   alias Elektrine.ActivityPub.Actor
   alias ElektrineWeb.PortalLive.Index
 
@@ -107,7 +107,7 @@ defmodule ElektrineWeb.PortalLiveTest do
       |> log_in_user(user)
       |> live(~p"/portal")
 
-    assert html =~ "Reading"
+    assert html =~ "Feed Reader"
     assert html =~ "Portal RSS headline"
     assert html =~ "Example Feed"
     assert html =~ "A useful article from a subscribed feed."
@@ -475,7 +475,7 @@ defmodule ElektrineWeb.PortalLiveTest do
     assert html =~ "data-feed-loading-skeleton"
   end
 
-  test "portal overview cards render before dashboard numbers load", %{conn: conn} do
+  test "portal overview cards reserve number space before dashboard numbers load", %{conn: conn} do
     user = AccountsFixtures.user_fixture()
 
     html =
@@ -490,7 +490,9 @@ defmodule ElektrineWeb.PortalLiveTest do
     assert html =~ "Notifications"
     assert html =~ "Requests"
     assert html =~ "Credits"
-    assert count_occurrences(html, ~s(class="h-5 w-8 animate-pulse rounded bg-base-300")) == 5
+    refute html =~ "animate-pulse rounded bg-base-300"
+    assert count_occurrences(html, ~s(data-dashboard-loading="true")) == 5
+    assert count_occurrences(html, ~s(text-transparent select-none")) == 5
   end
 
   test "portal uses the infinite scroll feed container", %{conn: conn} do

@@ -1,5 +1,5 @@
 defmodule Elektrine.ActivityPub.FetchRemotePostRepliesTest do
-  use ExUnit.Case, async: true
+  use Elektrine.DataCase, async: false
 
   alias Elektrine.ActivityPub
 

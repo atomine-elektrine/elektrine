@@ -617,6 +617,115 @@
 
           <div class="card panel-card">
             <div class="card-body p-4 sm:p-6">
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
+                    <.icon name="hero-computer-desktop" class="w-5 h-5" />
+                    {gettext("Signed-in Sessions")}
+                  </h3>
+
+                  <p class="text-xs sm:text-sm text-base-content/70 mt-2">
+                    {gettext(
+                      "Review browsers signed in to this account. Revoking a session signs that browser out."
+                    )}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  phx-click="revoke_other_user_sessions"
+                  class="btn btn-outline btn-sm"
+                  disabled={Enum.count(active_user_sessions(@user_sessions)) <= 1}
+                >
+                  {gettext("Sign Out Others")}
+                </button>
+              </div>
+
+              <%= if @loading_security do %>
+                <div class="mt-4 space-y-3">
+                  <div class="h-16 bg-base-300 rounded-lg animate-pulse"></div>
+                  <div class="h-16 bg-base-300 rounded-lg animate-pulse"></div>
+                </div>
+              <% else %>
+                <div class="mt-4 overflow-hidden rounded-box border border-base-300/70">
+                  <%= if @user_sessions == [] do %>
+                    <div class="p-4 text-sm text-base-content/70">
+                      {gettext("New browser sessions will appear here after you sign in again.")}
+                    </div>
+                  <% else %>
+                    <div class="divide-y divide-base-300/70">
+                      <%= for session <- @user_sessions do %>
+                        <div class="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                          <div class="min-w-0">
+                            <div class="flex flex-wrap items-center gap-2">
+                              <p class="font-semibold text-sm sm:text-base">
+                                {session.device_label || gettext("Browser session")}
+                              </p>
+
+                              <span
+                                :if={session.id == @current_user_session_id}
+                                class="badge badge-primary badge-sm"
+                              >
+                                {gettext("Current")}
+                              </span>
+
+                              <span
+                                :if={session.revoked_at}
+                                class="badge badge-ghost badge-sm"
+                              >
+                                {gettext("Signed out")}
+                              </span>
+
+                              <span
+                                :if={session.remembered && is_nil(session.revoked_at)}
+                                class="badge badge-info badge-sm"
+                              >
+                                {gettext("Remembered")}
+                              </span>
+                            </div>
+
+                            <div class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-base-content/60">
+                              <span>{session.browser || gettext("Browser")}</span>
+                              <span>{session.platform || gettext("Unknown device")}</span>
+                              <span>{session.ip_address || gettext("Unknown IP")}</span>
+                              <span>{session_auth_method_label(session.auth_method)}</span>
+                            </div>
+
+                            <p class="mt-1 text-xs text-base-content/60">
+                              {gettext("Last active")} {relative_session_time(
+                                session.last_seen_at
+                              )}
+                              <span :if={session.inserted_at}>
+                                · {gettext("Signed in")} {relative_session_time(
+                                  session.inserted_at
+                                )}
+                              </span>
+                            </p>
+                          </div>
+
+                          <button
+                            type="button"
+                            phx-click="revoke_user_session"
+                            phx-value-id={session.id}
+                            class="btn btn-ghost btn-sm text-error"
+                            disabled={
+                              session.id == @current_user_session_id ||
+                                not is_nil(session.revoked_at)
+                            }
+                          >
+                            {gettext("Revoke")}
+                          </button>
+                        </div>
+                      <% end %>
+                    </div>
+                  <% end %>
+                </div>
+              <% end %>
+            </div>
+          </div>
+
+          <div class="card panel-card">
+            <div class="card-body p-4 sm:p-6">
               <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
                 <.icon name="hero-shield-check" class="w-5 h-5" /> {gettext(
                   "Two-Factor Authentication"
@@ -710,7 +819,7 @@
           <div class="card panel-card">
             <div class="card-body p-4 sm:p-6">
               <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
-                <.icon name="hero-shield-check" class="w-5 h-5" /> {gettext("Master Password")}
+                <.icon name="hero-shield-check" class="w-5 h-5" /> {gettext("Encrypted Data")}
                 <span
                   :if={@master_password_configured}
                   class="badge badge-success badge-sm"
@@ -721,19 +830,19 @@
 
               <p class="text-xs sm:text-sm text-base-content/70 mb-3 sm:mb-4">
                 {gettext(
-                  "One zero-knowledge passphrase that unlocks Nerve, Kairo, and private email. The server never sees it."
+                  "Unlock Nerve, Kairo, and private email with your account password. The server never sees the encryption key."
                 )}
               </p>
 
               <div class="card-actions">
                 <.link
-                  navigate={~p"/account/master-password"}
+                  navigate={~p"/account/encrypted-data"}
                   class="btn btn-outline btn-primary btn-sm w-full text-xs sm:text-sm"
                 >
                   <%= if @master_password_configured do %>
-                    {gettext("Manage Master Password")}
+                    {gettext("Manage Encrypted Data")}
                   <% else %>
-                    {gettext("Set Up Master Password")}
+                    {gettext("Set Up Encrypted Data")}
                   <% end %>
                 </.link>
               </div>

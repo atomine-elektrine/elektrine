@@ -17,6 +17,39 @@ defmodule ElektrineWeb.Components.Social.PostActionsTest do
     assert length(Regex.scan(~r/hero-chat-bubble-bottom-center-text/, html)) == 1
   end
 
+  test "reserves count space while interaction counts are loading and unknown" do
+    html =
+      render_component(&PostActions.post_actions/1,
+        post_id: "https://example.com/posts/1",
+        current_user: %{id: 123, username: "tester"},
+        like_count: nil,
+        comment_count: nil,
+        boost_count: nil,
+        quote_count: nil,
+        counts_loading: true
+      )
+
+    assert html =~ "text-transparent select-none"
+    refute html =~ ~s(data-count="0")
+  end
+
+  test "keeps known interaction counts visible while counts refresh" do
+    html =
+      render_component(&PostActions.post_actions/1,
+        post_id: "https://example.com/posts/1",
+        current_user: %{id: 123, username: "tester"},
+        like_count: 7,
+        comment_count: 3,
+        boost_count: 2,
+        counts_loading: true
+      )
+
+    assert html =~ ~s(data-count="7")
+    assert html =~ ~s(data-count="3")
+    assert html =~ ~s(data-count="2")
+    refute html =~ "text-transparent select-none"
+  end
+
   test "hides zero vote score when there is no active vote" do
     html =
       render_component(&PostActions.vote_buttons/1,

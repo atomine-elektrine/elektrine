@@ -1,5 +1,5 @@
 defmodule Elektrine.ActivityPub.MRF.SimplePolicyTest do
-  use Elektrine.DataCase, async: true
+  use Elektrine.DataCase, async: false
 
   alias Elektrine.ActivityPub.Instance
   alias Elektrine.ActivityPub.MRF.SimplePolicy

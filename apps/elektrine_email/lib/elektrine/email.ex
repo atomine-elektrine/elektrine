@@ -37,6 +37,7 @@ defmodule Elektrine.Email do
   defdelegate update_mailbox(mailbox, attrs), to: Elektrine.Email.Mailboxes
   defdelegate update_mailbox_email(mailbox, new_email), to: Elektrine.Email.Mailboxes
   defdelegate update_mailbox_private_storage(mailbox, attrs), to: Elektrine.Email.Mailboxes
+  defdelegate reset_user_private_storage(user_id), to: Elektrine.Email.Mailboxes
 
   defdelegate transition_mailbox_for_username_change(user, old_mailbox, new_email),
     to: Elektrine.Email.Mailboxes

@@ -1,5 +1,6 @@
-import { listEntries, loginWithAccount, logoutWithAccount, normalizeServerUrl } from "./lib/api.js"
+import { listEntries, logoutWithAccount, normalizeServerUrl } from "./lib/api.js"
 import { getSettings, saveSettings } from "./lib/storage.js"
+import { applyTheme } from "./lib/theme.js"
 
 const state = {
   settings: { serverUrl: "", apiToken: "" }
@@ -17,6 +18,20 @@ async function init() {
   bindEvents()
 
   state.settings = await getSettings()
+
+  const callback = parseConnectCallback(window.location.href)
+  if (callback) {
+    state.settings = {
+      serverUrl: state.settings.serverUrl,
+      apiToken: callback.token,
+      theme: callback.theme
+    }
+    await saveSettings(state.settings)
+    window.history.replaceState(null, "", window.location.pathname)
+    setStatus(`Connected as ${callback.username || "your account"}.`, "success")
+  }
+
+  applyTheme(state.settings)
   refs.serverUrl.value = state.settings.serverUrl
 
   renderConnectionState()
@@ -24,9 +39,7 @@ async function init() {
 
 function captureRefs() {
   refs.serverUrl = document.querySelector("#serverUrl")
-  refs.accountUsername = document.querySelector("#accountUsername")
-  refs.accountPassword = document.querySelector("#accountPassword")
-  refs.signInButton = document.querySelector("#signInButton")
+  refs.connectButton = document.querySelector("#connectButton")
   refs.testButton = document.querySelector("#testButton")
   refs.signOutButton = document.querySelector("#signOutButton")
   refs.clearPassphraseButton = document.querySelector("#clearPassphraseButton")
@@ -35,7 +48,7 @@ function captureRefs() {
 }
 
 function bindEvents() {
-  refs.signInButton.addEventListener("click", handleSignIn)
+  refs.connectButton.addEventListener("click", handleConnect)
   refs.testButton.addEventListener("click", handleTest)
   refs.signOutButton.addEventListener("click", handleSignOut)
   refs.clearPassphraseButton.addEventListener("click", handleClearPassphrase)
@@ -73,36 +86,43 @@ function renderConnectionState() {
   refs.signOutButton.disabled = !hasStoredSession()
 }
 
-async function handleSignIn() {
+async function handleConnect() {
   const serverUrl = currentServerUrl()
-  const username = refs.accountUsername.value.trim()
-  const password = refs.accountPassword.value
 
   try {
     const normalizedServerUrl = normalizeServerUrl(serverUrl)
-
-    if (!username || !password) {
-      throw new Error("Username and password are required.")
-    }
-
-    setBusy(refs.signInButton, true)
-    const result = await loginWithAccount(normalizedServerUrl, username, password)
+    const flowState = randomState()
+    const returnTo = identityRedirectUrl() || chrome.runtime.getURL("options.html")
+    const connectUrl = websiteConnectUrl(normalizedServerUrl, returnTo, flowState)
 
     state.settings = {
       serverUrl: normalizedServerUrl,
-      apiToken: result.token
+      apiToken: "",
+      theme: null
     }
-
     await saveSettings(state.settings)
+    applyTheme(state.settings)
     refs.serverUrl.value = normalizedServerUrl
 
-    refs.accountPassword.value = ""
+    setBusy(refs.connectButton, true)
+    setStatus("Continue in the website window to approve the extension.", "info")
+
+    const callback = await connectViaWebsite(normalizedServerUrl, connectUrl, flowState)
+
+    state.settings = {
+      serverUrl: normalizedServerUrl,
+      apiToken: callback.token,
+      theme: callback.theme
+    }
+    await saveSettings(state.settings)
+    applyTheme(state.settings)
+
     renderConnectionState()
-    setStatus(`Signed in as ${result.user?.username || username}.`, "success")
+    setStatus(`Connected as ${callback.username || "your account"}.`, "success")
   } catch (error) {
     setStatus(error.message, "error")
   } finally {
-    setBusy(refs.signInButton, false)
+    setBusy(refs.connectButton, false)
   }
 }
 
@@ -123,13 +143,19 @@ async function handleTest() {
     }
     const data = await listEntries(settings)
 
-    state.settings = settings
+    state.settings = {
+      ...settings,
+      theme: data.theme || state.settings.theme || null
+    }
     await saveSettings(state.settings)
+    applyTheme(state.settings)
     refs.serverUrl.value = normalizedServerUrl
     renderConnectionState()
 
-    const configured = data.nerve_configured ? "configured" : "not configured yet"
-    setStatus(`Connected successfully. Nerve is ${configured}.`, "success")
+    const configured = data.master_configured
+      ? "encrypted data enabled"
+      : "encrypted data not enabled yet"
+    setStatus(`Connected successfully. ${configured}.`, "success")
   } catch (error) {
     setStatus(error.message, "error")
   } finally {
@@ -150,12 +176,13 @@ async function handleSignOut() {
 
     state.settings = {
       serverUrl: normalizedServerUrl,
-      apiToken: ""
+      apiToken: "",
+      theme: null
     }
 
     await saveSettings(state.settings)
+    applyTheme(state.settings)
     refs.serverUrl.value = normalizedServerUrl
-    refs.accountPassword.value = ""
     renderConnectionState()
     setStatus("Signed out successfully.", "success")
   } catch (error) {
@@ -169,7 +196,7 @@ async function handleClearPassphrase() {
   try {
     setBusy(refs.clearPassphraseButton, true)
     await runtimeMessage({ type: MESSAGE_TYPES.CLEAR_SESSION_PASSPHRASE })
-    setStatus("Session passphrase cleared.", "success")
+    setStatus("Account-password session cleared.", "success")
   } catch (error) {
     setStatus(error.message, "error")
   } finally {
@@ -193,4 +220,176 @@ function runtimeMessage(message) {
       resolve(response)
     })
   })
+}
+
+function websiteConnectUrl(serverUrl, returnTo, stateValue) {
+  const url = new URL("/account/nerve/extension/connect", serverUrl)
+  url.searchParams.set("return_to", returnTo)
+  url.searchParams.set("state", stateValue)
+  return url.toString()
+}
+
+function identityRedirectUrl() {
+  return chrome.identity?.getRedirectURL ? chrome.identity.getRedirectURL("nerve") : null
+}
+
+function launchConnectFlow(url) {
+  if (chrome.identity?.launchWebAuthFlow) {
+    return new Promise((resolve, reject) => {
+      chrome.identity.launchWebAuthFlow({ url, interactive: true }, (responseUrl) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message))
+          return
+        }
+
+        if (!responseUrl) {
+          reject(new Error("Website connection was cancelled."))
+          return
+        }
+
+        resolve(responseUrl)
+      })
+    })
+  }
+
+  chrome.tabs.create({ url })
+  throw new Error("Finish the website approval, then return to this settings page.")
+}
+
+async function connectViaWebsite(serverUrl, connectUrl, flowState) {
+  if (usesLocalHttp(serverUrl)) {
+    return launchPairingFlow(serverUrl, flowState)
+  }
+
+  try {
+    const callbackUrl = await launchConnectFlow(connectUrl)
+    const callback = parseConnectCallback(callbackUrl, flowState)
+
+    if (!callback) {
+      throw new Error("Website did not return an extension token.")
+    }
+
+    return callback
+  } catch (error) {
+    if (shouldUsePairingFallback(error)) {
+      setStatus("Opening the website in a normal tab to finish connecting.", "info")
+      return launchPairingFlow(serverUrl, flowState)
+    }
+
+    throw error
+  }
+}
+
+async function launchPairingFlow(serverUrl, flowState) {
+  const pairingId = randomHex(16)
+  const pairingSecret = randomHex(32)
+  const connectUrl = websitePairingUrl(serverUrl, pairingId, pairingSecret, flowState)
+
+  chrome.tabs.create({ url: connectUrl })
+  return pollPairingStatus(serverUrl, pairingId, pairingSecret)
+}
+
+async function pollPairingStatus(serverUrl, pairingId, pairingSecret) {
+  const deadline = Date.now() + 5 * 60 * 1000
+  const statusUrl = new URL(`/api/ext/v1/nerve/extension/connect/${pairingId}`, serverUrl)
+  statusUrl.searchParams.set("secret", pairingSecret)
+
+  while (Date.now() < deadline) {
+    await delay(1500)
+
+    const response = await fetch(statusUrl.toString(), {
+      headers: { Accept: "application/json" }
+    })
+
+    if (response.status === 202) {
+      continue
+    }
+
+    const payload = await response.json().catch(() => null)
+
+    if (!response.ok) {
+      throw new Error(payload?.error || `Connection failed (${response.status}).`)
+    }
+
+    if (payload?.status === "connected" && payload.token) {
+      return {
+        token: payload.token,
+        username: payload.user?.username || "",
+        theme: payload.user?.theme || null
+      }
+    }
+  }
+
+  throw new Error("Website connection timed out. Try connecting again.")
+}
+
+function websitePairingUrl(serverUrl, pairingId, pairingSecret, stateValue) {
+  const url = new URL("/account/nerve/extension/connect", serverUrl)
+  url.searchParams.set("pairing_id", pairingId)
+  url.searchParams.set("pairing_secret", pairingSecret)
+  url.searchParams.set("state", stateValue)
+  return url.toString()
+}
+
+function shouldUsePairingFallback(error) {
+  const message = String(error?.message || "")
+  return /authorization page could not be loaded|could not be loaded|failed to fetch|network/i.test(message)
+}
+
+function usesLocalHttp(serverUrl) {
+  try {
+    const url = new URL(serverUrl)
+    return url.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
+  } catch (_error) {
+    return false
+  }
+}
+
+function parseConnectCallback(url, expectedState = null) {
+  let parsedUrl
+
+  try {
+    parsedUrl = new URL(url)
+  } catch (_error) {
+    return null
+  }
+
+  const params = new URLSearchParams(parsedUrl.hash.replace(/^#/, ""))
+  const token = params.get("token")
+
+  if (!token) {
+    return null
+  }
+
+  if (expectedState && params.get("state") !== expectedState) {
+    throw new Error("Website connection state did not match. Try connecting again.")
+  }
+
+  let theme = null
+
+  try {
+    theme = JSON.parse(params.get("theme") || "null")
+  } catch (_error) {
+    theme = null
+  }
+
+  return {
+    token,
+    username: params.get("username") || "",
+    theme
+  }
+}
+
+function randomState() {
+  return randomHex(16)
+}
+
+function randomHex(byteCount) {
+  const bytes = new Uint8Array(byteCount)
+  crypto.getRandomValues(bytes)
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("")
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }

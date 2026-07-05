@@ -242,6 +242,15 @@ defmodule Elektrine.Theme do
     |> meta_theme_color()
   end
 
+  def api_payload(source) do
+    overrides = extract_overrides(source)
+
+    %{
+      overrides: overrides,
+      values: effective_overrides(overrides)
+    }
+  end
+
   def hex_to_rgb("#" <> hex) when byte_size(hex) == 6 do
     {red, ""} = Integer.parse(String.slice(hex, 0, 2), 16)
     {green, ""} = Integer.parse(String.slice(hex, 2, 2), 16)

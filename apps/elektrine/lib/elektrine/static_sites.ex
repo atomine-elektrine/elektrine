@@ -6,6 +6,7 @@ defmodule Elektrine.StaticSites do
 
   import Ecto.Query, warn: false
   alias Elektrine.Accounts.User
+  alias Elektrine.Profiles.StaticSiteDeploy
   alias Elektrine.Profiles.StaticSiteDeployment
   alias Elektrine.Profiles.StaticSiteFile
   alias Elektrine.Profiles.UserProfile
@@ -112,6 +113,24 @@ defmodule Elektrine.StaticSites do
     Repo.get_by(StaticSiteDeployment, user_id: user_id, provider: "github")
   end
 
+  def list_static_site_deploys(deployment, limit \\ 10)
+
+  def list_static_site_deploys(%StaticSiteDeployment{} = deployment, limit) do
+    StaticSiteDeploy
+    |> where([d], d.deployment_id == ^deployment.id)
+    |> order_by([d], desc: d.deployed_at, desc: d.inserted_at)
+    |> limit(^limit)
+    |> Repo.all()
+  end
+
+  def list_static_site_deploys(nil, _limit), do: []
+
+  def get_static_site_deploy_for_user(user_id, deploy_id) do
+    StaticSiteDeploy
+    |> where([d], d.user_id == ^user_id and d.id == ^deploy_id)
+    |> Repo.one()
+  end
+
   def get_static_site_deployment_by_github_repo(repo_owner, repo_name) do
     Repo.get_by(StaticSiteDeployment,
       provider: "github",
@@ -140,13 +159,21 @@ defmodule Elektrine.StaticSites do
     end
   end
 
-  def mark_deployment_deployed(%StaticSiteDeployment{} = deployment) do
+  def mark_deployment_deployed(%StaticSiteDeployment{} = deployment, attrs \\ %{}) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
     deployment
-    |> StaticSiteDeployment.changeset(%{
-      deploy_status: "deployed",
-      last_deploy_error: nil,
-      last_deployed_at: DateTime.utc_now() |> DateTime.truncate(:second)
-    })
+    |> StaticSiteDeployment.changeset(
+      Map.merge(
+        %{
+          deploy_status: "deployed",
+          last_deploy_error: nil,
+          last_deploy_log: Map.get(attrs, :log) || Map.get(attrs, "log"),
+          last_deployed_at: now
+        },
+        commit_deployment_attrs(attrs)
+      )
+    )
     |> Repo.update()
   end
 
@@ -160,6 +187,80 @@ defmodule Elektrine.StaticSites do
 
   def mark_deployment_failed(%StaticSiteDeployment{} = deployment, reason) do
     update_deployment_status(deployment, "failed", inspect(reason))
+  end
+
+  def record_static_site_deploy(%StaticSiteDeployment{} = deployment, attrs) do
+    %StaticSiteDeploy{}
+    |> StaticSiteDeploy.changeset(
+      attrs
+      |> Map.new()
+      |> Map.merge(%{
+        user_id: deployment.user_id,
+        deployment_id: deployment.id,
+        repo_owner: deployment.repo_owner,
+        repo_name: deployment.repo_name,
+        branch: deployment.branch,
+        site_dir: deployment.site_dir
+      })
+    )
+    |> Repo.insert()
+  end
+
+  def snapshot_current_site(%User{} = user, %StaticSiteDeployment{} = deployment, attrs \\ %{}) do
+    files = list_files(user.id)
+
+    with {:ok, zip_binary} <- current_site_zip(files),
+         storage_key <- generate_snapshot_storage_key(user.id, deployment.id),
+         :ok <- put_storage(storage_key, zip_binary, "application/zip") do
+      record_static_site_deploy(
+        deployment,
+        attrs
+        |> Map.new()
+        |> Map.merge(%{
+          status: Map.get(attrs, :status, "deployed"),
+          snapshot_storage_key: storage_key,
+          file_count: length(files),
+          storage_bytes: Enum.reduce(files, 0, &(&1.size + &2)),
+          deployed_at:
+            Map.get(attrs, :deployed_at) || DateTime.utc_now() |> DateTime.truncate(:second)
+        })
+      )
+    end
+  end
+
+  def rollback_static_site(%User{} = user, %StaticSiteDeploy{} = deploy) do
+    if deploy.snapshot_storage_key && deploy.user_id == user.id do
+      with {:ok, zip_binary} <- get_storage(deploy.snapshot_storage_key),
+           {:ok, count} <- replace_with_zip(user, zip_binary),
+           %StaticSiteDeployment{} = deployment <-
+             Repo.get(StaticSiteDeployment, deploy.deployment_id),
+           {:ok, _history} <-
+             snapshot_current_site(user, deployment, %{
+               status: "rolled_back",
+               trigger: "rollback",
+               commit_sha: deploy.commit_sha,
+               commit_url: deploy.commit_url,
+               commit_message: deploy.commit_message,
+               log: "Rolled back to deploy ##{deploy.id}",
+               deployed_at: DateTime.utc_now() |> DateTime.truncate(:second)
+             }),
+           {:ok, deployment} <-
+             deployment
+             |> StaticSiteDeployment.changeset(%{
+               deploy_status: "deployed",
+               last_deploy_error: nil,
+               last_deploy_log: "Rolled back to deploy ##{deploy.id}",
+               last_commit_sha: deploy.commit_sha,
+               last_commit_url: deploy.commit_url,
+               last_commit_message: deploy.commit_message,
+               last_deployed_at: DateTime.utc_now() |> DateTime.truncate(:second)
+             })
+             |> Repo.update() do
+        {:ok, %{deployment: deployment, file_count: count}}
+      end
+    else
+      {:error, :snapshot_not_found}
+    end
   end
 
   def update_deployment_webhook(%StaticSiteDeployment{} = deployment, webhook_id) do
@@ -569,8 +670,47 @@ defmodule Elektrine.StaticSites do
 
   defp update_deployment_status(%StaticSiteDeployment{} = deployment, status, error) do
     deployment
-    |> StaticSiteDeployment.changeset(%{deploy_status: status, last_deploy_error: error})
+    |> StaticSiteDeployment.changeset(%{
+      deploy_status: status,
+      last_deploy_error: error,
+      last_deploy_log: deploy_status_log(status, error)
+    })
     |> Repo.update()
+  end
+
+  defp deploy_status_log(status, nil), do: "Deployment #{status}"
+  defp deploy_status_log(status, error), do: "Deployment #{status}: #{error}"
+
+  defp commit_deployment_attrs(attrs) do
+    %{
+      last_commit_sha: Map.get(attrs, :commit_sha) || Map.get(attrs, "commit_sha"),
+      last_commit_url: Map.get(attrs, :commit_url) || Map.get(attrs, "commit_url"),
+      last_commit_message: Map.get(attrs, :commit_message) || Map.get(attrs, "commit_message")
+    }
+    |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+    |> Map.new()
+  end
+
+  defp current_site_zip([]), do: {:error, :no_files_to_snapshot}
+
+  defp current_site_zip(files) do
+    files
+    |> Enum.reduce_while({:ok, []}, fn file, {:ok, entries} ->
+      case get_file_content(file) do
+        {:ok, content} -> {:cont, {:ok, [{String.to_charlist(file.path), content} | entries]}}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+    |> case do
+      {:ok, entries} -> create_site_zip(Enum.reverse(entries))
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp generate_snapshot_storage_key(user_id, deployment_id) do
+    random_bytes = :crypto.strong_rand_bytes(16)
+    hex = Base.encode16(random_bytes, case: :lower)
+    "static_site_snapshots/#{user_id}/#{deployment_id}/#{hex}.zip"
   end
 
   defp repo_archive_site_zip(zip_binary, site_dir) do

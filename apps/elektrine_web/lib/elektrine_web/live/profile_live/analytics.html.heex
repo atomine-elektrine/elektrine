@@ -48,64 +48,36 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div class="card panel-card">
             <div class="card-body p-4">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-sm opacity-70">Total Views</p>
-
-                  <p class="text-3xl font-bold">{@stats.total_views}</p>
-                </div>
-
-                <div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                  <.icon name="hero-eye" class="w-6 h-6 text-primary" />
-                </div>
+              <div class="text-sm text-base-content/65">Total Views</div>
+              <div class="truncate text-2xl font-bold tabular-nums sm:text-3xl">
+                {@stats.total_views}
               </div>
             </div>
           </div>
 
           <div class="card panel-card">
             <div class="card-body p-4">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-sm opacity-70">Unique Visitors</p>
-
-                  <p class="text-3xl font-bold">{@stats.unique_viewers}</p>
-                </div>
-
-                <div class="w-12 h-12 rounded-full bg-secondary/10 flex items-center justify-center">
-                  <.icon name="hero-users" class="w-6 h-6 text-secondary" />
-                </div>
+              <div class="text-sm text-base-content/65">Unique Visitors</div>
+              <div class="truncate text-2xl font-bold tabular-nums sm:text-3xl">
+                {@stats.unique_viewers}
               </div>
             </div>
           </div>
 
           <div class="card panel-card">
             <div class="card-body p-4">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-sm opacity-70">Views This Week</p>
-
-                  <p class="text-3xl font-bold">{@stats.views_this_week}</p>
-                </div>
-
-                <div class="w-12 h-12 rounded-full bg-success/10 flex items-center justify-center">
-                  <.icon name="hero-chart-bar" class="w-6 h-6 text-success" />
-                </div>
+              <div class="text-sm text-base-content/65">Views This Week</div>
+              <div class="truncate text-2xl font-bold tabular-nums sm:text-3xl">
+                {@stats.views_this_week}
               </div>
             </div>
           </div>
 
           <div class="card panel-card">
             <div class="card-body p-4">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-sm opacity-70">Views Today</p>
-
-                  <p class="text-3xl font-bold">{@stats.views_today}</p>
-                </div>
-
-                <div class="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center">
-                  <.icon name="hero-fire" class="w-6 h-6 text-accent" />
-                </div>
+              <div class="text-sm text-base-content/65">Views Today</div>
+              <div class="truncate text-2xl font-bold tabular-nums sm:text-3xl">
+                {@stats.views_today}
               </div>
             </div>
           </div>
@@ -117,9 +89,7 @@
             <!-- Views Over Time Chart -->
             <div class="card panel-card">
               <div class="card-body">
-                <h2 class="card-title mb-4">
-                  <.icon name="hero-chart-bar" class="w-5 h-5 mr-2" /> Views Over Time
-                </h2>
+                <h2 class="card-title mb-4">Views Over Time</h2>
 
                 <ElektrineWeb.Components.UI.UPlotChart.uplot_chart
                   id="profile-views-chart"
@@ -137,9 +107,7 @@
             <!-- Visitor Breakdown -->
             <div class="card panel-card">
               <div class="card-body">
-                <h2 class="card-title mb-4">
-                  <.icon name="hero-user-group" class="w-5 h-5 mr-2" /> Visitor Types
-                </h2>
+                <h2 class="card-title mb-4">Visitor Types</h2>
 
                 <div class="space-y-4">
                   <div>
@@ -185,10 +153,7 @@
             <!-- Top Referrers -->
             <div class="card panel-card">
               <div class="card-body">
-                <h2 class="card-title mb-4">
-                  <.icon name="hero-arrow-top-right-on-square" class="w-5 h-5 mr-2" />
-                  Top Referrers
-                </h2>
+                <h2 class="card-title mb-4">Top Referrers</h2>
 
                 <%= if @top_referrers && length(@top_referrers) > 0 do %>
                   <div class="space-y-2">
@@ -207,9 +172,8 @@
                     <% end %>
                   </div>
                 <% else %>
-                  <div class="text-center py-8 opacity-50">
-                    <.icon name="hero-link" class="w-12 h-12 mx-auto mb-2" />
-                    <p>No referrer data yet</p>
+                  <div class="py-8 text-center text-sm text-base-content/55">
+                    No referrer data yet
                   </div>
                 <% end %>
               </div>
@@ -220,9 +184,7 @@
             <!-- Most Clicked Links -->
             <div class="card panel-card">
               <div class="card-body">
-                <h2 class="card-title mb-4">
-                  <.icon name="hero-cursor-arrow-rays" class="w-5 h-5 mr-2" /> Link Performance
-                </h2>
+                <h2 class="card-title mb-4">Link Performance</h2>
 
                 <%= if @top_links && length(@top_links) > 0 do %>
                   <div class="space-y-3">
@@ -238,9 +200,8 @@
                     <% end %>
                   </div>
                 <% else %>
-                  <div class="text-center py-8 opacity-50">
-                    <.icon name="hero-link" class="w-12 h-12 mx-auto mb-2" />
-                    <p class="text-sm">No link clicks yet</p>
+                  <div class="py-8 text-center text-sm text-base-content/55">
+                    No link clicks yet
                   </div>
                 <% end %>
               </div>
@@ -248,9 +209,7 @@
             <!-- Recent Viewers -->
             <div class="card panel-card">
               <div class="card-body">
-                <h2 class="card-title mb-4">
-                  <.icon name="hero-clock" class="w-5 h-5 mr-2" /> Recent Visitors
-                </h2>
+                <h2 class="card-title mb-4">Recent Visitors</h2>
 
                 <%= if @recent_viewers && length(@recent_viewers) > 0 do %>
                   <div class="space-y-2">
@@ -287,9 +246,8 @@
                     <% end %>
                   </div>
                 <% else %>
-                  <div class="text-center py-8 opacity-50">
-                    <.icon name="hero-users" class="w-12 h-12 mx-auto mb-2" />
-                    <p class="text-sm">No authenticated viewers yet</p>
+                  <div class="py-8 text-center text-sm text-base-content/55">
+                    No authenticated viewers yet
                   </div>
                 <% end %>
               </div>

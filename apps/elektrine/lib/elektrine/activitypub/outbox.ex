@@ -56,7 +56,7 @@ defmodule Elektrine.ActivityPub.Outbox do
   end
 
   defp federatable_post?(%Message{visibility: visibility, sender_id: sender_id}) do
-    visibility in ["public", "followers"] and not is_nil(sender_id)
+    visibility in ["public", "unlisted", "followers"] and not is_nil(sender_id)
   end
 
   defp activitypub_user(sender_id) when not is_nil(sender_id) do
@@ -870,11 +870,20 @@ defmodule Elektrine.ActivityPub.Outbox do
     if user.activitypub_enabled && remote_actor && remote_actor.inbox_url do
       base_url = ActivityPub.instance_url()
 
+      # Deterministic, restart-stable vote id derived from (user, poll, option).
+      # `:erlang.unique_integer/1` only guarantees uniqueness within a single
+      # BEAM lifetime, so ids could collide across restarts and be deduplicated
+      # away by the remote server; a content hash is globally unique and makes
+      # re-submitting the same vote idempotent.
+      vote_ref =
+        :crypto.hash(:sha256, "#{user.id}:#{poll_id}:#{option_name}")
+        |> Base.url_encode64(padding: false)
+        |> binary_part(0, 16)
+
       # Build vote Note object
       vote_object = %{
         "@context" => "https://www.w3.org/ns/activitystreams",
-        "id" =>
-          "#{ActivityPub.actor_uri(user, base_url)}/votes/#{:erlang.unique_integer([:positive])}",
+        "id" => "#{ActivityPub.actor_uri(user, base_url)}/votes/#{vote_ref}",
         "type" => "Note",
         "name" => option_name,
         "inReplyTo" => poll_id,

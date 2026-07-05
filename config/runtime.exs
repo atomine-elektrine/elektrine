@@ -176,18 +176,39 @@ config :elektrine, :atomine_gate,
       |> Keyword.get(:clearance_ttl_seconds, 12 * 60 * 60)
     )
 
-maid_brave_api_key = present_env.(["MAID_BRAVE_API_KEY", "BRAVE_SEARCH_API_KEY", "BRAVE_API_KEY"])
+paige_brave_api_key =
+  present_env.(["PAIGE_BRAVE_API_KEY", "BRAVE_SEARCH_API_KEY", "BRAVE_API_KEY"])
 
-maid_providers =
-  if maid_brave_api_key do
-    [{Maid.Providers.Brave, [api_key: maid_brave_api_key]}]
-  else
+paige_github_token = present_env.(["PAIGE_GITHUB_TOKEN"])
+
+# Supplementary sources blend a handful of results into web searches below the
+# top Brave hits. They are rank-scored so native scores (stars, points, page
+# sizes) can't dominate the blend. GitHub search is heavily rate-limited
+# without a token, so it stays off unless one is configured.
+paige_web_blend = fn extra ->
+  Keyword.merge([kinds: [:web], scoring: :rank, max_results: 3], extra)
+end
+
+paige_supplementary_providers =
+  if config_env() == :test do
     []
+  else
+    [
+      {Paige.Providers.Wikipedia, paige_web_blend.(score_offset: -5, max_results: 2)},
+      {Paige.Providers.HackerNews, paige_web_blend.(score_offset: -7)},
+      paige_github_token &&
+        {Paige.Providers.GitHub, paige_web_blend.(score_offset: -8, token: paige_github_token)}
+    ]
   end
 
-config :maid,
-  providers: maid_providers,
-  brave_api_key: maid_brave_api_key
+paige_providers =
+  [paige_brave_api_key && {Paige.Providers.Brave, [api_key: paige_brave_api_key]}]
+  |> Enum.concat(paige_supplementary_providers)
+  |> Enum.filter(& &1)
+
+config :paige,
+  providers: paige_providers,
+  brave_api_key: paige_brave_api_key
 
 oban_queues =
   cond do
@@ -204,7 +225,8 @@ oban_queues =
         federation_metadata: oban_queue_override.("OBAN_QUEUE_FEDERATION_METADATA", 1),
         federation: oban_queue_override.("OBAN_QUEUE_FEDERATION", 1),
         messaging_federation: oban_queue_override.("OBAN_QUEUE_MESSAGING_FEDERATION", 1),
-        uptime: oban_queue_override.("OBAN_QUEUE_UPTIME", 1)
+        uptime: oban_queue_override.("OBAN_QUEUE_UPTIME", 1),
+        kairo: oban_queue_override.("OBAN_QUEUE_KAIRO", 1)
       ]
 
     oban_db_pool_size <= 10 ->
@@ -220,7 +242,8 @@ oban_queues =
         federation_metadata: oban_queue_override.("OBAN_QUEUE_FEDERATION_METADATA", 1),
         federation: oban_queue_override.("OBAN_QUEUE_FEDERATION", 2),
         messaging_federation: oban_queue_override.("OBAN_QUEUE_MESSAGING_FEDERATION", 2),
-        uptime: oban_queue_override.("OBAN_QUEUE_UPTIME", 2)
+        uptime: oban_queue_override.("OBAN_QUEUE_UPTIME", 2),
+        kairo: oban_queue_override.("OBAN_QUEUE_KAIRO", 1)
       ]
 
     true ->
@@ -236,7 +259,8 @@ oban_queues =
         federation_metadata: oban_queue_override.("OBAN_QUEUE_FEDERATION_METADATA", 2),
         federation: oban_queue_override.("OBAN_QUEUE_FEDERATION", 2),
         messaging_federation: oban_queue_override.("OBAN_QUEUE_MESSAGING_FEDERATION", 4),
-        uptime: oban_queue_override.("OBAN_QUEUE_UPTIME", 4)
+        uptime: oban_queue_override.("OBAN_QUEUE_UPTIME", 4),
+        kairo: oban_queue_override.("OBAN_QUEUE_KAIRO", 2)
       ]
   end
 

@@ -305,7 +305,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.ContentSettings do
     <!-- List -->
       <div class="space-y-2">
         <%= for template <- @templates do %>
-          <div class="flex items-center justify-between p-3 bg-base-100/50 rounded-lg border border-base-content/10">
+          <div class="flex items-center justify-between p-3 surface-subtle rounded-lg">
             <div>
               <span class="font-medium">{template.name}</span>
               <%= if template.subject do %>
@@ -332,7 +332,11 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.ContentSettings do
           </div>
         <% end %>
         <%= if Enum.empty?(@templates) do %>
-          <p class="text-base-content/50 text-center py-4">No templates created</p>
+          <div class="text-center py-12 bg-base-200/30 rounded-lg border border-dashed border-base-content/20">
+            <.icon name="hero-document-text" class="w-12 h-12 mx-auto text-base-content/30 mb-3" />
+            <p class="text-base-content/50">No templates created yet</p>
+            <p class="text-sm text-base-content/40 mt-1">Create your first template above</p>
+          </div>
         <% end %>
       </div>
     </div>
@@ -375,7 +379,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.ContentSettings do
     <!-- List -->
       <div class="space-y-2">
         <%= for folder <- @folders do %>
-          <div class="flex items-center justify-between p-3 bg-base-100/50 rounded-lg border border-base-content/10">
+          <div class="flex items-center justify-between p-3 surface-subtle rounded-lg">
             <div class="flex items-center gap-2">
               <div
                 class="w-3 h-3 rounded-full"
@@ -395,7 +399,11 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.ContentSettings do
           </div>
         <% end %>
         <%= if Enum.empty?(@folders) do %>
-          <p class="text-base-content/50 text-center py-4">No custom folders</p>
+          <div class="text-center py-12 bg-base-200/30 rounded-lg border border-dashed border-base-content/20">
+            <.icon name="hero-folder" class="w-12 h-12 mx-auto text-base-content/30 mb-3" />
+            <p class="text-base-content/50">No custom folders yet</p>
+            <p class="text-sm text-base-content/40 mt-1">Create one above to organize your mail</p>
+          </div>
         <% end %>
       </div>
     </div>
@@ -438,7 +446,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.ContentSettings do
     <!-- List -->
       <div class="space-y-2">
         <%= for label <- @labels do %>
-          <div class="flex items-center justify-between p-3 bg-base-100/50 rounded-lg border border-base-content/10">
+          <div class="flex items-center justify-between p-3 surface-subtle rounded-lg">
             <div class="flex items-center gap-2">
               <div class="w-3 h-3 rounded-full" style={"background-color: #{label.color}"}></div>
               <span class="font-medium">{label.name}</span>
@@ -454,7 +462,11 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.ContentSettings do
           </div>
         <% end %>
         <%= if Enum.empty?(@labels) do %>
-          <p class="text-base-content/50 text-center py-4">No labels created</p>
+          <div class="text-center py-12 bg-base-200/30 rounded-lg border border-dashed border-base-content/20">
+            <.icon name="hero-tag" class="w-12 h-12 mx-auto text-base-content/30 mb-3" />
+            <p class="text-base-content/50">No labels created yet</p>
+            <p class="text-sm text-base-content/40 mt-1">Create one above to tag your messages</p>
+          </div>
         <% end %>
       </div>
     </div>
@@ -472,11 +484,11 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.ContentSettings do
       </div>
       
     <!-- Export Options -->
-      <div class="flex gap-4 mb-6">
-        <button phx-click="start_export" phx-value-format="mbox" class="btn btn-secondary">
+      <div class="flex flex-wrap gap-2 mb-6">
+        <button phx-click="start_export" phx-value-format="mbox" class="btn btn-secondary btn-sm">
           Export as MBOX
         </button>
-        <button phx-click="start_export" phx-value-format="zip" class="btn btn-outline">
+        <button phx-click="start_export" phx-value-format="zip" class="btn btn-secondary btn-sm">
           Export as ZIP (EML files)
         </button>
       </div>
@@ -485,7 +497,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.ContentSettings do
       <h3 class="font-semibold mb-2">Export History</h3>
       <div class="space-y-2">
         <%= for export <- @exports do %>
-          <div class="flex items-center justify-between p-3 bg-base-100/50 rounded-lg border border-base-content/10">
+          <div class="flex items-center justify-between p-3 surface-subtle rounded-lg">
             <div>
               <span class="font-medium">{export.format |> String.upcase()}</span>
               <span class={"badge badge-sm ml-2 badge-#{status_color(export.status)}"}>
@@ -514,6 +526,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.ContentSettings do
                 phx-click="delete_export"
                 phx-value-id={export.id}
                 class="btn btn-ghost btn-sm text-error"
+                data-confirm="Are you sure you want to delete this export?"
               >
                 Delete
               </button>
@@ -521,7 +534,13 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.ContentSettings do
           </div>
         <% end %>
         <%= if Enum.empty?(@exports) do %>
-          <p class="text-base-content/50 text-center py-4">No exports yet</p>
+          <div class="text-center py-12 bg-base-200/30 rounded-lg border border-dashed border-base-content/20">
+            <.icon name="hero-arrow-down-tray" class="w-12 h-12 mx-auto text-base-content/30 mb-3" />
+            <p class="text-base-content/50">No exports yet</p>
+            <p class="text-sm text-base-content/40 mt-1">
+              Start an export above to download a backup
+            </p>
+          </div>
         <% end %>
       </div>
     </div>
@@ -532,16 +551,11 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.ContentSettings do
     ~H"""
     <!-- Header -->
     <div class="flex items-center justify-between mb-6">
-      <div class="flex items-center gap-3">
-        <div class="p-2 bg-secondary/10 rounded-lg">
-          <.icon name="hero-document-text" class="h-5 w-5 text-secondary" />
-        </div>
-        <div>
-          <h3 class="font-bold text-lg">
-            {if @edit_item, do: "Edit Template", else: "Create Template"}
-          </h3>
-          <p class="text-sm text-base-content/60">Save commonly used email content</p>
-        </div>
+      <div>
+        <h3 class="text-lg font-semibold tracking-tight">
+          {if @edit_item, do: "Edit Template", else: "Create Template"}
+        </h3>
+        <p class="text-sm text-base-content/60">Save commonly used email content</p>
       </div>
       <button type="button" phx-click="close_modal" class="btn btn-ghost btn-sm btn-circle">
         <.icon name="hero-x-mark" class="h-5 w-5" />

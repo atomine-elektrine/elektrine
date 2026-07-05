@@ -17,7 +17,7 @@ defmodule Elektrine.System do
     dns: 0,
     storage: 0,
     drive: 0,
-    maid: 0,
+    paige: 0,
     vpn: 0,
     uptime: 0,
     kairo: 0
@@ -171,7 +171,7 @@ defmodule Elektrine.System do
   defp module_access_label(:nerve), do: "Nerve"
   defp module_access_label(:kairo), do: "Kairo"
   defp module_access_label(:drive), do: "Drive"
-  defp module_access_label(:maid), do: "Maid Web Search"
+  defp module_access_label(:paige), do: "Paige Web Search"
   defp module_access_label(:storage), do: "Storage"
   defp module_access_label(:portal), do: "Portal"
   defp module_access_label(:chat), do: "Chat"

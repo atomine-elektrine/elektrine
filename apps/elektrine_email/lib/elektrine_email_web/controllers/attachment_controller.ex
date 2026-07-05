@@ -62,7 +62,7 @@ defmodule ElektrineEmailWeb.AttachmentController do
                         })
 
                       use_presigned_url?(attachment) ->
-                        # Generate presigned URL for direct download from S3-compatible storage
+                        # Generate presigned URL for direct download from S3 API storage
                         case AttachmentStorage.generate_presigned_url(attachment) do
                           {:ok, url} ->
                             conn
@@ -118,7 +118,7 @@ defmodule ElektrineEmailWeb.AttachmentController do
 
   defp sanitize_filename(_), do: "download"
 
-  # Check if we should use presigned URL (for S3-compatible stored attachments)
+  # Check if we should use presigned URL (for S3 API stored attachments)
   defp use_presigned_url?(attachment) do
     Map.get(attachment, "storage_type") == "s3"
   end
@@ -174,7 +174,7 @@ defmodule ElektrineEmailWeb.AttachmentController do
 
   # Get actual attachment content from storage
   defp get_attachment_content(attachment) do
-    # Try to download from S3-compatible storage first
+    # Try to download from S3 API storage first
     case AttachmentStorage.download_attachment(attachment) do
       {:ok, content} ->
         content_type = Map.get(attachment, "content_type", @default_content_type)
