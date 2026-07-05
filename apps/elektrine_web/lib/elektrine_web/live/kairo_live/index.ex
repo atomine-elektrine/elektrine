@@ -581,7 +581,7 @@ defmodule ElektrineWeb.KairoLive.Index do
   def render(assigns) do
     ~H"""
     <div class="pb-2">
-      <section class="mx-auto w-full max-w-7xl space-y-6">
+      <section class="mx-auto w-full max-w-6xl space-y-4 px-3 sm:px-4 lg:px-5">
         <.e_nav active_tab="kairo" current_user={@current_user} />
 
         <div>
@@ -600,7 +600,7 @@ defmodule ElektrineWeb.KairoLive.Index do
           data-kairo-master-configured={to_string(not is_nil(@master_vault))}
           data-kairo-master-wrapped-dek={@master_vault && Jason.encode!(@master_vault.wrapped_dek)}
         >
-          <div class="mb-4 flex justify-end">
+          <div class="mb-3 flex justify-end">
             <div class="join">
               <button
                 type="button"
@@ -621,7 +621,7 @@ defmodule ElektrineWeb.KairoLive.Index do
             </div>
           </div>
 
-          <div class="grid grid-cols-1 gap-4 lg:grid-cols-[18rem_minmax(0,1fr)] lg:gap-6">
+          <div class="grid grid-cols-1 gap-4 lg:grid-cols-[16.5rem_minmax(0,1fr)]">
             <%!-- Explorer --%>
             <aside class="card panel-card flex flex-col overflow-hidden border border-base-300 lg:max-h-[calc(100vh-11rem)]">
               <div class="space-y-2 border-b border-base-300 p-3">
@@ -925,7 +925,7 @@ defmodule ElektrineWeb.KairoLive.Index do
                 id="kairo-note-form"
                 phx-submit="save_note"
                 phx-change="compose_change"
-                class="card-body space-y-3 p-4 sm:p-6"
+                class="card-body space-y-3 p-3 sm:p-4"
               >
                 <div class="flex items-center justify-between">
                   <h2 class="card-title text-base sm:text-lg">
@@ -1067,7 +1067,7 @@ defmodule ElektrineWeb.KairoLive.Index do
 
               <article
                 :if={@view_mode == "reader" and @selected}
-                class="card-body space-y-4 p-4 sm:p-6"
+                class="card-body space-y-4 p-3 sm:p-4"
               >
                 <header class="space-y-2 border-b border-base-300 pb-4">
                   <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
