@@ -580,10 +580,10 @@ defmodule ElektrineWeb.KairoLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="mx-auto w-full max-w-7xl px-4 pb-2 sm:px-6 lg:px-8">
-      <.e_nav active_tab="kairo" current_user={@current_user} class="mb-6 sm:mb-8" />
+    <div class="pb-2">
+      <section class="mx-auto w-full max-w-7xl space-y-6">
+        <.e_nav active_tab="kairo" current_user={@current_user} />
 
-      <div class="mb-4 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 class="text-2xl font-bold text-base-content sm:text-3xl">Kairo</h1>
           <p class="mt-1 text-base-content/70">
@@ -593,590 +593,596 @@ defmodule ElektrineWeb.KairoLive.Index do
             >API</.link>.
           </p>
         </div>
-        <div class="join">
-          <button
-            type="button"
-            phx-click="toggle_view"
-            phx-value-mode="reader"
-            class={["btn btn-sm join-item", @view_mode == "reader" && "btn-active"]}
-          >
-            <.icon name="hero-list-bullet" class="h-4 w-4" /> List
-          </button>
-          <button
-            type="button"
-            phx-click="toggle_view"
-            phx-value-mode="graph"
-            class={["btn btn-sm join-item", @view_mode == "graph" && "btn-active"]}
-          >
-            <.icon name="hero-share" class="h-4 w-4" /> Graph
-          </button>
-        </div>
-      </div>
 
-      <div
-        id="kairo-vault"
-        phx-hook="KairoVault"
-        data-kairo-master-configured={to_string(not is_nil(@master_vault))}
-        data-kairo-master-wrapped-dek={@master_vault && Jason.encode!(@master_vault.wrapped_dek)}
-      >
-        <div class="grid grid-cols-1 gap-4 lg:grid-cols-[18rem_minmax(0,1fr)] lg:gap-6">
-          <%!-- Explorer --%>
-          <aside class="card panel-card flex flex-col overflow-hidden border border-base-300 lg:max-h-[calc(100vh-11rem)]">
-            <div class="space-y-2 border-b border-base-300 p-3">
-              <div class="flex gap-2">
-                <button type="button" phx-click="new_note" class="btn btn-primary btn-sm flex-1">
-                  <.icon name="hero-pencil-square" class="h-4 w-4" /> New note
-                </button>
-                <button
-                  type="button"
-                  phx-click="toggle_add_link"
-                  class={["btn btn-sm", if(@adding_link, do: "btn-active", else: "btn-outline")]}
-                  title="Save a link"
-                >
-                  <.icon name="hero-link" class="h-4 w-4" />
-                </button>
-              </div>
-
-              <form
-                :if={@adding_link}
-                phx-submit="save_link"
-                class="space-y-2 rounded-lg border border-base-300 bg-base-200/40 p-2"
+        <div
+          id="kairo-vault"
+          phx-hook="KairoVault"
+          data-kairo-master-configured={to_string(not is_nil(@master_vault))}
+          data-kairo-master-wrapped-dek={@master_vault && Jason.encode!(@master_vault.wrapped_dek)}
+        >
+          <div class="mb-4 flex justify-end">
+            <div class="join">
+              <button
+                type="button"
+                phx-click="toggle_view"
+                phx-value-mode="reader"
+                class={["btn btn-sm join-item", @view_mode == "reader" && "btn-active"]}
               >
-                <input
-                  type="url"
-                  name="link[url]"
-                  required
-                  placeholder="https://…"
-                  autocomplete="off"
-                  class="input input-bordered input-sm w-full"
-                />
-                <input
-                  type="text"
-                  name="link[title]"
-                  placeholder="Title (optional, fetched if empty)"
-                  autocomplete="off"
-                  class="input input-bordered input-sm w-full"
-                />
-                <div class="grid grid-cols-2 gap-2">
-                  <select name="link[project_id]" class="select select-bordered select-sm">
-                    <option value="">Inbox</option>
-                    <option :for={project <- @projects} value={project.id}>{project.name}</option>
-                  </select>
+                <.icon name="hero-list-bullet" class="h-4 w-4" /> List
+              </button>
+              <button
+                type="button"
+                phx-click="toggle_view"
+                phx-value-mode="graph"
+                class={["btn btn-sm join-item", @view_mode == "graph" && "btn-active"]}
+              >
+                <.icon name="hero-share" class="h-4 w-4" /> Graph
+              </button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 gap-4 lg:grid-cols-[18rem_minmax(0,1fr)] lg:gap-6">
+            <%!-- Explorer --%>
+            <aside class="card panel-card flex flex-col overflow-hidden border border-base-300 lg:max-h-[calc(100vh-11rem)]">
+              <div class="space-y-2 border-b border-base-300 p-3">
+                <div class="flex gap-2">
+                  <button type="button" phx-click="new_note" class="btn btn-primary btn-sm flex-1">
+                    <.icon name="hero-pencil-square" class="h-4 w-4" /> New note
+                  </button>
+                  <button
+                    type="button"
+                    phx-click="toggle_add_link"
+                    class={["btn btn-sm", if(@adding_link, do: "btn-active", else: "btn-outline")]}
+                    title="Save a link"
+                  >
+                    <.icon name="hero-link" class="h-4 w-4" />
+                  </button>
+                </div>
+
+                <form
+                  :if={@adding_link}
+                  phx-submit="save_link"
+                  class="space-y-2 rounded-lg border border-base-300 bg-base-200/40 p-2"
+                >
                   <input
-                    type="text"
-                    name="link[tags]"
-                    placeholder="tags, comma"
+                    type="url"
+                    name="link[url]"
+                    required
+                    placeholder="https://…"
                     autocomplete="off"
                     class="input input-bordered input-sm w-full"
                   />
-                </div>
-                <button type="submit" class="btn btn-secondary btn-sm w-full">Save link</button>
-              </form>
-
-              <form id="kairo-search-form" phx-change="search" phx-submit="search" class="relative">
-                <input
-                  id="kairo-search"
-                  type="text"
-                  name="query"
-                  value={@query}
-                  placeholder="Search sources…"
-                  autocomplete="off"
-                  phx-debounce="150"
-                  class="input input-bordered input-sm w-full pr-8"
-                />
-                <button
-                  :if={@query != ""}
-                  type="button"
-                  phx-click="clear_search"
-                  aria-label="Clear search"
-                  class="absolute right-2 top-1/2 -translate-y-1/2 text-base-content/50 hover:text-base-content"
-                >
-                  <.icon name="hero-x-mark" class="h-4 w-4" />
-                </button>
-              </form>
-
-              <div
-                :if={@has_encrypted_sources || @composing}
-                class="!mt-3 hidden flex-col gap-2 rounded-lg border border-warning/30 bg-warning/5 p-2"
-                data-kairo-locked-hint
-              >
-                <%= if @master_vault do %>
                   <input
-                    type="password"
-                    class="input input-bordered input-xs w-full"
-                    placeholder="Account password"
-                    autocomplete="current-password"
-                    data-kairo-master-unlock-input
+                    type="text"
+                    name="link[title]"
+                    placeholder="Title (optional, fetched if empty)"
+                    autocomplete="off"
+                    class="input input-bordered input-sm w-full"
+                  />
+                  <div class="grid grid-cols-2 gap-2">
+                    <select name="link[project_id]" class="select select-bordered select-sm">
+                      <option value="">Inbox</option>
+                      <option :for={project <- @projects} value={project.id}>{project.name}</option>
+                    </select>
+                    <input
+                      type="text"
+                      name="link[tags]"
+                      placeholder="tags, comma"
+                      autocomplete="off"
+                      class="input input-bordered input-sm w-full"
+                    />
+                  </div>
+                  <button type="submit" class="btn btn-secondary btn-sm w-full">Save link</button>
+                </form>
+
+                <form id="kairo-search-form" phx-change="search" phx-submit="search" class="relative">
+                  <input
+                    id="kairo-search"
+                    type="text"
+                    name="query"
+                    value={@query}
+                    placeholder="Search sources…"
+                    autocomplete="off"
+                    phx-debounce="150"
+                    class="input input-bordered input-sm w-full pr-8"
                   />
                   <button
+                    :if={@query != ""}
                     type="button"
-                    class="btn btn-outline btn-xs w-full"
-                    data-kairo-master-unlock
+                    phx-click="clear_search"
+                    aria-label="Clear search"
+                    class="absolute right-2 top-1/2 -translate-y-1/2 text-base-content/50 hover:text-base-content"
                   >
-                    Unlock with account password
+                    <.icon name="hero-x-mark" class="h-4 w-4" />
                   </button>
-                <% else %>
-                  <span class="text-xs text-warning">
-                    <.link navigate={~p"/account/encrypted-data"} class="link">
-                      Set up account-password encryption
-                    </.link>
-                    to decrypt
-                  </span>
-                <% end %>
-              </div>
-              <p class="hidden text-xs text-error" data-kairo-master-error></p>
+                </form>
 
-              <div :if={@projects != []} class="space-y-1">
-                <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-base-content/50">
-                  Projects
-                </p>
-                <div class="flex flex-wrap gap-1">
-                  <button
-                    :for={project <- @projects}
-                    type="button"
-                    phx-click="filter_project"
-                    phx-value-project={project.id}
-                    title={if(project.status == "archived", do: "Archived", else: nil)}
-                    class={[
-                      "badge badge-sm cursor-pointer gap-1",
-                      if(@active_project == project.id, do: "badge-primary", else: "badge-outline"),
-                      project.status == "archived" && "opacity-50"
-                    ]}
-                  >
-                    <.icon
-                      name={
-                        if(project.status == "archived", do: "hero-archive-box", else: "hero-folder")
-                      }
-                      class="h-3 w-3"
-                    /> {project.name}
-                  </button>
-                  <button
-                    :if={Enum.any?(@sources, &is_nil(&1.project_id))}
-                    type="button"
-                    phx-click="filter_project"
-                    phx-value-project="inbox"
-                    class={[
-                      "badge badge-sm cursor-pointer gap-1",
-                      if(@active_project == :inbox, do: "badge-primary", else: "badge-outline")
-                    ]}
-                  >
-                    <.icon name="hero-inbox" class="h-3 w-3" /> Inbox
-                  </button>
-                </div>
-
-                <div :if={@active_project_record} class="!mt-3">
-                  <div class="space-y-2 rounded-lg border border-base-300 bg-base-200/40 p-2">
-                    <form phx-submit="rename_project" class="flex gap-1">
-                      <input type="hidden" name="project[id]" value={@active_project_record.id} />
-                      <input
-                        type="text"
-                        name="project[name]"
-                        value={@active_project_record.name}
-                        required
-                        class="input input-bordered input-xs min-w-0 flex-1"
-                      />
-                      <button type="submit" class="btn btn-outline btn-xs" title="Rename">
-                        <.icon name="hero-check" class="h-3 w-3" />
-                      </button>
-                    </form>
-                    <div class="flex gap-1">
-                      <button
-                        type="button"
-                        phx-click="toggle_archive_project"
-                        phx-value-id={@active_project_record.id}
-                        class="btn btn-outline btn-xs flex-1"
-                      >
-                        {if @active_project_record.status == "archived",
-                          do: "Unarchive",
-                          else: "Archive"}
-                      </button>
-                      <button
-                        type="button"
-                        phx-click="delete_project"
-                        phx-value-id={@active_project_record.id}
-                        data-confirm="Delete this project? Its sources will move to the inbox."
-                        class="btn btn-error btn-outline btn-xs flex-1"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div :if={@all_tags != []} class="space-y-1">
-                <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-base-content/50">
-                  Tags
-                </p>
-                <div class="flex flex-wrap gap-1">
-                  <button
-                    :for={tag <- @all_tags}
-                    type="button"
-                    phx-click="filter_tag"
-                    phx-value-tag={tag}
-                    class={[
-                      "badge badge-sm cursor-pointer",
-                      if(@active_tag == tag, do: "badge-primary", else: "badge-ghost")
-                    ]}
-                  >
-                    #{tag}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <nav class="flex-1 space-y-1 overflow-y-auto p-2">
-              <p :if={@visible_count == 0} class="px-2 py-4 text-sm text-base-content/60">
-                <%= if @sources == [] do %>
-                  No sources yet. Start a new note or ingest via the API.
-                <% else %>
-                  No matching sources.
-                <% end %>
-              </p>
-
-              <details :for={folder <- @folders} open class="group">
-                <summary class="flex cursor-pointer items-center justify-between rounded px-2 py-1 text-xs font-semibold uppercase tracking-wide text-base-content/60 hover:bg-base-300/40">
-                  <span class="flex items-center gap-1">
-                    <.icon
-                      name="hero-chevron-right"
-                      class="h-3 w-3 transition-transform group-open:rotate-90"
-                    /> {folder.name}
-                  </span>
-                  <span class="opacity-60">{length(folder.sources)}</span>
-                </summary>
-                <ul class="mt-1 space-y-0.5">
-                  <li :for={source <- folder.sources}>
+                <div
+                  :if={@has_encrypted_sources || @composing}
+                  class="!mt-3 hidden flex-col gap-2 rounded-lg border border-warning/30 bg-warning/5 p-2"
+                  data-kairo-locked-hint
+                >
+                  <%= if @master_vault do %>
+                    <input
+                      type="password"
+                      class="input input-bordered input-xs w-full"
+                      placeholder="Account password"
+                      autocomplete="current-password"
+                      data-kairo-master-unlock-input
+                    />
                     <button
                       type="button"
-                      phx-click="select_source"
-                      phx-value-id={source.id}
+                      class="btn btn-outline btn-xs w-full"
+                      data-kairo-master-unlock
+                    >
+                      Unlock with account password
+                    </button>
+                  <% else %>
+                    <span class="text-xs text-warning">
+                      <.link navigate={~p"/account/encrypted-data"} class="link">
+                        Set up account-password encryption
+                      </.link>
+                      to decrypt
+                    </span>
+                  <% end %>
+                </div>
+                <p class="hidden text-xs text-error" data-kairo-master-error></p>
+
+                <div :if={@projects != []} class="space-y-1">
+                  <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-base-content/50">
+                    Projects
+                  </p>
+                  <div class="flex flex-wrap gap-1">
+                    <button
+                      :for={project <- @projects}
+                      type="button"
+                      phx-click="filter_project"
+                      phx-value-project={project.id}
+                      title={if(project.status == "archived", do: "Archived", else: nil)}
                       class={[
-                        "flex w-full items-center gap-1.5 truncate rounded px-2 py-1.5 text-left text-sm",
-                        if(@selected && @selected.id == source.id,
-                          do: "bg-primary/15 text-primary",
-                          else: "hover:bg-base-300/40"
-                        )
+                        "badge badge-sm cursor-pointer gap-1",
+                        if(@active_project == project.id, do: "badge-primary", else: "badge-outline"),
+                        project.status == "archived" && "opacity-50"
                       ]}
                     >
                       <.icon
                         name={
-                          if(source.encrypted, do: "hero-lock-closed", else: "hero-document-text")
+                          if(project.status == "archived",
+                            do: "hero-archive-box",
+                            else: "hero-folder"
+                          )
                         }
-                        class="h-4 w-4 shrink-0"
-                      />
-                      <span class="truncate">{source_label(source)}</span>
-                    </button>
-                  </li>
-                </ul>
-              </details>
-
-              <button
-                :if={length(@sources) < @sources_total}
-                type="button"
-                phx-click="load_more"
-                class="btn btn-ghost btn-xs w-full"
-              >
-                Load more ({length(@sources)} of {@sources_total} loaded)
-              </button>
-            </nav>
-
-            <div class="border-t border-base-300 p-2">
-              <details class="group">
-                <summary class="flex cursor-pointer items-center gap-1 rounded px-2 py-1 text-xs text-base-content/70 hover:bg-base-300/40">
-                  <.icon name="hero-plus" class="h-3.5 w-3.5" /> New project
-                </summary>
-                <.form for={@project_form} phx-submit="create_project" class="mt-2 space-y-2 px-1">
-                  <.input field={@project_form[:name]} placeholder="Name" required />
-                  <.input field={@project_form[:description]} placeholder="Description (optional)" />
-                  <button type="submit" class="btn btn-secondary btn-sm w-full">
-                    Create project
-                  </button>
-                </.form>
-              </details>
-            </div>
-          </aside>
-
-          <%!-- Reader / editor --%>
-          <section class="card panel-card border border-base-300 lg:max-h-[calc(100vh-11rem)] lg:overflow-y-auto">
-            <%!-- Graph view --%>
-            <div
-              :if={@view_mode == "graph"}
-              class="relative h-[60vh] text-base-content lg:h-[calc(100vh-11rem)]"
-            >
-              <div
-                id="kairo-graph"
-                phx-hook="KairoGraph"
-                data-graph={Jason.encode!(@graph)}
-                class="absolute inset-0"
-              >
-              </div>
-              <div class="pointer-events-none absolute bottom-2 left-3 text-xs text-base-content/40">
-                Connected sources share a tag
-              </div>
-            </div>
-
-            <form
-              :if={@view_mode == "reader" and @composing}
-              id="kairo-note-form"
-              phx-submit="save_note"
-              phx-change="compose_change"
-              class="card-body space-y-3 p-4 sm:p-6"
-            >
-              <div class="flex items-center justify-between">
-                <h2 class="card-title text-base sm:text-lg">
-                  <%= if @editing_source do %>
-                    Edit source
-                  <% else %>
-                    New note
-                  <% end %>
-                </h2>
-                <button type="button" phx-click="cancel_note" class="btn btn-ghost btn-sm">
-                  Cancel
-                </button>
-              </div>
-
-              <input
-                id="kairo-note-title"
-                type="text"
-                name="note[title]"
-                value={@compose["title"]}
-                placeholder="Title"
-                autocomplete="off"
-                class="input input-bordered w-full font-medium"
-              />
-
-              <div class="grid gap-2 sm:grid-cols-2">
-                <select name="note[project_id]" class="select select-bordered select-sm">
-                  <option value="" selected={@compose["project_id"] in [nil, ""]}>Inbox</option>
-                  <option
-                    :for={project <- @projects}
-                    value={project.id}
-                    selected={to_string(@compose["project_id"]) == to_string(project.id)}
-                  >
-                    {project.name}
-                  </option>
-                </select>
-                <input
-                  id="kairo-note-tags"
-                  type="text"
-                  name="note[tags]"
-                  value={@compose["tags"]}
-                  placeholder="tags, comma, separated"
-                  autocomplete="off"
-                  class="input input-bordered input-sm w-full"
-                />
-              </div>
-
-              <div role="tablist" class="tabs tabs-bordered">
-                <button
-                  type="button"
-                  phx-click="set_compose_tab"
-                  phx-value-tab="write"
-                  class={["tab", @compose_tab == "write" && "tab-active"]}
-                >
-                  Write
-                </button>
-                <button
-                  type="button"
-                  phx-click="set_compose_tab"
-                  phx-value-tab="preview"
-                  class={["tab", @compose_tab == "preview" && "tab-active"]}
-                >
-                  Preview
-                </button>
-              </div>
-
-              <textarea
-                :if={is_nil(@editing_source) or !@editing_source.encrypted}
-                id={"kairo-note-content-#{@editing_source_id || "new"}"}
-                name="note[content]"
-                rows="16"
-                phx-debounce="200"
-                phx-update="ignore"
-                placeholder="Write markdown…"
-                class={[
-                  "textarea textarea-bordered w-full font-mono text-sm",
-                  @compose_tab != "write" && "hidden"
-                ]}
-              >{@compose["content"]}</textarea>
-              <div
-                :if={@editing_source && @editing_source.encrypted}
-                class="rounded border border-warning/30 bg-warning/5 p-3 text-sm text-base-content/70"
-              >
-                Encrypted source content cannot be edited on the server. You can still change the
-                title, project, and tags.
-              </div>
-              <div
-                :if={@compose_tab == "preview"}
-                class="prose min-h-[16rem] max-w-none rounded border border-base-300 bg-base-100 p-3"
-              >
-                {Phoenix.HTML.raw(Elektrine.Markdown.to_html(@compose["content"] || ""))}
-              </div>
-
-              <label
-                :if={is_nil(@editing_source) && @master_vault}
-                class="flex cursor-pointer items-center gap-2 text-sm text-base-content/70"
-              >
-                <input
-                  type="checkbox"
-                  name="note[encrypt]"
-                  value="true"
-                  checked={@compose["encrypt"] == "true"}
-                  class="checkbox checkbox-xs"
-                /> Encrypt — the server never sees the content
-              </label>
-              <p class="hidden text-xs text-error" data-kairo-encrypt-error></p>
-
-              <div class="flex justify-end gap-2">
-                <button type="button" phx-click="cancel_note" class="btn btn-ghost btn-sm">
-                  Cancel
-                </button>
-                <button
-                  :if={@compose["encrypt"] != "true"}
-                  type="submit"
-                  class="btn btn-primary btn-sm"
-                >
-                  {if @editing_source, do: "Save changes", else: "Save note"}
-                </button>
-                <button
-                  :if={@compose["encrypt"] == "true"}
-                  type="button"
-                  data-kairo-encrypt-save
-                  class="btn btn-primary btn-sm"
-                >
-                  <.icon name="hero-lock-closed" class="h-3.5 w-3.5" /> Save encrypted
-                </button>
-              </div>
-            </form>
-
-            <div
-              :if={@view_mode == "reader" and is_nil(@selected) and not @composing}
-              class="flex flex-col items-center justify-center gap-3 p-12 text-center text-base-content/50"
-            >
-              <.icon name="hero-document-magnifying-glass" class="h-10 w-10" />
-              <p class="text-sm">Select a source to read it, or start a new note.</p>
-              <button type="button" phx-click="new_note" class="btn btn-outline btn-sm">
-                <.icon name="hero-pencil-square" class="h-4 w-4" /> New note
-              </button>
-            </div>
-
-            <article
-              :if={@view_mode == "reader" and @selected}
-              class="card-body space-y-4 p-4 sm:p-6"
-            >
-              <header class="space-y-2 border-b border-base-300 pb-4">
-                <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <h1 class="min-w-0 text-xl font-bold sm:text-2xl">{source_label(@selected)}</h1>
-                  <div class="flex shrink-0 items-center gap-2">
-                    <button
-                      type="button"
-                      phx-click="edit_source"
-                      phx-value-id={@selected.id}
-                      class="btn btn-outline btn-xs"
-                    >
-                      <.icon name="hero-pencil-square" class="h-3.5 w-3.5" /> Edit
+                        class="h-3 w-3"
+                      /> {project.name}
                     </button>
                     <button
+                      :if={Enum.any?(@sources, &is_nil(&1.project_id))}
                       type="button"
-                      phx-click="delete_source"
-                      phx-value-id={@selected.id}
-                      data-confirm="Delete this Kairo source? This cannot be undone."
-                      class="btn btn-error btn-outline btn-xs"
+                      phx-click="filter_project"
+                      phx-value-project="inbox"
+                      class={[
+                        "badge badge-sm cursor-pointer gap-1",
+                        if(@active_project == :inbox, do: "badge-primary", else: "badge-outline")
+                      ]}
                     >
-                      <.icon name="hero-trash" class="h-3.5 w-3.5" /> Delete
+                      <.icon name="hero-inbox" class="h-3 w-3" /> Inbox
+                    </button>
+                  </div>
+
+                  <div :if={@active_project_record} class="!mt-3">
+                    <div class="space-y-2 rounded-lg border border-base-300 bg-base-200/40 p-2">
+                      <form phx-submit="rename_project" class="flex gap-1">
+                        <input type="hidden" name="project[id]" value={@active_project_record.id} />
+                        <input
+                          type="text"
+                          name="project[name]"
+                          value={@active_project_record.name}
+                          required
+                          class="input input-bordered input-xs min-w-0 flex-1"
+                        />
+                        <button type="submit" class="btn btn-outline btn-xs" title="Rename">
+                          <.icon name="hero-check" class="h-3 w-3" />
+                        </button>
+                      </form>
+                      <div class="flex gap-1">
+                        <button
+                          type="button"
+                          phx-click="toggle_archive_project"
+                          phx-value-id={@active_project_record.id}
+                          class="btn btn-outline btn-xs flex-1"
+                        >
+                          {if @active_project_record.status == "archived",
+                            do: "Unarchive",
+                            else: "Archive"}
+                        </button>
+                        <button
+                          type="button"
+                          phx-click="delete_project"
+                          phx-value-id={@active_project_record.id}
+                          data-confirm="Delete this project? Its sources will move to the inbox."
+                          class="btn btn-error btn-outline btn-xs flex-1"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div :if={@all_tags != []} class="space-y-1">
+                  <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-base-content/50">
+                    Tags
+                  </p>
+                  <div class="flex flex-wrap gap-1">
+                    <button
+                      :for={tag <- @all_tags}
+                      type="button"
+                      phx-click="filter_tag"
+                      phx-value-tag={tag}
+                      class={[
+                        "badge badge-sm cursor-pointer",
+                        if(@active_tag == tag, do: "badge-primary", else: "badge-ghost")
+                      ]}
+                    >
+                      #{tag}
                     </button>
                   </div>
                 </div>
-                <div class="flex flex-wrap items-center gap-2 text-xs text-base-content/60">
-                  <span :if={@selected.status not in ["stored", "compiled"]} class="badge badge-sm">
-                    {@selected.status}
-                  </span>
-                  <span :if={@selected.encrypted} class="badge badge-warning badge-outline badge-sm">
-                    <.icon name="hero-lock-closed" class="h-3 w-3" /> encrypted
-                  </span>
-                  <span :if={@selected.project}>{@selected.project.name}</span>
-                  <span :if={@selected.ingested_at}>{format_datetime(@selected.ingested_at)}</span>
-                </div>
-                <p
-                  :if={@selected.status == "failed" && @selected.error_message}
-                  class="text-xs text-error"
-                >
-                  Fetch failed: {@selected.error_message}
+              </div>
+
+              <nav class="flex-1 space-y-1 overflow-y-auto p-2">
+                <p :if={@visible_count == 0} class="px-2 py-4 text-sm text-base-content/60">
+                  <%= if @sources == [] do %>
+                    No sources yet. Start a new note or ingest via the API.
+                  <% else %>
+                    No matching sources.
+                  <% end %>
                 </p>
-                <a
-                  :if={present_url?(@selected.url)}
-                  href={@selected.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="link link-primary inline-flex items-center gap-1 text-sm"
+
+                <details :for={folder <- @folders} open class="group">
+                  <summary class="flex cursor-pointer items-center justify-between rounded px-2 py-1 text-xs font-semibold uppercase tracking-wide text-base-content/60 hover:bg-base-300/40">
+                    <span class="flex items-center gap-1">
+                      <.icon
+                        name="hero-chevron-right"
+                        class="h-3 w-3 transition-transform group-open:rotate-90"
+                      /> {folder.name}
+                    </span>
+                    <span class="opacity-60">{length(folder.sources)}</span>
+                  </summary>
+                  <ul class="mt-1 space-y-0.5">
+                    <li :for={source <- folder.sources}>
+                      <button
+                        type="button"
+                        phx-click="select_source"
+                        phx-value-id={source.id}
+                        class={[
+                          "flex w-full items-center gap-1.5 truncate rounded px-2 py-1.5 text-left text-sm",
+                          if(@selected && @selected.id == source.id,
+                            do: "bg-primary/15 text-primary",
+                            else: "hover:bg-base-300/40"
+                          )
+                        ]}
+                      >
+                        <.icon
+                          name={
+                            if(source.encrypted, do: "hero-lock-closed", else: "hero-document-text")
+                          }
+                          class="h-4 w-4 shrink-0"
+                        />
+                        <span class="truncate">{source_label(source)}</span>
+                      </button>
+                    </li>
+                  </ul>
+                </details>
+
+                <button
+                  :if={length(@sources) < @sources_total}
+                  type="button"
+                  phx-click="load_more"
+                  class="btn btn-ghost btn-xs w-full"
                 >
-                  <.icon name="hero-arrow-top-right-on-square" class="h-4 w-4" />
-                  {@selected.url}
-                </a>
-                <div :if={@selected.tags not in [nil, []]} class="flex flex-wrap gap-1">
-                  <button
-                    :for={tag <- @selected.tags}
-                    type="button"
-                    phx-click="filter_tag"
-                    phx-value-tag={tag}
-                    class="badge badge-ghost badge-sm cursor-pointer"
-                  >
-                    #{tag}
+                  Load more ({length(@sources)} of {@sources_total} loaded)
+                </button>
+              </nav>
+
+              <div class="border-t border-base-300 p-2">
+                <details class="group">
+                  <summary class="flex cursor-pointer items-center gap-1 rounded px-2 py-1 text-xs text-base-content/70 hover:bg-base-300/40">
+                    <.icon name="hero-plus" class="h-3.5 w-3.5" /> New project
+                  </summary>
+                  <.form for={@project_form} phx-submit="create_project" class="mt-2 space-y-2 px-1">
+                    <.input field={@project_form[:name]} placeholder="Name" required />
+                    <.input field={@project_form[:description]} placeholder="Description (optional)" />
+                    <button type="submit" class="btn btn-secondary btn-sm w-full">
+                      Create project
+                    </button>
+                  </.form>
+                </details>
+              </div>
+            </aside>
+
+            <%!-- Reader / editor --%>
+            <section class="card panel-card border border-base-300 lg:max-h-[calc(100vh-11rem)] lg:overflow-y-auto">
+              <%!-- Graph view --%>
+              <div
+                :if={@view_mode == "graph"}
+                class="relative h-[60vh] text-base-content lg:h-[calc(100vh-11rem)]"
+              >
+                <div
+                  id="kairo-graph"
+                  phx-hook="KairoGraph"
+                  data-graph={Jason.encode!(@graph)}
+                  class="absolute inset-0"
+                >
+                </div>
+                <div class="pointer-events-none absolute bottom-2 left-3 text-xs text-base-content/40">
+                  Connected sources share a tag
+                </div>
+              </div>
+
+              <form
+                :if={@view_mode == "reader" and @composing}
+                id="kairo-note-form"
+                phx-submit="save_note"
+                phx-change="compose_change"
+                class="card-body space-y-3 p-4 sm:p-6"
+              >
+                <div class="flex items-center justify-between">
+                  <h2 class="card-title text-base sm:text-lg">
+                    <%= if @editing_source do %>
+                      Edit source
+                    <% else %>
+                      New note
+                    <% end %>
+                  </h2>
+                  <button type="button" phx-click="cancel_note" class="btn btn-ghost btn-sm">
+                    Cancel
                   </button>
                 </div>
-              </header>
+
+                <input
+                  id="kairo-note-title"
+                  type="text"
+                  name="note[title]"
+                  value={@compose["title"]}
+                  placeholder="Title"
+                  autocomplete="off"
+                  class="input input-bordered w-full font-medium"
+                />
+
+                <div class="grid gap-2 sm:grid-cols-2">
+                  <select name="note[project_id]" class="select select-bordered select-sm">
+                    <option value="" selected={@compose["project_id"] in [nil, ""]}>Inbox</option>
+                    <option
+                      :for={project <- @projects}
+                      value={project.id}
+                      selected={to_string(@compose["project_id"]) == to_string(project.id)}
+                    >
+                      {project.name}
+                    </option>
+                  </select>
+                  <input
+                    id="kairo-note-tags"
+                    type="text"
+                    name="note[tags]"
+                    value={@compose["tags"]}
+                    placeholder="tags, comma, separated"
+                    autocomplete="off"
+                    class="input input-bordered input-sm w-full"
+                  />
+                </div>
+
+                <div role="tablist" class="tabs tabs-bordered">
+                  <button
+                    type="button"
+                    phx-click="set_compose_tab"
+                    phx-value-tab="write"
+                    class={["tab", @compose_tab == "write" && "tab-active"]}
+                  >
+                    Write
+                  </button>
+                  <button
+                    type="button"
+                    phx-click="set_compose_tab"
+                    phx-value-tab="preview"
+                    class={["tab", @compose_tab == "preview" && "tab-active"]}
+                  >
+                    Preview
+                  </button>
+                </div>
+
+                <textarea
+                  :if={is_nil(@editing_source) or !@editing_source.encrypted}
+                  id={"kairo-note-content-#{@editing_source_id || "new"}"}
+                  name="note[content]"
+                  rows="16"
+                  phx-debounce="200"
+                  phx-update="ignore"
+                  placeholder="Write markdown…"
+                  class={[
+                    "textarea textarea-bordered w-full font-mono text-sm",
+                    @compose_tab != "write" && "hidden"
+                  ]}
+                >{@compose["content"]}</textarea>
+                <div
+                  :if={@editing_source && @editing_source.encrypted}
+                  class="rounded border border-warning/30 bg-warning/5 p-3 text-sm text-base-content/70"
+                >
+                  Encrypted source content cannot be edited on the server. You can still change the
+                  title, project, and tags.
+                </div>
+                <div
+                  :if={@compose_tab == "preview"}
+                  class="prose min-h-[16rem] max-w-none rounded border border-base-300 bg-base-100 p-3"
+                >
+                  {Phoenix.HTML.raw(Elektrine.Markdown.to_html(@compose["content"] || ""))}
+                </div>
+
+                <label
+                  :if={is_nil(@editing_source) && @master_vault}
+                  class="flex cursor-pointer items-center gap-2 text-sm text-base-content/70"
+                >
+                  <input
+                    type="checkbox"
+                    name="note[encrypt]"
+                    value="true"
+                    checked={@compose["encrypt"] == "true"}
+                    class="checkbox checkbox-xs"
+                  /> Encrypt — the server never sees the content
+                </label>
+                <p class="hidden text-xs text-error" data-kairo-encrypt-error></p>
+
+                <div class="flex justify-end gap-2">
+                  <button type="button" phx-click="cancel_note" class="btn btn-ghost btn-sm">
+                    Cancel
+                  </button>
+                  <button
+                    :if={@compose["encrypt"] != "true"}
+                    type="submit"
+                    class="btn btn-primary btn-sm"
+                  >
+                    {if @editing_source, do: "Save changes", else: "Save note"}
+                  </button>
+                  <button
+                    :if={@compose["encrypt"] == "true"}
+                    type="button"
+                    data-kairo-encrypt-save
+                    class="btn btn-primary btn-sm"
+                  >
+                    <.icon name="hero-lock-closed" class="h-3.5 w-3.5" /> Save encrypted
+                  </button>
+                </div>
+              </form>
 
               <div
-                :if={@selected.encrypted}
-                class="space-y-3 rounded-lg border border-base-300 bg-base-200/40 p-4"
-                data-kairo-reader
+                :if={@view_mode == "reader" and is_nil(@selected) and not @composing}
+                class="flex flex-col items-center justify-center gap-3 p-12 text-center text-base-content/50"
               >
-                <p class="text-sm text-base-content/70">
-                  This source is encrypted. Decrypt it in this tab to read the content.
-                </p>
-                <button
-                  type="button"
-                  class="btn btn-outline btn-sm"
-                  data-kairo-decrypt
-                  data-kairo-payload={Jason.encode!(@selected.encrypted_content)}
-                >
-                  <.icon name="hero-lock-open" class="h-4 w-4" /> Decrypt content
+                <.icon name="hero-document-magnifying-glass" class="h-10 w-10" />
+                <p class="text-sm">Select a source to read it, or start a new note.</p>
+                <button type="button" phx-click="new_note" class="btn btn-outline btn-sm">
+                  <.icon name="hero-pencil-square" class="h-4 w-4" /> New note
                 </button>
-                <pre
-                  class="mt-1 hidden max-w-none whitespace-pre-wrap break-words rounded bg-base-100 p-3 text-sm"
-                  data-kairo-output
-                ></pre>
               </div>
 
-              <div :if={!@selected.encrypted} class="prose max-w-none">
-                {Phoenix.HTML.raw(Elektrine.Markdown.to_html(@selected.content || ""))}
-              </div>
-
-              <div :if={@related != []} class="border-t border-base-300 pt-4">
-                <h3 class="mb-2 text-xs font-semibold uppercase tracking-wide text-base-content/60">
-                  Related (shared tags)
-                </h3>
-                <ul class="space-y-1">
-                  <li :for={source <- @related}>
+              <article
+                :if={@view_mode == "reader" and @selected}
+                class="card-body space-y-4 p-4 sm:p-6"
+              >
+                <header class="space-y-2 border-b border-base-300 pb-4">
+                  <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <h1 class="min-w-0 text-xl font-bold sm:text-2xl">{source_label(@selected)}</h1>
+                    <div class="flex shrink-0 items-center gap-2">
+                      <button
+                        type="button"
+                        phx-click="edit_source"
+                        phx-value-id={@selected.id}
+                        class="btn btn-outline btn-xs"
+                      >
+                        <.icon name="hero-pencil-square" class="h-3.5 w-3.5" /> Edit
+                      </button>
+                      <button
+                        type="button"
+                        phx-click="delete_source"
+                        phx-value-id={@selected.id}
+                        data-confirm="Delete this Kairo source? This cannot be undone."
+                        class="btn btn-error btn-outline btn-xs"
+                      >
+                        <.icon name="hero-trash" class="h-3.5 w-3.5" /> Delete
+                      </button>
+                    </div>
+                  </div>
+                  <div class="flex flex-wrap items-center gap-2 text-xs text-base-content/60">
+                    <span :if={@selected.status not in ["stored", "compiled"]} class="badge badge-sm">
+                      {@selected.status}
+                    </span>
+                    <span :if={@selected.encrypted} class="badge badge-warning badge-outline badge-sm">
+                      <.icon name="hero-lock-closed" class="h-3 w-3" /> encrypted
+                    </span>
+                    <span :if={@selected.project}>{@selected.project.name}</span>
+                    <span :if={@selected.ingested_at}>{format_datetime(@selected.ingested_at)}</span>
+                  </div>
+                  <p
+                    :if={@selected.status == "failed" && @selected.error_message}
+                    class="text-xs text-error"
+                  >
+                    Fetch failed: {@selected.error_message}
+                  </p>
+                  <a
+                    :if={present_url?(@selected.url)}
+                    href={@selected.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="link link-primary inline-flex items-center gap-1 text-sm"
+                  >
+                    <.icon name="hero-arrow-top-right-on-square" class="h-4 w-4" />
+                    {@selected.url}
+                  </a>
+                  <div :if={@selected.tags not in [nil, []]} class="flex flex-wrap gap-1">
                     <button
+                      :for={tag <- @selected.tags}
                       type="button"
-                      phx-click="select_source"
-                      phx-value-id={source.id}
-                      class="flex w-full items-center gap-1.5 truncate rounded px-2 py-1 text-left text-sm hover:bg-base-300/40"
+                      phx-click="filter_tag"
+                      phx-value-tag={tag}
+                      class="badge badge-ghost badge-sm cursor-pointer"
                     >
-                      <.icon
-                        name={if(source.encrypted, do: "hero-lock-closed", else: "hero-link")}
-                        class="h-3.5 w-3.5 shrink-0"
-                      />
-                      <span class="truncate">{source_label(source)}</span>
+                      #{tag}
                     </button>
-                  </li>
-                </ul>
-              </div>
-            </article>
-          </section>
+                  </div>
+                </header>
+
+                <div
+                  :if={@selected.encrypted}
+                  class="space-y-3 rounded-lg border border-base-300 bg-base-200/40 p-4"
+                  data-kairo-reader
+                >
+                  <p class="text-sm text-base-content/70">
+                    This source is encrypted. Decrypt it in this tab to read the content.
+                  </p>
+                  <button
+                    type="button"
+                    class="btn btn-outline btn-sm"
+                    data-kairo-decrypt
+                    data-kairo-payload={Jason.encode!(@selected.encrypted_content)}
+                  >
+                    <.icon name="hero-lock-open" class="h-4 w-4" /> Decrypt content
+                  </button>
+                  <pre
+                    class="mt-1 hidden max-w-none whitespace-pre-wrap break-words rounded bg-base-100 p-3 text-sm"
+                    data-kairo-output
+                  ></pre>
+                </div>
+
+                <div :if={!@selected.encrypted} class="prose max-w-none">
+                  {Phoenix.HTML.raw(Elektrine.Markdown.to_html(@selected.content || ""))}
+                </div>
+
+                <div :if={@related != []} class="border-t border-base-300 pt-4">
+                  <h3 class="mb-2 text-xs font-semibold uppercase tracking-wide text-base-content/60">
+                    Related (shared tags)
+                  </h3>
+                  <ul class="space-y-1">
+                    <li :for={source <- @related}>
+                      <button
+                        type="button"
+                        phx-click="select_source"
+                        phx-value-id={source.id}
+                        class="flex w-full items-center gap-1.5 truncate rounded px-2 py-1 text-left text-sm hover:bg-base-300/40"
+                      >
+                        <.icon
+                          name={if(source.encrypted, do: "hero-lock-closed", else: "hero-link")}
+                          class="h-3.5 w-3.5 shrink-0"
+                        />
+                        <span class="truncate">{source_label(source)}</span>
+                      </button>
+                    </li>
+                  </ul>
+                </div>
+              </article>
+            </section>
+          </div>
         </div>
-      </div>
+      </section>
     </div>
     """
   end
