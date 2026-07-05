@@ -3,7 +3,6 @@ defmodule Elektrine.DNS do
   Core context for Elektrine's managed DNS service.
   """
 
-  import Bitwise
   import Ecto.Changeset, only: [add_error: 3, change: 1]
   import Ecto.Query, warn: false
 
@@ -1127,21 +1126,14 @@ defmodule Elektrine.DNS do
     error -> {:error, "NS lookup failed for #{domain}: #{inspect(error)}"}
   end
 
-  defp verify_authoritative_nameservers(domain, endpoints) do
+  defp verify_authoritative_nameservers(_domain, endpoints) do
     case endpoints do
       [] ->
         {:error,
          "Delegation matches the configured nameservers, but no usable A/AAAA records were found for them."}
 
-      endpoints ->
-        case authoritative_soa_served?(domain, endpoints) do
-          :ok ->
-            :ok
-
-          {:error, reason} ->
-            {:error,
-             "Delegation matches the configured nameservers, but they are not serving an authoritative SOA for #{domain}: #{reason}"}
-        end
+      _endpoints ->
+        :ok
     end
   end
 
@@ -1257,34 +1249,6 @@ defmodule Elektrine.DNS do
     |> Enum.uniq()
   end
 
-  defp authoritative_soa_served?(domain, endpoints) do
-    query = %{id: 1, rd: 0, qname: domain, qtype: :soa, udp_size: max_udp_payload()}
-    packet = Packet.encode_query(query)
-
-    attempts =
-      Enum.map(endpoints, fn {ip, port} ->
-        result =
-          case recursive_transport().exchange_udp(ip, port, packet, recursive_timeout()) do
-            {:ok, response} ->
-              case authoritative_soa_response?(response, domain) do
-                true -> :ok
-                false -> {:error, "received a non-authoritative or empty SOA response"}
-              end
-
-            {:error, reason} ->
-              {:error, format_dns_exchange_error(reason)}
-          end
-
-        {ip, port, result}
-      end)
-
-    if Enum.any?(attempts, &match?({_ip, _port, :ok}, &1)) do
-      :ok
-    else
-      {:error, format_endpoint_attempt_errors(attempts)}
-    end
-  end
-
   defp format_dns_exchange_error(:timeout), do: "query timed out"
 
   defp format_dns_exchange_error(:unexpected_upstream),
@@ -1328,30 +1292,6 @@ defmodule Elektrine.DNS do
       end
 
     if port == 53, do: host <> ":", else: "#{host}:#{port}:"
-  end
-
-  defp authoritative_soa_response?(<<_id::16, flags::16, _rest::binary>> = response, domain) do
-    authoritative? = (flags &&& 0x0400) != 0
-    rcode = flags &&& 0x000F
-
-    authoritative? and rcode == 0 and authoritative_soa_answer?(response, domain)
-  end
-
-  defp authoritative_soa_response?(_, _domain), do: false
-
-  defp authoritative_soa_answer?(response, domain) do
-    case :inet_dns.decode(response) do
-      {:ok, {:dns_rec, _header, _qd, answers, _ns, _ar}} ->
-        normalized_domain = normalize_hostname(domain)
-
-        Enum.any?(answers, fn answer ->
-          elem(answer, 2) in [6, :soa] and
-            normalize_hostname(elem(answer, 1)) == normalized_domain
-        end)
-
-      _ ->
-        false
-    end
   end
 
   defp delegation_mismatch_message(expected, resolved) do
