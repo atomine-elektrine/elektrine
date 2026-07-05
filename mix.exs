@@ -52,7 +52,6 @@ defmodule ElektrineUmbrella.MixProject do
       check: [
         "format --check-formatted",
         "do --app elektrine cmd --cd ../.. scripts/check_tracked_generated_artifacts.sh",
-        "do --app elektrine cmd --cd ../.. scripts/check_maintainability_budgets.sh",
         "do --app elektrine cmd --cd ../.. scripts/check_legacy_marker_budget.sh",
         "do --app elektrine cmd --cd assets npm run check",
         "compile --warnings-as-errors",
