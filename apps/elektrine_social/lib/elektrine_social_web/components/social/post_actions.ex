@@ -161,6 +161,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
                 id={count_id(@dom_id_prefix, "like")}
                 class={@text_class}
                 count={@like_count}
+                loading={@counts_loading}
               />
             </span>
           </button>
@@ -171,6 +172,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
               id={count_id(@dom_id_prefix, "like")}
               class={@text_class}
               count={@like_count}
+              loading={@counts_loading}
             />
           </div>
         <% end %>
@@ -190,6 +192,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
               id={count_id(@dom_id_prefix, "comment")}
               class={@text_class}
               count={@comment_count}
+              loading={@counts_loading}
             />
           </.link>
         <% else %>
@@ -209,6 +212,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
                 id={count_id(@dom_id_prefix, "comment")}
                 class={@text_class}
                 count={@comment_count}
+                loading={@counts_loading}
               />
             </button>
           <% else %>
@@ -218,6 +222,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
                 id={count_id(@dom_id_prefix, "comment")}
                 class={@text_class}
                 count={@comment_count}
+                loading={@counts_loading}
               />
             </div>
           <% end %>
@@ -251,6 +256,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
                 id={count_id(@dom_id_prefix, "boost")}
                 class={@text_class}
                 count={@boost_count}
+                loading={@counts_loading}
               />
             </span>
           </button>
@@ -261,6 +267,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
               id={count_id(@dom_id_prefix, "boost")}
               class={@text_class}
               count={@boost_count}
+              loading={@counts_loading}
             />
           </div>
         <% end %>
@@ -284,6 +291,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
               id={count_id(@dom_id_prefix, "quote")}
               class={@text_class}
               count={@quote_count}
+              loading={@counts_loading}
             />
           </button>
         <% else %>
@@ -293,6 +301,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
               id={count_id(@dom_id_prefix, "quote")}
               class={@text_class}
               count={@quote_count}
+              loading={@counts_loading}
             />
           </div>
         <% end %>
@@ -357,13 +366,21 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
                 name={if @is_liked, do: "hero-heart-solid", else: "hero-heart"}
                 class={[@icon_size, @is_liked && "text-primary"]}
               />
-              <.animated_count id={count_id(@dom_id_prefix, "like")} count={@like_count} />
+              <.animated_count
+                id={count_id(@dom_id_prefix, "like")}
+                count={@like_count}
+                loading={@counts_loading}
+              />
             </span>
           </button>
         <% else %>
           <div class="flex items-center gap-1.5 opacity-50 cursor-default">
             <.icon name="hero-heart" class={@icon_size} />
-            <.animated_count id={count_id(@dom_id_prefix, "like")} count={@like_count} />
+            <.animated_count
+              id={count_id(@dom_id_prefix, "like")}
+              count={@like_count}
+              loading={@counts_loading}
+            />
           </div>
         <% end %>
       <% end %>
@@ -375,7 +392,11 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
             class="flex items-center gap-1.5 text-base-content/60 hover:text-primary transition-colors cursor-pointer"
           >
             <.icon name="hero-chat-bubble-left" class={@icon_size} />
-            <.animated_count id={count_id(@dom_id_prefix, "comment")} count={@comment_count} />
+            <.animated_count
+              id={count_id(@dom_id_prefix, "comment")}
+              count={@comment_count}
+              loading={@counts_loading}
+            />
           </.link>
         <% end %>
         <%= if !@comment_path do %>
@@ -388,12 +409,20 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
               type="button"
             >
               <.icon name="hero-chat-bubble-left" class={@icon_size} />
-              <.animated_count id={count_id(@dom_id_prefix, "comment")} count={@comment_count} />
+              <.animated_count
+                id={count_id(@dom_id_prefix, "comment")}
+                count={@comment_count}
+                loading={@counts_loading}
+              />
             </button>
           <% else %>
             <div class="flex items-center gap-1.5 opacity-50 cursor-default">
               <.icon name="hero-chat-bubble-left" class={@icon_size} />
-              <.animated_count id={count_id(@dom_id_prefix, "comment")} count={@comment_count} />
+              <.animated_count
+                id={count_id(@dom_id_prefix, "comment")}
+                count={@comment_count}
+                loading={@counts_loading}
+              />
             </div>
           <% end %>
         <% end %>
@@ -420,13 +449,21 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
                 name={if @is_boosted, do: "hero-arrow-path-solid", else: "hero-arrow-path"}
                 class={@icon_size}
               />
-              <.animated_count id={count_id(@dom_id_prefix, "boost")} count={@boost_count} />
+              <.animated_count
+                id={count_id(@dom_id_prefix, "boost")}
+                count={@boost_count}
+                loading={@counts_loading}
+              />
             </span>
           </button>
         <% else %>
           <div class="flex items-center gap-1.5 opacity-50 cursor-default">
             <.icon name="hero-arrow-path" class={@icon_size} />
-            <.animated_count id={count_id(@dom_id_prefix, "boost")} count={@boost_count} />
+            <.animated_count
+              id={count_id(@dom_id_prefix, "boost")}
+              count={@boost_count}
+              loading={@counts_loading}
+            />
           </div>
         <% end %>
       <% end %>
@@ -754,20 +791,34 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
   attr :id, :string, required: true
   attr :class, :any, default: nil
   attr :count, :any, required: true
+  attr :loading, :boolean, default: false
 
   defp animated_count(assigns) do
-    assigns = assign(assigns, :count_value, normalize_interaction_count(assigns.count))
+    assigns =
+      assigns
+      |> assign(:count_value, normalize_interaction_count(assigns.count))
+      |> assign(:count_known?, is_integer(assigns.count))
 
     ~H"""
-    <span
-      id={@id}
-      class={@class}
-      phx-hook="AnimatedCount"
-      phx-update="ignore"
-      data-count={@count_value}
-    >
-      {@count_value}
-    </span>
+    <%= if @loading && !@count_known? do %>
+      <span
+        id={@id}
+        class={[@class, "inline-block min-w-[2ch] text-transparent select-none"]}
+        aria-hidden="true"
+      >
+        &nbsp;
+      </span>
+    <% else %>
+      <span
+        id={@id}
+        class={@class}
+        phx-hook="AnimatedCount"
+        phx-update="ignore"
+        data-count={@count_value}
+      >
+        {@count_value}
+      </span>
+    <% end %>
     """
   end
 

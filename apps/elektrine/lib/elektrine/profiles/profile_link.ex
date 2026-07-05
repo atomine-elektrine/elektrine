@@ -14,7 +14,15 @@ defmodule Elektrine.Profiles.ProfileLink do
     field :platform, :string
     field :position, :integer, default: 0
     field :clicks, :integer, default: 0
+    field :impressions, :integer, default: 0
+    field :last_clicked_at, :utc_datetime
     field :is_active, :boolean, default: true
+    field :pinned, :boolean, default: false
+    field :active_from, :utc_datetime
+    field :active_until, :utc_datetime
+    field :last_checked_at, :utc_datetime
+    field :last_check_status, :string
+    field :last_check_error, :string
     field :section, :string
     field :thumbnail_url, :string
     # "circular", "full_width", or nil (use profile default)
@@ -45,6 +53,14 @@ defmodule Elektrine.Profiles.ProfileLink do
       :platform,
       :position,
       :is_active,
+      :pinned,
+      :active_from,
+      :active_until,
+      :impressions,
+      :last_clicked_at,
+      :last_checked_at,
+      :last_check_status,
+      :last_check_error,
       :section,
       :thumbnail_url,
       :display_style,
@@ -54,6 +70,10 @@ defmodule Elektrine.Profiles.ProfileLink do
     |> validate_required([:profile_id, :title, :url])
     |> validate_length(:title, max: 50)
     |> validate_length(:description, max: 100)
+    |> validate_number(:clicks, greater_than_or_equal_to: 0)
+    |> validate_number(:impressions, greater_than_or_equal_to: 0)
+    |> validate_inclusion(:last_check_status, ["ok", "broken", "unchecked", nil], allow_nil: true)
+    |> validate_active_window()
     |> validate_url()
     |> validate_inclusion(:display_style, ["circular", "full_width", nil], allow_nil: true)
     |> validate_inclusion(:highlight_effect, ["none", "glow", "pulse", "border", "shine", nil],
@@ -110,12 +130,31 @@ defmodule Elektrine.Profiles.ProfileLink do
       "platform" -> :platform
       "position" -> :position
       "is_active" -> :is_active
+      "pinned" -> :pinned
+      "active_from" -> :active_from
+      "active_until" -> :active_until
+      "impressions" -> :impressions
+      "last_clicked_at" -> :last_clicked_at
+      "last_checked_at" -> :last_checked_at
+      "last_check_status" -> :last_check_status
+      "last_check_error" -> :last_check_error
       "section" -> :section
       "thumbnail_url" -> :thumbnail_url
       "display_style" -> :display_style
       "highlight_effect" -> :highlight_effect
       # Return string key for unknown fields - do not create atoms
       _ -> key
+    end
+  end
+
+  defp validate_active_window(changeset) do
+    active_from = get_field(changeset, :active_from)
+    active_until = get_field(changeset, :active_until)
+
+    if active_from && active_until && DateTime.compare(active_from, active_until) != :lt do
+      add_error(changeset, :active_until, "must be after active from")
+    else
+      changeset
     end
   end
 

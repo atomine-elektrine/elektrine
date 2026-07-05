@@ -778,7 +778,7 @@ defmodule Elektrine.Search do
 
   defp platform_module_for_access_module(module) when module in [:portal, :storage], do: nil
 
-  defp platform_module_for_access_module(:maid), do: nil
+  defp platform_module_for_access_module(:paige), do: nil
 
   defp platform_module_for_access_module(module), do: module
 
@@ -900,17 +900,17 @@ defmodule Elektrine.Search do
       %{
         id: "action_open_maid",
         type: "action",
-        title: "Open Maid",
-        command: "open maid",
-        aliases: ["maid", "search", "web search"],
+        title: "Open Paige",
+        command: "open paige",
+        aliases: ["paige", "search", "web search"],
         execution: :navigate,
-        module: :maid,
+        module: :paige,
         required_scopes: ["read:account"],
         content: "Search Elektrine and the web",
-        url: Elektrine.Paths.maid_path(),
+        url: Elektrine.Paths.paige_path(),
         updated_at: DateTime.utc_now(),
         relevance: 1.01,
-        keywords: ["maid", "search", "web", "find"]
+        keywords: ["paige", "search", "web", "find"]
       }
     ]
   end

@@ -1,9 +1,11 @@
-<div class="flex h-[calc(100vh-4rem)] bg-base-200">
-  <!-- Sidebar -->
-  <div class="w-64 bg-base-100 border-r border-base-300 flex flex-col">
+<div class="flex h-[calc(100vh-4rem)] flex-col bg-base-200 lg:flex-row">
+  <!-- Groups sidebar (desktop) -->
+  <div class="hidden w-64 flex-col border-r border-base-300 bg-base-100 lg:flex">
     <!-- Header -->
     <div class="p-4 border-b border-base-300">
-      <h1 class="text-xl font-bold text-base-content">{gettext("Contacts")}</h1>
+      <h1 class="text-2xl font-semibold tracking-tight text-base-content">
+        {gettext("Contacts")}
+      </h1>
     </div>
     <!-- Search -->
     <div class="p-3">
@@ -113,8 +115,79 @@
       </button>
     </div>
   </div>
+  <!-- Mobile header: title, search, group chips -->
+  <div class={[
+    "border-b border-base-300 bg-base-100 p-3 lg:hidden",
+    if(@selected_contact, do: "hidden", else: nil)
+  ]}>
+    <div class="flex items-center justify-between gap-2">
+      <h1 class="text-2xl font-semibold tracking-tight text-base-content">
+        {gettext("Contacts")}
+      </h1>
+      <button phx-click="new_contact" class="btn btn-primary btn-sm gap-2">
+        <.icon name="hero-plus" class="w-4 h-4" /> {gettext("Add Contact")}
+      </button>
+    </div>
+
+    <div class="relative mt-3">
+      <.icon
+        name="hero-magnifying-glass"
+        class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-base-content/50"
+      />
+      <input
+        id="contacts-search-input-mobile"
+        type="text"
+        placeholder={gettext("Search contacts...")}
+        value={@search_query}
+        phx-keyup="search"
+        phx-debounce="300"
+        name="query"
+        class="input input-bordered input-sm w-full pl-9 pr-9"
+      />
+
+      <button
+        type="button"
+        phx-click="clear_search"
+        data-search-clear="true"
+        aria-label={gettext("Clear search")}
+        class={[
+          "btn btn-ghost btn-xs absolute right-1 top-1/2 -translate-y-1/2",
+          if(@search_query == "", do: "pointer-events-none invisible", else: nil)
+        ]}
+      >
+        <.icon name="hero-x-mark" class="h-4 w-4" />
+      </button>
+    </div>
+
+    <div class="mt-3 flex items-center gap-2 overflow-x-auto pb-1">
+      <button
+        phx-click="select_group"
+        phx-value-group="all"
+        class={"btn btn-xs shrink-0 rounded-full #{if @selected_group == nil, do: "btn-secondary", else: "btn-ghost"}"}
+      >
+        {gettext("All Contacts")}
+      </button>
+      <button
+        phx-click="select_group"
+        phx-value-group="favorites"
+        class={"btn btn-xs shrink-0 gap-1.5 rounded-full #{if @selected_group == "favorites", do: "btn-secondary", else: "btn-ghost"}"}
+      >
+        <.icon name="hero-star" class="w-3 h-3" /> {gettext("Favorites")}
+      </button>
+      <%= for group <- @groups do %>
+        <button
+          phx-click="select_group"
+          phx-value-group={group.id}
+          class={"btn btn-xs shrink-0 gap-1.5 rounded-full #{if @selected_group == group.id, do: "btn-secondary", else: "btn-ghost"}"}
+        >
+          <span class="h-2 w-2 rounded-full" style={"background-color: #{group.color}"}></span>
+          {group.name}
+        </button>
+      <% end %>
+    </div>
+  </div>
   <!-- Main Content -->
-  <div class="flex-1 flex">
+  <div class="flex min-h-0 flex-1">
     <!-- Contact List -->
     <div class={"flex-1 overflow-y-auto #{if @selected_contact, do: "hidden lg:block lg:max-w-md", else: ""}"}>
       <%= if Enum.empty?(@filtered_contacts) do %>
@@ -123,6 +196,10 @@
           <p class="text-lg font-medium">{gettext("No contacts found")}</p>
 
           <p class="text-sm">{gettext("Add a contact to get started")}</p>
+
+          <button phx-click="new_contact" class="btn btn-primary btn-sm mt-4 gap-2">
+            <.icon name="hero-plus" class="w-4 h-4" /> {gettext("Add Contact")}
+          </button>
         </div>
       <% else %>
         <div class="divide-y divide-base-300">
@@ -191,7 +268,12 @@
               </div>
 
               <div>
-                <h2 class="text-2xl font-bold">{@selected_contact.name}</h2>
+                <div class="flex items-center gap-2">
+                  <h2 class="text-2xl font-semibold tracking-tight">{@selected_contact.name}</h2>
+                  <%= if @selected_contact.favorite do %>
+                    <.icon name="hero-star-solid" class="w-5 h-5 shrink-0 text-yellow-500" />
+                  <% end %>
+                </div>
 
                 <%= if @selected_contact.title || @selected_contact.organization do %>
                   <p class="text-base-content/60">
@@ -203,84 +285,102 @@
               </div>
             </div>
 
-            <div class="flex items-center gap-2">
-              <button
-                phx-click="toggle_favorite"
-                phx-value-id={@selected_contact.id}
-                class="btn btn-ghost btn-sm"
-              >
-                <%= if @selected_contact.favorite do %>
-                  <.icon name="hero-star-solid" class="w-5 h-5 text-yellow-500" />
-                <% else %>
-                  <.icon name="hero-star" class="w-5 h-5" />
-                <% end %>
-              </button>
+            <div class="flex items-center gap-1">
               <button
                 phx-click="edit_contact"
                 phx-value-id={@selected_contact.id}
                 class="btn btn-ghost btn-sm"
+                title={gettext("Edit Contact")}
               >
-                <.icon name="hero-pencil-square" class="w-5 h-5" />
+                <.icon name="hero-pencil-square" class="w-4 h-4" />
+                <span class="hidden sm:inline">{gettext("Edit")}</span>
               </button>
+
+              <div class="dropdown dropdown-end">
+                <button
+                  tabindex="0"
+                  type="button"
+                  class="btn btn-ghost btn-sm btn-square"
+                  aria-label={gettext("More actions")}
+                  title={gettext("More actions")}
+                >
+                  <.icon name="hero-ellipsis-horizontal" class="w-5 h-5" />
+                </button>
+                <ul
+                  tabindex="0"
+                  class="menu menu-sm dropdown-content z-30 mt-2 w-48 rounded-box p-2"
+                >
+                  <li>
+                    <button phx-click="toggle_favorite" phx-value-id={@selected_contact.id}>
+                      <%= if @selected_contact.favorite do %>
+                        <.icon name="hero-star-solid" class="w-4 h-4 text-yellow-500" />
+                        {gettext("Remove favorite")}
+                      <% else %>
+                        <.icon name="hero-star" class="w-4 h-4" /> {gettext("Add to favorites")}
+                      <% end %>
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      phx-click="delete_contact"
+                      phx-value-id={@selected_contact.id}
+                      data-confirm={gettext("Are you sure you want to delete this contact?")}
+                      class="text-error"
+                    >
+                      <.icon name="hero-trash" class="w-4 h-4" /> {gettext("Delete")}
+                    </button>
+                  </li>
+                </ul>
+              </div>
+
               <button
-                phx-click="delete_contact"
-                phx-value-id={@selected_contact.id}
-                data-confirm={gettext("Are you sure you want to delete this contact?")}
-                class="btn btn-ghost btn-sm text-error"
+                phx-click="close_contact_detail"
+                class="btn btn-ghost btn-sm btn-square lg:hidden"
+                aria-label={gettext("Close")}
               >
-                <.icon name="hero-trash" class="w-5 h-5" />
-              </button>
-              <button phx-click="close_contact_detail" class="btn btn-ghost btn-sm lg:hidden">
                 <.icon name="hero-x-mark" class="w-5 h-5" />
               </button>
             </div>
           </div>
-          <!-- Contact Info Cards -->
-          <div class="space-y-4">
-            <!-- Email -->
+          <!-- Contact details -->
+          <dl class="space-y-4 border-t border-base-300 pt-4 text-sm">
             <%= if @selected_contact.email do %>
-              <div class="card bg-base-200">
-                <div class="card-body p-4">
-                  <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wider mb-2">
-                    {gettext("Email")}
-                  </h3>
-
+              <div>
+                <dt class="text-xs font-medium text-base-content/50">{gettext("Email")}</dt>
+                <dd class="mt-1 space-y-1">
                   <a
                     href={"mailto:#{@selected_contact.email}"}
-                    class="flex items-center gap-2 text-primary hover:underline"
+                    class="block break-all text-primary hover:underline"
                   >
-                    <.icon name="hero-envelope" class="w-4 h-4" /> {@selected_contact.email}
+                    {@selected_contact.email}
                   </a>
                   <%= if @selected_contact.emails && length(@selected_contact.emails) > 0 do %>
                     <%= for email_entry <- @selected_contact.emails do %>
                       <a
                         href={"mailto:#{email_entry["email"]}"}
-                        class="flex items-center gap-2 text-primary hover:underline mt-1"
+                        class="flex flex-wrap items-center gap-2 break-all text-primary hover:underline"
                       >
-                        <.icon name="hero-envelope" class="w-4 h-4" /> {email_entry["email"]}
+                        {email_entry["email"]}
                         <%= if email_entry["type"] do %>
                           <span class="badge badge-xs badge-ghost">{email_entry["type"]}</span>
                         <% end %>
                       </a>
                     <% end %>
                   <% end %>
-                </div>
+                </dd>
               </div>
             <% end %>
-            <!-- Phone -->
-            <%= if @selected_contact.phone || (@selected_contact.phones && length(@selected_contact.phones) > 0) do %>
-              <div class="card bg-base-200">
-                <div class="card-body p-4">
-                  <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wider mb-2">
-                    {gettext("Phone")}
-                  </h3>
 
+            <%= if @selected_contact.phone || (@selected_contact.phones && length(@selected_contact.phones) > 0) do %>
+              <div>
+                <dt class="text-xs font-medium text-base-content/50">{gettext("Phone")}</dt>
+                <dd class="mt-1 space-y-1">
                   <%= if @selected_contact.phone do %>
                     <a
                       href={"tel:#{@selected_contact.phone}"}
-                      class="flex items-center gap-2 text-primary hover:underline"
+                      class="block text-primary hover:underline"
                     >
-                      <.icon name="hero-phone" class="w-4 h-4" /> {@selected_contact.phone}
+                      {@selected_contact.phone}
                     </a>
                   <% end %>
 
@@ -288,103 +388,81 @@
                     <%= for phone_entry <- @selected_contact.phones do %>
                       <a
                         href={"tel:#{phone_entry["number"]}"}
-                        class="flex items-center gap-2 text-primary hover:underline mt-1"
+                        class="flex flex-wrap items-center gap-2 text-primary hover:underline"
                       >
-                        <.icon name="hero-phone" class="w-4 h-4" /> {phone_entry["number"]}
+                        {phone_entry["number"]}
                         <%= if phone_entry["type"] do %>
                           <span class="badge badge-xs badge-ghost">{phone_entry["type"]}</span>
                         <% end %>
                       </a>
                     <% end %>
                   <% end %>
-                </div>
+                </dd>
               </div>
             <% end %>
-            <!-- Address -->
+
             <%= if @selected_contact.addresses && length(@selected_contact.addresses) > 0 do %>
-              <div class="card bg-base-200">
-                <div class="card-body p-4">
-                  <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wider mb-2">
-                    {gettext("Address")}
-                  </h3>
-
+              <div>
+                <dt class="text-xs font-medium text-base-content/50">{gettext("Address")}</dt>
+                <dd class="mt-1 space-y-2">
                   <%= for addr <- @selected_contact.addresses do %>
-                    <div class="flex items-start gap-2 mt-1">
-                      <.icon name="hero-map-pin" class="w-4 h-4 mt-0.5" />
-                      <div>
-                        <%= if addr["street"] do %>
-                          <div>{addr["street"]}</div>
-                        <% end %>
+                    <div>
+                      <%= if addr["street"] do %>
+                        <div>{addr["street"]}</div>
+                      <% end %>
 
-                        <%= if addr["city"] || addr["state"] || addr["postal_code"] do %>
-                          <div>
-                            {[addr["city"], addr["state"], addr["postal_code"]]
-                            |> Enum.filter(& &1)
-                            |> Enum.join(", ")}
-                          </div>
-                        <% end %>
+                      <%= if addr["city"] || addr["state"] || addr["postal_code"] do %>
+                        <div>
+                          {[addr["city"], addr["state"], addr["postal_code"]]
+                          |> Enum.filter(& &1)
+                          |> Enum.join(", ")}
+                        </div>
+                      <% end %>
 
-                        <%= if addr["country"] do %>
-                          <div>{addr["country"]}</div>
-                        <% end %>
+                      <%= if addr["country"] do %>
+                        <div>{addr["country"]}</div>
+                      <% end %>
 
-                        <%= if addr["type"] do %>
-                          <span class="badge badge-xs badge-ghost mt-1">{addr["type"]}</span>
-                        <% end %>
-                      </div>
+                      <%= if addr["type"] do %>
+                        <span class="badge badge-xs badge-ghost mt-1">{addr["type"]}</span>
+                      <% end %>
                     </div>
                   <% end %>
-                </div>
+                </dd>
               </div>
             <% end %>
-            <!-- Birthday / Anniversary -->
-            <%= if @selected_contact.birthday || @selected_contact.anniversary do %>
-              <div class="card bg-base-200">
-                <div class="card-body p-4">
-                  <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wider mb-2">
-                    {gettext("Important Dates")}
-                  </h3>
 
-                  <%= if @selected_contact.birthday do %>
-                    <div class="flex items-center gap-2">
-                      <.icon name="hero-cake" class="w-4 h-4" />
-                      <span>
-                        {gettext("Birthday")}: {Calendar.strftime(
-                          @selected_contact.birthday,
-                          "%B %d, %Y"
-                        )}
-                      </span>
-                    </div>
-                  <% end %>
-
-                  <%= if @selected_contact.anniversary do %>
-                    <div class="flex items-center gap-2 mt-1">
-                      <.icon name="hero-heart" class="w-4 h-4" />
-                      <span>
-                        {gettext("Anniversary")}: {Calendar.strftime(
-                          @selected_contact.anniversary,
-                          "%B %d, %Y"
-                        )}
-                      </span>
-                    </div>
-                  <% end %>
-                </div>
+            <%= if @selected_contact.birthday do %>
+              <div>
+                <dt class="text-xs font-medium text-base-content/50">{gettext("Birthday")}</dt>
+                <dd class="mt-1">
+                  {Calendar.strftime(@selected_contact.birthday, "%B %d, %Y")}
+                </dd>
               </div>
             <% end %>
-            <!-- Notes -->
+
+            <%= if @selected_contact.anniversary do %>
+              <div>
+                <dt class="text-xs font-medium text-base-content/50">{gettext("Anniversary")}</dt>
+                <dd class="mt-1">
+                  {Calendar.strftime(@selected_contact.anniversary, "%B %d, %Y")}
+                </dd>
+              </div>
+            <% end %>
+
             <%= if @selected_contact.notes do %>
-              <div class="card bg-base-200">
-                <div class="card-body p-4">
-                  <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wider mb-2">
-                    {gettext("Notes")}
-                  </h3>
-
-                  <p class="whitespace-pre-wrap">{@selected_contact.notes}</p>
-                </div>
+              <div>
+                <dt class="text-xs font-medium text-base-content/50">{gettext("Notes")}</dt>
+                <dd class="mt-1 whitespace-pre-wrap">{@selected_contact.notes}</dd>
               </div>
             <% end %>
-          </div>
+          </dl>
         </div>
+      </div>
+    <% else %>
+      <div class="hidden flex-1 flex-col items-center justify-center border-l border-base-300 bg-base-100 text-base-content/50 lg:flex">
+        <.icon name="hero-user-circle" class="mb-3 h-12 w-12" />
+        <p class="text-sm">{gettext("Select a contact to see details")}</p>
       </div>
     <% end %>
   </div>
@@ -403,8 +481,8 @@
         phx-change="validate_contact"
         class="space-y-4"
       >
-        <div class="grid grid-cols-2 gap-4">
-          <div class="form-control col-span-2">
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div class="form-control sm:col-span-2">
             <label class="label"><span class="label-text">{gettext("Name")} *</span></label>
             <input
               type="text"
@@ -418,7 +496,7 @@
             />
           </div>
 
-          <div class="form-control col-span-2">
+          <div class="form-control sm:col-span-2">
             <label class="label"><span class="label-text">{gettext("Email")} *</span></label>
             <input
               type="email"
@@ -518,7 +596,7 @@
             />
           </div>
 
-          <div class="form-control col-span-2">
+          <div class="form-control sm:col-span-2">
             <label class="label"><span class="label-text">{gettext("Notes")}</span></label> <textarea
               name="contact[notes]"
               rows="3"

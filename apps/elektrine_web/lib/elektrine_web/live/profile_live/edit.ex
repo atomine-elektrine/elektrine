@@ -6,6 +6,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
   alias Elektrine.Profiles
   alias Elektrine.Profiles.UserProfile
   alias Elektrine.Repo
+  alias Elektrine.Security.SafeExternalURL
   alias Elektrine.StaticSites
   alias Elektrine.Theme
   alias ElektrineWeb.GitHubWebhooks
@@ -40,7 +41,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
   @impl true
   def mount(_params, _session, socket) do
     user = socket.assigns.current_user
-    profile = Profiles.get_user_profile(user.id)
+    profile = load_edit_profile(user.id)
 
     # Create default profile if none exists
     profile =
@@ -50,7 +51,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
         case Profiles.create_user_profile(user.id, %{
                display_name: user.username
              }) do
-          {:ok, _new_profile} -> Profiles.get_user_profile(user.id)
+          {:ok, _new_profile} -> load_edit_profile(user.id)
           _ -> nil
         end
       end
@@ -62,6 +63,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
     static_site_storage = StaticSites.total_storage_used(user.id)
     github_connected_account = github_connected_account(user.id)
     static_site_deployment = StaticSites.get_static_site_deployment(user.id)
+    static_site_deploys = StaticSites.list_static_site_deploys(static_site_deployment)
 
     # Admins get higher upload limits
     # 100MB vs 10MB
@@ -87,6 +89,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
      |> assign(:static_site_limit, user.storage_limit_bytes || 524_288_000)
      |> assign(:github_connected_account, github_connected_account)
      |> assign(:static_site_deployment, static_site_deployment)
+     |> assign(:static_site_deploys, static_site_deploys)
      |> assign(:github_deploy_form, github_deploy_form(static_site_deployment))
      |> assign(:profile_save_status, "Saved")
      |> assign(:drag_over, false)
@@ -463,6 +466,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
           for {key, value} <- link_params, into: %{} do
             {to_string(key), to_string(value)}
           end
+          |> normalize_profile_link_params()
 
         # Fetch thumbnail automatically if URL is provided and no thumbnail yet
         clean_params =
@@ -474,7 +478,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
                   # Update the link after creation
                   # Brief delay to let creation complete
                   :timer.sleep(100)
-                  profile = Profiles.get_user_profile(socket.assigns.profile.user_id)
+                  profile = load_edit_profile(socket.assigns.profile.user_id)
 
                   if profile && profile.links do
                     # Find the most recently created link
@@ -500,7 +504,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
         case Profiles.create_profile_link(socket.assigns.profile.id, clean_params) do
           {:ok, _link} ->
             # Reload profile with updated links
-            updated_profile = Profiles.get_user_profile(socket.assigns.user.id)
+            updated_profile = load_edit_profile(socket.assigns.user.id)
 
             {:noreply,
              socket
@@ -536,6 +540,10 @@ defmodule ElektrineWeb.ProfileLive.Edit do
            "display_style" => link.display_style,
            "highlight_effect" => link.highlight_effect,
            "section" => link.section || "",
+           "thumbnail_url" => link.thumbnail_url || "",
+           "pinned" => link.pinned,
+           "active_from" => format_datetime_local(link.active_from),
+           "active_until" => format_datetime_local(link.active_until),
            "is_active" => link.is_active
          })}
       else
@@ -557,11 +565,13 @@ defmodule ElektrineWeb.ProfileLive.Edit do
             {to_string(key), to_string(value)}
           end
           |> convert_checkbox_to_boolean("is_active")
+          |> convert_checkbox_to_boolean("pinned")
+          |> normalize_profile_link_params()
 
         case Profiles.update_profile_link(link, clean_params) do
           {:ok, _updated_link} ->
             # Reload profile with updated links
-            updated_profile = Profiles.get_user_profile(socket.assigns.user.id)
+            updated_profile = load_edit_profile(socket.assigns.user.id)
 
             {:noreply,
              socket
@@ -591,6 +601,30 @@ defmodule ElektrineWeb.ProfileLive.Edit do
      |> assign(:editing_link_data, %{})}
   end
 
+  def handle_event("check_link_health", %{"id" => link_id}, socket) do
+    link = socket.assigns.profile && find_profile_link(socket.assigns.profile, link_id)
+
+    if link do
+      {status, error} = check_profile_link_url(link.url)
+
+      _ =
+        Profiles.update_profile_link(link, %{
+          "last_check_status" => status,
+          "last_check_error" => error,
+          "last_checked_at" => DateTime.utc_now() |> DateTime.truncate(:second)
+        })
+
+      updated_profile = load_edit_profile(socket.assigns.user.id)
+
+      {:noreply,
+       socket
+       |> assign(:profile, updated_profile)
+       |> notify_info(if(status == "ok", do: "Link check passed", else: "Link appears broken"))}
+    else
+      {:noreply, socket}
+    end
+  end
+
   @impl true
   def handle_event("delete_link", %{"id" => link_id}, socket) do
     # Find the link and delete it
@@ -601,7 +635,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
         case Profiles.delete_profile_link(link) do
           {:ok, _} ->
             # Reload profile with updated links
-            updated_profile = Profiles.get_user_profile(socket.assigns.user.id)
+            updated_profile = load_edit_profile(socket.assigns.user.id)
 
             {:noreply,
              socket
@@ -642,7 +676,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
         case Profiles.create_widget(widget_attrs) do
           {:ok, _widget} ->
             # Reload profile with updated widgets
-            updated_profile = Profiles.get_user_profile(socket.assigns.user.id)
+            updated_profile = load_edit_profile(socket.assigns.user.id)
 
             {:noreply,
              socket
@@ -666,7 +700,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
         case Profiles.delete_widget(widget.id) do
           {:ok, _} ->
             # Reload profile with updated widgets
-            updated_profile = Profiles.get_user_profile(socket.assigns.user.id)
+            updated_profile = load_edit_profile(socket.assigns.user.id)
 
             {:noreply,
              socket
@@ -742,7 +776,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
         end)
 
         # Reload profile
-        updated_profile = Profiles.get_user_profile(socket.assigns.user.id)
+        updated_profile = load_edit_profile(socket.assigns.user.id)
         {:noreply, assign(socket, :profile, updated_profile)}
       else
         {:noreply, socket}
@@ -751,6 +785,36 @@ defmodule ElektrineWeb.ProfileLive.Edit do
       {:noreply, socket}
     end
   end
+
+  def handle_event("reorder_links", %{"ids" => ids}, socket) when is_list(ids) do
+    links = socket.assigns.profile && socket.assigns.profile.links
+
+    if is_list(links) do
+      link_ids = MapSet.new(Enum.map(links, &Integer.to_string(&1.id)))
+      ordered_ids = Enum.filter(ids, &MapSet.member?(link_ids, to_string(&1)))
+
+      if length(ordered_ids) == length(links) do
+        links_by_id = Map.new(links, &{Integer.to_string(&1.id), &1})
+
+        ordered_ids
+        |> Enum.with_index()
+        |> Enum.each(fn {id, idx} ->
+          links_by_id
+          |> Map.fetch!(id)
+          |> Profiles.update_profile_link(%{"position" => idx})
+        end)
+
+        updated_profile = load_edit_profile(socket.assigns.user.id)
+        {:noreply, assign(socket, :profile, updated_profile)}
+      else
+        {:noreply, socket}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("reorder_links", _params, socket), do: {:noreply, socket}
 
   def handle_event("reorder_widget", %{"id" => widget_id, "direction" => direction}, socket) do
     widgets = socket.assigns.profile.widgets
@@ -784,7 +848,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
         end)
 
         # Reload profile
-        updated_profile = Profiles.get_user_profile(socket.assigns.user.id)
+        updated_profile = load_edit_profile(socket.assigns.user.id)
         {:noreply, assign(socket, :profile, updated_profile)}
       else
         {:noreply, socket}
@@ -877,6 +941,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
       # Convert checkbox values to booleans - only for fields present in the form
       profile_params =
         profile_params
+        |> transform_profile_visibility_controls()
         |> convert_checkbox_to_boolean_if_present("show_discord_presence")
         |> convert_checkbox_to_boolean_if_present("use_discord_avatar")
         |> convert_checkbox_to_boolean_if_present("hide_view_counter")
@@ -902,7 +967,8 @@ defmodule ElektrineWeb.ProfileLive.Edit do
         end
 
       # Birthday fields live on the user, not the profile
-      {user_params, profile_params} = Map.split(profile_params, ["birthday", "show_birthday"])
+      {user_params, profile_params} =
+        Map.split(profile_params, ["birthday", "show_birthday", "profile_visibility"])
 
       # Apply both writes atomically: a birthday validation error must not
       # drop the profile edits, and a failed profile upsert must not leave a
@@ -926,7 +992,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
       case result do
         {:ok, updated_user} ->
           # Force reload profile with links
-          refreshed_profile = Profiles.get_user_profile(socket.assigns.user.id)
+          refreshed_profile = load_edit_profile(socket.assigns.user.id)
 
           {:noreply,
            socket
@@ -968,10 +1034,12 @@ defmodule ElektrineWeb.ProfileLive.Edit do
         case StaticSites.upsert_github_deployment(socket.assigns.user.id, attrs) do
           {:ok, deployment} ->
             {deployment, message} = maybe_install_github_webhook(deployment, socket)
+            deploys = StaticSites.list_static_site_deploys(deployment)
 
             {:noreply,
              socket
              |> assign(:static_site_deployment, deployment)
+             |> assign(:static_site_deploys, deploys)
              |> assign(:github_deploy_form, github_deploy_form(deployment))
              |> notify_info(message)}
 
@@ -993,10 +1061,12 @@ defmodule ElektrineWeb.ProfileLive.Edit do
         case StaticSites.enqueue_github_deploy(deployment) do
           {:ok, _job} ->
             deployment = StaticSites.get_static_site_deployment(socket.assigns.user.id)
+            deploys = StaticSites.list_static_site_deploys(deployment)
 
             {:noreply,
              socket
              |> assign(:static_site_deployment, deployment)
+             |> assign(:static_site_deploys, deploys)
              |> notify_info("Deploy queued")}
 
           {:error, _reason} ->
@@ -1005,12 +1075,35 @@ defmodule ElektrineWeb.ProfileLive.Edit do
     end
   end
 
+  def handle_event("rollback_static_site_deploy", %{"id" => deploy_id}, socket) do
+    with {:ok, id} <- parse_positive_int(deploy_id),
+         deploy when not is_nil(deploy) <-
+           StaticSites.get_static_site_deploy_for_user(socket.assigns.user.id, id),
+         {:ok, %{deployment: deployment}} <-
+           StaticSites.rollback_static_site(socket.assigns.user, deploy) do
+      static_site_files = StaticSites.list_files(socket.assigns.user.id)
+      static_site_storage = StaticSites.total_storage_used(socket.assigns.user.id)
+      deploys = StaticSites.list_static_site_deploys(deployment)
+
+      {:noreply,
+       socket
+       |> assign(:static_site_deployment, deployment)
+       |> assign(:static_site_deploys, deploys)
+       |> assign(:static_site_files, static_site_files)
+       |> assign(:static_site_storage, static_site_storage)
+       |> notify_info("Rollback complete")}
+    else
+      _ ->
+        {:noreply, notify_error(socket, "Could not rollback to that deploy")}
+    end
+  end
+
   def handle_event("set_profile_mode", %{"mode" => mode}, socket) do
     case mode do
       "static" ->
         case StaticSites.enable_static_mode(socket.assigns.user.id) do
           {:ok, _} ->
-            profile = Profiles.get_user_profile(socket.assigns.user.id)
+            profile = load_edit_profile(socket.assigns.user.id)
 
             {:noreply,
              socket |> assign(:profile, profile) |> notify_info("Static site mode enabled")}
@@ -1022,7 +1115,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
       "builder" ->
         case StaticSites.enable_builder_mode(socket.assigns.user.id) do
           {:ok, _} ->
-            profile = Profiles.get_user_profile(socket.assigns.user.id)
+            profile = load_edit_profile(socket.assigns.user.id)
 
             {:noreply,
              socket |> assign(:profile, profile) |> notify_info("Profile builder mode enabled")}
@@ -1321,6 +1414,8 @@ defmodule ElektrineWeb.ProfileLive.Edit do
     Accounts.update_user(user, user_params)
   end
 
+  defp load_edit_profile(user_id), do: Profiles.get_user_profile(user_id, links: :all)
+
   defp upload_in_progress?(socket, upload_names) when is_list(upload_names) do
     Enum.any?(upload_names, &upload_in_progress?(socket, &1))
   end
@@ -1332,7 +1427,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
 
   defp ensure_static_profile_mode(user_id) do
     _ = StaticSites.enable_static_mode(user_id)
-    Profiles.get_user_profile(user_id)
+    load_edit_profile(user_id)
   end
 
   # Helper functions for username intensity parsing
@@ -1623,6 +1718,124 @@ defmodule ElektrineWeb.ProfileLive.Edit do
 
   defp transform_widget_url(params), do: params
 
+  defp transform_profile_visibility_controls(params) do
+    params
+    |> put_hidden_flag_from_visibility("timeline_visibility", "hide_timeline")
+    |> put_hidden_flag_from_visibility("community_posts_visibility", "hide_community_posts")
+    |> put_hidden_flag_from_visibility("share_visibility", "hide_share_button")
+    |> put_hidden_flag_from_visibility("identity_visibility", "hide_avatar")
+    |> put_hidden_flag_from_visibility("view_counter_visibility", "hide_view_counter")
+    |> put_hidden_flag_from_visibility("uid_visibility", "hide_uid")
+    |> put_boolean_from_choice("layout_height", "extend_layout", "extended")
+    |> Map.drop([
+      "timeline_visibility",
+      "community_posts_visibility",
+      "share_visibility",
+      "identity_visibility",
+      "view_counter_visibility",
+      "uid_visibility",
+      "layout_height"
+    ])
+  end
+
+  defp duplicate_profile_link_urls(profile) do
+    profile
+    |> Map.get(:links, [])
+    |> Enum.map(&normalize_duplicate_link_url(Map.get(&1, :url)))
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.frequencies()
+    |> Enum.filter(fn {_url, count} -> count > 1 end)
+    |> Enum.map(fn {url, _count} -> url end)
+  end
+
+  defp duplicate_profile_link_url?(profile, link) do
+    normalized_url = normalize_duplicate_link_url(Map.get(link, :url))
+
+    normalized_url != "" and normalized_url in duplicate_profile_link_urls(profile)
+  end
+
+  defp normalize_duplicate_link_url(url) when is_binary(url) do
+    url
+    |> String.trim()
+    |> String.downcase()
+    |> String.trim_trailing("/")
+  end
+
+  defp normalize_duplicate_link_url(_url), do: ""
+
+  defp normalize_profile_link_params(params) do
+    params
+    |> normalize_link_datetime_param("active_from")
+    |> normalize_link_datetime_param("active_until")
+  end
+
+  defp normalize_link_datetime_param(params, field) do
+    case Map.get(params, field) do
+      value when value in [nil, ""] ->
+        Map.put(params, field, nil)
+
+      value when is_binary(value) ->
+        case NaiveDateTime.from_iso8601(normalize_datetime_local_value(value)) do
+          {:ok, naive} -> Map.put(params, field, DateTime.from_naive!(naive, "Etc/UTC"))
+          {:error, _} -> Map.put(params, field, nil)
+        end
+
+      _ ->
+        params
+    end
+  end
+
+  defp normalize_datetime_local_value(value) do
+    if String.length(value) == 16, do: value <> ":00", else: value
+  end
+
+  defp format_datetime_local(nil), do: ""
+
+  defp format_datetime_local(%DateTime{} = datetime) do
+    datetime
+    |> DateTime.truncate(:second)
+    |> Calendar.strftime("%Y-%m-%dT%H:%M")
+  end
+
+  defp format_datetime_local(_datetime), do: ""
+
+  defp check_profile_link_url("mailto:" <> _address), do: {"ok", nil}
+  defp check_profile_link_url("tel:" <> _phone), do: {"ok", nil}
+
+  defp check_profile_link_url(url) when is_binary(url) do
+    with {:ok, safe_url} <- SafeExternalURL.normalize(url),
+         {:ok, response} <- Req.head(safe_url, redirect: true, receive_timeout: 5_000) do
+      if response.status < 400 do
+        {"ok", nil}
+      else
+        {"broken", "HTTP #{response.status}"}
+      end
+    else
+      {:error, reason} -> {"broken", inspect(reason)}
+      _ -> {"broken", "Request failed"}
+    end
+  rescue
+    error -> {"broken", Exception.message(error)}
+  end
+
+  defp check_profile_link_url(_url), do: {"broken", "Invalid URL"}
+
+  defp put_hidden_flag_from_visibility(params, source_field, target_field) do
+    case Map.get(params, source_field) do
+      "hidden" -> Map.put(params, target_field, true)
+      "public" -> Map.put(params, target_field, false)
+      _ -> params
+    end
+  end
+
+  defp put_boolean_from_choice(params, source_field, target_field, truthy_value) do
+    case Map.get(params, source_field) do
+      ^truthy_value -> Map.put(params, target_field, true)
+      value when is_binary(value) -> Map.put(params, target_field, false)
+      _ -> params
+    end
+  end
+
   # Convert HTML checkbox values to booleans
   defp convert_checkbox_to_boolean(params, field_name) do
     case Map.get(params, field_name) do
@@ -1765,6 +1978,117 @@ defmodule ElektrineWeb.ProfileLive.Edit do
       "site_dir" => deployment.site_dir
     })
   end
+
+  defp deploy_status_badge_class("deployed"), do: "badge-success"
+  defp deploy_status_badge_class("failed"), do: "badge-error"
+  defp deploy_status_badge_class("rolled_back"), do: "badge-info"
+
+  defp deploy_status_badge_class(status) when status in ["queued", "deploying"],
+    do: "badge-warning"
+
+  defp deploy_status_badge_class(_status), do: "badge-ghost"
+
+  defp deploy_timeline_steps(deployment) do
+    status = deployment.deploy_status || "idle"
+
+    [
+      %{
+        label: "Repository linked",
+        meta: "#{deployment.repo_owner}/#{deployment.repo_name}",
+        state: :done
+      },
+      %{
+        label: "Build queued",
+        meta:
+          if(status == "idle",
+            do: "Waiting for push or manual deploy",
+            else: "Deploy request accepted"
+          ),
+        state: deploy_step_state(status, ["queued", "deploying", "deployed", "failed"])
+      },
+      %{
+        label: "Static files built",
+        meta: site_dir_label(deployment.site_dir),
+        state: deploy_step_state(status, ["deploying", "deployed", "failed"])
+      },
+      %{
+        label: "Published",
+        meta: "Profile URL updated after successful deploy",
+        state: deploy_step_state(status, ["deployed"])
+      }
+    ]
+  end
+
+  defp deploy_step_state("failed", statuses) do
+    if "failed" in statuses, do: :failed, else: :done
+  end
+
+  defp deploy_step_state(status, statuses) do
+    cond do
+      status == "deployed" -> :done
+      status in statuses -> :active
+      true -> :waiting
+    end
+  end
+
+  defp deploy_step_dot_class(:done), do: "bg-success text-success-content"
+  defp deploy_step_dot_class(:active), do: "bg-warning text-warning-content"
+  defp deploy_step_dot_class(:failed), do: "bg-error text-error-content"
+  defp deploy_step_dot_class(:waiting), do: "bg-base-300 text-base-content/60"
+
+  defp deploy_step_icon(:done), do: "hero-check"
+  defp deploy_step_icon(:failed), do: "hero-x-mark"
+  defp deploy_step_icon(_state), do: "hero-clock"
+
+  defp format_profile_datetime(nil), do: "Never"
+
+  defp format_profile_datetime(%DateTime{} = datetime) do
+    datetime
+    |> DateTime.truncate(:second)
+    |> DateTime.to_string()
+  end
+
+  defp format_profile_datetime(%NaiveDateTime{} = datetime) do
+    datetime
+    |> NaiveDateTime.truncate(:second)
+    |> NaiveDateTime.to_string()
+  end
+
+  defp format_profile_datetime(datetime), do: to_string(datetime)
+
+  defp link_health_badge_class("ok"), do: "badge-success"
+  defp link_health_badge_class("broken"), do: "badge-error"
+  defp link_health_badge_class(_status), do: "badge-ghost"
+
+  defp link_ctr(%{clicks: clicks, impressions: impressions})
+       when is_integer(clicks) and is_integer(impressions) and impressions > 0 do
+    "#{Float.round(clicks / impressions * 100, 1)}%"
+  end
+
+  defp link_ctr(_link), do: "0%"
+
+  defp link_schedule_label(link) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    cond do
+      link.active_from && DateTime.compare(link.active_from, now) == :gt ->
+        "Scheduled"
+
+      link.active_until && DateTime.compare(link.active_until, now) != :gt ->
+        "Expired"
+
+      link.active_from || link.active_until ->
+        "Timed"
+
+      true ->
+        nil
+    end
+  end
+
+  defp site_dir_label(nil), do: "Auto-detect output directory"
+  defp site_dir_label(""), do: "Auto-detect output directory"
+  defp site_dir_label("auto"), do: "Auto-detect output directory"
+  defp site_dir_label(site_dir), do: "Publishing #{site_dir}"
 
   defp normalize_github_deploy_form(params) when is_map(params) do
     defaults = default_github_deploy_form()

@@ -67,10 +67,54 @@ defmodule Kairo.Source do
     |> validate_inclusion(:source_type, @source_types)
     |> validate_inclusion(:status, @statuses)
     |> validate_source_payload()
+    |> put_raw_hash()
     |> encrypt_content_at_rest()
     |> foreign_key_constraint(:user_id)
     |> foreign_key_constraint(:project_id)
+    |> unique_constraint(:raw_hash,
+      name: :kairo_sources_user_id_raw_hash_index,
+      message: "duplicate of an existing source"
+    )
   end
+
+  # Plaintext sources get a server-computed canonical content hash used for
+  # ingest dedup. Encrypted sources keep whatever blind HMAC the client
+  # supplied (or none) - the server never sees the plaintext, so it cannot and
+  # must not hash it. Computed from normalized changeset fields so the same
+  # content hashes identically on create and update.
+  defp put_raw_hash(changeset) do
+    if get_field(changeset, :encrypted) do
+      changeset
+    else
+      put_change(changeset, :raw_hash, compute_raw_hash(changeset))
+    end
+  end
+
+  defp compute_raw_hash(changeset) do
+    [:source_type, :title, :url, :content, :content_format, :metadata, :tags]
+    |> Enum.map(&canonical_hash_value(get_field(changeset, &1)))
+    |> :erlang.term_to_binary()
+    |> then(&:crypto.hash(:sha256, &1))
+    |> Base.encode16(case: :lower)
+  end
+
+  defp canonical_hash_value(value) when is_binary(value) do
+    case String.trim(value) do
+      "" -> nil
+      trimmed -> trimmed
+    end
+  end
+
+  defp canonical_hash_value(value) when is_list(value),
+    do: value |> Enum.map(&canonical_hash_value/1) |> Enum.sort()
+
+  defp canonical_hash_value(value) when is_map(value) do
+    value
+    |> Enum.map(fn {key, val} -> {to_string(key), canonical_hash_value(val)} end)
+    |> Enum.sort()
+  end
+
+  defp canonical_hash_value(value), do: value
 
   # Non zero-knowledge sources get their plaintext body encrypted at rest with
   # the server-held per-user key, the same treatment email and chat bodies get.

@@ -7,7 +7,7 @@
 
   <.experimental_notice
     class="mb-6"
-    message="Drive is experimental. Keep separate backups of important files while upload, sharing, and storage behavior is being tested."
+    message="Drive is experimental. Keep separate backups of important files."
   />
 
   <div class="space-y-6">
@@ -17,159 +17,136 @@
       id="file-explorer"
       phx-drop-target={@uploads.files.ref}
     >
-      <div class="border-b border-base-300/60 px-4 py-4 sm:px-6">
-        <%= if length(@breadcrumbs) > 1 do %>
-          <div class="mb-3 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-base-content/45">
-            <%= for crumb <- @breadcrumbs do %>
-              <span class="rounded-full bg-base-200/70 px-2.5 py-1 normal-case tracking-normal text-base-content/65">
-                {crumb.name}
-              </span>
-            <% end %>
-          </div>
-        <% end %>
-
-        <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-          <div class="space-y-1">
-            <h3 class="text-2xl font-semibold tracking-tight sm:text-3xl">
-              {current_folder_name(@current_folder)}
-            </h3>
-            <p class="text-sm text-base-content/60">
-              {length(@folders)} folder{if length(@folders) != 1, do: "s"}, {length(@files)} file{if length(
-                                                                                                       @files
-                                                                                                     ) !=
-                                                                                                       1,
-                                                                                                     do:
-                                                                                                       "s"}
-            </p>
-          </div>
-
-          <div class="w-full max-w-sm text-sm text-base-content/60 xl:text-right">
-            <div class="flex items-center justify-between gap-4 xl:justify-end">
-              <span>{@storage_info.used_formatted} used</span>
-              <span>{@storage_info.available_bytes |> Storage.format_bytes()} free</span>
-            </div>
-            <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-base-200">
-              <div
-                class="h-full rounded-full bg-primary transition-all"
-                style={"width: #{storage_usage_percent(@storage_info)}%"}
+      <div class="flex flex-col gap-3 border-b border-base-300/60 px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
+        <nav class="flex min-w-0 flex-wrap items-center gap-1 text-sm">
+          <%= for {crumb, index} <- Enum.with_index(@breadcrumbs) do %>
+            <.icon
+              :if={index > 0}
+              name="hero-chevron-right"
+              class="h-3.5 w-3.5 shrink-0 text-base-content/40"
+            />
+            <%= if index == length(@breadcrumbs) - 1 do %>
+              <span class="truncate font-semibold">{crumb.name}</span>
+            <% else %>
+              <.link
+                patch={drive_path(crumb.path, @search_query, @sort_by, @active_filter)}
+                class="truncate text-base-content/60 transition hover:text-base-content"
               >
-              </div>
+                {crumb.name}
+              </.link>
+            <% end %>
+          <% end %>
+        </nav>
+
+        <div class="w-full text-xs text-base-content/60 lg:max-w-xs">
+          <div class="flex items-center justify-between gap-4">
+            <span>{@storage_info.used_formatted} used</span>
+            <span>{@storage_info.available_bytes |> Storage.format_bytes()} free</span>
+          </div>
+          <div class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-base-200">
+            <div
+              class="h-full rounded-full bg-primary transition-all"
+              style={"width: #{storage_usage_percent(@storage_info)}%"}
+            >
             </div>
           </div>
         </div>
       </div>
 
-      <div class="border-b border-base-300/60 bg-base-200/20 px-4 py-4 sm:px-6">
-        <div class="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(18rem,28rem)] xl:items-center">
+      <div class="space-y-3 border-b border-base-300/60 px-4 py-3 sm:px-6">
+        <div class="flex flex-wrap items-center gap-2">
           <form id="file-explorer-upload-picker" phx-change="validate_upload" class="contents">
             <input
               type="hidden"
               name="upload[folder]"
               value={if @folder_path in [nil, ""], do: @current_folder, else: @folder_path}
             />
-
-            <div class="flex flex-wrap items-center gap-2">
-              <label
-                phx-drop-target={@uploads.files.ref}
-                class="btn btn-primary btn-sm h-9 min-h-9 cursor-pointer"
-              >
-                <.icon name="hero-arrow-up-tray" class="h-4 w-4" /> Upload
-                <.live_file_input upload={@uploads.files} class="hidden" />
-              </label>
-              <button
-                type="button"
-                phx-click="toggle_new_folder"
-                class="btn btn-outline btn-sm h-9 min-h-9"
-              >
-                <.icon name="hero-folder-plus" class="h-4 w-4" /> New Folder
-              </button>
-              <button
-                type="button"
-                phx-click="select_visible"
-                class="btn btn-ghost btn-sm h-9 min-h-9"
-              >
-                Select Visible
-              </button>
-              <button
-                type="button"
-                phx-click="clear_selection"
-                class="btn btn-ghost btn-sm h-9 min-h-9"
-              >
-                Clear
-              </button>
-              <%= if MapSet.size(@selected_items) > 0 do %>
-                <button
-                  type="button"
-                  phx-click="open_bulk_move"
-                  class="btn btn-outline btn-sm h-9 min-h-9"
-                >
-                  <.icon name="hero-arrows-right-left" class="h-4 w-4" /> Move Selected
-                </button>
-                <button
-                  type="button"
-                  phx-click="bulk_delete"
-                  data-confirm="Delete all selected items?"
-                  class="btn btn-error btn-outline btn-sm h-9 min-h-9"
-                >
-                  <.icon name="hero-trash" class="h-4 w-4" /> Delete Selected
-                </button>
-              <% end %>
-            </div>
+            <label
+              phx-drop-target={@uploads.files.ref}
+              class="btn btn-primary btn-sm h-9 min-h-9 cursor-pointer"
+            >
+              <.icon name="hero-arrow-up-tray" class="h-4 w-4" /> Upload
+              <.live_file_input upload={@uploads.files} class="hidden" />
+            </label>
           </form>
+          <button
+            type="button"
+            phx-click="toggle_new_folder"
+            class="btn btn-outline btn-sm h-9 min-h-9"
+          >
+            <.icon name="hero-folder-plus" class="h-4 w-4" /> New Folder
+          </button>
 
           <form
             phx-change="filter"
-            class="grid gap-2 md:grid-cols-[minmax(0,1fr)_10rem] xl:justify-self-end xl:w-full"
+            class="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:flex-nowrap sm:justify-end"
           >
             <input type="hidden" name="filters[filter]" value={@active_filter} />
-            <label class="form-control">
+            <label class="min-w-0 flex-1 sm:max-w-xs">
               <span class="sr-only">Search drive</span>
               <input
                 type="text"
                 name="filters[q]"
                 value={@search_query}
-                placeholder="Search drive and folders"
+                placeholder="Search"
                 phx-debounce="250"
                 id="file-explorer-search"
                 class="input input-bordered h-9 min-h-9 w-full"
               />
             </label>
-            <label class="form-control">
+            <label class="w-40 shrink-0">
               <span class="sr-only">Sort items</span>
-              <div class="select select-bordered h-9 min-h-9 w-full">
-                <select name="filters[sort]">
-                  <%= for {label, value} <- @sort_options do %>
-                    <option value={value} selected={value == @sort_by}>{label}</option>
-                  <% end %>
-                </select>
-              </div>
+              <select name="filters[sort]" class="select select-bordered h-9 min-h-9 w-full">
+                <%= for {label, value} <- @sort_options do %>
+                  <option value={value} selected={value == @sort_by}>{label}</option>
+                <% end %>
+              </select>
             </label>
           </form>
         </div>
 
-        <div class="mt-3 min-w-0">
-          <div class="flex flex-wrap items-center gap-2">
-            <span class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
-              Quick Filters
-            </span>
-            <%= for {label, value} <- @quick_filter_options do %>
-              <.link
-                patch={drive_path(@current_folder, @search_query, @sort_by, value)}
-                class={[
-                  "rounded-full px-3 py-1.5 text-sm transition-colors",
-                  quick_filter_class(@active_filter, value)
-                ]}
-              >
-                {label}
-              </.link>
-            <% end %>
-          </div>
+        <div class="flex flex-wrap items-center gap-1.5">
+          <%= for {label, value} <- @quick_filter_options do %>
+            <.link
+              patch={drive_path(@current_folder, @search_query, @sort_by, value)}
+              class={[
+                "rounded-full px-3 py-1 text-sm transition-colors",
+                quick_filter_class(@active_filter, value)
+              ]}
+            >
+              {label}
+            </.link>
+          <% end %>
         </div>
+
+        <%= if MapSet.size(@selected_items) > 0 do %>
+          <div class="flex flex-wrap items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm">
+            <span class="font-medium">{MapSet.size(@selected_items)} selected</span>
+            <button
+              type="button"
+              phx-click="open_bulk_move"
+              class="btn btn-outline btn-xs"
+            >
+              <.icon name="hero-arrows-right-left" class="h-3.5 w-3.5" /> Move
+            </button>
+            <button
+              type="button"
+              phx-click="bulk_delete"
+              data-confirm="Delete all selected items?"
+              class="btn btn-error btn-outline btn-xs"
+            >
+              <.icon name="hero-trash" class="h-3.5 w-3.5" /> Delete
+            </button>
+            <button type="button" phx-click="clear_selection" class="btn btn-ghost btn-xs">
+              Clear
+            </button>
+          </div>
+        <% end %>
 
         <%= if @show_new_folder_form do %>
           <form
             phx-submit="create_folder"
-            class="mt-4 flex flex-col gap-2 rounded-xl border border-base-300/60 bg-base-100/70 p-3 sm:flex-row sm:items-center"
+            class="flex flex-col gap-2 rounded-xl border border-base-300/60 bg-base-100/70 p-3 sm:flex-row sm:items-center"
           >
             <input
               type="text"
@@ -191,7 +168,7 @@
         <%= if @bulk_move_open do %>
           <form
             phx-submit="bulk_move"
-            class="mt-4 flex flex-col gap-2 rounded-xl border border-base-300/60 bg-base-100/70 p-3 sm:flex-row sm:items-center"
+            class="flex flex-col gap-2 rounded-xl border border-base-300/60 bg-base-100/70 p-3 sm:flex-row sm:items-center"
           >
             <input
               type="text"
@@ -217,41 +194,28 @@
           <form
             phx-change="validate_upload"
             phx-submit="upload_files"
-            class="mt-4 rounded-2xl border border-base-300/60 bg-base-100/70 p-4"
+            class="rounded-xl border border-base-300/60 bg-base-100/70 p-3"
           >
-            <div class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-              <div>
-                <p class="font-semibold">Upload Queue</p>
-
-                <p class="text-sm text-base-content/60">
-                  Drive uploads will go into {if @folder_path in [nil, ""],
-                    do: "the current folder",
-                    else: @folder_path}.
-                </p>
-              </div>
-
-              <div class="flex flex-col gap-2 sm:flex-row xl:min-w-[24rem] xl:max-w-[30rem]">
-                <input
-                  type="text"
-                  name="upload[folder]"
-                  value={@folder_path}
-                  placeholder="Target folder"
-                  class="input input-bordered h-9 min-h-9 flex-1"
-                />
-                <button type="submit" class="btn btn-primary btn-sm h-9 min-h-9">
-                  Finish upload
-                </button>
-              </div>
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <input
+                type="text"
+                name="upload[folder]"
+                value={@folder_path}
+                placeholder="Destination folder"
+                class="input input-bordered h-9 min-h-9 flex-1"
+              />
+              <button type="submit" class="btn btn-primary btn-sm h-9 min-h-9">
+                Finish upload
+              </button>
             </div>
 
-            <div class="mt-4 space-y-2">
+            <div class="mt-3 space-y-2">
               <%= for entry <- @uploads.files.entries do %>
-                <div class="rounded-xl border border-base-300/50 bg-base-200/35 px-3 py-3 text-sm">
+                <div class="rounded-lg border border-base-300/50 bg-base-200/35 px-3 py-2 text-sm">
                   <div class="flex items-center justify-between gap-3">
                     <div class="min-w-0 flex-1">
                       <p class="truncate font-medium">{entry.client_name}</p>
-
-                      <p class="text-base-content/55">
+                      <p class="text-xs text-base-content/55">
                         {Storage.format_bytes(entry.client_size || 0)}
                       </p>
                     </div>
@@ -266,7 +230,7 @@
                     </button>
                   </div>
 
-                  <div class="mt-3 h-2 overflow-hidden rounded-full bg-base-300">
+                  <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-base-300">
                     <div
                       class="h-full rounded-full bg-primary transition-all"
                       style={"width: #{entry.progress}%"}
@@ -281,12 +245,6 @@
       </div>
 
       <div class="p-4 sm:p-5">
-        <%= if MapSet.size(@selected_items) > 0 do %>
-          <div class="mb-5 rounded-xl border border-primary/20 bg-primary/8 px-4 py-3">
-            <p class="font-semibold">{MapSet.size(@selected_items)} item(s) selected</p>
-          </div>
-        <% end %>
-
         <div
           class="grid gap-5 xl:grid-cols-[var(--files-tree-width,20rem)_minmax(0,1fr)] xl:items-start"
           data-tree-layout
@@ -296,10 +254,6 @@
             class="relative min-w-0 overflow-hidden rounded-2xl border border-base-300/60 bg-base-100/80"
             data-tree-pane
           >
-            <div class="border-b border-base-300/60 bg-base-200/30 px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
-              Folders
-            </div>
-
             <div
               class="absolute -right-2 top-0 hidden h-full w-4 cursor-col-resize items-center justify-center xl:flex"
               data-tree-resizer
@@ -308,11 +262,7 @@
               <span class="h-16 w-1 rounded-full bg-base-300/80"></span>
             </div>
 
-            <div
-              class="max-h-[68vh] overflow-auto overscroll-contain px-3 py-3"
-              data-context-surface="tree"
-              data-row-ignore
-            >
+            <div class="max-h-[68vh] overflow-auto overscroll-contain px-3 py-3" data-row-ignore>
               <nav class="space-y-1.5">
                 <%= for node <- @folder_tree do %>
                   <div class="flex min-w-0 items-center gap-1">
@@ -361,7 +311,6 @@
                       phx-click="open_folder"
                       phx-value-path={node.path}
                       data-tree-folder-drop-path={node.path}
-                      data-tree-folder-label={node.name}
                       class={[
                         "flex min-w-0 flex-1 items-center gap-2.5 overflow-hidden rounded-xl border border-transparent px-3 py-2.5 text-left text-sm transition-all",
                         folder_tree_item_class(@current_folder, node.path)
@@ -382,9 +331,6 @@
 
           <div
             class="min-w-0 overflow-visible rounded-2xl border border-base-300/60 bg-base-100/80"
-            data-context-surface="content"
-            data-context-kind="blank"
-            data-context-path={@current_folder}
             phx-drop-target={@uploads.files.ref}
           >
             <%= if @folders == [] and @files == [] do %>
@@ -394,22 +340,30 @@
                 </div>
 
                 <p class="mt-5 text-lg font-semibold">
-                  <%= if @current_folder == "" do %>
-                    Your library is empty
-                  <% else %>
-                    This folder is empty
-                  <% end %>
+                  This folder is empty
                 </p>
 
                 <p class="mx-auto mt-2 max-w-lg text-sm leading-6 text-base-content/60">
-                  Drop files here from your computer, use the upload button above, or create a folder in this location.
+                  Drop files here or use the Upload button.
                 </p>
               </div>
             <% else %>
               <div class="overflow-visible">
                 <div class="min-w-0 overflow-x-auto overscroll-x-contain">
-                  <div class="hidden lg:grid grid-cols-[2.5rem_minmax(0,2.4fr)_minmax(0,1.2fr)_7.5rem_5.5rem_7rem] gap-3 border-b border-base-300/60 bg-base-200/30 px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-base-content/50">
-                    <div></div>
+                  <div class="hidden lg:grid grid-cols-[2.5rem_minmax(0,2.6fr)_minmax(0,1fr)_7.5rem_6rem_7rem] gap-3 border-b border-base-300/60 bg-base-200/30 px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-base-content/50">
+                    <div class="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={all_visible_selected?(@selected_items, @folders, @files)}
+                        phx-click={
+                          if all_visible_selected?(@selected_items, @folders, @files),
+                            do: "clear_selection",
+                            else: "select_visible"
+                        }
+                        aria-label="Select all"
+                        class="checkbox checkbox-sm"
+                      />
+                    </div>
                     <.link
                       patch={
                         drive_path(
@@ -427,23 +381,7 @@
                         <.icon name={icon} class="h-3.5 w-3.5" />
                       <% end %>
                     </.link>
-                    <.link
-                      patch={
-                        drive_path(
-                          @current_folder,
-                          @search_query,
-                          next_table_sort(@sort_by, :location),
-                          @active_filter
-                        )
-                      }
-                      class="flex items-center gap-1 text-base-content/55 transition hover:text-base-content"
-                      aria-label={"Sort by location. #{table_sort_label(@sort_by, :location)}"}
-                    >
-                      <span>Location / Type</span>
-                      <%= if icon = table_sort_icon(@sort_by, :location) do %>
-                        <.icon name={icon} class="h-3.5 w-3.5" />
-                      <% end %>
-                    </.link>
+                    <div>Kind</div>
                     <.link
                       patch={
                         drive_path(
@@ -478,11 +416,11 @@
                         <.icon name={icon} class="h-3.5 w-3.5" />
                       <% end %>
                     </.link>
-                    <div class="text-right">Actions</div>
+                    <div></div>
                   </div>
 
                   <div class="divide-y divide-base-300/60 overflow-visible">
-                    <%= for {folder, index} <- Enum.with_index(@folders) do %>
+                    <%= for folder <- @folders do %>
                       <article
                         class={[
                           "group relative overflow-visible px-4 py-3 transition-colors cursor-default outline-none focus-visible:z-20 focus-visible:ring-2 focus-visible:ring-primary/35 focus-visible:ring-inset hover:bg-base-200/20",
@@ -491,16 +429,12 @@
                         tabindex="-1"
                         draggable="true"
                         data-row-selected={selected?(@selected_items, folder_token(folder.path))}
-                        data-drag-item-kind="folder"
-                        data-row-index={index}
                         data-row-kind="folder"
                         data-row-token={folder_token(folder.path)}
                         data-row-open-event="open_folder"
                         data-row-open-path={folder.path}
-                        data-row-menu-kind="folder"
-                        data-row-menu-path={folder.path}
                       >
-                        <div class="grid gap-3 lg:grid-cols-[2.5rem_minmax(0,2.4fr)_minmax(0,1.2fr)_7.5rem_5.5rem_7rem] lg:items-center">
+                        <div class="grid gap-3 lg:grid-cols-[2.5rem_minmax(0,2.6fr)_minmax(0,1fr)_7.5rem_6rem_7rem] lg:items-center">
                           <div class="pt-1 lg:pt-0">
                             <input
                               type="checkbox"
@@ -531,18 +465,21 @@
                                 >
                                   {folder.name}
                                 </.link>
-                                <p class="mt-1 truncate text-sm text-base-content/55">
-                                  {folder.path}
+                                <p class="mt-0.5 truncate text-xs text-base-content/55 lg:hidden">
+                                  {folder.file_count} item{if folder.file_count != 1, do: "s"}
                                 </p>
                               </div>
                             </div>
                           </div>
 
-                          <div class="text-sm text-base-content/60">
-                            {folder.file_count} file{if folder.file_count != 1, do: "s"}
+                          <div class="hidden min-w-0 text-sm text-base-content/60 lg:block">
+                            <p>Folder</p>
+                            <%= if location = parent_folder_label(folder.path, @current_folder) do %>
+                              <p class="truncate text-xs text-base-content/50">{location}</p>
+                            <% end %>
                           </div>
 
-                          <div class="text-sm text-base-content/60 lg:text-right">
+                          <div class="hidden text-sm text-base-content/60 lg:block lg:text-right">
                             <%= if folder.updated_at do %>
                               <.local_time
                                 datetime={folder.updated_at}
@@ -555,7 +492,9 @@
                             <% end %>
                           </div>
 
-                          <div class="text-sm text-base-content/55 lg:text-right">Folder</div>
+                          <div class="hidden text-sm text-base-content/55 lg:block lg:text-right">
+                            {folder.file_count} item{if folder.file_count != 1, do: "s"}
+                          </div>
 
                           <div
                             class="flex items-center justify-end gap-1 lg:justify-self-end"
@@ -584,7 +523,7 @@
                       </article>
                     <% end %>
 
-                    <%= for {file, index} <- Enum.with_index(@files, length(@folders)) do %>
+                    <%= for file <- @files do %>
                       <article
                         class={[
                           "group relative overflow-visible px-4 py-3 transition-colors cursor-default outline-none focus-visible:z-20 focus-visible:ring-2 focus-visible:ring-primary/35 focus-visible:ring-inset hover:bg-base-200/20",
@@ -593,17 +532,12 @@
                         tabindex="-1"
                         draggable="true"
                         data-row-selected={selected?(@selected_items, file_token(file.id))}
-                        data-drag-item-kind="file"
-                        data-drag-file-id={file.id}
-                        data-row-index={index}
                         data-row-kind="file"
                         data-row-token={file_token(file.id)}
                         data-row-open-event="open_file"
                         data-row-open-id={file.id}
-                        data-row-menu-kind="file"
-                        data-row-menu-id={file.id}
                       >
-                        <div class="grid gap-3 lg:grid-cols-[2.5rem_minmax(0,2.4fr)_minmax(0,1.2fr)_7.5rem_5.5rem_7rem] lg:items-center">
+                        <div class="grid gap-3 lg:grid-cols-[2.5rem_minmax(0,2.6fr)_minmax(0,1fr)_7.5rem_6rem_7rem] lg:items-center">
                           <div class="pt-1 lg:pt-0">
                             <input
                               type="checkbox"
@@ -615,12 +549,12 @@
                           </div>
 
                           <div class="min-w-0">
-                            <div class="flex items-start gap-3">
+                            <div class="flex items-center gap-3">
                               <%= if image_preview?(file.content_type) do %>
                                 <img
                                   src={~p"/account/drive/#{file.id}/preview"}
                                   alt={file_display_name(file)}
-                                  class="h-12 w-12 rounded-xl object-cover ring-1 ring-base-300"
+                                  class="h-10 w-10 rounded-xl object-cover ring-1 ring-base-300"
                                 />
                               <% else %>
                                 <div class="rounded-xl bg-primary/10 p-2.5 text-primary">
@@ -632,27 +566,23 @@
                                 <p class="truncate text-base font-semibold">
                                   {file_display_name(file)}
                                 </p>
-
-                                <p class="mt-1 truncate text-sm text-base-content/55">
-                                  {file.path}
+                                <p class="mt-0.5 truncate text-xs text-base-content/55 lg:hidden">
+                                  {file_kind_label(file.content_type)} · {Storage.format_bytes(
+                                    file.size || 0
+                                  )}
                                 </p>
                               </div>
                             </div>
                           </div>
 
-                          <div class="min-w-0 flex flex-wrap items-center gap-2 text-sm text-base-content/60">
-                            <span class={[
-                              "inline-flex rounded-full px-2.5 py-1 text-xs font-medium",
-                              kind_badge_class(file.content_type)
-                            ]}>
-                              {file_kind_label(file.content_type)}
-                            </span>
-                            <span class="truncate">
-                              {file_parent_label(file, @current_folder)}
-                            </span>
+                          <div class="hidden min-w-0 text-sm text-base-content/60 lg:block">
+                            <p>{file_kind_label(file.content_type)}</p>
+                            <%= if location = file_parent_label(file, @current_folder) do %>
+                              <p class="truncate text-xs text-base-content/50">{location}</p>
+                            <% end %>
                           </div>
 
-                          <div class="text-sm text-base-content/60 lg:text-right">
+                          <div class="hidden text-sm text-base-content/60 lg:block lg:text-right">
                             <.local_time
                               datetime={file.updated_at}
                               format="date"
@@ -661,7 +591,7 @@
                             />
                           </div>
 
-                          <div class="text-sm text-base-content/55 lg:text-right">
+                          <div class="hidden text-sm text-base-content/55 lg:block lg:text-right">
                             {Storage.format_bytes(file.size || 0)}
                           </div>
 
@@ -719,27 +649,14 @@
         close_button_class="-mt-2 -mr-2"
       >
         <div class="space-y-5">
-          <div class="min-w-0 space-y-2">
-            <p class="text-sm font-semibold uppercase tracking-[0.18em] text-base-content/45">
-              Manage File
-            </p>
+          <div class="min-w-0 space-y-1">
             <h3 class="break-all text-2xl font-semibold">{file_display_name(@active_file)}</h3>
-            <p class="break-all text-sm text-base-content/60">{@active_file.path}</p>
-          </div>
-
-          <div class="grid gap-3 sm:grid-cols-2">
-            <div class="surface-soft rounded-2xl p-4">
-              <p class="text-xs uppercase tracking-[0.18em] text-base-content/45">Type</p>
-              <p class="mt-2 text-base font-medium text-base-content/80">
-                {file_kind_label(@active_file.content_type)}
-              </p>
-            </div>
-            <div class="surface-soft rounded-2xl p-4">
-              <p class="text-xs uppercase tracking-[0.18em] text-base-content/45">Size</p>
-              <p class="mt-2 text-base font-medium text-base-content/80">
-                {Storage.format_bytes(@active_file.size || 0)}
-              </p>
-            </div>
+            <p class="text-sm text-base-content/60">
+              {file_kind_label(@active_file.content_type)} · {Storage.format_bytes(
+                @active_file.size || 0
+              )}
+            </p>
+            <p class="break-all text-sm text-base-content/50">{@active_file.path}</p>
           </div>
 
           <div class="flex flex-wrap gap-2 border-t border-base-300/70 pt-4">
@@ -840,29 +757,29 @@
           <% end %>
 
           <div class="surface-soft rounded-2xl p-4">
-            <div>
-              <p class="text-sm font-semibold">Create share link</p>
-              <p class="mt-1 text-sm text-base-content/60">
-                Choose access, expiry, and an optional password.
-              </p>
-            </div>
+            <p class="text-sm font-semibold">Create share link</p>
 
             <form phx-submit="create_share" class="mt-4 grid gap-3 lg:grid-cols-2">
               <input type="hidden" name="share[file_id]" value={@active_file.id} />
-              <div class="select select-bordered h-9 min-h-9 w-full">
-                <select name="share[access_level]">
+              <label>
+                <span class="sr-only">Access level</span>
+                <select
+                  name="share[access_level]"
+                  class="select select-bordered h-9 min-h-9 w-full"
+                >
                   <%= for {label, value} <- @share_access_options do %>
                     <option value={value} selected={value == "download"}>{label}</option>
                   <% end %>
                 </select>
-              </div>
-              <div class="select select-bordered h-9 min-h-9 w-full">
-                <select name="share[expires_in]">
+              </label>
+              <label>
+                <span class="sr-only">Expiry</span>
+                <select name="share[expires_in]" class="select select-bordered h-9 min-h-9 w-full">
                   <%= for {label, value} <- @share_expiry_options do %>
                     <option value={value} selected={value == "7d"}>{label}</option>
                   <% end %>
                 </select>
-              </div>
+              </label>
               <input
                 type="password"
                 name="share[password]"
@@ -879,16 +796,13 @@
             </form>
           </div>
 
-          <%= if @active_file.shares == [] do %>
-            <p class="text-sm text-base-content/55">No public links for this file yet.</p>
-          <% else %>
+          <%= if @active_file.shares != [] do %>
             <div class="space-y-3 border-t border-base-300/70 pt-4">
               <%= for share <- @active_file.shares do %>
                 <div class="surface-soft rounded-2xl p-4">
-                  <div class="space-y-4">
+                  <div class="space-y-3">
                     <div class="min-w-0 flex-1">
                       <div class="flex flex-wrap items-center gap-2">
-                        <p class="text-sm font-semibold">Public share link</p>
                         <span class="inline-flex rounded-full bg-success/12 px-2.5 py-1 text-xs font-medium text-success">
                           {String.capitalize(share.access_level || "download")}
                         </span>
@@ -990,36 +904,21 @@
         close_button_class="-mt-2 -mr-2"
       >
         <div class="space-y-5">
-          <div class="min-w-0 space-y-2">
-            <p class="text-sm font-semibold uppercase tracking-[0.18em] text-base-content/45">
-              Manage Folder
-            </p>
+          <div class="min-w-0 space-y-1">
             <h3 class="text-2xl font-semibold">{@active_folder.name}</h3>
-            <p class="break-all text-sm text-base-content/60">{@active_folder.path}</p>
-          </div>
-
-          <div class="grid gap-3 sm:grid-cols-2">
-            <div class="surface-soft rounded-2xl p-4">
-              <p class="text-xs uppercase tracking-[0.18em] text-base-content/45">
-                Items in Folder
-              </p>
-              <p class="mt-2 text-2xl font-semibold">{@active_folder.file_count}</p>
-            </div>
-            <div class="surface-soft rounded-2xl p-4">
-              <p class="text-xs uppercase tracking-[0.18em] text-base-content/45">Last Updated</p>
-              <p class="mt-2 text-base font-medium text-base-content/75">
-                <%= if @active_folder.updated_at do %>
-                  <.local_time
-                    datetime={@active_folder.updated_at}
-                    format="date"
-                    timezone={@timezone}
-                    time_format={@time_format}
-                  />
-                <% else %>
-                  Never
-                <% end %>
-              </p>
-            </div>
+            <p class="text-sm text-base-content/60">
+              {@active_folder.file_count} item{if @active_folder.file_count != 1, do: "s"}
+              <%= if @active_folder.updated_at do %>
+                · updated
+                <.local_time
+                  datetime={@active_folder.updated_at}
+                  format="date"
+                  timezone={@timezone}
+                  time_format={@time_format}
+                />
+              <% end %>
+            </p>
+            <p class="break-all text-sm text-base-content/50">{@active_folder.path}</p>
           </div>
 
           <div class="flex flex-wrap gap-2 border-t border-base-300/70 pt-4">

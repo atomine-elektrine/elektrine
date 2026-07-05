@@ -232,7 +232,7 @@ s3_port =
     value -> String.to_integer(value)
   end
 
-# Use S3-compatible storage in development if configured, otherwise use local storage
+# Use S3 API storage in development if configured, otherwise use local storage
 if System.get_env("S3_ACCESS_KEY_ID") || System.get_env("MAGPIE_S3_ACCESS_KEY_ID") do
   config :elektrine, :uploads,
     adapter: :s3,
@@ -257,7 +257,7 @@ else
     max_image_height: 8192
 end
 
-# Configure ExAws for S3-compatible storage in development:
+# Configure ExAws for S3 API storage in development:
 config :ex_aws,
   access_key_id: System.get_env("S3_ACCESS_KEY_ID") || System.get_env("MAGPIE_S3_ACCESS_KEY_ID"),
   secret_access_key:

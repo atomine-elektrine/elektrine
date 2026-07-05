@@ -197,18 +197,6 @@
       <div class="card panel-card border border-base-300 flex flex-shrink-0 flex-col overflow-hidden">
         <!-- Header with Search -->
         <div class="flex-shrink-0 p-3 border-b border-base-300">
-          <div class="mb-3 flex items-center justify-between gap-2">
-            <div>
-              <p class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/55">
-                Chat
-              </p>
-              <p class="text-[11px] text-base-content/50">Conversations and servers</p>
-            </div>
-            <span class="badge badge-outline badge-sm shrink-0 text-[10px] uppercase tracking-[0.14em] text-base-content/60">
-              Powered by Arblarg
-            </span>
-          </div>
-
           <div class="flex items-center gap-2">
             <form
               id="conversation-search-form"
@@ -253,15 +241,10 @@
             </form>
           </div>
 
-          <div class="mt-2 flex flex-wrap items-center gap-1.5">
-            <span class="badge badge-ghost badge-sm">Servers: {@joined_servers |> length}</span>
-            <%= if active_server do %>
-              <span class="badge badge-secondary badge-sm">
-                Viewing: {active_server.name}
-              </span>
-            <% else %>
-              <span class="badge badge-ghost badge-sm">Viewing: all</span>
-            <% end %>
+          <div :if={active_server} class="mt-2">
+            <span class="badge badge-secondary badge-sm">
+              Viewing: {active_server.name}
+            </span>
           </div>
         </div>
         
@@ -275,12 +258,7 @@
             <div class="w-9 h-9 rounded-md flex items-center justify-center shrink-0 bg-base-300">
               <.icon name="hero-chat-bubble-left-right" class="w-4 h-4 text-base-content/80" />
             </div>
-            <div class="flex-1 min-w-0">
-              <p class="font-semibold text-[13px] text-base-content">New DM</p>
-              <p class="text-xs text-base-content/70 hidden sm:block">
-                Start a direct message
-              </p>
-            </div>
+            <p class="flex-1 min-w-0 font-semibold text-[13px] text-base-content">New DM</p>
           </button>
           
 <!-- New Group -->
@@ -291,12 +269,7 @@
             <div class="w-9 h-9 rounded-md flex items-center justify-center shrink-0 bg-base-300">
               <.icon name="hero-users" class="w-4 h-4 text-base-content/80" />
             </div>
-            <div class="flex-1 min-w-0">
-              <p class="font-semibold text-[13px] text-base-content">New Group</p>
-              <p class="text-xs text-base-content/70 hidden sm:block">
-                Chat with multiple people
-              </p>
-            </div>
+            <p class="flex-1 min-w-0 font-semibold text-[13px] text-base-content">New Group</p>
           </button>
           
 <!-- New Server -->
@@ -307,12 +280,7 @@
             <div class="w-9 h-9 rounded-md flex items-center justify-center shrink-0 bg-base-300">
               <.icon name="hero-plus-circle" class="w-4 h-4 text-base-content/80" />
             </div>
-            <div class="flex-1 min-w-0">
-              <p class="font-semibold text-[13px] text-base-content">New Server</p>
-              <p class="text-xs text-base-content/70 hidden sm:block">
-                Home for channels and members
-              </p>
-            </div>
+            <p class="flex-1 min-w-0 font-semibold text-[13px] text-base-content">New Server</p>
           </button>
           
 <!-- New Channel -->
@@ -335,10 +303,8 @@
             </div>
             <div class="flex-1 min-w-0">
               <p class="font-semibold text-[13px] text-base-content">New Channel</p>
-              <p class="text-xs text-base-content/70 hidden sm:block">
-                {if is_integer(active_server_id),
-                  do: "Create a channel in the selected server",
-                  else: "Select a server first"}
+              <p :if={not is_integer(active_server_id)} class="text-xs text-base-content/70">
+                Select a server first
               </p>
             </div>
           </button>
@@ -363,10 +329,8 @@
             </div>
             <div class="flex-1 min-w-0">
               <p class="font-semibold text-[13px] text-base-content">New Category</p>
-              <p class="text-xs text-base-content/70 hidden sm:block">
-                {if is_integer(active_server_id),
-                  do: "Group the selected server's channels",
-                  else: "Select a server first"}
+              <p :if={not is_integer(active_server_id)} class="text-xs text-base-content/70">
+                Select a server first
               </p>
             </div>
           </button>
@@ -382,12 +346,9 @@
                 class="w-4 h-4 text-base-content/80"
               />
             </div>
-            <div class="flex-1 min-w-0">
-              <p class="font-semibold text-[13px] text-base-content">Explore Servers</p>
-              <p class="text-xs text-base-content/70 hidden sm:block">
-                Discover servers and public groups
-              </p>
-            </div>
+            <p class="flex-1 min-w-0 font-semibold text-[13px] text-base-content">
+              Explore Servers
+            </p>
           </button>
         </div>
       </div>
@@ -965,13 +926,7 @@
               <h2 class="font-semibold text-[15px] leading-tight sm:text-base truncate text-base-content">
                 {route_label(@conversation.selected, @current_user.id)}
               </h2>
-              <p class="mt-0.5 text-xs text-base-content/65 sm:hidden truncate">
-                {protocol_conversation_type(@conversation.selected.type)}
-              </p>
               <div class="mt-1 hidden flex-wrap items-center gap-1 sm:flex">
-                <span class="badge badge-ghost badge-xs">
-                  {protocol_conversation_type(@conversation.selected.type)}
-                </span>
                 <%= if remote_conversation?(@conversation.selected) do %>
                   <span class="badge badge-secondary badge-xs">From another server</span>
                 <% end %>
@@ -2333,12 +2288,11 @@
                     </button>
                   <% end %>
                 </div>
-                <div class="hidden items-center justify-between px-1 text-[11px] text-base-content/45 sm:flex">
-                  <span>Enter to send. Shift+Enter for a new line.</span>
-                  <%= if @message.new_message && String.length(@message.new_message) > 3600 do %>
+                <%= if @message.new_message && String.length(@message.new_message) > 3600 do %>
+                  <div class="hidden justify-end px-1 text-[11px] text-base-content/45 sm:flex">
                     <span>{String.length(@message.new_message)}/4000</span>
-                  <% end %>
-                </div>
+                  </div>
+                <% end %>
               </.form>
             <% end %>
           </div>
@@ -2434,18 +2388,11 @@
                 {route_label(@conversation.selected, @current_user.id)}
               </h3>
 
-              <div class="mt-2 flex flex-wrap justify-center gap-1">
-                <span class="badge badge-ghost badge-xs">
-                  {protocol_conversation_type(@conversation.selected.type)}
-                </span>
-                <%= if remote_conversation?(@conversation.selected) do %>
-                  <span class="badge badge-secondary badge-xs">From another server</span>
-                <% end %>
-                <%= if @conversation.selected.type != "dm" do %>
-                  <span class="badge badge-ghost badge-xs">
-                    {@conversation.selected.member_count} members
-                  </span>
-                <% end %>
+              <div
+                :if={remote_conversation?(@conversation.selected)}
+                class="mt-2 flex flex-wrap justify-center gap-1"
+              >
+                <span class="badge badge-secondary badge-xs">From another server</span>
               </div>
 
               <%= if @conversation.selected.type == "channel" do %>

@@ -16,21 +16,15 @@
     />
     <!-- Main content -->
     <div class="w-full flex-1 min-w-0 max-w-full overflow-visible">
-      <div id="search-email-card" class="card panel-card rounded-lg">
+      <div id="search-email-card" class="card panel-card overflow-visible rounded-lg">
         <div class="card-body p-3 sm:p-6">
           <!-- Header -->
-          <div class="flex items-center space-x-3 mb-6">
-            <div class="p-2 bg-secondary/10 rounded-lg">
-              <.icon name="hero-magnifying-glass" class="h-6 w-6 text-secondary" />
-            </div>
+          <div class="mb-6">
+            <h1 class="text-2xl font-semibold tracking-tight">{gettext("Search")}</h1>
 
-            <div>
-              <h2 class="text-2xl font-bold">{gettext("Search")}</h2>
-
-              <p class="text-sm text-base-content/70">
-                {gettext("Find emails by sender, subject, or content")}
-              </p>
-            </div>
+            <p class="mt-1 text-sm text-base-content/70">
+              {gettext("Find emails by sender, subject, or content")}
+            </p>
           </div>
           <!-- Search Form -->
           <div class="mb-6">
@@ -87,10 +81,7 @@
                   <%= if @search_results.total_count == 0 do %>
                     {gettext("No results found for \"%{query}\"", query: @search_results.query)}
                     <div class="mt-2 text-xs text-base-content/50">
-                      {gettext("Try searching for:")}
-                      <span class="font-medium bg-base-200 px-1 rounded">test</span>
-                      • <span class="font-medium bg-base-200 px-1 rounded">hello</span>
-                      • <span class="font-medium bg-base-200 px-1 rounded">@domain.com</span>
+                      {gettext("Try different keywords or a sender address.")}
                     </div>
                   <% else %>
                     {ngettext("%{count} result", "%{count} results", @search_results.total_count,
@@ -108,13 +99,17 @@
 
               <%= if @search_results.total_count > 0 do %>
                 <!-- Messages List -->
-                <div id="search-messages-list" class="space-y-2" phx-hook="KeyboardShortcuts">
+                <div
+                  id="search-messages-list"
+                  class="divide-y divide-base-300 overflow-visible"
+                  phx-hook="KeyboardShortcuts"
+                >
                   <%= for message <- @search_results.messages do %>
                     <div
                       id={"message-#{message.id}"}
-                      class={"card panel-card border hover:border-primary/40 transition-colors #{if message.read, do: "border-base-300", else: "border-secondary/30 bg-secondary/5"}"}
+                      class={"px-2 py-3 sm:px-3 transition-colors hover:bg-base-200/60 #{unless message.read, do: "border-l-2 border-secondary bg-secondary/5"}"}
                     >
-                      <div class="card-body p-4">
+                      <div>
                         <div class="flex items-center justify-between">
                           <!-- Message Info -->
                           <div class="flex-1 min-w-0">
@@ -181,18 +176,7 @@
                             </div>
                           </div>
                           <!-- Quick Actions -->
-                          <div class="flex items-center space-x-1 ml-4">
-                            <div class="tooltip" data-tip={gettext("Archive")}>
-                              <button
-                                phx-click="quick_action"
-                                phx-value-action="archive"
-                                phx-value-message_id={message.id}
-                                class="btn btn-ghost btn-sm"
-                              >
-                                <.icon name="hero-archive-box" class="h-4 w-4" />
-                              </button>
-                            </div>
-
+                          <div class="flex items-center gap-1 ml-4">
                             <div class="tooltip" data-tip={gettext("Reply")}>
                               <button
                                 phx-click="quick_action"
@@ -204,15 +188,43 @@
                               </button>
                             </div>
 
-                            <div class="tooltip" data-tip={gettext("Forward")}>
+                            <div class="dropdown dropdown-end">
                               <button
-                                phx-click="quick_action"
-                                phx-value-action="forward"
-                                phx-value-message_id={message.id}
-                                class="btn btn-ghost btn-sm"
+                                tabindex="0"
+                                type="button"
+                                class="btn btn-ghost btn-xs btn-square"
+                                aria-label={gettext("More actions")}
+                                title={gettext("More actions")}
                               >
-                                <.icon name="hero-arrow-uturn-right" class="h-4 w-4" />
+                                <.icon name="hero-ellipsis-horizontal" class="h-4 w-4" />
                               </button>
+                              <ul
+                                tabindex="0"
+                                class="menu menu-sm dropdown-content z-30 w-44 rounded-box p-2"
+                              >
+                                <li>
+                                  <button
+                                    phx-click="quick_action"
+                                    phx-value-action="archive"
+                                    phx-value-message_id={message.id}
+                                  >
+                                    <.icon name="hero-archive-box" class="h-4 w-4" /> {gettext(
+                                      "Archive"
+                                    )}
+                                  </button>
+                                </li>
+                                <li>
+                                  <button
+                                    phx-click="quick_action"
+                                    phx-value-action="forward"
+                                    phx-value-message_id={message.id}
+                                  >
+                                    <.icon name="hero-arrow-uturn-right" class="h-4 w-4" /> {gettext(
+                                      "Forward"
+                                    )}
+                                  </button>
+                                </li>
+                              </ul>
                             </div>
                           </div>
                         </div>

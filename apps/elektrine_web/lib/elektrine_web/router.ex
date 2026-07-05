@@ -601,6 +601,12 @@ defmodule ElektrineWeb.Router do
     pipe_through(:api)
   end
 
+  scope "/api/ext/v1/nerve/extension", ElektrineWeb do
+    pipe_through(:api)
+
+    get("/connect/:id", NerveExtensionController, :connect_status)
+  end
+
   # Routes that require authentication
   scope "/", ElektrineWeb do
     pipe_through([:browser, :require_authenticated_user])
@@ -624,6 +630,8 @@ defmodule ElektrineWeb.Router do
     post("/account/two_factor/disable", UserSettingsController, :two_factor_disable)
     post("/account/two_factor/regenerate", UserSettingsController, :two_factor_regenerate_codes)
     delete("/account", UserSettingsController, :confirm_delete)
+    get("/account/nerve/extension/connect", NerveExtensionController, :connect)
+    post("/account/nerve/extension/connect", NerveExtensionController, :authorize)
     get("/account/developer/oidc/clients", OIDCClientController, :index)
     get("/account/developer/oidc/clients/new", OIDCClientController, :new)
     get("/account/developer/oidc/clients/:id/edit", OIDCClientController, :edit)
@@ -1849,7 +1857,7 @@ defmodule ElektrineWeb.Router do
 
       # Portal
       live("/portal", PortalLive.Index, :index)
-      live("/maid", SearchLive, :index)
+      live("/paige", SearchLive, :index)
       live("/kairo", KairoLive.Index, :index)
       live("/proofs", AtomineProofsLive.Show, :index)
       live("/proofs/:handle", AtomineProofsLive.Show, :show)
@@ -1865,6 +1873,7 @@ defmodule ElektrineWeb.Router do
       live("/account/two_factor/setup", SettingsLive.TwoFactorSetup, :setup)
       live("/account/two_factor", SettingsLive.TwoFactorManage, :manage)
       live("/account/passkeys", SettingsLive.PasskeyManage, :manage)
+      live("/account/encrypted-data", SettingsLive.MasterPassword, :index)
       live("/account/master-password", SettingsLive.MasterPassword, :index)
       live("/account/delete", SettingsLive.DeleteAccount, :delete)
 
@@ -1897,7 +1906,7 @@ defmodule ElektrineWeb.Router do
 
       live("/dns/analytics", ProfileLive.DomainAnalytics, :analytics)
 
-      # Backward-compatible app search route. /maid is the canonical merged search UI.
+      # Backward-compatible app search route. /paige is the canonical merged search UI.
       live("/search", SearchLive, :index)
     end
   end

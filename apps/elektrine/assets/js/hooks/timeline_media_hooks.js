@@ -1,4 +1,5 @@
 import { OverlayPortal } from "../utils/overlay_portal";
+import { registerUserHoverCardHook, unregisterUserHoverCardHook } from "../utils/user_hover_card_scroll";
 
 /**
  * User Hover Card Hook
@@ -17,6 +18,8 @@ export const UserHoverCard = {
     this.showTimeout = null;
     this.hideTimeout = null;
     this.isCardHovered = false;
+    this.isVisible = false;
+    registerUserHoverCardHook(this);
 
     this.handleMouseEnter = () => {
       clearTimeout(this.hideTimeout);
@@ -42,7 +45,6 @@ export const UserHoverCard = {
 
     this.trigger.addEventListener("mouseenter", this.handleMouseEnter);
     this.trigger.addEventListener("mouseleave", this.handleMouseLeave);
-
     this.card.addEventListener("mouseenter", this.handleCardEnter);
     this.card.addEventListener("mouseleave", this.handleCardLeave);
   },
@@ -64,10 +66,12 @@ export const UserHoverCard = {
       this.portal.positionNear(this.trigger);
       this.card.classList.remove("invisible", "scale-95");
       this.card.classList.add("visible", "scale-100");
+      this.isVisible = true;
     }
   },
 
   hideCard() {
+    this.isVisible = false;
     if (this.card) {
       this.card.classList.remove("visible", "scale-100");
       this.card.classList.add("invisible", "scale-95");
@@ -75,9 +79,21 @@ export const UserHoverCard = {
     }
   },
 
+  dismissForScroll() {
+    if (!this.showTimeout && !this.hideTimeout && !this.isVisible) return;
+
+    clearTimeout(this.showTimeout);
+    clearTimeout(this.hideTimeout);
+    this.showTimeout = null;
+    this.hideTimeout = null;
+    this.isCardHovered = false;
+    this.hideCard();
+  },
+
   destroyed() {
     clearTimeout(this.showTimeout);
     clearTimeout(this.hideTimeout);
+    unregisterUserHoverCardHook(this);
     this.card?.removeEventListener("mouseenter", this.handleCardEnter);
     this.card?.removeEventListener("mouseleave", this.handleCardLeave);
     this.trigger?.removeEventListener("mouseenter", this.handleMouseEnter);

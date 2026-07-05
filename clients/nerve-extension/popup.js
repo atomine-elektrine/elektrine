@@ -1,23 +1,25 @@
-import { createEntry, deleteNerve, getEntry, listEntries, setupNerve } from "./lib/api.js"
-import { getSettings } from "./lib/storage.js"
+import { createEntry, getEntry, listEntries } from "./lib/api.js"
+import { getSettings, saveSettings } from "./lib/storage.js"
+import { applyTheme } from "./lib/theme.js"
 import {
-  VERIFIER_TEXT,
-  MIN_PASSPHRASE_LENGTH,
   createPassword,
+  deriveFeatureKey,
   decryptValue,
   encryptValue,
   isClientPayload,
   nerveEntryAssociatedData,
   nerveMetadataAssociatedData,
-  verifyPassphrase
+  unwrapWithSecret
 } from "./lib/crypto.js"
+
+const FEATURE = "nerve"
 
 const state = {
   settings: { serverUrl: "", apiToken: "" },
   currentTab: null,
   entries: [],
-  nerveConfigured: false,
-  nerveVerifier: null,
+  masterConfigured: false,
+  masterWrappedDek: null,
   passphrase: ""
 }
 
@@ -38,6 +40,7 @@ async function init() {
   renderCurrentSite()
 
   state.settings = await getSettings()
+  applyTheme(state.settings)
   state.passphrase = await getRuntimePassphrase()
 
   render()
@@ -56,18 +59,14 @@ function captureRefs() {
   refs.configureButton = document.querySelector("#configureButton")
   refs.configSection = document.querySelector("#configSection")
   refs.setupSection = document.querySelector("#setupSection")
+  refs.setupMasterButton = document.querySelector("#setupMasterButton")
   refs.unlockSection = document.querySelector("#unlockSection")
   refs.nerveSection = document.querySelector("#nerveSection")
-  refs.resetSection = document.querySelector("#resetSection")
-  refs.setupForm = document.querySelector("#setupForm")
-  refs.setupPassphrase = document.querySelector("#setupPassphrase")
-  refs.setupPassphraseConfirm = document.querySelector("#setupPassphraseConfirm")
-  refs.setupSubmitButton = document.querySelector("#setupSubmitButton")
   refs.unlockForm = document.querySelector("#unlockForm")
   refs.unlockPassphrase = document.querySelector("#unlockPassphrase")
   refs.unlockSubmitButton = document.querySelector("#unlockSubmitButton")
+  refs.forgotMasterButton = document.querySelector("#forgotMasterButton")
   refs.lockButton = document.querySelector("#lockButton")
-  refs.resetNerveButton = document.querySelector("#resetNerveButton")
   refs.searchInput = document.querySelector("#searchInput")
   refs.createEntryForm = document.querySelector("#createEntryForm")
   refs.entryTitle = document.querySelector("#entryTitle")
@@ -83,10 +82,10 @@ function captureRefs() {
 function bindEvents() {
   refs.openOptionsButton.addEventListener("click", openOptionsPage)
   refs.configureButton.addEventListener("click", openOptionsPage)
-  refs.setupForm.addEventListener("submit", handleSetupSubmit)
+  refs.setupMasterButton.addEventListener("click", openMasterPasswordSettings)
   refs.unlockForm.addEventListener("submit", handleUnlockSubmit)
+  refs.forgotMasterButton.addEventListener("click", openMasterPasswordSettings)
   refs.lockButton.addEventListener("click", handleLock)
-  refs.resetNerveButton.addEventListener("click", handleDeleteNerve)
   refs.searchInput.addEventListener("input", renderEntries)
   refs.generatePasswordButton.addEventListener("click", handleGeneratePassword)
   refs.createEntryForm.addEventListener("submit", handleCreateEntrySubmit)
@@ -99,6 +98,15 @@ function isConfigured() {
 
 function isUnlocked() {
   return Boolean(state.passphrase)
+}
+
+async function nerveKey() {
+  if (!state.masterWrappedDek || !state.passphrase) {
+    throw new Error("Unlock Nerve first.")
+  }
+
+  const mdk = await unwrapWithSecret(state.masterWrappedDek, state.passphrase)
+  return deriveFeatureKey(mdk, FEATURE)
 }
 
 function setBusy(button, busy) {
@@ -123,10 +131,9 @@ function renderCurrentSite() {
 
 function render() {
   refs.configSection.classList.toggle("hidden", isConfigured())
-  refs.setupSection.classList.toggle("hidden", !isConfigured() || state.nerveConfigured)
-  refs.unlockSection.classList.toggle("hidden", !isConfigured() || !state.nerveConfigured || isUnlocked())
-  refs.nerveSection.classList.toggle("hidden", !isConfigured() || !state.nerveConfigured || !isUnlocked())
-  refs.resetSection.classList.toggle("hidden", !isConfigured() || !state.nerveConfigured)
+  refs.setupSection.classList.toggle("hidden", !isConfigured() || state.masterConfigured)
+  refs.unlockSection.classList.toggle("hidden", !isConfigured() || !state.masterConfigured || isUnlocked())
+  refs.nerveSection.classList.toggle("hidden", !isConfigured() || !state.masterConfigured || !isUnlocked())
 
   if (!isConfigured()) {
     refs.entriesList.innerHTML = ""
@@ -154,14 +161,21 @@ async function refreshNerveIndex() {
     setFeedback("Loading nerve...", "info")
     const data = await listEntries(state.settings)
     let entries = Array.isArray(data.entries) ? data.entries : []
-    state.nerveConfigured = Boolean(data.nerve_configured)
-    state.nerveVerifier = data.nerve_verifier || null
+    state.settings = {
+      ...state.settings,
+      theme: data.theme || state.settings.theme || null
+    }
+    await saveSettings(state.settings)
+    applyTheme(state.settings)
 
-    if (state.nerveConfigured && state.passphrase) {
+    state.masterConfigured = Boolean(data.master_configured)
+    state.masterWrappedDek = data.master_wrapped_dek || null
+
+    if (state.masterConfigured && state.passphrase) {
       await validateSavedPassphrase()
     }
 
-    if (state.nerveConfigured && isUnlocked()) {
+    if (state.masterConfigured && isUnlocked()) {
       entries = await hydrateEntryMetadata(entries)
     }
 
@@ -169,7 +183,7 @@ async function refreshNerveIndex() {
 
     render()
 
-    if (state.nerveConfigured && isUnlocked()) {
+    if (state.masterConfigured && isUnlocked()) {
       setFeedback("Nerve unlocked for this browser session.", "success")
     } else {
       clearFeedback()
@@ -181,17 +195,13 @@ async function refreshNerveIndex() {
 }
 
 async function validateSavedPassphrase() {
-  if (!state.nerveVerifier) {
+  if (!state.masterWrappedDek) {
     await clearStoredPassphrase()
-    throw new Error("This server does not expose nerve verification metadata yet.")
+    throw new Error("This server does not expose encrypted data metadata yet.")
   }
 
   try {
-    const valid = await verifyPassphrase(state.nerveVerifier, state.passphrase)
-
-    if (!valid) {
-      throw new Error("Stored nerve passphrase is no longer valid.")
-    }
+    await unwrapWithSecret(state.masterWrappedDek, state.passphrase)
   } catch (_error) {
     await clearStoredPassphrase()
     state.passphrase = ""
@@ -202,57 +212,29 @@ async function clearStoredPassphrase() {
   await runtimeMessage({ type: MESSAGE_TYPES.CLEAR_SESSION_PASSPHRASE })
 }
 
-async function handleSetupSubmit(event) {
-  event.preventDefault()
-
-  const passphrase = refs.setupPassphrase.value.trim()
-  const confirmation = refs.setupPassphraseConfirm.value.trim()
-
-  try {
-    if (passphrase.length < MIN_PASSPHRASE_LENGTH) {
-      throw new Error(`Use a nerve passphrase with at least ${MIN_PASSPHRASE_LENGTH} characters.`)
-    }
-
-    if (passphrase !== confirmation) {
-      throw new Error("Passphrase confirmation does not match.")
-    }
-
-    setBusy(refs.setupSubmitButton, true)
-    const encryptedVerifier = await encryptValue(VERIFIER_TEXT, passphrase)
-    await setupNerve(state.settings, encryptedVerifier)
-    await runtimeMessage({ type: MESSAGE_TYPES.SET_SESSION_PASSPHRASE, passphrase })
-    state.passphrase = passphrase
-    refs.setupForm.reset()
-    await refreshNerveIndex()
-    setFeedback("Nerve configured and unlocked.", "success")
-  } catch (error) {
-    setFeedback(error.message, "error")
-  } finally {
-    setBusy(refs.setupSubmitButton, false)
-  }
-}
-
 async function handleUnlockSubmit(event) {
   event.preventDefault()
 
   const passphrase = refs.unlockPassphrase.value.trim()
 
   try {
-    if (!state.nerveVerifier) {
-      throw new Error("Nerve verifier metadata is not available from the server.")
+    if (!state.masterWrappedDek) {
+      throw new Error("Set up account-password encryption on Elektrine first.")
     }
 
     setBusy(refs.unlockSubmitButton, true)
-    const valid = await verifyPassphrase(state.nerveVerifier, passphrase)
-
-    if (!valid) {
-      throw new Error("Incorrect nerve passphrase.")
+    try {
+      await unwrapWithSecret(state.masterWrappedDek, passphrase)
+    } catch (_error) {
+      throw new Error(
+        "Incorrect account password. If you just reset it, recover encrypted data on the website."
+      )
     }
 
     await runtimeMessage({ type: MESSAGE_TYPES.SET_SESSION_PASSPHRASE, passphrase })
     state.passphrase = passphrase
     refs.unlockForm.reset()
-    render()
+    await refreshNerveIndex()
     setFeedback("Nerve unlocked for this browser session.", "success")
   } catch (error) {
     setFeedback(error.message, "error")
@@ -266,42 +248,6 @@ async function handleLock() {
   state.passphrase = ""
   render()
   setFeedback("Nerve locked.", "info")
-}
-
-async function handleDeleteNerve() {
-  try {
-    if (!state.nerveConfigured) {
-      throw new Error("This nerve is not configured yet.")
-    }
-
-    const confirmed = window.confirm(
-      "Delete your nerve and all saved entries? This cannot be undone."
-    )
-
-    if (!confirmed) {
-      return
-    }
-
-    setBusy(refs.resetNerveButton, true)
-    await deleteNerve(state.settings)
-    await clearStoredPassphrase()
-
-    state.passphrase = ""
-    state.entries = []
-    state.nerveConfigured = false
-    state.nerveVerifier = null
-
-    refs.unlockForm.reset()
-    refs.createEntryForm.reset()
-    refs.searchInput.value = ""
-
-    render()
-    setFeedback("Nerve deleted. Create a new passphrase to start again.", "success")
-  } catch (error) {
-    setFeedback(error.message, "error")
-  } finally {
-    setBusy(refs.resetNerveButton, false)
-  }
 }
 
 function handleGeneratePassword() {
@@ -331,18 +277,19 @@ async function handleCreateEntrySubmit(event) {
     setBusy(refs.createEntrySubmitButton, true)
 
     const metadata = { title, login_username: loginUsername, website }
+    const key = await nerveKey()
     const encryptedMetadata = await encryptValue(
       JSON.stringify(metadata),
-      state.passphrase,
+      key,
       nerveMetadataAssociatedData()
     )
     const encryptedPassword = await encryptValue(
       password,
-      state.passphrase,
+      key,
       nerveEntryAssociatedData(metadata, "password")
     )
     const encryptedNotes = notes
-      ? await encryptValue(notes, state.passphrase, nerveEntryAssociatedData(metadata, "notes"))
+      ? await encryptValue(notes, key, nerveEntryAssociatedData(metadata, "notes"))
       : null
 
     await createEntry(state.settings, {
@@ -482,7 +429,8 @@ async function copyUsername(entry) {
 
 async function loadDecryptedEntry(entryId) {
   const data = await getEntry(state.settings, entryId)
-  const entry = await hydrateEntryMetadataValue(data.entry)
+  const key = await nerveKey()
+  const entry = await hydrateEntryMetadataValue(data.entry, key)
 
   if (!isClientPayload(entry?.encrypted_password)) {
     throw new Error("This entry is not stored in the current client-encrypted format.")
@@ -492,14 +440,14 @@ async function loadDecryptedEntry(entryId) {
     entry,
     password: await decryptValue(
       entry.encrypted_password,
-      state.passphrase,
+      key,
       nerveEntryAssociatedData(entry, "password")
     ),
     notes:
       entry.encrypted_notes && isClientPayload(entry.encrypted_notes)
         ? await decryptValue(
             entry.encrypted_notes,
-            state.passphrase,
+            key,
             nerveEntryAssociatedData(entry, "notes")
           )
         : ""
@@ -507,18 +455,20 @@ async function loadDecryptedEntry(entryId) {
 }
 
 async function hydrateEntryMetadata(entries) {
-  return Promise.all(entries.map((entry) => hydrateEntryMetadataValue(entry)))
+  const key = await nerveKey()
+  return Promise.all(entries.map((entry) => hydrateEntryMetadataValue(entry, key)))
 }
 
-async function hydrateEntryMetadataValue(entry) {
+async function hydrateEntryMetadataValue(entry, key = null) {
   if (!entry || !isUnlocked() || !isClientPayload(entry.encrypted_metadata)) {
     return entry
   }
 
   try {
+    const decryptKey = key || await nerveKey()
     const decrypted = await decryptValue(
       entry.encrypted_metadata,
-      state.passphrase,
+      decryptKey,
       nerveMetadataAssociatedData()
     )
     const metadata = JSON.parse(decrypted)
@@ -536,12 +486,12 @@ async function hydrateEntryMetadataValue(entry) {
 
 function ensureUnlocked() {
   if (!isUnlocked()) {
-    throw new Error("Unlock your nerve first.")
+    throw new Error("Unlock Nerve first.")
   }
 }
 
 function renderEntries() {
-  if (!isConfigured() || !state.nerveConfigured || !isUnlocked()) {
+  if (!isConfigured() || !state.masterConfigured || !isUnlocked()) {
     refs.entriesList.innerHTML = ""
     return
   }
@@ -680,11 +630,33 @@ function canFillCurrentTab() {
 }
 
 function getActiveTab() {
+  const tabId = targetTabId()
+
+  if (tabId) {
+    return new Promise((resolve) => {
+      chrome.tabs.get(tabId, (tab) => {
+        if (chrome.runtime.lastError) {
+          resolve(null)
+          return
+        }
+
+        resolve(tab || null)
+      })
+    })
+  }
+
   return new Promise((resolve) => {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       resolve(tabs?.[0] || null)
     })
   })
+}
+
+function targetTabId() {
+  const value = new URLSearchParams(window.location.search).get("tabId")
+  const tabId = Number.parseInt(value || "", 10)
+
+  return Number.isInteger(tabId) && tabId > 0 ? tabId : null
 }
 
 async function getRuntimePassphrase() {
@@ -725,6 +697,15 @@ function sendMessageToTab(tabId, message) {
 
 function openOptionsPage() {
   chrome.runtime.openOptionsPage()
+}
+
+function openMasterPasswordSettings() {
+  if (!state.settings.serverUrl) {
+    openOptionsPage()
+    return
+  }
+
+  chrome.tabs.create({ url: `${state.settings.serverUrl.replace(/\/+$/, "")}/account/encrypted-data` })
 }
 
 function escapeHtml(value) {

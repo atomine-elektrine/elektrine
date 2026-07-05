@@ -3,7 +3,7 @@ defmodule Elektrine.Vault.MasterKey do
   Per-user master encryption key, stored zero-knowledge.
 
   Holds the user's Master Data Key (MDK) wrapped two ways - under a key derived
-  from the master passphrase (`wrapped_dek`) and under a key derived from a
+  from the user's password (`wrapped_dek`) and under a key derived from a
   one-time recovery code (`wrapped_dek_recovery`). Both are client-encrypted
   AES-256-GCM payloads; the server never sees the passphrase, recovery code, or
   the MDK itself. Unlock and recovery happen entirely in the browser, and the
@@ -11,7 +11,7 @@ defmodule Elektrine.Vault.MasterKey do
   unwrap).
 
   Per-feature keys are derived in the browser via HKDF over the MDK, so one
-  passphrase backs Nerve, Kairo, and email private storage.
+  password unlocks Nerve, Kairo, and email private storage.
   """
   use Ecto.Schema
   import Ecto.Changeset

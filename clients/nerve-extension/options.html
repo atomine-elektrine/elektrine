@@ -12,8 +12,8 @@
         <span class="eyebrow">Nerve</span>
         <h1>Extension Settings</h1>
         <p>
-          Sign in with your Elektrine account to connect this browser. Your nerve passphrase stays
-          only for the current browser session.
+          Connect the extension to your account here. Unlock encrypted passwords separately with
+          your account password in the Nerve manager.
         </p>
       </section>
 
@@ -36,20 +36,10 @@
       </section>
 
       <section class="panel">
-        <h2>Account sign-in</h2>
-        <p>Use your normal Elektrine username and password.</p>
-        <div class="options-grid">
-          <div class="field">
-            <label for="accountUsername">Username</label>
-            <input id="accountUsername" type="text" placeholder="your-username" autocomplete="username" />
-          </div>
-          <div class="field">
-            <label for="accountPassword">Password</label>
-            <input id="accountPassword" type="password" autocomplete="current-password" />
-          </div>
-        </div>
+        <h2>Account connection</h2>
+        <p>Open Elektrine, sign in there if needed, then approve this browser extension.</p>
         <div class="actions">
-          <button id="signInButton" class="button" type="button">Sign in</button>
+          <button id="connectButton" class="button" type="button">Connect on website</button>
         </div>
       </section>
 
@@ -59,19 +49,10 @@
         <div class="actions">
           <button id="testButton" class="button secondary" type="button">Test connection</button>
           <button id="signOutButton" class="button ghost" type="button">Sign out</button>
-          <button id="clearPassphraseButton" class="button ghost" type="button">Clear session passphrase</button>
+          <button id="clearPassphraseButton" class="button ghost" type="button">Clear password session</button>
         </div>
       </section>
 
-      <section class="panel">
-        <h2>Notes</h2>
-        <ul class="help-list">
-          <li>Account sign-in keeps this browser connected to your Elektrine account.</li>
-          <li>The nerve passphrase is stored only for the current browser session.</li>
-          <li>Signing out disconnects this browser from your account.</li>
-          <li>Local testing accepts `http://localhost`, `http://127.0.0.1`, and `http://[::1]`.</li>
-        </ul>
-      </section>
     </main>
 
     <script type="module" src="options.js"></script>

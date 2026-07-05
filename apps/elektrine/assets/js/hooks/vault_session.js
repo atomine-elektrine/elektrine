@@ -1,19 +1,58 @@
 /**
- * Vault session - the unlocked master key for this browser tab.
+ * Vault session - the unlocked encrypted data key for this browser tab.
  *
- * Holds the Master Data Key (MDK) in memory only (never persisted to
- * localStorage/sessionStorage), so unlocking once unlocks Nerve, Kairo, and
- * email private storage together, and a tab reload re-locks (matching Nerve's
- * existing behavior). Per-feature keys are derived lazily and cached for the
- * session. This is a module singleton shared by every hook that imports it.
+ * Holds the Master Data Key (MDK) for this browser tab/session, so unlocking
+ * once unlocks Nerve, Kairo, and email private storage together even when
+ * navigation crosses LiveView/app boundaries. The MDK is stored in
+ * sessionStorage, not localStorage: it clears on tab close and explicit lock.
+ * Per-feature keys are derived lazily and cached in memory.
  */
 
-import { deriveFeatureKey, deriveFeatureHmacKey } from "./vault_crypto"
+import { base64ToBytes, bytesToBase64, deriveFeatureKey, deriveFeatureHmacKey } from "./vault_crypto"
 
-let mdk = null
+const SESSION_KEY = "elektrine:vault-session:mdk"
+
+let mdk = readStoredMdk()
 const featureKeys = new Map()
 const featureHmacKeys = new Map()
 const listeners = new Set()
+
+function storage() {
+  try {
+    return typeof window !== "undefined" ? window.sessionStorage : null
+  } catch (_error) {
+    return null
+  }
+}
+
+function readStoredMdk() {
+  try {
+    const value = storage()?.getItem(SESSION_KEY)
+    if (!value) return null
+
+    const bytes = base64ToBytes(value)
+    return bytes.length === 32 ? bytes : null
+  } catch (_error) {
+    clearStoredMdk()
+    return null
+  }
+}
+
+function storeMdk(mdkBytes) {
+  try {
+    storage()?.setItem(SESSION_KEY, bytesToBase64(mdkBytes))
+  } catch (_error) {
+    // Session persistence is best-effort; memory unlock still works.
+  }
+}
+
+function clearStoredMdk() {
+  try {
+    storage()?.removeItem(SESSION_KEY)
+  } catch (_error) {
+    // Ignore storage failures.
+  }
+}
 
 function notify() {
   const unlocked = isUnlocked()
@@ -33,6 +72,7 @@ export function isUnlocked() {
 /** Store the unlocked MDK (a Uint8Array) for the tab and notify subscribers. */
 export function unlock(mdkBytes) {
   mdk = mdkBytes
+  storeMdk(mdkBytes)
   featureKeys.clear()
   featureHmacKeys.clear()
   notify()
@@ -41,6 +81,7 @@ export function unlock(mdkBytes) {
 /** Forget the MDK and all derived keys. */
 export function lock() {
   mdk = null
+  clearStoredMdk()
   featureKeys.clear()
   featureHmacKeys.clear()
   notify()

@@ -17,15 +17,18 @@ defmodule ElektrineWeb.LinkController do
 
           link ->
             # Validate URL to prevent open redirect attacks
-            case validate_external_url(link.url) do
-              {:ok, safe_url} ->
-                # Increment click count
-                Profiles.increment_link_clicks(link.id)
+            case {link_visible?(link), validate_external_url(link.url)} do
+              {false, _} ->
+                conn
+                |> put_status(:not_found)
+                |> put_view(html: ElektrineWeb.ErrorHTML)
+                |> render(:"404")
 
-                # Redirect to the actual URL
+              {true, {:ok, safe_url}} ->
+                Profiles.increment_link_clicks(link.id)
                 redirect(conn, external: safe_url)
 
-              {:error, reason} ->
+              {true, {:error, reason}} ->
                 Logger.warning("Blocked redirect to invalid URL: #{link.url} (reason: #{reason})")
 
                 conn
@@ -66,6 +69,14 @@ defmodule ElektrineWeb.LinkController do
   end
 
   defp validate_external_url(_), do: {:error, :invalid_input}
+
+  defp link_visible?(link) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    link.is_active == true &&
+      (is_nil(link.active_from) || DateTime.compare(link.active_from, now) != :gt) &&
+      (is_nil(link.active_until) || DateTime.compare(link.active_until, now) == :gt)
+  end
 
   defp validate_contact_url(_scheme, url) when is_binary(url) do
     if String.contains?(url, ["\r", "\n", "\0"]) or Regex.match?(~r/[\x00-\x1F\x7F\s]/, url) do

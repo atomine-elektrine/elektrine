@@ -263,6 +263,31 @@ defmodule Elektrine.Email.Mailboxes do
   end
 
   @doc """
+  Clears browser-managed private storage keys for all of a user's mailboxes.
+
+  This is used when account encrypted data is reset. Existing protected messages
+  encrypted under the old mailbox key remain unreadable, but the mailbox can be
+  set up again with a fresh key.
+  """
+  def reset_user_private_storage(user_id) when is_integer(user_id) do
+    attrs = %{
+      private_storage_enabled: false,
+      private_storage_public_key: nil,
+      private_storage_wrapped_private_key: nil,
+      private_storage_verifier: nil
+    }
+
+    user_id
+    |> get_user_mailboxes()
+    |> Enum.reduce_while({:ok, 0}, fn mailbox, {:ok, count} ->
+      case update_mailbox_private_storage(mailbox, attrs) do
+        {:ok, _mailbox} -> {:cont, {:ok, count + 1}}
+        {:error, changeset} -> {:halt, {:error, changeset}}
+      end
+    end)
+  end
+
+  @doc """
   Transitions a user's mailbox for username change.
   Updates the mailbox address in place so stored messages and private storage remain intact.
   """

@@ -50,6 +50,8 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
                     verify_custom_domain sync_custom_domain_dkim delete_custom_domain
                     update_mailbox_forwarding)
 
+  @default_tab "aliases"
+
   @impl true
   def mount(_params, session, socket) do
     user = socket.assigns.current_user
@@ -94,16 +96,16 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
      |> assign(:storage_info, storage_info)
      |> assign(:custom_folders, Email.list_custom_folders(user.id))
      |> assign(:current_folder_id, nil)
-     |> assign(:active_tab, "aliases")
+     |> assign(:active_tab, @default_tab)
      |> assign(:show_modal, nil)
      |> assign(:edit_item, nil)
      |> assign(:domain_action_in_progress, nil)
-     |> load_tab_data("aliases")}
+     |> load_tab_data(@default_tab)}
   end
 
   @impl true
   def handle_params(params, _url, socket) do
-    tab = Map.get(params, "tab", "blocked")
+    tab = Map.get(params, "tab", @default_tab)
 
     {:noreply,
      socket
@@ -242,16 +244,11 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
           >
             <div class="card-body p-3 sm:p-6">
               <!-- Header -->
-              <div class="flex items-center space-x-2 sm:space-x-3 mb-4 sm:mb-6">
-                <div class="p-1.5 sm:p-2 bg-secondary/10 rounded-lg">
-                  <.icon name="hero-cog-6-tooth" class="h-5 w-5 sm:h-6 sm:w-6 text-secondary" />
-                </div>
-                <div>
-                  <h1 class="text-xl sm:text-2xl font-bold">Email Settings</h1>
-                  <p class="text-xs sm:text-sm text-base-content/70">
-                    Manage your email preferences
-                  </p>
-                </div>
+              <div class="mb-4 sm:mb-6">
+                <h1 class="text-2xl font-semibold tracking-tight">Email Settings</h1>
+                <p class="mt-1 text-xs sm:text-sm text-base-content/70">
+                  Manage your email preferences
+                </p>
               </div>
               
     <!-- Tabs - scrollable on mobile -->
@@ -362,7 +359,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
   defp render_modal(assigns) do
     ~H"""
     <div class="modal modal-open">
-      <div class="modal-box modal-surface max-w-2xl border border-purple-500/30 shadow-xl">
+      <div class="modal-box modal-surface max-w-2xl border border-base-content/10 shadow-xl">
         <%= case @show_modal do %>
           <% "filter" -> %>
             {render_filter_modal(assigns)}

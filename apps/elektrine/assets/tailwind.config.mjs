@@ -11,10 +11,7 @@ const __dirname = path.dirname(__filename)
 
 function resolveHeroiconsDir() {
   const candidates = [
-    // Umbrella app layout: apps/elektrine/assets -> ../../../deps
-    path.join(__dirname, "../../../deps/heroicons/optimized"),
-    // Non-umbrella fallback: assets -> ../deps
-    path.join(__dirname, "../deps/heroicons/optimized")
+    path.join(__dirname, "vendor/heroicons/optimized")
   ]
 
   const existing = candidates.find((candidate) => fs.existsSync(candidate))

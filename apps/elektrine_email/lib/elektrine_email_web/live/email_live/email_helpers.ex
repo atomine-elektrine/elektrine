@@ -20,11 +20,11 @@ defmodule ElektrineEmailWeb.EmailLive.EmailHelpers do
   end
 
   def private_mailbox_locked_status("master") do
-    gettext("Mailbox locked. Unlock your master password to unlock it in this tab.")
+    gettext("Mailbox locked. Enter your account password to continue.")
   end
 
   def private_mailbox_locked_status("account_password") do
-    gettext("Mailbox locked. Enter your account password again to unlock it in this tab.")
+    gettext("Mailbox locked. Enter your account password to continue.")
   end
 
   def private_mailbox_locked_status(_mode), do: gettext("Mailbox locked.")
@@ -40,7 +40,7 @@ defmodule ElektrineEmailWeb.EmailLive.EmailHelpers do
     |> private_mailbox_unlock_placeholder()
   end
 
-  def private_mailbox_unlock_placeholder("master"), do: gettext("Master passphrase")
+  def private_mailbox_unlock_placeholder("master"), do: gettext("Account password")
   def private_mailbox_unlock_placeholder("account_password"), do: gettext("Account password")
   def private_mailbox_unlock_placeholder(_mode), do: gettext("Mailbox passphrase")
 

@@ -135,6 +135,72 @@ defmodule ElektrineWeb.PresenceTest do
     end
   end
 
+  describe "aggregated status snapshots" do
+    defp track_device(user_id, meta) do
+      test_pid = self()
+
+      pid =
+        spawn(fn ->
+          Presence.track(
+            self(),
+            "users",
+            user_id,
+            Map.merge(%{online_at: System.system_time(:second)}, meta)
+          )
+
+          send(test_pid, :tracked)
+
+          receive do
+            :stop -> :ok
+          end
+        end)
+
+      assert_receive :tracked, 1000
+      pid
+    end
+
+    test "unknown users default to offline" do
+      snapshot = Presence.get_user_status("no-such-user")
+      assert snapshot.status == "offline"
+      assert snapshot.device_count == 0
+    end
+
+    test "aggregates devices and broadcasts only on snapshot changes" do
+      Presence.subscribe_status_updates()
+      user_id = "31337"
+
+      pid1 = track_device(user_id, %{user_id: 31_337, status: "online", device_type: "desktop"})
+
+      assert_receive {:presence_changed, ^user_id, %{status: "online", device_count: 1}}, 1000
+
+      # A second, less-present device joins: best status wins, devices merge
+      pid2 = track_device(user_id, %{user_id: 31_337, status: "away", device_type: "mobile"})
+
+      assert_receive {:presence_changed, ^user_id,
+                      %{status: "online", device_count: 2, devices: devices}},
+                     1000
+
+      assert "desktop" in devices
+      assert "mobile" in devices
+      assert Presence.get_user_status(user_id).device_count == 2
+      assert Map.has_key?(Presence.list_user_statuses(), user_id)
+
+      # Best device leaves: aggregate falls back to the remaining device
+      Process.exit(pid1, :kill)
+      assert_receive {:presence_changed, ^user_id, %{status: "away", device_count: 1}}, 1000
+
+      # Last device leaves: user goes offline with a last_seen timestamp
+      Process.exit(pid2, :kill)
+
+      assert_receive {:presence_changed, ^user_id,
+                      %{status: "offline", device_count: 0, last_seen_at: last_seen}},
+                     1000
+
+      assert is_integer(last_seen)
+      assert Presence.get_user_status(user_id).status == "offline"
+    end
+  end
+
   describe "status color mapping" do
     import Phoenix.LiveViewTest
 

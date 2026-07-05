@@ -170,7 +170,7 @@ defmodule ElektrineWeb.API.SettingsController do
 
     attrs = notification_attrs(params)
 
-    case Accounts.update_user(user, attrs) do
+    case Accounts.update_notification_settings(user, attrs) do
       {:ok, updated_user} ->
         conn
         |> put_status(:ok)
@@ -259,11 +259,14 @@ defmodule ElektrineWeb.API.SettingsController do
   PUT /api/settings/password
   Changes user password
   """
-  def update_password(conn, %{
-        "current_password" => current_password,
-        "new_password" => new_password
-      }) do
-    update_password_with_confirmation(conn, current_password, new_password, new_password)
+  def update_password(
+        conn,
+        %{
+          "current_password" => current_password,
+          "new_password" => new_password
+        } = params
+      ) do
+    update_password_with_confirmation(conn, current_password, new_password, new_password, params)
   end
 
   def update_password(conn, _params) do
@@ -285,7 +288,8 @@ defmodule ElektrineWeb.API.SettingsController do
       conn,
       current_password,
       new_password,
-      new_password_confirmation
+      new_password_confirmation,
+      params
     )
   end
 
@@ -335,15 +339,23 @@ defmodule ElektrineWeb.API.SettingsController do
          conn,
          current_password,
          new_password,
-         new_password_confirmation
+         new_password_confirmation,
+         params
        ) do
     user = conn.assigns[:current_user]
 
-    case Authentication.update_user_password(user, %{
-           current_password: current_password,
-           password: new_password,
-           password_confirmation: new_password_confirmation
-         }) do
+    with {:ok, encrypted_data_rewrap} <- decode_encrypted_data_rewrap(params) do
+      Authentication.update_user_password(
+        user,
+        %{
+          current_password: current_password,
+          password: new_password,
+          password_confirmation: new_password_confirmation
+        },
+        encrypted_data_rewrap: encrypted_data_rewrap
+      )
+    end
+    |> case do
       {:ok, _updated_user} ->
         conn
         |> put_status(:ok)
@@ -358,7 +370,7 @@ defmodule ElektrineWeb.API.SettingsController do
           end)
 
         # Check if error is due to incorrect current password
-        if Map.has_key?(errors, :current_password) do
+        if incorrect_current_password?(errors) do
           conn
           |> put_status(:unauthorized)
           |> json(%{error: "Current password is incorrect"})
@@ -367,7 +379,53 @@ defmodule ElektrineWeb.API.SettingsController do
           |> put_status(:unprocessable_entity)
           |> json(%{error: "Failed to update password", errors: errors})
         end
+
+      {:error, :invalid_encrypted_data_rewrap} ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{error: "Encrypted data could not be updated"})
     end
+  end
+
+  defp decode_encrypted_data_rewrap(params) when is_map(params) do
+    wrapped_dek = Map.get(params, "vault_wrapped_dek")
+    wrapped_dek_recovery = Map.get(params, "vault_wrapped_dek_recovery")
+
+    if blank_string?(wrapped_dek) and blank_string?(wrapped_dek_recovery) do
+      {:ok, nil}
+    else
+      with {:ok, wrapped_dek_payload} <- decode_payload(wrapped_dek),
+           {:ok, wrapped_dek_recovery_payload} <- decode_payload(wrapped_dek_recovery) do
+        {:ok,
+         %{
+           wrapped_dek: wrapped_dek_payload,
+           wrapped_dek_recovery: wrapped_dek_recovery_payload
+         }}
+      else
+        _ -> {:error, :invalid_encrypted_data_rewrap}
+      end
+    end
+  end
+
+  defp decode_payload(value) when is_map(value), do: {:ok, value}
+
+  defp decode_payload(value) when is_binary(value) do
+    case Jason.decode(value) do
+      {:ok, decoded} when is_map(decoded) -> {:ok, decoded}
+      _ -> {:error, :invalid}
+    end
+  end
+
+  defp decode_payload(_value), do: {:error, :invalid}
+
+  defp blank_string?(nil), do: true
+  defp blank_string?(value) when is_binary(value), do: !Elektrine.Strings.present?(value)
+  defp blank_string?(_value), do: false
+
+  defp incorrect_current_password?(errors) do
+    errors
+    |> Map.get(:current_password, [])
+    |> Enum.any?(&(&1 == "is incorrect"))
   end
 
   defp changeset_errors(changeset) do

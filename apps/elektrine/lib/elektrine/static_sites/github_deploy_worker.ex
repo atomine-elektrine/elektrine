@@ -32,16 +32,41 @@ defmodule Elektrine.StaticSites.GitHubDeployWorker do
 
   defp deploy(%StaticSiteDeployment{} = deployment) do
     _ = StaticSites.mark_deployment_deploying(deployment)
+    commit = fetch_commit_metadata(deployment)
 
     with {:ok, archive} <- fetch_archive(deployment),
          {:ok, _count} <-
            StaticSites.replace_with_repo_archive(deployment.user, archive, deployment.site_dir),
          {:ok, _profile} <- ensure_static_profile_mode(deployment),
-         {:ok, _deployment} <- StaticSites.mark_deployment_deployed(deployment) do
+         {:ok, deployment} <-
+           StaticSites.mark_deployment_deployed(
+             deployment,
+             Map.merge(commit, %{log: "Deployed GitHub archive successfully"})
+           ),
+         {:ok, _deploy} <-
+           StaticSites.snapshot_current_site(
+             deployment.user,
+             deployment,
+             Map.merge(commit, %{
+               status: "deployed",
+               trigger: "github",
+               log: "Deployed GitHub archive successfully"
+             })
+           ) do
       :ok
     else
       {:error, reason} ->
         _ = StaticSites.mark_deployment_failed(deployment, reason)
+
+        _ =
+          StaticSites.record_static_site_deploy(deployment, %{
+            status: "failed",
+            trigger: "github",
+            error: inspect(reason),
+            log: "Deploy failed: #{inspect(reason)}",
+            deployed_at: DateTime.utc_now() |> DateTime.truncate(:second)
+          })
+
         {:error, reason}
     end
   end
@@ -129,6 +154,31 @@ defmodule Elektrine.StaticSites.GitHubDeployWorker do
     else
       {:ok, body}
     end
+  end
+
+  defp fetch_commit_metadata(%StaticSiteDeployment{} = deployment) do
+    url =
+      "https://api.github.com/repos/#{deployment.repo_owner}/#{deployment.repo_name}/commits/#{deployment.branch}"
+
+    case Req.get(url,
+           headers: [
+             {"accept", "application/vnd.github+json"},
+             {"user-agent", "Elektrine"}
+           ],
+           receive_timeout: :timer.seconds(10)
+         ) do
+      {:ok, %Req.Response{status: status, body: body}} when status in 200..299 and is_map(body) ->
+        %{
+          commit_sha: body["sha"],
+          commit_url: body["html_url"],
+          commit_message: get_in(body, ["commit", "message"])
+        }
+
+      _ ->
+        %{}
+    end
+  rescue
+    _ -> %{}
   end
 
   defp ensure_static_profile_mode(%StaticSiteDeployment{user: user}) do

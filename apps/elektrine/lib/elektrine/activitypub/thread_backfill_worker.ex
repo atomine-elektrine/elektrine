@@ -12,7 +12,7 @@ defmodule Elektrine.ActivityPub.ThreadBackfillWorker do
     max_attempts: 2,
     unique: [
       period: 300,
-      keys: [:message_id],
+      keys: [:message_id, :force],
       states: [:available, :scheduled, :executing, :retryable]
     ]
 
@@ -21,17 +21,23 @@ defmodule Elektrine.ActivityPub.ThreadBackfillWorker do
 
   @max_ancestor_depth 10
 
-  def enqueue(message_id) when is_integer(message_id) and message_id > 0 do
-    %{"message_id" => message_id}
+  def enqueue(message_id, opts \\ [])
+
+  def enqueue(message_id, opts) when is_integer(message_id) and message_id > 0 do
+    %{"message_id" => message_id, "force" => Keyword.get(opts, :force, false)}
     |> new()
     |> Elektrine.JobQueue.insert()
   end
 
-  def enqueue(_), do: {:error, :invalid_message_id}
+  def enqueue(_, _opts), do: {:error, :invalid_message_id}
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"message_id" => message_id}}) do
-    if FederationLoadGuard.skip_nonessential?(__MODULE__) do
+  def perform(%Oban.Job{args: %{"message_id" => message_id} = args}) do
+    # A forced backfill is a direct user action (retry button), so it bypasses
+    # the load shed and the reply-fetch cooldown.
+    force = args["force"] == true
+
+    if not force and FederationLoadGuard.skip_nonessential?(__MODULE__) do
       {:discard, :federation_overloaded}
     else
       case Messaging.get_message(message_id) do
@@ -42,7 +48,10 @@ defmodule Elektrine.ActivityPub.ThreadBackfillWorker do
           actor_uri = message.remote_actor && message.remote_actor.uri
           :ok = backfill_ancestors(message, actor_uri, 0)
 
-          case RepliesFetcher.fetch_full_thread_for_message(message.id, skip_cache: true) do
+          case RepliesFetcher.fetch_full_thread_for_message(message.id,
+                 skip_cache: true,
+                 skip_cooldown: force
+               ) do
             {:ok, _} -> :ok
             {:error, :message_not_found} -> {:discard, :message_not_found}
             {:error, :no_activitypub_id} -> {:discard, :no_activitypub_id}
@@ -88,12 +97,25 @@ defmodule Elektrine.ActivityPub.ThreadBackfillWorker do
   end
 
   defp maybe_link_reply_to_parent(message, parent) do
-    if is_nil(message.reply_to_id) && is_integer(parent.id) do
-      message
-      |> Ecto.Changeset.change(reply_to_id: parent.id)
-      |> Elektrine.Repo.update()
-    else
-      :ok
+    cond do
+      not (is_nil(message.reply_to_id) && is_integer(parent.id)) ->
+        :ok
+
+      # Guard against self-reference and direct 2-cycles.
+      parent.id == message.id or parent.reply_to_id == message.id ->
+        :ok
+
+      true ->
+        case message
+             |> Ecto.Changeset.change(reply_to_id: parent.id)
+             |> Elektrine.Repo.update() do
+          {:ok, _updated} ->
+            Elektrine.ActivityPub.SideEffects.increment_reply_count(parent.id)
+            :ok
+
+          error ->
+            error
+        end
     end
   end
 end

@@ -3,6 +3,7 @@ defmodule ElektrineWeb.Components.Platform.ZNavTest do
 
   import Phoenix.LiveViewTest
 
+  alias Elektrine.Platform.ENav
   alias ElektrineWeb.Components.Platform.ZNav
 
   setup do
@@ -31,5 +32,10 @@ defmodule ElektrineWeb.Components.Platform.ZNavTest do
     refute html =~ "Nerve"
     refute html =~ "Nerve"
     refute html =~ "VPN"
+  end
+
+  test "friends belongs to the secondary nav row" do
+    refute Enum.any?(ENav.primary_items(), &(&1.id == "friends"))
+    assert Enum.any?(ENav.secondary_items(), &(&1.id == "friends"))
   end
 end

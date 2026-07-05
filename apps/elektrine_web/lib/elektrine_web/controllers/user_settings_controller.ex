@@ -5,6 +5,7 @@ defmodule ElektrineWeb.UserSettingsController do
   alias Elektrine.Accounts
   alias Elektrine.Auth.RateLimiter
   alias Elektrine.Utils.SafeConvert
+  alias Elektrine.Vault
   alias ElektrineWeb.Platform.Integrations
 
   plug :assign_user
@@ -52,19 +53,32 @@ defmodule ElektrineWeb.UserSettingsController do
     # Require 2FA verification if user has 2FA enabled
     case verify_2fa_for_password_change(user, user_params) do
       :ok ->
-        case decode_private_mailbox_rewrap(user_params) do
-          {:ok, mailbox_rewrap} ->
-            case Accounts.update_user_password(user, user_params,
-                   private_mailbox_rewrap: mailbox_rewrap
-                 ) do
-              {:ok, _user} ->
-                conn
-                |> put_flash(:info, "Password updated successfully.")
-                |> redirect(to: ~p"/account")
+        with {:ok, encrypted_data_rewrap} <- decode_encrypted_data_rewrap(user_params),
+             {:ok, mailbox_rewrap} <- decode_private_mailbox_rewrap(user_params) do
+          case Accounts.update_user_password(user, user_params,
+                 encrypted_data_rewrap: encrypted_data_rewrap,
+                 private_mailbox_rewrap: mailbox_rewrap
+               ) do
+            {:ok, _user} ->
+              conn
+              |> put_flash(:info, "Password updated successfully.")
+              |> redirect(to: ~p"/account")
 
-              {:error, changeset} ->
-                render_edit_password(conn, changeset)
-            end
+            {:error, changeset} ->
+              render_edit_password(conn, changeset)
+          end
+        else
+          {:error, :invalid_encrypted_data_rewrap} ->
+            changeset =
+              user
+              |> Accounts.change_user_password(user_params)
+              |> Map.put(:action, :update)
+              |> Ecto.Changeset.add_error(
+                :current_password,
+                "Encrypted data could not be updated. Reload and try again."
+              )
+
+            render_edit_password(conn, changeset)
 
           {:error, :invalid_private_mailbox_rewrap} ->
             changeset =
@@ -440,19 +454,58 @@ defmodule ElektrineWeb.UserSettingsController do
   end
 
   defp render_edit_password(conn, changeset) do
+    user = conn.assigns.current_user
+    vault = Vault.get(user.id)
+
     assigns =
-      conn.assigns.current_user.id
+      user.id
       |> Integrations.edit_password_assigns()
       |> Map.put(:changeset, changeset)
+      |> Map.put(:master_vault, vault)
 
     render(conn, :edit_password, assigns)
   end
+
+  defp decode_encrypted_data_rewrap(params) when is_map(params) do
+    wrapped_dek = Map.get(params, "vault_wrapped_dek")
+    wrapped_dek_recovery = Map.get(params, "vault_wrapped_dek_recovery")
+
+    if blank_string?(wrapped_dek) and blank_string?(wrapped_dek_recovery) do
+      {:ok, nil}
+    else
+      with {:ok, wrapped_dek_payload} <- decode_json_payload(wrapped_dek),
+           {:ok, wrapped_dek_recovery_payload} <- decode_json_payload(wrapped_dek_recovery) do
+        {:ok,
+         %{
+           wrapped_dek: wrapped_dek_payload,
+           wrapped_dek_recovery: wrapped_dek_recovery_payload
+         }}
+      else
+        _ -> {:error, :invalid_encrypted_data_rewrap}
+      end
+    end
+  end
+
+  defp decode_encrypted_data_rewrap(_params), do: {:ok, nil}
 
   defp decode_private_mailbox_rewrap(params) when is_map(params) do
     Integrations.decode_private_mailbox_rewrap(params)
   end
 
   defp decode_private_mailbox_rewrap(_params), do: {:ok, nil}
+
+  defp decode_json_payload(value) when is_binary(value) do
+    case Jason.decode(value) do
+      {:ok, decoded} when is_map(decoded) -> {:ok, decoded}
+      _ -> {:error, :invalid}
+    end
+  end
+
+  defp decode_json_payload(_value), do: {:error, :invalid}
+
+  defp blank_string?(nil), do: true
+  defp blank_string?(value) when is_binary(value), do: !Elektrine.Strings.present?(value)
+  defp blank_string?(_value), do: false
 
   defp handle_avatar_upload(%{"avatar" => %Plug.Upload{} = upload} = user_params, user) do
     case Elektrine.Uploads.upload_avatar(upload, user.id) do
@@ -594,18 +647,12 @@ defmodule ElektrineWeb.UserSettingsController do
     if status in ["online", "away", "dnd", "offline"] do
       case Accounts.update_user_status(user, status) do
         {:ok, _updated_user} ->
-          # Broadcast to the user's own channel
+          # Notify the user's own sessions; they update their presence meta,
+          # which fans out to everyone via ElektrineWeb.Presence.handle_metas/4.
           Phoenix.PubSub.broadcast(
             Elektrine.PubSub,
             "user:#{user.id}",
             {:status_changed, status}
-          )
-
-          # Broadcast to all presence subscribers
-          Phoenix.PubSub.broadcast(
-            Elektrine.PubSub,
-            "users",
-            {:user_status_updated, user.id, status}
           )
 
           # Send 204 No Content - no redirect

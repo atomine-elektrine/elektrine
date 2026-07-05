@@ -7,6 +7,7 @@ defmodule Elektrine.Accounts.Authentication do
   alias Elektrine.Email.Mailbox
   alias Elektrine.OAuth
   alias Elektrine.Repo
+  alias Elektrine.Vault
   require Logger
 
   @doc ~s|Authenticates a user by username and password.\n\nReturns `{:ok, user}` if the username and password are valid,\nor `{:error, :invalid_credentials}` if the username or password are invalid.\n\n## Examples\n\n    iex> authenticate_user(\"username\", \"correct_password\")\n    {:ok, %User{}}\n\n    iex> authenticate_user(\"username\", \"wrong_password\")\n    {:error, :invalid_credentials}\n\n    iex> authenticate_user(\"nonexistent\", \"any_password\")\n    {:error, :invalid_credentials}\n\n|
@@ -93,14 +94,17 @@ defmodule Elektrine.Accounts.Authentication do
   @doc ~s|Updates a user's password.\n\n## Examples\n\n    iex> update_user_password(user, %{password: \"new password\", password_confirmation: \"new password\"})\n    {:ok, %User{}}\n\n    iex> update_user_password(user, %{password: \"invalid\"})\n    {:error, %Ecto.Changeset{}}\n\n|
   def update_user_password(%User{} = user, attrs, opts \\ []) do
     password_changeset = User.password_changeset(user, attrs)
+    encrypted_data_rewrap = Keyword.get(opts, :encrypted_data_rewrap)
     mailbox_rewrap = Keyword.get(opts, :private_mailbox_rewrap)
 
     if password_changeset.valid? do
       case Repo.transaction(fn ->
              case Repo.update(password_changeset) do
                {:ok, updated_user} ->
-                 case maybe_rewrap_private_mailbox(user.id, mailbox_rewrap) do
-                   :ok -> updated_user
+                 with :ok <- maybe_rewrap_encrypted_data(user.id, encrypted_data_rewrap),
+                      :ok <- maybe_rewrap_private_mailbox(user.id, mailbox_rewrap) do
+                   updated_user
+                 else
                    {:error, reason} -> Repo.rollback(reason)
                  end
 
@@ -335,6 +339,33 @@ defmodule Elektrine.Accounts.Authentication do
     end
   end
 
+  defp maybe_rewrap_encrypted_data(user_id, encrypted_data_rewrap) do
+    if Vault.configured?(user_id) do
+      if valid_encrypted_data_rewrap?(encrypted_data_rewrap) do
+        case Vault.rotate(user_id, %{
+               "wrapped_dek" => encrypted_data_rewrap.wrapped_dek,
+               "wrapped_dek_recovery" => encrypted_data_rewrap.wrapped_dek_recovery
+             }) do
+          {:ok, _master_key} -> :ok
+          {:error, _reason} -> {:error, :encrypted_data_rewrap_invalid}
+        end
+      else
+        {:error, :encrypted_data_rewrap_required}
+      end
+    else
+      :ok
+    end
+  end
+
+  defp valid_encrypted_data_rewrap?(%{
+         wrapped_dek: wrapped_dek,
+         wrapped_dek_recovery: wrapped_dek_recovery
+       })
+       when is_map(wrapped_dek) and is_map(wrapped_dek_recovery),
+       do: true
+
+  defp valid_encrypted_data_rewrap?(_value), do: false
+
   defp valid_private_mailbox_rewrap?(%{
          wrapped_private_key: wrapped_private_key,
          verifier: verifier,
@@ -351,6 +382,24 @@ defmodule Elektrine.Accounts.Authentication do
     |> Ecto.Changeset.add_error(
       :current_password,
       "Your private mailbox must be rewrapped in this browser before changing your password."
+    )
+  end
+
+  defp password_changeset_error(password_changeset, :encrypted_data_rewrap_required) do
+    password_changeset
+    |> Map.put(:action, :update)
+    |> Ecto.Changeset.add_error(
+      :current_password,
+      "Encrypted data must be rewrapped in this browser before changing your password."
+    )
+  end
+
+  defp password_changeset_error(password_changeset, :encrypted_data_rewrap_invalid) do
+    password_changeset
+    |> Map.put(:action, :update)
+    |> Ecto.Changeset.add_error(
+      :current_password,
+      "Encrypted data could not be updated with the new password."
     )
   end
 

@@ -1,10 +1,17 @@
 import { submitFormPreservingEvents } from "../utils/form_submission"
 import {
+  readMailboxFields,
+  readPasswordUpdateContext,
+  readVaultFields,
+  passwordUpdateValidationError,
+  shouldHandlePasswordUpdate
+} from "./mailbox_private_auth_payloads"
+import { unwrapWithSecret, wrapWithSecret } from "./vault_crypto"
+import {
   VERIFY_TEXT,
   cacheLoginPassword,
   encoder,
   notify,
-  parsePayload,
   unwrapMailboxPrivateKey,
   wrapBytes
 } from "./mailbox_private_storage_hooks"
@@ -32,67 +39,58 @@ function bindPrivateMailboxPasswordForm(form) {
       return
     }
 
-    const configured = form.dataset.privateMailboxConfigured === "true"
-    const unlockMode = form.dataset.privateMailboxUnlockMode || "separate_passphrase"
+    const context = readPasswordUpdateContext(form)
 
-    if (!configured || unlockMode !== "account_password") {
-      return
-    }
+    if (!shouldHandlePasswordUpdate(context)) return
+    if (context.currentPassword.trim() === "" || context.newPassword.trim() === "") return
 
-    const currentPassword = form.querySelector("input[name='user[current_password]']")?.value || ""
-    const newPassword = form.querySelector("input[name='user[password]']")?.value || ""
+    const vaultFields = readVaultFields(form)
+    const mailboxFields = readMailboxFields(form)
+    const validationError = passwordUpdateValidationError(context, vaultFields, mailboxFields)
 
-    if (currentPassword.trim() === "" || newPassword.trim() === "") {
-      return
-    }
-
-    const wrappedKeyPayload = parsePayload(form.dataset.privateMailboxWrappedKey)
-    const verifierPayload = parsePayload(form.dataset.privateMailboxVerifier)
-
-    if (!wrappedKeyPayload || !verifierPayload) {
+    if (validationError) {
       event.preventDefault()
-      notify("Private mailbox rewrap data is unavailable. Reload and try again.")
-      return
-    }
-
-    const wrappedKeyField = form.querySelector(
-      "input[name='user[private_mailbox_wrapped_private_key]']"
-    )
-    const verifierField = form.querySelector("input[name='user[private_mailbox_verifier]']")
-    const unlockModeField = form.querySelector("input[name='user[private_mailbox_unlock_mode]']")
-
-    if (!wrappedKeyField || !verifierField || !unlockModeField) {
-      event.preventDefault()
-      notify("Private mailbox password update fields are missing. Reload and try again.")
+      notify(validationError)
       return
     }
 
     try {
       event.preventDefault()
 
-      const privateKeyBytes = await unwrapMailboxPrivateKey(
-        wrappedKeyPayload,
-        verifierPayload,
-        currentPassword
-      )
-      const nextWrappedKey = await wrapBytes(privateKeyBytes, newPassword, "account_password")
-      const nextVerifier = await wrapBytes(
-        encoder.encode(VERIFY_TEXT),
-        newPassword,
-        "account_password",
-        "verifier"
-      )
+      if (context.vaultConfigured) {
+        const mdk = await unwrapWithSecret(context.vaultWrappedDek, context.currentPassword)
+        vaultFields.wrappedDekField.value = JSON.stringify(
+          await wrapWithSecret(mdk, context.newPassword)
+        )
+        vaultFields.wrappedDekRecoveryField.value = JSON.stringify(context.vaultWrappedDekRecovery)
+      }
 
-      wrappedKeyField.value = JSON.stringify(nextWrappedKey)
-      verifierField.value = JSON.stringify(nextVerifier)
-      unlockModeField.value = "account_password"
-      cacheLoginPassword(newPassword)
+      if (context.shouldRewrapMailbox) {
+        const privateKeyBytes = await unwrapMailboxPrivateKey(
+          context.wrappedKeyPayload,
+          context.verifierPayload,
+          context.currentPassword
+        )
+        const nextWrappedKey = await wrapBytes(privateKeyBytes, context.newPassword, "account_password")
+        const nextVerifier = await wrapBytes(
+          encoder.encode(VERIFY_TEXT),
+          context.newPassword,
+          "account_password",
+          "verifier"
+        )
+
+        mailboxFields.wrappedKeyField.value = JSON.stringify(nextWrappedKey)
+        mailboxFields.verifierField.value = JSON.stringify(nextVerifier)
+        mailboxFields.unlockModeField.value = "account_password"
+      }
+
+      cacheLoginPassword(context.newPassword)
 
       form.dataset.privateMailboxRewrapSubmitting = "true"
       submitFormPreservingEvents(form)
     } catch (_error) {
       notify(
-        "Could not rewrap your private mailbox with the new password. Check your current password and try again."
+        "Could not update encrypted data for the new password. Check your current password and try again."
       )
     }
   })

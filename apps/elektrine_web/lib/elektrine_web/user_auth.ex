@@ -12,7 +12,6 @@ defmodule ElektrineWeb.UserAuth do
   alias Elektrine.Constants
   alias ElektrineWeb.AdminSecurity
   alias ElektrineWeb.ClientIP
-  alias ElektrineWeb.Endpoint
   alias ElektrineWeb.Platform.Integrations
   alias ElektrineWeb.SessionConfig
 
@@ -38,8 +37,12 @@ defmodule ElektrineWeb.UserAuth do
       |> put_flash(:error, "Admin accounts must sign in over the private admin network.")
       |> redirect(to: Elektrine.Paths.login_path())
     else
-      token = Phoenix.Token.sign(conn, "user auth", user_session_claims(user))
       user_return_to = get_session(conn, :user_return_to)
+
+      {:ok, user_session} =
+        Accounts.create_user_session(user, user_session_attrs(conn, params, opts))
+
+      token = Phoenix.Token.sign(conn, "user auth", user_session_claims(user, user_session))
 
       # Update login information (IP, timestamp, count)
       remote_ip = get_remote_ip(conn)
@@ -51,6 +54,7 @@ defmodule ElektrineWeb.UserAuth do
       conn
       |> renew_session()
       |> put_token_in_session(token)
+      |> put_session(:user_session_id, user_session.id)
       |> mark_recent_auth()
       |> maybe_write_remember_me_cookie(token, user, params)
       |> maybe_put_session_values(opts[:session])
@@ -228,7 +232,7 @@ defmodule ElektrineWeb.UserAuth do
   for more information on this.
   """
   def log_out_user(conn) do
-    maybe_invalidate_current_user_sessions(conn.assigns[:current_user])
+    maybe_revoke_current_user_session(conn)
 
     conn
     |> renew_session()
@@ -242,10 +246,12 @@ defmodule ElektrineWeb.UserAuth do
   """
   def fetch_current_user(conn, _opts) do
     {user_token, conn} = ensure_user_token(conn)
-    user = user_token && fetch_user_by_token(user_token)
+    {user, user_session} = (user_token && fetch_user_by_token(user_token)) || {nil, nil}
     {user, conn} = maybe_restrict_admin_user_to_vpn(conn, user)
 
-    assign(conn, :current_user, user)
+    conn
+    |> assign(:current_user, user)
+    |> assign(:current_user_session, user && user_session)
   end
 
   defp maybe_restrict_admin_user_to_vpn(conn, %{is_admin: true} = user) do
@@ -280,34 +286,39 @@ defmodule ElektrineWeb.UserAuth do
            max_age: Constants.session_max_age_seconds()
          ) do
       {:ok, claims} -> claims |> session_user_id() |> fetch_user_for_claims(claims)
-      {:error, _} -> nil
+      {:error, _} -> {nil, nil}
     end
   rescue
-    _ -> nil
+    _ -> {nil, nil}
   end
 
-  defp user_session_claims(user) do
+  defp user_session_claims(user, user_session) do
     %{
       "user_id" => user.id,
+      "session_id" => user_session.id,
       "password_changed_at" => password_changed_at_unix(user),
       "auth_valid_after" => auth_valid_after_unix(user)
     }
   end
 
-  defp fetch_user_for_claims(nil, _claims), do: nil
+  defp fetch_user_for_claims(nil, _claims), do: {nil, nil}
 
   defp fetch_user_for_claims(user_id, claims) do
     case Accounts.get_user_session_stamp(user_id) do
       nil ->
-        nil
+        {nil, nil}
 
       stamp ->
-        if session_claims_valid?(stamp, claims) do
-          user_id
-          |> CachedAccounts.get_user!()
-          |> apply_session_stamp(stamp)
+        with true <- session_claims_valid?(stamp, claims),
+             {:ok, user_session} <- validate_tracked_session(user_id, session_id(claims)) do
+          user =
+            user_id
+            |> CachedAccounts.get_user!()
+            |> apply_session_stamp(stamp)
+
+          {user, user_session}
         else
-          nil
+          _ -> {nil, nil}
         end
     end
   end
@@ -324,6 +335,22 @@ defmodule ElektrineWeb.UserAuth do
 
   defp session_user_id(%{"user_id" => user_id}) when is_integer(user_id), do: user_id
   defp session_user_id(_claims), do: nil
+
+  defp session_id(%{"session_id" => session_id}) when is_integer(session_id), do: session_id
+  defp session_id(_claims), do: nil
+
+  defp validate_tracked_session(_user_id, nil), do: {:ok, nil}
+
+  defp validate_tracked_session(user_id, session_id) do
+    case Accounts.get_active_user_session(user_id, session_id) do
+      nil ->
+        {:error, :revoked}
+
+      user_session ->
+        _ = Accounts.touch_user_session(user_session)
+        {:ok, user_session}
+    end
+  end
 
   defp session_claims_valid?(user, %{
          "password_changed_at" => changed_at,
@@ -346,14 +373,35 @@ defmodule ElektrineWeb.UserAuth do
 
   defp auth_valid_after_unix(_user), do: nil
 
-  defp maybe_invalidate_current_user_sessions(%{} = user) do
-    case Accounts.invalidate_auth_sessions(user) do
-      {:ok, _user} -> Endpoint.broadcast("user_socket:#{user.id}", "disconnect", %{})
-      _ -> :ok
+  defp maybe_revoke_current_user_session(%Plug.Conn{} = conn) do
+    user = conn.assigns[:current_user]
+    session = conn.assigns[:current_user_session]
+
+    case {user, session || get_session(conn, :user_session_id)} do
+      {%{id: user_id}, %{id: session_id}} ->
+        _ = Accounts.revoke_user_session(user_id, session_id, "signed_out")
+
+      {%{id: user_id}, session_id} when is_integer(session_id) ->
+        _ = Accounts.revoke_user_session(user_id, session_id, "signed_out")
+
+      _ ->
+        :ok
     end
   end
 
-  defp maybe_invalidate_current_user_sessions(_), do: :ok
+  defp user_session_attrs(conn, params, opts) do
+    user_agent =
+      conn
+      |> get_req_header("user-agent")
+      |> List.first()
+
+    %{
+      auth_method: to_string(opts[:auth_method] || opts[:method] || "password"),
+      ip_address: get_remote_ip(conn),
+      user_agent: user_agent,
+      remembered: Map.get(params, "remember_me") == "true"
+    }
+  end
 
   @doc """
   Confirms if the current user is authenticated.

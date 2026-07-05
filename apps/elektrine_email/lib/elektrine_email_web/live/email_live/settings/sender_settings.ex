@@ -7,6 +7,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.SenderSettings do
   use Phoenix.Component
 
   import Phoenix.LiveView, only: [put_flash: 3]
+  import ElektrineWeb.CoreComponents, only: [icon: 1]
   import ElektrineEmailWeb.EmailLive.Settings.Helpers
 
   alias Elektrine.Email
@@ -162,7 +163,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.SenderSettings do
     <!-- List -->
       <div class="space-y-2">
         <%= for blocked <- @blocked_senders do %>
-          <div class="flex items-center justify-between p-3 bg-base-100/50 rounded-lg border border-base-content/10">
+          <div class="flex items-center justify-between p-3 surface-subtle rounded-lg">
             <div>
               <%= if blocked.email do %>
                 <span class="badge badge-ghost mr-2">Email</span>
@@ -185,7 +186,13 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.SenderSettings do
           </div>
         <% end %>
         <%= if Enum.empty?(@blocked_senders) do %>
-          <p class="text-base-content/50 text-center py-4">No blocked senders</p>
+          <div class="text-center py-12 bg-base-200/30 rounded-lg border border-dashed border-base-content/20">
+            <.icon name="hero-no-symbol" class="w-12 h-12 mx-auto text-base-content/30 mb-3" />
+            <p class="text-base-content/50">No blocked senders</p>
+            <p class="text-sm text-base-content/40 mt-1">
+              Block an address or domain above to reject its mail
+            </p>
+          </div>
         <% end %>
       </div>
     </div>
@@ -224,7 +231,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.SenderSettings do
     <!-- List -->
       <div class="space-y-2">
         <%= for safe <- @safe_senders do %>
-          <div class="flex items-center justify-between p-3 bg-base-100/50 rounded-lg border border-base-content/10">
+          <div class="flex items-center justify-between p-3 surface-subtle rounded-lg">
             <div>
               <%= if safe.email do %>
                 <span class="badge badge-ghost mr-2">Email</span>
@@ -244,7 +251,13 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.SenderSettings do
           </div>
         <% end %>
         <%= if Enum.empty?(@safe_senders) do %>
-          <p class="text-base-content/50 text-center py-4">No spam exceptions</p>
+          <div class="text-center py-12 bg-base-200/30 rounded-lg border border-dashed border-base-content/20">
+            <.icon name="hero-shield-check" class="w-12 h-12 mx-auto text-base-content/30 mb-3" />
+            <p class="text-base-content/50">No spam exceptions</p>
+            <p class="text-sm text-base-content/40 mt-1">
+              Add a sender above to bypass spam-folder classification
+            </p>
+          </div>
         <% end %>
       </div>
     </div>

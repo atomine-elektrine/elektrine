@@ -13,14 +13,14 @@ defmodule Elektrine.Messaging.Federation.Attachments do
         |> Enum.take(10)
 
       _ ->
-        legacy_urls = normalize_media_urls(message_payload["media_urls"])
+        old_urls = normalize_media_urls(message_payload["media_urls"])
 
-        legacy_metadata =
+        old_metadata =
           if is_map(message_payload["media_metadata"]),
             do: message_payload["media_metadata"],
             else: %{}
 
-        legacy_urls
+        old_urls
         |> Enum.with_index()
         |> Enum.map(fn {url, index} ->
           %{
@@ -29,7 +29,7 @@ defmodule Elektrine.Messaging.Federation.Attachments do
             "mime_type" => "application/octet-stream",
             "authorization" => "public",
             "retention" => "origin",
-            "alt_text" => legacy_attachment_text(legacy_metadata, "alt_texts", index)
+            "alt_text" => old_attachment_text(old_metadata, "alt_texts", index)
           }
           |> Enum.reject(fn {_key, value} -> is_nil(value) end)
           |> Map.new()
@@ -76,7 +76,7 @@ defmodule Elektrine.Messaging.Federation.Attachments do
 
   defp normalize_attachment_payload(_attachment), do: nil
 
-  defp legacy_attachment_text(metadata, key, index) when is_map(metadata) and is_binary(key) do
+  defp old_attachment_text(metadata, key, index) when is_map(metadata) and is_binary(key) do
     case Map.get(metadata, key) do
       %{} = values ->
         case values[to_string(index)] || values[index] do
@@ -93,7 +93,7 @@ defmodule Elektrine.Messaging.Federation.Attachments do
     end
   end
 
-  defp legacy_attachment_text(_metadata, _key, _index), do: nil
+  defp old_attachment_text(_metadata, _key, _index), do: nil
 
   defp maybe_put_optional_map_value(map, _key, nil), do: map
 

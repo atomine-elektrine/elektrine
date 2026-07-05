@@ -29,6 +29,7 @@ defmodule ElektrineSocialWeb.ListLive.Index do
        |> assign(:new_list_name, "")
        |> assign(:new_list_description, "")
        |> assign(:new_list_visibility, "private")
+       |> assign(:show_create_modal, false)
        |> refresh_list_data()}
     else
       {:ok, push_navigate(socket, to: Elektrine.Paths.login_path())}
@@ -101,8 +102,12 @@ defmodule ElektrineSocialWeb.ListLive.Index do
      )}
   end
 
-  def handle_event("reset_new_list_form", _params, socket) do
-    {:noreply, reset_new_list_form(socket)}
+  def handle_event("open_create_modal", _params, socket) do
+    {:noreply, socket |> reset_new_list_form() |> assign(:show_create_modal, true)}
+  end
+
+  def handle_event("close_create_modal", _params, socket) do
+    {:noreply, assign(socket, :show_create_modal, false)}
   end
 
   def handle_event("create_list", params, socket) do
@@ -127,6 +132,7 @@ defmodule ElektrineSocialWeb.ListLive.Index do
         {:noreply,
          socket
          |> reset_new_list_form()
+         |> assign(:show_create_modal, false)
          |> assign(:view_mode, "my_lists")
          |> refresh_list_data()
          |> put_flash(:info, "List created successfully")}

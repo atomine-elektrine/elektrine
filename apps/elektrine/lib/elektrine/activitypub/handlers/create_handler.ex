@@ -16,6 +16,10 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
   alias Elektrine.Social
   alias Elektrine.Social.Poll
 
+  # Bounds the ingestion-time "fetch missing reply parent" recursion so a
+  # hostile inReplyTo chain can't drive unbounded upstream fetches.
+  @max_ingestion_ancestor_depth 10
+
   @doc """
   Handles an incoming Create activity.
   """
@@ -100,14 +104,31 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
   def create_note(object, actor_ref, opts) when is_list(opts) do
     actor_uri = Normalizer.actor_ref_uri(actor_ref)
 
-    with :ok <- validate_object_author(object, actor_uri) do
-      if Normalizer.poll_vote?(object) do
-        handle_incoming_poll_vote(object, actor_uri, opts)
-      else
-        create_regular_note(object, actor_uri, opts)
+    if instance_blocked_for_uri?(actor_uri) do
+      # Fetch paths (replies backfill, Announce/Like of unknown objects) reach
+      # here without the inbox's instance-block gate, so a defederated
+      # instance's content would otherwise be stored and rendered. Reject it
+      # at this shared choke point.
+      {:ok, :blocked}
+    else
+      with :ok <- validate_object_author(object, actor_uri) do
+        if Normalizer.poll_vote?(object) do
+          handle_incoming_poll_vote(object, actor_uri, opts)
+        else
+          create_regular_note(object, actor_uri, opts)
+        end
       end
     end
   end
+
+  defp instance_blocked_for_uri?(actor_uri) when is_binary(actor_uri) do
+    case URI.parse(actor_uri) do
+      %URI{host: host} when is_binary(host) -> ActivityPub.instance_blocked?(host)
+      _ -> false
+    end
+  end
+
+  defp instance_blocked_for_uri?(_), do: false
 
   @doc """
   Validates that an object's attributedTo matches the verified actor.
@@ -135,8 +156,8 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
         Async.start(fn -> Emojis.process_activitypub_tags(object["tag"], instance_domain) end)
 
         if attrs.visibility in ["public", "unlisted"] do
-          case Messaging.create_federated_message(Map.put(attrs, :federated, true)) do
-            {:ok, message} ->
+          case Messaging.create_federated_message_with_status(Map.put(attrs, :federated, true)) do
+            {:ok, message, :created} ->
               if payload.options != [] do
                 upsert_federated_poll(message.id, object, payload.options)
               end
@@ -158,7 +179,7 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
 
               {:ok, message}
 
-            {:error, %Ecto.Changeset{errors: [activitypub_id: {"has already been taken", _}]}} ->
+            {:ok, _message, :existing} ->
               {:ok, :already_exists}
 
             {:error, reason} ->
@@ -413,8 +434,8 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
         Async.start(fn -> Emojis.process_activitypub_tags(object["tag"], instance_domain) end)
 
         if attrs.visibility in ["public", "unlisted"] do
-          case Messaging.create_federated_message(attrs) do
-            {:ok, message} ->
+          case Messaging.create_federated_message_with_status(attrs) do
+            {:ok, message, :created} ->
               enqueue_home_feed_fanout(message.id)
 
               handle_post_create_tasks(
@@ -428,7 +449,9 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
 
               {:ok, message}
 
-            {:error, %Ecto.Changeset{errors: [activitypub_id: {"has already been taken", _}]}} ->
+            # Redelivery / Announce of an already-stored reply must NOT re-run
+            # new-reply side effects (reply-count increment, notifications).
+            {:ok, _message, :existing} ->
               {:ok, :already_exists}
 
             {:error, reason} ->
@@ -466,7 +489,7 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
         )
       end)
     else
-      Async.start(fn -> maybe_store_missing_reply_parent(message, remote_actor) end)
+      Async.start(fn -> maybe_store_missing_reply_parent(message, remote_actor, opts) end)
     end
 
     if mentioned_local_users != [] do
@@ -485,9 +508,14 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
   end
 
   defp ingestion_opts(activity) when is_map(activity) do
+    ancestor_depth =
+      activity["_elektrine_ancestor_depth"] ||
+        get_in(activity, ["object", "_elektrine_ancestor_depth"])
+
     []
     |> maybe_put_opt(:conversation_id, activity["_elektrine_target_community_id"])
     |> maybe_put_opt(:fallback_community_uri, activity["_elektrine_target_community_uri"])
+    |> maybe_put_opt(:ancestor_depth, ancestor_depth)
   end
 
   defp maybe_put_opt(opts, key, value) when is_integer(value), do: Keyword.put(opts, key, value)
@@ -539,7 +567,7 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
     _ -> :ok
   end
 
-  defp maybe_store_missing_reply_parent(message, remote_actor) do
+  defp maybe_store_missing_reply_parent(message, remote_actor, opts) do
     metadata = Map.get(message, :media_metadata) || %{}
 
     in_reply_to_ref =
@@ -549,6 +577,7 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
         metadata[:in_reply_to]
 
     normalized_ref = Normalizer.normalize_uri(in_reply_to_ref)
+    depth = Keyword.get(opts, :ancestor_depth, 0)
 
     cond do
       !is_binary(normalized_ref) or normalized_ref == "" ->
@@ -557,11 +586,25 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
       message.reply_to_id ->
         :ok
 
-      Messaging.get_message_by_activitypub_ref(normalized_ref) ->
+      # Parent already exists locally: link the orphan to it rather than
+      # leaving reply_to_id nil forever. This is the common case when the
+      # reply raced its parent (or the parent was masked by the negative
+      # ref cache at payload-build time). Linking to an existing parent is
+      # cheap and involves no fetch, so it is not depth-bounded.
+      parent = Messaging.get_message_by_activitypub_ref(normalized_ref) ->
+        maybe_link_orphan_reply_to_parent(message, parent)
+        :ok
+
+      # Bound how far ingestion walks up an unknown reply chain: a hostile
+      # server can otherwise serve an endless inReplyTo chain of fresh objects
+      # and drive unbounded signed fetches + inserts, one per hop.
+      depth >= @max_ingestion_ancestor_depth ->
         :ok
 
       true ->
-        case Helpers.get_or_store_remote_post(normalized_ref, remote_actor && remote_actor.uri) do
+        case Helpers.get_or_store_remote_post(normalized_ref, remote_actor && remote_actor.uri,
+               ancestor_depth: depth + 1
+             ) do
           {:ok, parent_message} when is_map(parent_message) ->
             maybe_link_orphan_reply_to_parent(message, parent_message)
 
@@ -575,12 +618,28 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
 
   defp maybe_link_orphan_reply_to_parent(message, parent_message)
        when is_map(message) and is_map(parent_message) do
-    if is_nil(message.reply_to_id) do
-      message
-      |> Ecto.Changeset.change(reply_to_id: parent_message.id)
-      |> Elektrine.Repo.update()
-    else
-      :ok
+    cond do
+      # Only link a still-unthreaded reply.
+      not is_nil(message.reply_to_id) ->
+        :ok
+
+      # Reject self-references and direct 2-cycles (A.inReplyTo=B, B.inReplyTo=A)
+      # so the thread tree can't be corrupted into a loop.
+      parent_message.id == message.id or parent_message.reply_to_id == message.id ->
+        :ok
+
+      true ->
+        case message
+             |> Ecto.Changeset.change(reply_to_id: parent_message.id)
+             |> Elektrine.Repo.update() do
+          {:ok, _updated} ->
+            # A late link is still a new reply for this parent — count it once.
+            Elektrine.ActivityPub.SideEffects.increment_reply_count(parent_message.id)
+            :ok
+
+          error ->
+            error
+        end
     end
   end
 

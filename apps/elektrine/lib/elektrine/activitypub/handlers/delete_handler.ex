@@ -36,6 +36,10 @@ defmodule Elektrine.ActivityPub.Handlers.DeleteHandler do
 
         message ->
           if message.federated && message.remote_actor_id do
+            # Capture pre-update state so a redelivered Delete (Mastodon retries)
+            # doesn't decrement the parent's reply_count more than once.
+            already_deleted? = not is_nil(message.deleted_at)
+
             with {:ok, remote_actor} <- ActivityPub.get_or_fetch_actor(actor_uri),
                  true <- message.remote_actor_id == remote_actor.id do
               update_result =
@@ -46,8 +50,19 @@ defmodule Elektrine.ActivityPub.Handlers.DeleteHandler do
                 |> Elektrine.Repo.update()
 
               case update_result do
-                {:ok, deleted_message} -> broadcast_deleted_post(deleted_message)
-                _ -> :ok
+                {:ok, deleted_message} ->
+                  # Keep the parent's reply_count from drifting upward: a
+                  # deleted reply must decrement its parent exactly once.
+                  if deleted_message.reply_to_id && not already_deleted? do
+                    Elektrine.ActivityPub.SideEffects.decrement_reply_count(
+                      deleted_message.reply_to_id
+                    )
+                  end
+
+                  broadcast_deleted_post(deleted_message)
+
+                _ ->
+                  :ok
               end
 
               case ActivityPub.record_remote_delete_receipt(activity, actor_uri, object_id) do

@@ -16,6 +16,7 @@ defmodule Elektrine.Social.FederatedFeeds do
   alias Elektrine.Social.HashtagFollow
   alias Elektrine.Social.HomeFeedCache
   alias Elektrine.Social.Message
+  alias Elektrine.Social.MessagePolicy
   alias Elektrine.Social.Messages, as: MessagingMessages
   alias Elektrine.Social.PostHashtag
 
@@ -39,6 +40,10 @@ defmodule Elektrine.Social.FederatedFeeds do
         |> apply_id_pagination(pagination)
         |> apply_id_order(pagination.order)
         |> Repo.all()
+        # The query admits "followers" visibility; enforce the actual (accepted)
+        # follow relationship per post so a pending follower can't see a remote
+        # actor's followers-only content.
+        |> Enum.filter(&MessagePolicy.visible?(user_id, &1))
     end
   end
 
@@ -152,7 +157,9 @@ defmodule Elektrine.Social.FederatedFeeds do
 
   defp list_remote_actor_ids(user_id) do
     from(f in Follow,
-      where: f.follower_id == ^user_id and not is_nil(f.remote_actor_id),
+      where:
+        f.follower_id == ^user_id and not is_nil(f.remote_actor_id) and
+          f.pending == false,
       select: f.remote_actor_id
     )
     |> Repo.all()

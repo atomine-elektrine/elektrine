@@ -126,9 +126,17 @@ config :logger, level: :warning
 # ownership errors when they query the DB during ExUnit.
 config :elektrine, Oban, testing: :inline, plugins: []
 
+# Oban runs inline in test, so creating a url source must not trigger a real
+# network fetch; worker tests inject :kairo_url_fetch_fun instead.
+config :elektrine, :kairo_fetch_url_sources, false
+
 # Disable the periodic telemetry poller in tests. It performs background Oban
 # DB queries that can contend with sandboxed ExUnit tests under full-suite load.
 config :elektrine_web, telemetry_poller_enabled: false
+
+# Web-search results are cached in the shared Cachex instance, which would
+# leak Paige results between tests that stub different providers.
+config :elektrine_web, web_search_cache_enabled: false
 
 # Initialize plugs at runtime for faster test compilation
 config :phoenix, :plug_init_mode, :runtime

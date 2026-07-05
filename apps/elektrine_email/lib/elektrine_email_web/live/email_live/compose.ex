@@ -2106,4 +2106,223 @@ Subject: #{message.subject}#{attachment_info}
       body
     end
   end
+
+  ## Compose UI components
+
+  # Write/Preview/Split tabs plus the markdown formatting toolbar. The tab
+  # attribute, toolbar id, and textarea target differ between the compose and
+  # reply editors because separate JS (markdown_toolbar.js and
+  # ReplyMarkdownEditor) drives each by id.
+  attr :tab_attr, :string, required: true
+  attr :toolbar_id, :string, required: true
+  attr :target, :string, required: true
+
+  defp editor_toolbar(assigns) do
+    ~H"""
+    <div class="tabs tabs-boxed bg-base-200">
+      <button type="button" class="tab tab-active" {%{@tab_attr => "write"}}>
+        <.icon name="hero-pencil" class="w-4 h-4 mr-1" /> {gettext("Write")}
+      </button>
+      <button type="button" class="tab" {%{@tab_attr => "preview"}}>
+        <.icon name="hero-eye" class="w-4 h-4 mr-1" /> {gettext("Preview")}
+      </button>
+      <button type="button" class="tab" {%{@tab_attr => "split"}}>
+        <.icon name="hero-view-columns" class="w-4 h-4 mr-1" /> {gettext("Split")}
+      </button>
+    </div>
+    <div class="flex flex-wrap items-center gap-1 p-2 bg-base-200 rounded-t-lg" id={@toolbar_id}>
+      <div class="flex items-center gap-1">
+        <button
+          type="button"
+          class="btn btn-sm btn-ghost hover:bg-secondary/20 tooltip"
+          data-markdown-format="bold"
+          data-target={@target}
+          data-tip={gettext("Bold (Ctrl+B)")}
+        >
+          <strong class="text-sm">B</strong>
+        </button>
+        <button
+          type="button"
+          class="btn btn-sm btn-ghost hover:bg-secondary/20 tooltip"
+          data-markdown-format="italic"
+          data-target={@target}
+          data-tip={gettext("Italic (Ctrl+I)")}
+        >
+          <em class="text-sm">I</em>
+        </button>
+        <button
+          type="button"
+          class="btn btn-sm btn-ghost hover:bg-secondary/20 tooltip"
+          data-markdown-format="code"
+          data-target={@target}
+          data-tip={gettext("Code")}
+        >
+          <.icon name="hero-code-bracket" class="w-4 h-4" />
+        </button>
+      </div>
+
+      <div class="divider divider-horizontal h-6 mx-1"></div>
+
+      <div class="dropdown dropdown-hover">
+        <button type="button" tabindex="0" class="btn btn-sm btn-ghost hover:bg-secondary/20 gap-1">
+          <span class="text-sm font-bold">H</span>
+          <.icon name="hero-chevron-down" class="w-3 h-3" />
+        </button>
+        <ul tabindex="0" class="dropdown-content z-50 menu p-2 rounded-box w-32">
+          <li :for={level <- ["h1", "h2", "h3"]}>
+            <button type="button" data-markdown-format={level} data-target={@target}>
+              {String.upcase(level)}
+            </button>
+          </li>
+        </ul>
+      </div>
+
+      <div class="flex items-center gap-1">
+        <button
+          type="button"
+          class="btn btn-sm btn-ghost hover:bg-secondary/20 tooltip"
+          data-markdown-format="list-bullet"
+          data-target={@target}
+          data-tip={gettext("Bullet list")}
+        >
+          <.icon name="hero-list-bullet" class="w-4 h-4" />
+        </button>
+        <button
+          type="button"
+          class="btn btn-sm btn-ghost hover:bg-secondary/20 tooltip"
+          data-markdown-format="list-number"
+          data-target={@target}
+          data-tip={gettext("Numbered list")}
+        >
+          <span class="text-sm">1.</span>
+        </button>
+        <button
+          type="button"
+          class="btn btn-sm btn-ghost hover:bg-secondary/20 tooltip"
+          data-markdown-format="link"
+          data-target={@target}
+          data-tip={gettext("Insert link")}
+        >
+          <.icon name="hero-link" class="w-4 h-4" />
+        </button>
+      </div>
+
+      <div class="divider divider-horizontal h-6 mx-1"></div>
+
+      <div class="flex items-center gap-1">
+        <button
+          type="button"
+          class="btn btn-sm btn-ghost hover:bg-secondary/20 tooltip"
+          data-markdown-format="quote"
+          data-target={@target}
+          data-tip={gettext("Quote")}
+        >
+          <.icon name="hero-chat-bubble-bottom-center-text" class="w-4 h-4" />
+        </button>
+        <button
+          type="button"
+          class="btn btn-sm btn-ghost hover:bg-secondary/20 tooltip"
+          data-markdown-format="code-block"
+          data-target={@target}
+          data-tip={gettext("Code block")}
+        >
+          <span class="text-xs font-medium">[/]</span>
+        </button>
+      </div>
+    </div>
+    """
+  end
+
+  # Tag-style recipient input with autocomplete. Ids follow the
+  # "#{field}-tag-input" / "#{field}-suggestions-dropdown" convention that
+  # TagInputHook and SuggestionDropdown expect.
+  attr :field, :string, required: true
+  attr :label, :string, required: true
+  attr :required, :boolean, default: false
+  attr :tags, :list, required: true
+  attr :input_value, :string, default: ""
+  attr :error, :any, default: nil
+  attr :show_suggestions, :boolean, default: false
+  attr :suggestions, :list, default: []
+
+  defp recipient_field(assigns) do
+    ~H"""
+    <div class="relative">
+      <label class="label">
+        <span class="font-semibold">
+          {@label} <span :if={@required} class="text-error">*</span>
+        </span>
+      </label>
+      <div class={"input input-bordered w-full h-auto min-h-10 flex flex-wrap gap-1.5 p-2 items-center #{if @error, do: "input-error"}"}>
+        <span
+          :for={email <- @tags}
+          class="inline-flex items-center gap-1 px-2 py-0.5 bg-base-300 text-base-content rounded text-sm"
+        >
+          <span>{email}</span>
+          <button
+            type="button"
+            phx-click="remove_tag"
+            phx-value-field={@field}
+            phx-value-email={email}
+            aria-label={gettext("Remove %{email}", email: email)}
+            class="-my-1 -mr-1 flex h-6 w-6 items-center justify-center rounded-full text-sm leading-none opacity-60 transition-colors hover:bg-error/30 hover:text-error hover:opacity-100"
+          >
+            &times;
+          </button>
+        </span>
+
+        <input
+          type="text"
+          value={@input_value}
+          phx-hook="TagInputHook"
+          data-field={@field}
+          phx-blur="tag_input_blur"
+          phx-keydown="tag_input_keydown"
+          phx-value-field={@field}
+          id={"#{@field}-tag-input"}
+          placeholder={gettext("Add email...")}
+          autocomplete="off"
+          data-lpignore="true"
+          data-1p-ignore="true"
+          class={"flex-1 min-w-[7rem] sm:min-w-[150px] outline-none bg-transparent border-none focus:outline-none focus:ring-0 text-sm #{if @error, do: "text-error"}"}
+        />
+      </div>
+
+      <p :if={@error} class="text-error text-xs mt-1">{gettext("Invalid email address")}</p>
+
+      <div
+        :if={@show_suggestions}
+        class="absolute z-50 mt-1 w-full rounded-lg border border-base-300 bg-base-200/95 text-base-content shadow-xl backdrop-blur-sm max-h-60 overflow-y-auto"
+        phx-hook="SuggestionDropdown"
+        id={"#{@field}-suggestions-dropdown"}
+      >
+        <div
+          :for={suggestion <- @suggestions}
+          data-suggestion-email={suggestion.email}
+          data-suggestion-field={@field}
+          class="w-full text-left px-4 py-2 hover:bg-secondary/10 transition-colors flex items-center gap-3 cursor-pointer"
+        >
+          <div class="w-8 h-8 bg-secondary/20 rounded-full flex items-center justify-center text-secondary font-semibold">
+            {String.first(String.upcase(suggestion.name || suggestion.email))}
+          </div>
+
+          <div class="flex-1 min-w-0">
+            <div class="font-medium text-sm truncate">
+              {suggestion.name || String.split(suggestion.email, "@") |> List.first()}
+            </div>
+
+            <div class="text-xs opacity-70 truncate">{suggestion.email}</div>
+          </div>
+
+          <div :if={suggestion.source == "contact"} class="badge badge-secondary badge-xs">
+            Contact
+          </div>
+          <div :if={suggestion.source != "contact"} class="badge badge-ghost badge-xs">
+            Recent
+          </div>
+        </div>
+      </div>
+    </div>
+    """
+  end
 end

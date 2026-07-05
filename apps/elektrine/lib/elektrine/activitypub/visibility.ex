@@ -20,9 +20,14 @@ defmodule Elektrine.ActivityPub.Visibility do
       Enum.any?(cc, &public_audience?/1) ->
         "unlisted"
 
+      # A reply fetched from a public post's replies collection that carries no
+      # audience of its own is treated as unlisted, not public: it stays visible
+      # in the thread but never reaches the public firehose timeline. Promoting
+      # it to "public" would leak replies from servers that strip audience on
+      # fetch (Pleroma-lineage convention treats missing audience as non-public).
       Keyword.get(opts, :assume_public_reply_without_audience, false) and
         is_binary(object["inReplyTo"]) and to == [] and cc == [] ->
-        "public"
+        "unlisted"
 
       true ->
         "followers"

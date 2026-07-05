@@ -340,7 +340,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.DomainSettings do
         </p>
       </div>
 
-      <form phx-submit="create_custom_domain" class="card space-y-4 mb-8 p-5">
+      <div class="card space-y-4 mb-8 p-5">
         <div>
           <h3 class="font-semibold text-lg mb-1">Custom Domains</h3>
           <p class="text-sm text-base-content/60">
@@ -350,7 +350,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.DomainSettings do
           </p>
         </div>
 
-        <div>
+        <form phx-submit="create_custom_domain">
           <label class="label pb-1">
             <span class="label-text font-medium">Domain</span>
           </label>
@@ -366,7 +366,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.DomainSettings do
 
             <button type="submit" class="btn btn-secondary sm:self-start">Add Domain</button>
           </div>
-        </div>
+        </form>
 
         <%= if Enum.empty?(@custom_domains) do %>
           <div class="text-center py-8 bg-base-200/30 rounded-lg border border-dashed border-base-content/20">
@@ -379,7 +379,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.DomainSettings do
         <% else %>
           <div class="space-y-3">
             <%= for custom_domain <- @custom_domains do %>
-              <div class="card p-4">
+              <div class="surface-subtle rounded-lg p-4">
                 <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                   <div class="min-w-0 flex-1">
                     <div class="min-w-0">
@@ -422,15 +422,13 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.DomainSettings do
                       </div>
                     <% end %>
 
-                    <div class="mt-4 rounded-lg border border-base-content/10 bg-base-100/50">
-                      <div class="border-b border-base-content/10 px-4 py-3">
-                        <div class="text-sm font-medium text-base-content/70">DNS Records</div>
-                      </div>
+                    <div class="mt-4 border-t border-base-content/10 pt-3">
+                      <div class="text-sm font-medium text-base-content/70">DNS Records</div>
 
-                      <div class="divide-y divide-base-content/10">
+                      <div class="mt-1 divide-y divide-base-content/10">
                         <%= for {record, index} <-
                               Enum.with_index(Email.dns_records_for_custom_domain(custom_domain)) do %>
-                          <div class="grid gap-3 px-4 py-3 sm:grid-cols-[88px_minmax(0,0.9fr)_minmax(0,1.4fr)]">
+                          <div class="grid gap-3 py-3 sm:grid-cols-[88px_minmax(0,0.9fr)_minmax(0,1.4fr)]">
                             <div class="flex items-start sm:items-center">
                               <span class="badge badge-outline badge-sm font-medium">
                                 {record.type}
@@ -512,7 +510,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.DomainSettings do
             <% end %>
           </div>
         <% end %>
-      </form>
+      </div>
 
       <.form
         for={@mailbox_form}
@@ -654,7 +652,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.DomainSettings do
       <% end %>
       <div class="space-y-3">
         <%= for alias_record <- @aliases do %>
-          <div class="card p-4">
+          <div class="surface-subtle rounded-lg p-4">
             <div class="flex items-start justify-between gap-4">
               <div class="flex items-start gap-4 flex-1">
                 <label class="swap cursor-pointer mt-0.5">
@@ -703,7 +701,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.DomainSettings do
                 class="btn btn-ghost btn-sm text-error hover:bg-error/10"
                 data-confirm="Are you sure you want to delete this alias?"
               >
-                <.icon name="hero-trash" class="w-4 h-4" />
+                <.icon name="hero-trash" class="w-4 h-4" /> Delete
               </button>
             </div>
           </div>
@@ -718,7 +716,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings.DomainSettings do
       </div>
       
     <!-- Info -->
-      <div class="card mt-6 p-4">
+      <div class="surface-subtle rounded-lg mt-6 p-4">
         <div class="flex gap-3">
           <.icon name="hero-information-circle" class="h-5 w-5 text-info flex-shrink-0 mt-0.5" />
           <div class="text-sm">

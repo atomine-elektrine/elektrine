@@ -3,7 +3,6 @@
   id="compose-container"
   phx-hook="EmailComposeKeyboardShortcuts"
 >
-  <!-- Elektrine Platform Navigation -->
   <.elektrine_nav
     active_tab="email"
     current_user={@current_user}
@@ -23,59 +22,7 @@
     <div class="w-full flex-1 min-w-0 max-w-full overflow-visible">
       <div id="compose-card" class="card panel-card rounded-lg">
         <div class="card-body p-3 sm:p-6">
-          <!-- Header -->
-          <div class="flex items-center space-x-3 mb-6">
-            <div class="p-2 bg-secondary/10 rounded-lg">
-              <.icon name="hero-pencil-square" class="h-6 w-6 text-secondary" />
-            </div>
-
-            <div>
-              <h2 class="text-2xl font-bold">{@page_title}</h2>
-
-              <p class="text-sm text-base-content/70">
-                <%= case @mode do %>
-                  <% "reply" -> %>
-                    {gettext("Reply to this message")}
-                  <% "forward" -> %>
-                    {gettext("Forward this message to someone")}
-                  <% _ -> %>
-                    {gettext("Send an email to someone")}
-                <% end %>
-              </p>
-            </div>
-          </div>
-          <div class="alert alert-info mb-4">
-            <.icon name="hero-sparkles" class="h-6 w-6" />
-            <div>
-              {gettext(
-                "External email sends use Identity Credits unless your account has high trust."
-              )}
-            </div>
-          </div>
-          <!-- Template Selector -->
-          <%= if length(@templates) > 0 do %>
-            <div class="mb-4">
-              <.form
-                :let={_f}
-                for={%{}}
-                phx-change="apply_template"
-                class="flex items-center gap-2"
-              >
-                <label class="label">
-                  <span class="label-text font-semibold">{gettext("Template")}</span>
-                </label>
-                <div class="select select-bordered select-sm flex-1 max-w-xs">
-                  <select name="template_id">
-                    <option value="">{gettext("Select a template...")}</option>
-
-                    <%= for template <- @templates do %>
-                      <option value={template.id}>{template.name}</option>
-                    <% end %>
-                  </select>
-                </div>
-              </.form>
-            </div>
-          <% end %>
+          <h1 class="text-2xl font-semibold tracking-tight mb-4">{@page_title}</h1>
 
           <%= if @original_message && private_message?(@original_message) do %>
             <div
@@ -102,7 +49,6 @@
             >
               <div
                 id="private-mailbox-unlock-compose"
-                class="space-y-3"
                 phx-hook="MailboxPrivateStorage"
                 data-private-mailbox-configured="true"
                 data-private-mailbox-enabled={to_string(@mailbox.private_storage_enabled)}
@@ -119,34 +65,36 @@
                   @master_vault && Jason.encode!(@master_vault.wrapped_dek)
                 }
               >
-                <div class="space-y-1">
-                  <div class="flex items-center gap-2 font-semibold">
-                    <.icon name="hero-shield-check" class="w-5 h-5" />
-                    <span>{gettext("Protected Original Message")}</span>
+                <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div class="flex min-w-0 items-start gap-2">
+                    <.icon name="hero-shield-check" class="mt-0.5 h-5 w-5 shrink-0" />
+                    <div class="min-w-0 space-y-0.5 text-sm">
+                      <p class="font-semibold">{gettext("Protected Original Message")}</p>
+                      <p class="text-base-content/70" data-private-mailbox-locked-content>
+                        {gettext(
+                          "Unlock this mailbox to load the protected original message into the composer."
+                        )}
+                        {gettext("Changed or reset your password?")}
+                        <.link navigate={~p"/account/encrypted-data"} class="link link-primary">
+                          {gettext("Recover encrypted data")}
+                        </.link>
+                      </p>
+                      <p class="text-xs text-base-content/60" data-private-mailbox-status>
+                        {private_mailbox_locked_status(@mailbox)}
+                      </p>
+                    </div>
                   </div>
 
-                  <p class="text-sm text-base-content/70" data-private-mailbox-locked-content>
-                    {gettext(
-                      "Unlock this mailbox in the current tab to load the protected quote, subject, and any protected attachments into this composer."
-                    )}
-                  </p>
-
-                  <p class="text-xs text-base-content/60" data-private-mailbox-status>
-                    {private_mailbox_locked_status(@mailbox)}
-                  </p>
-                </div>
-
-                <div
-                  class="flex flex-col gap-2 sm:flex-row sm:items-center"
-                  data-private-mailbox-locked-content
-                >
-                  <input
-                    type="password"
-                    class="input input-bordered input-sm w-full sm:w-64"
-                    placeholder={private_mailbox_unlock_placeholder(@mailbox)}
-                    data-private-mailbox-passphrase
-                  />
-                  <div class="flex gap-2">
+                  <div
+                    class="flex flex-col gap-2 sm:flex-row sm:items-center"
+                    data-private-mailbox-locked-content
+                  >
+                    <input
+                      type="password"
+                      class="input input-bordered input-sm w-full sm:w-64"
+                      placeholder={private_mailbox_unlock_placeholder(@mailbox)}
+                      data-private-mailbox-passphrase
+                    />
                     <button
                       type="button"
                       class="btn btn-secondary btn-sm"
@@ -155,18 +103,12 @@
                       {gettext("Unlock")}
                     </button>
                   </div>
-                </div>
 
-                <div
-                  class="hidden flex items-center justify-between gap-3"
-                  data-private-mailbox-unlocked-content
-                >
-                  <span class="text-sm text-base-content/80" data-private-mailbox-status>
-                    {gettext("Mailbox unlocked in memory for this tab.")}
-                  </span>
-                  <button type="button" class="btn btn-ghost btn-sm" data-private-mailbox-lock>
-                    {gettext("Lock")}
-                  </button>
+                  <div class="hidden" data-private-mailbox-unlocked-content>
+                    <button type="button" class="btn btn-ghost btn-sm" data-private-mailbox-lock>
+                      {gettext("Lock")}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -178,21 +120,20 @@
               <label class="label"><span class="font-semibold">{gettext("From")}</span></label>
               <%= if length(@available_from_addresses) > 1 do %>
                 <.form :let={_f} for={%{}} phx-change="change_from_address" class="w-full">
-                  <div class="select select-bordered w-full font-medium text-sm normal-case tracking-normal">
-                    <select
-                      name="from_address"
-                      value={@from_address}
-                      autocomplete="off"
-                      data-lpignore="true"
-                      data-1p-ignore="true"
-                    >
-                      <%= for address <- @available_from_addresses do %>
-                        <option value={address} selected={address == @from_address}>
-                          {address}
-                        </option>
-                      <% end %>
-                    </select>
-                  </div>
+                  <select
+                    name="from_address"
+                    value={@from_address}
+                    autocomplete="off"
+                    data-lpignore="true"
+                    data-1p-ignore="true"
+                    class="select select-bordered w-full font-medium text-sm normal-case tracking-normal"
+                  >
+                    <%= for address <- @available_from_addresses do %>
+                      <option value={address} selected={address == @from_address}>
+                        {address}
+                      </option>
+                    <% end %>
+                  </select>
                 </.form>
               <% else %>
                 <div class="input input-bordered bg-base-200/50 flex items-center font-medium text-sm normal-case tracking-normal overflow-hidden">
@@ -200,84 +141,17 @@
                 </div>
               <% end %>
             </div>
-            <!-- To Field (outside form) -->
-            <div class="relative">
-              <label class="label">
-                <span class="font-semibold">
-                  {gettext("To")} <span class="text-error">*</span>
-                </span>
-              </label>
-              <div class={"input input-bordered w-full h-auto min-h-10 flex flex-wrap gap-1.5 p-2 items-center #{if @to_input_error, do: "input-error"}"}>
-                <%= for email <- @to_tags do %>
-                  <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-base-300 text-base-content rounded text-sm">
-                    <span>{email}</span>
-                    <button
-                      type="button"
-                      phx-click="remove_tag"
-                      phx-value-field="to"
-                      phx-value-email={email}
-                      class="w-4 h-4 rounded-full hover:bg-error/30 hover:text-error transition-colors flex items-center justify-center text-sm leading-none opacity-60 hover:opacity-100"
-                    >
-                      &times;
-                    </button>
-                  </span>
-                <% end %>
 
-                <input
-                  type="text"
-                  value={@to_input}
-                  phx-hook="TagInputHook"
-                  data-field="to"
-                  phx-blur="tag_input_blur"
-                  phx-keydown="tag_input_keydown"
-                  phx-value-field="to"
-                  id="to-tag-input"
-                  placeholder={gettext("Add email...")}
-                  autocomplete="off"
-                  data-lpignore="true"
-                  data-1p-ignore="true"
-                  class={"flex-1 min-w-[7rem] sm:min-w-[150px] outline-none bg-transparent border-none focus:outline-none focus:ring-0 text-sm #{if @to_input_error, do: "text-error"}"}
-                />
-              </div>
-
-              <%= if @to_input_error do %>
-                <p class="text-error text-xs mt-1">{gettext("Invalid email address")}</p>
-              <% end %>
-              <!-- To: Autocomplete Dropdown -->
-              <%= if assigns[:showing_to_suggestions] && @showing_to_suggestions do %>
-                <div
-                  class="absolute z-50 mt-1 w-full rounded-lg border border-base-300 bg-base-200/95 text-base-content shadow-xl backdrop-blur-sm max-h-60 overflow-y-auto"
-                  phx-hook="SuggestionDropdown"
-                  id="to-suggestions-dropdown"
-                >
-                  <%= for suggestion <- assigns[:to_suggestions] || [] do %>
-                    <div
-                      data-suggestion-email={suggestion.email}
-                      data-suggestion-field="to"
-                      class="w-full text-left px-4 py-2 hover:bg-secondary/10 transition-colors flex items-center gap-3 cursor-pointer"
-                    >
-                      <div class="w-8 h-8 bg-secondary/20 rounded-full flex items-center justify-center text-secondary font-semibold">
-                        {String.first(String.upcase(suggestion.name || suggestion.email))}
-                      </div>
-
-                      <div class="flex-1 min-w-0">
-                        <div class="font-medium text-sm truncate">
-                          {suggestion.name || String.split(suggestion.email, "@") |> List.first()}
-                        </div>
-
-                        <div class="text-xs opacity-70 truncate">{suggestion.email}</div>
-                      </div>
-
-                      <%= if suggestion.source == "contact" do %>
-                        <div class="badge badge-secondary badge-xs">Contact</div>
-                      <% else %>
-                        <div class="badge badge-ghost badge-xs">Recent</div>
-                      <% end %>
-                    </div>
-                  <% end %>
-                </div>
-              <% end %>
-            </div>
+            <.recipient_field
+              field="to"
+              label={gettext("To")}
+              required
+              tags={@to_tags}
+              input_value={@to_input}
+              error={@to_input_error}
+              show_suggestions={assigns[:showing_to_suggestions] == true}
+              suggestions={assigns[:to_suggestions] || []}
+            />
             <!-- CC/BCC Toggle -->
             <div class="-mt-2">
               <button
@@ -296,166 +170,50 @@
                 </span>
               </button>
             </div>
-            <!-- CC and BCC in a grid (outside form) -->
+
             <div class={
               unless @show_cc_bcc, do: "hidden", else: "grid grid-cols-1 md:grid-cols-2 gap-4"
             }>
-              <div class="relative">
-                <label class="label">
-                  <span class="font-semibold">CC</span>
-                  <span class="text-xs">{gettext("Carbon copy")}</span>
-                </label>
-                <div class={"input input-bordered w-full h-auto min-h-10 flex flex-wrap gap-1.5 p-2 items-center #{if @cc_input_error, do: "input-error"}"}>
-                  <%= for email <- @cc_tags do %>
-                    <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-base-300 text-base-content rounded text-sm">
-                      <span>{email}</span>
-                      <button
-                        type="button"
-                        phx-click="remove_tag"
-                        phx-value-field="cc"
-                        phx-value-email={email}
-                        class="w-4 h-4 rounded-full hover:bg-error/30 hover:text-error transition-colors flex items-center justify-center text-sm leading-none opacity-60 hover:opacity-100"
-                      >
-                        &times;
-                      </button>
-                    </span>
-                  <% end %>
-
-                  <input
-                    type="text"
-                    value={@cc_input}
-                    phx-hook="TagInputHook"
-                    data-field="cc"
-                    phx-blur="tag_input_blur"
-                    phx-keydown="tag_input_keydown"
-                    phx-value-field="cc"
-                    id="cc-tag-input"
-                    placeholder={gettext("Add email...")}
-                    autocomplete="off"
-                    data-lpignore="true"
-                    data-1p-ignore="true"
-                    class={"flex-1 min-w-[7rem] sm:min-w-[150px] outline-none bg-transparent border-none focus:outline-none focus:ring-0 text-sm #{if @cc_input_error, do: "text-error"}"}
-                  />
-                </div>
-
-                <%= if @cc_input_error do %>
-                  <p class="text-error text-xs mt-1">{gettext("Invalid email address")}</p>
-                <% end %>
-                <!-- CC: Autocomplete Dropdown -->
-                <%= if assigns[:showing_cc_suggestions] && @showing_cc_suggestions do %>
-                  <div
-                    class="absolute z-50 mt-1 w-full rounded-lg border border-base-300 bg-base-200/95 text-base-content shadow-xl backdrop-blur-sm max-h-60 overflow-y-auto"
-                    phx-hook="SuggestionDropdown"
-                    id="cc-suggestions-dropdown"
-                  >
-                    <%= for suggestion <- assigns[:cc_suggestions] || [] do %>
-                      <div
-                        data-suggestion-email={suggestion.email}
-                        data-suggestion-field="cc"
-                        class="w-full text-left px-4 py-2 hover:bg-secondary/10 transition-colors flex items-center gap-3 cursor-pointer"
-                      >
-                        <div class="w-8 h-8 bg-secondary/20 rounded-full flex items-center justify-center text-secondary font-semibold">
-                          {String.first(String.upcase(suggestion.name || suggestion.email))}
-                        </div>
-
-                        <div class="flex-1 min-w-0">
-                          <div class="font-medium text-sm truncate">
-                            {suggestion.name ||
-                              String.split(suggestion.email, "@") |> List.first()}
-                          </div>
-
-                          <div class="text-xs opacity-70 truncate">{suggestion.email}</div>
-                        </div>
-
-                        <%= if suggestion.source == "contact" do %>
-                          <div class="badge badge-secondary badge-xs">Contact</div>
-                        <% else %>
-                          <div class="badge badge-ghost badge-xs">Recent</div>
-                        <% end %>
-                      </div>
-                    <% end %>
-                  </div>
-                <% end %>
-              </div>
-
-              <div class="relative">
-                <label class="label">
-                  <span class="font-semibold">BCC</span>
-                  <span class="text-xs">{gettext("Blind carbon copy")}</span>
-                </label>
-                <div class={"input input-bordered w-full h-auto min-h-10 flex flex-wrap gap-1.5 p-2 items-center #{if @bcc_input_error, do: "input-error"}"}>
-                  <%= for email <- @bcc_tags do %>
-                    <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-base-300 text-base-content rounded text-sm">
-                      <span>{email}</span>
-                      <button
-                        type="button"
-                        phx-click="remove_tag"
-                        phx-value-field="bcc"
-                        phx-value-email={email}
-                        class="w-4 h-4 rounded-full hover:bg-error/30 hover:text-error transition-colors flex items-center justify-center text-sm leading-none opacity-60 hover:opacity-100"
-                      >
-                        &times;
-                      </button>
-                    </span>
-                  <% end %>
-
-                  <input
-                    type="text"
-                    value={@bcc_input}
-                    phx-hook="TagInputHook"
-                    data-field="bcc"
-                    phx-blur="tag_input_blur"
-                    phx-keydown="tag_input_keydown"
-                    phx-value-field="bcc"
-                    id="bcc-tag-input"
-                    placeholder={gettext("Add email...")}
-                    autocomplete="off"
-                    data-lpignore="true"
-                    data-1p-ignore="true"
-                    class={"flex-1 min-w-[7rem] sm:min-w-[150px] outline-none bg-transparent border-none focus:outline-none focus:ring-0 text-sm #{if @bcc_input_error, do: "text-error"}"}
-                  />
-                </div>
-
-                <%= if @bcc_input_error do %>
-                  <p class="text-error text-xs mt-1">{gettext("Invalid email address")}</p>
-                <% end %>
-                <!-- BCC: Autocomplete Dropdown -->
-                <%= if assigns[:showing_bcc_suggestions] && @showing_bcc_suggestions do %>
-                  <div
-                    class="absolute z-50 mt-1 w-full rounded-lg border border-base-300 bg-base-200/95 text-base-content shadow-xl backdrop-blur-sm max-h-60 overflow-y-auto"
-                    phx-hook="SuggestionDropdown"
-                    id="bcc-suggestions-dropdown"
-                  >
-                    <%= for suggestion <- assigns[:bcc_suggestions] || [] do %>
-                      <div
-                        data-suggestion-email={suggestion.email}
-                        data-suggestion-field="bcc"
-                        class="w-full text-left px-4 py-2 hover:bg-secondary/10 transition-colors flex items-center gap-3 cursor-pointer"
-                      >
-                        <div class="w-8 h-8 bg-secondary/20 rounded-full flex items-center justify-center text-secondary font-semibold">
-                          {String.first(String.upcase(suggestion.name || suggestion.email))}
-                        </div>
-
-                        <div class="flex-1 min-w-0">
-                          <div class="font-medium text-sm truncate">
-                            {suggestion.name ||
-                              String.split(suggestion.email, "@") |> List.first()}
-                          </div>
-
-                          <div class="text-xs opacity-70 truncate">{suggestion.email}</div>
-                        </div>
-
-                        <%= if suggestion.source == "contact" do %>
-                          <div class="badge badge-secondary badge-xs">Contact</div>
-                        <% else %>
-                          <div class="badge badge-ghost badge-xs">Recent</div>
-                        <% end %>
-                      </div>
-                    <% end %>
-                  </div>
-                <% end %>
-              </div>
+              <.recipient_field
+                field="cc"
+                label="CC"
+                tags={@cc_tags}
+                input_value={@cc_input}
+                error={@cc_input_error}
+                show_suggestions={assigns[:showing_cc_suggestions] == true}
+                suggestions={assigns[:cc_suggestions] || []}
+              />
+              <.recipient_field
+                field="bcc"
+                label="BCC"
+                tags={@bcc_tags}
+                input_value={@bcc_input}
+                error={@bcc_input_error}
+                show_suggestions={assigns[:showing_bcc_suggestions] == true}
+                suggestions={assigns[:bcc_suggestions] || []}
+              />
             </div>
+            <!-- Template Selector -->
+            <%= if length(@templates) > 0 do %>
+              <.form
+                :let={_f}
+                for={%{}}
+                phx-change="apply_template"
+                class="flex items-center gap-3"
+              >
+                <span class="text-sm font-semibold">{gettext("Template")}</span>
+                <select
+                  name="template_id"
+                  class="select select-bordered select-sm w-full max-w-xs"
+                >
+                  <option value="">{gettext("Select a template...")}</option>
+
+                  <%= for template <- @templates do %>
+                    <option value={template.id}>{template.name}</option>
+                  <% end %>
+                </select>
+              </.form>
+            <% end %>
 
             <.form
               for={@form}
@@ -487,149 +245,8 @@
                   name="email[subject]"
                   value={@form[:subject].value}
                   class="input input-bordered w-full text-sm"
-                  placeholder={gettext("Enter email subject (optional)")}
+                  placeholder={gettext("Subject")}
                 />
-              </div>
-
-              <div class="rounded-lg border border-base-300/60 bg-base-100/50 p-4">
-                <label class="label px-0 pt-0">
-                  <span class="font-semibold">{gettext("Send Later")}</span>
-                  <span class="label-text-alt text-base-content/60">UTC</span>
-                </label>
-                <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-                  <input
-                    type="datetime-local"
-                    name="email[send_at]"
-                    value={@form[:send_at].value}
-                    class="input input-bordered w-full text-sm"
-                    min={
-                      DateTime.utc_now()
-                      |> DateTime.add(60, :second)
-                      |> Calendar.strftime("%Y-%m-%dT%H:%M")
-                    }
-                  />
-                  <p class="text-xs leading-5 text-base-content/60 sm:max-w-xs">
-                    Leave blank to send immediately, or choose a future UTC time to queue delivery.
-                  </p>
-                </div>
-              </div>
-
-              <div class="rounded-lg border border-base-300/60 bg-base-100/50 p-4">
-                <label class="label px-0 pt-0">
-                  <span class="font-semibold">{gettext("Message Format")}</span>
-                </label>
-                <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-                  <p class="text-xs leading-5 text-base-content/60 sm:max-w-2xl">
-                    {gettext(
-                      "Plain text sends only a text/plain body. Markdown formatting and HTML preview are not included."
-                    )}
-                  </p>
-                  <div class="select select-bordered select-sm w-full sm:w-64">
-                    <select name="email[body_format]" value={@body_format}>
-                      <option value="markdown" selected={@body_format == "markdown"}>
-                        {gettext("Markdown + HTML")}
-                      </option>
-
-                      <option value="plaintext" selected={@body_format == "plaintext"}>
-                        {gettext("Plain text only")}
-                      </option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              <div class="rounded-lg bg-base-200/55 p-4 space-y-3">
-                <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                  <div class="space-y-1">
-                    <div class="flex items-center gap-2">
-                      <.icon name="hero-lock-closed" class="h-4 w-4 text-secondary" />
-                      <span class="font-semibold">{gettext("Protected Delivery")}</span>
-                    </div>
-
-                    <p class="text-xs text-base-content/70 max-w-2xl">
-                      {gettext(
-                        "OpenPGP wraps the message body for recipients with public keys. Subject, headers, and attachments remain standard email metadata."
-                      )}
-                    </p>
-                  </div>
-
-                  <label class="form-control w-full lg:max-w-xs">
-                    <span class="label px-0 pb-2 pt-0">
-                      <span class="label-text text-xs uppercase tracking-wide text-base-content/60">
-                        {gettext("Mode")}
-                      </span>
-                    </span>
-                    <div class="select select-bordered select-sm mt-2">
-                      <select
-                        name="email[encryption_mode]"
-                        value={@encryption_mode}
-                        phx-change="change_encryption_mode"
-                      >
-                        <option value="off" selected={@encryption_mode == "off"}>
-                          {gettext("Standard delivery")}
-                        </option>
-
-                        <option value="auto" selected={@encryption_mode == "auto"}>
-                          {gettext("Encrypt when possible")}
-                        </option>
-
-                        <option value="require" selected={@encryption_mode == "require"}>
-                          {gettext("Require encryption")}
-                        </option>
-                      </select>
-                    </div>
-                  </label>
-                </div>
-
-                <div class="space-y-2 text-sm">
-                  <%= if not @encryption_status.server_ready? and @encryption_mode != "off" do %>
-                    <div class="rounded-lg border border-error/30 bg-error/10 px-3 py-2 text-error">
-                      {gettext("OpenPGP delivery is not available on this server right now.")}
-                    </div>
-                  <% end %>
-
-                  <%= cond do %>
-                    <% @encryption_status.total_count == 0 -> %>
-                      <div class="rounded-lg px-3 py-2 text-base-content/70">
-                        {gettext(
-                          "Add recipients to check whether protected delivery can be used."
-                        )}
-                      </div>
-                    <% @encryption_status.can_encrypt? -> %>
-                      <div class="rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-success">
-                        {gettext("Public keys are available for all %{count} recipients.",
-                          count: @encryption_status.total_count
-                        )}
-                      </div>
-                    <% true -> %>
-                      <div class="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-warning">
-                        {gettext(
-                          "Public keys are available for %{available} of %{total} recipients.",
-                          available: @encryption_status.available_count,
-                          total: @encryption_status.total_count
-                        )}
-                        <%= if @encryption_status.missing_recipients != [] do %>
-                          <div class="mt-1 text-xs">
-                            {gettext("Missing keys for:")} {Enum.join(
-                              Enum.take(@encryption_status.missing_recipients, 4),
-                              ", "
-                            )}
-                            <%= if length(@encryption_status.missing_recipients) > 4 do %>
-                              , ...
-                            <% end %>
-                          </div>
-                        <% end %>
-                      </div>
-                  <% end %>
-                </div>
-
-                <%= if @uploads.attachments.entries != [] || (@original_message && @original_message.attachments && is_map(@original_message.attachments) && map_size(@original_message.attachments) > 0) do %>
-                  <div class="rounded-lg border border-warning/20 bg-warning/5 px-3 py-2 text-xs text-warning">
-                    {gettext(
-                      "Attachments are still sent as normal attachments. Use Require encryption only for body-only messages."
-                    )}
-                  </div>
-                <% end %>
               </div>
               <!-- Message Body -->
               <div>
@@ -642,211 +259,42 @@
                   </span>
                 </label>
                 <%= if @mode in ["reply", "reply_all", "forward"] do %>
-                  <!-- Enhanced UI for Reply/Forward mode -->
                   <div class="space-y-3">
-                    <!-- New message area -->
-                    <div class="space-y-3">
-                      <!-- Markdown Editor for Reply/Forward -->
-                      <div class="space-y-1">
-                        <!-- Editor Tabs -->
-                        <div class="tabs tabs-boxed bg-base-200">
-                          <button
-                            type="button"
-                            class="tab tab-active"
-                            data-reply-editor-tab="write"
-                          >
-                            <.icon name="hero-pencil" class="w-4 h-4 mr-1" /> {gettext("Write")}
-                          </button>
-                          <button type="button" class="tab" data-reply-editor-tab="preview">
-                            <.icon name="hero-eye" class="w-4 h-4 mr-1" /> {gettext("Preview")}
-                          </button>
-                          <button type="button" class="tab" data-reply-editor-tab="split">
-                            <.icon name="hero-view-columns" class="w-4 h-4 mr-1" /> {gettext(
-                              "Split"
-                            )}
-                          </button>
+                    <div class="space-y-1">
+                      <.editor_toolbar
+                        tab_attr="data-reply-editor-tab"
+                        toolbar_id="reply-formatting-toolbar"
+                        target="new-message-area"
+                      />
+                      <div id="reply-editor-container" class="relative">
+                        <div id="reply-editor-write" class="block">
+                          <textarea
+                            id="new-message-area"
+                            name="email[new_message]"
+                            rows="10"
+                            class="textarea w-full resize-none text-sm border-x border-b border-base-300 rounded-b-lg focus:outline-none focus:border-secondary"
+                            placeholder={gettext("Type your message here...")}
+                            phx-hook="ReplyMarkdownEditor"
+                          ><%= @form[:new_message].value %></textarea>
                         </div>
-                        <!-- Formatting Toolbar -->
-                        <div
-                          class="flex flex-wrap items-center gap-1 p-2 bg-base-200 rounded-t-lg"
-                          id="reply-formatting-toolbar"
-                        >
-                          <!-- Text Formatting -->
-                          <div class="flex items-center gap-1">
-                            <button
-                              type="button"
-                              class="btn btn-sm btn-ghost hover:bg-secondary/20 tooltip"
-                              data-markdown-format="bold"
-                              data-target="new-message-area"
-                              data-tip={gettext("Bold (Ctrl+B)")}
-                            >
-                              <strong class="text-sm">B</strong>
-                            </button>
-                            <button
-                              type="button"
-                              class="btn btn-sm btn-ghost hover:bg-secondary/20 tooltip"
-                              data-markdown-format="italic"
-                              data-target="new-message-area"
-                              data-tip={gettext("Italic (Ctrl+I)")}
-                            >
-                              <em class="text-sm">I</em>
-                            </button>
-                            <button
-                              type="button"
-                              class="btn btn-sm btn-ghost hover:bg-secondary/20 tooltip"
-                              data-markdown-format="code"
-                              data-target="new-message-area"
-                              data-tip={gettext("Code")}
-                            >
-                              <.icon name="hero-code-bracket" class="w-4 h-4" />
-                            </button>
-                          </div>
-
-                          <div class="divider divider-horizontal h-6 mx-1"></div>
-                          <!-- Headers -->
-                          <div class="dropdown dropdown-hover">
-                            <button
-                              type="button"
-                              tabindex="0"
-                              class="btn btn-sm btn-ghost hover:bg-secondary/20 gap-1"
-                            >
-                              <span class="text-sm font-bold">H</span>
-                              <.icon name="hero-chevron-down" class="w-3 h-3" />
-                            </button>
-                            <ul
-                              tabindex="0"
-                              class="dropdown-content z-30 menu p-2 rounded-box w-32 z-50"
-                            >
-                              <li>
-                                <button
-                                  type="button"
-                                  data-markdown-format="h1"
-                                  data-target="new-message-area"
-                                >
-                                  H1
-                                </button>
-                              </li>
-
-                              <li>
-                                <button
-                                  type="button"
-                                  data-markdown-format="h2"
-                                  data-target="new-message-area"
-                                >
-                                  H2
-                                </button>
-                              </li>
-
-                              <li>
-                                <button
-                                  type="button"
-                                  data-markdown-format="h3"
-                                  data-target="new-message-area"
-                                >
-                                  H3
-                                </button>
-                              </li>
-                            </ul>
-                          </div>
-                          <!-- Lists & Links -->
-                          <div class="flex items-center gap-1">
-                            <button
-                              type="button"
-                              class="btn btn-sm btn-ghost hover:bg-secondary/20 tooltip"
-                              data-markdown-format="list-bullet"
-                              data-target="new-message-area"
-                              data-tip={gettext("Bullet list")}
-                            >
-                              <.icon name="hero-list-bullet" class="w-4 h-4" />
-                            </button>
-                            <button
-                              type="button"
-                              class="btn btn-sm btn-ghost hover:bg-secondary/20 tooltip"
-                              data-markdown-format="list-number"
-                              data-target="new-message-area"
-                              data-tip={gettext("Numbered list")}
-                            >
-                              <span class="text-sm">1.</span>
-                            </button>
-                            <button
-                              type="button"
-                              class="btn btn-sm btn-ghost hover:bg-secondary/20 tooltip"
-                              data-markdown-format="link"
-                              data-target="new-message-area"
-                              data-tip={gettext("Insert link")}
-                            >
-                              <.icon name="hero-link" class="w-4 h-4" />
-                            </button>
-                          </div>
-
-                          <div class="divider divider-horizontal h-6 mx-1"></div>
-                          <!-- Quote & Code Block -->
-                          <div class="flex items-center gap-1">
-                            <button
-                              type="button"
-                              class="btn btn-sm btn-ghost hover:bg-secondary/20 tooltip"
-                              data-markdown-format="quote"
-                              data-target="new-message-area"
-                              data-tip={gettext("Quote")}
-                            >
-                              <.icon name="hero-chat-bubble-bottom-center-text" class="w-4 h-4" />
-                            </button>
-                            <button
-                              type="button"
-                              class="btn btn-sm btn-ghost hover:bg-secondary/20 tooltip"
-                              data-markdown-format="code-block"
-                              data-target="new-message-area"
-                              data-tip={gettext("Code block")}
-                            >
-                              <span class="text-xs font-medium">[/]</span>
-                            </button>
-                          </div>
-                        </div>
-                        <!-- Editor Container -->
-                        <div id="reply-editor-container" class="relative">
-                          <!-- Editor Textarea -->
-                          <div id="reply-editor-write" class="block">
-                            <textarea
-                              id="new-message-area"
-                              name="email[new_message]"
-                              rows="10"
-                              class="textarea w-full resize-none text-sm border-x border-b border-base-300 rounded-b-lg focus:outline-none focus:border-secondary"
-                              placeholder="Type your new message here..."
-                              phx-hook="ReplyMarkdownEditor"
-                            ><%= @form[:new_message].value %></textarea>
-                          </div>
-                          <!-- Preview Panel -->
-                          <div id="reply-editor-preview" class="hidden">
-                            <div class="border-x border-b border-base-300 rounded-b-lg p-4 min-h-[250px] overflow-auto">
-                              <div id="reply-preview-content" class="prose prose-sm max-w-full">
-                                <p class="text-base-content/50">
-                                  {gettext("Nothing to preview yet...")}
-                                </p>
-                              </div>
+                        <div id="reply-editor-preview" class="hidden">
+                          <div class="border-x border-b border-base-300 rounded-b-lg p-4 min-h-[250px] overflow-auto">
+                            <div id="reply-preview-content" class="prose prose-sm max-w-full">
+                              <p class="text-base-content/50">
+                                {gettext("Nothing to preview yet...")}
+                              </p>
                             </div>
                           </div>
                         </div>
                       </div>
                     </div>
-                    <!-- Divider -->
-                    <div class="divider text-xs text-base-content/60">
-                      {if @mode in ["reply", "reply_all"],
-                        do: "Original message below",
-                        else: "Forwarded message below"}
-                    </div>
                     <!-- Original message (read-only preview) -->
-                    <div class="relative pt-6">
-                      <div class="absolute top-0 left-0 text-sm font-medium text-base-content/60 flex items-center gap-2">
-                        <.icon name="hero-document-text" class="h-4 w-4" /> {if @mode in [
-                                                                                  "reply",
-                                                                                  "reply_all"
-                                                                                ],
-                                                                                do:
-                                                                                  "Original message:",
-                                                                                else:
-                                                                                  "Forwarded message:"}
-                      </div>
-                      <!-- Always show plain text preview since body field contains plain text -->
+                    <div class="space-y-1">
+                      <p class="text-sm font-medium text-base-content/60">
+                        {if @mode in ["reply", "reply_all"],
+                          do: gettext("Original message"),
+                          else: gettext("Forwarded message")}
+                      </p>
                       <div
                         class="textarea textarea-bordered bg-base-200/50 h-32 overflow-auto text-sm text-base-content/70 resize-none break-words"
                         data-private-compose-preview
@@ -854,52 +302,32 @@
                         {@form[:body].value}
                       </div>
                     </div>
-                    <!-- Show attachments that will be forwarded -->
+                    <!-- Attachments that will be forwarded -->
                     <%= if @mode == "forward" && @original_message && @original_message.attachments && is_map(@original_message.attachments) && map_size(@original_message.attachments) > 0 do %>
-                      <div class="relative pt-6">
-                        <div class="absolute top-0 left-0 text-sm font-medium text-base-content/60 flex items-center gap-2">
-                          <.icon name="hero-paper-clip" class="h-4 w-4" /> {gettext(
-                            "Attachments to forward:"
-                          )}
-                        </div>
+                      <div class="space-y-1">
+                        <p class="text-sm font-medium text-base-content/60">
+                          {gettext("Attachments to forward")}
+                        </p>
+                        <div
+                          class="grid grid-cols-1 gap-2"
+                          data-private-compose-attachments-preview
+                        >
+                          <%= for {_attachment_id, attachment} <- @original_message.attachments do %>
+                            <div class="flex items-center gap-2 p-2 bg-base-200 rounded-lg">
+                              <.icon name="hero-document" class="h-4 w-4 text-base-content/60" />
+                              <div class="min-w-0">
+                                <p class="text-sm font-medium truncate">
+                                  {attachment["filename"] || "Unknown file"}
+                                </p>
 
-                        <div class="bg-base-200/30 rounded-lg p-4">
-                          <div
-                            class="grid grid-cols-1 gap-2"
-                            data-private-compose-attachments-preview
-                          >
-                            <%= for {_attachment_id, attachment} <- @original_message.attachments do %>
-                              <div class="flex items-center justify-between p-2 bg-base-200 rounded">
-                                <div class="flex items-center gap-2">
-                                  <.icon
-                                    name="hero-document"
-                                    class="h-4 w-4 text-base-content/60"
-                                  />
-                                  <div>
-                                    <p class="text-sm font-medium">
-                                      {attachment["filename"] || "Unknown file"}
-                                    </p>
-
-                                    <p class="text-xs text-base-content/60">
-                                      {format_file_size(Map.get(attachment, "size", 0))} • {attachment[
-                                        "content_type"
-                                      ] || "Unknown type"}
-                                    </p>
-                                  </div>
-                                </div>
-
-                                <div class="badge badge-success badge-sm">
-                                  {gettext("Will be forwarded")}
-                                </div>
+                                <p class="text-xs text-base-content/60">
+                                  {format_file_size(Map.get(attachment, "size", 0))} • {attachment[
+                                    "content_type"
+                                  ] || "Unknown type"}
+                                </p>
                               </div>
-                            <% end %>
-                          </div>
-
-                          <p class="text-xs text-base-content/60 mt-2 italic">
-                            {gettext(
-                              "These attachments from the original message will be included when you send this forwarded email."
-                            )}
-                          </p>
+                            </div>
+                          <% end %>
                         </div>
                       </div>
                     <% end %>
@@ -913,169 +341,22 @@
                     />
                   </div>
                 <% else %>
-                  <!-- Regular compose mode --> <!-- Markdown Editor -->
                   <div class="space-y-1">
-                    <!-- Editor Tabs -->
-                    <div class="tabs tabs-boxed bg-base-200">
-                      <button type="button" class="tab tab-active" data-editor-tab="write">
-                        <.icon name="hero-pencil" class="w-4 h-4 mr-1" /> {gettext("Write")}
-                      </button>
-                      <button type="button" class="tab" data-editor-tab="preview">
-                        <.icon name="hero-eye" class="w-4 h-4 mr-1" /> {gettext("Preview")}
-                      </button>
-                      <button type="button" class="tab" data-editor-tab="split">
-                        <.icon name="hero-view-columns" class="w-4 h-4 mr-1" /> {gettext("Split")}
-                      </button>
-                    </div>
-                    <!-- Formatting Toolbar -->
-                    <div
-                      class="flex flex-wrap items-center gap-1 p-2 bg-base-200 rounded-t-lg"
-                      id="formatting-toolbar"
-                    >
-                      <!-- Text Formatting -->
-                      <div class="flex items-center gap-1">
-                        <button
-                          type="button"
-                          class="btn btn-sm btn-ghost hover:bg-secondary/20 tooltip"
-                          data-markdown-format="bold"
-                          data-target="html-editor"
-                          data-tip={gettext("Bold (Ctrl+B)")}
-                        >
-                          <strong class="text-sm">B</strong>
-                        </button>
-                        <button
-                          type="button"
-                          class="btn btn-sm btn-ghost hover:bg-secondary/20 tooltip"
-                          data-markdown-format="italic"
-                          data-target="html-editor"
-                          data-tip={gettext("Italic (Ctrl+I)")}
-                        >
-                          <em class="text-sm">I</em>
-                        </button>
-                        <button
-                          type="button"
-                          class="btn btn-sm btn-ghost hover:bg-secondary/20 tooltip"
-                          data-markdown-format="code"
-                          data-target="html-editor"
-                          data-tip={gettext("Code")}
-                        >
-                          <.icon name="hero-code-bracket" class="w-4 h-4" />
-                        </button>
-                      </div>
-
-                      <div class="divider divider-horizontal h-6 mx-1"></div>
-                      <!-- Headers -->
-                      <div class="dropdown dropdown-hover">
-                        <button
-                          type="button"
-                          tabindex="0"
-                          class="btn btn-sm btn-ghost hover:bg-secondary/20 gap-1"
-                        >
-                          <span class="text-sm font-bold">H</span>
-                          <.icon name="hero-chevron-down" class="w-3 h-3" />
-                        </button>
-                        <ul
-                          tabindex="0"
-                          class="dropdown-content z-30 menu p-2 rounded-box w-32 z-50"
-                        >
-                          <li>
-                            <button
-                              type="button"
-                              data-markdown-format="h1"
-                              data-target="html-editor"
-                            >
-                              H1
-                            </button>
-                          </li>
-
-                          <li>
-                            <button
-                              type="button"
-                              data-markdown-format="h2"
-                              data-target="html-editor"
-                            >
-                              H2
-                            </button>
-                          </li>
-
-                          <li>
-                            <button
-                              type="button"
-                              data-markdown-format="h3"
-                              data-target="html-editor"
-                            >
-                              H3
-                            </button>
-                          </li>
-                        </ul>
-                      </div>
-                      <!-- Lists & Links -->
-                      <div class="flex items-center gap-1">
-                        <button
-                          type="button"
-                          class="btn btn-sm btn-ghost hover:bg-secondary/20 tooltip"
-                          data-markdown-format="list-bullet"
-                          data-target="html-editor"
-                          data-tip={gettext("Bullet list")}
-                        >
-                          <.icon name="hero-list-bullet" class="w-4 h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          class="btn btn-sm btn-ghost hover:bg-secondary/20 tooltip"
-                          data-markdown-format="list-number"
-                          data-target="html-editor"
-                          data-tip={gettext("Numbered list")}
-                        >
-                          <span class="text-sm">1.</span>
-                        </button>
-                        <button
-                          type="button"
-                          class="btn btn-sm btn-ghost hover:bg-secondary/20 tooltip"
-                          data-markdown-format="link"
-                          data-target="html-editor"
-                          data-tip={gettext("Insert link")}
-                        >
-                          <.icon name="hero-link" class="w-4 h-4" />
-                        </button>
-                      </div>
-
-                      <div class="divider divider-horizontal h-6 mx-1"></div>
-                      <!-- Quote & Code Block -->
-                      <div class="flex items-center gap-1">
-                        <button
-                          type="button"
-                          class="btn btn-sm btn-ghost hover:bg-secondary/20 tooltip"
-                          data-markdown-format="quote"
-                          data-target="html-editor"
-                          data-tip={gettext("Quote")}
-                        >
-                          <.icon name="hero-chat-bubble-bottom-center-text" class="w-4 h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          class="btn btn-sm btn-ghost hover:bg-secondary/20 tooltip"
-                          data-markdown-format="code-block"
-                          data-target="html-editor"
-                          data-tip={gettext("Code block")}
-                        >
-                          <span class="text-xs font-medium">[/]</span>
-                        </button>
-                      </div>
-                    </div>
-                    <!-- Editor Container -->
+                    <.editor_toolbar
+                      tab_attr="data-editor-tab"
+                      toolbar_id="formatting-toolbar"
+                      target="html-editor"
+                    />
                     <div id="editor-container" class="relative">
-                      <!-- Editor Textarea -->
                       <div id="editor-write" class="block">
                         <textarea
                           id="html-editor"
                           name="email[body]"
                           rows="15"
                           class="textarea w-full resize-none text-sm border-x border-b border-base-300 rounded-b-lg focus:outline-none focus:border-secondary"
-                          placeholder="Type your message here..."
+                          placeholder={gettext("Type your message here...")}
                         ><%= @form[:body].value %></textarea>
                       </div>
-                      <!-- Preview Panel -->
                       <div id="editor-preview" class="hidden">
                         <div class="border-x border-b border-base-300 rounded-b-lg p-4 min-h-[350px] overflow-auto">
                           <div id="preview-content" class="prose prose-sm max-w-full">
@@ -1092,16 +373,9 @@
               <!-- Attachments Section -->
               <div>
                 <label class="label">
-                  <span class="font-semibold">
-                    <.icon name="hero-paper-clip" class="w-4 h-4 inline" /> {gettext(
-                      "Attachments"
-                    )}
-                  </span>
+                  <span class="font-semibold">{gettext("Attachments")}</span>
                   <span class="text-xs text-base-content/60">
-                    {gettext("Max 10MB per file, 5 files, 20 files per hour")}
-                  </span>
-                  <span class="text-xs text-base-content/60">
-                    {gettext("Allowed: Images, PDFs, Office docs, Text, Archives, Audio/Video")}
+                    {gettext("Up to 5 files, 10MB each")}
                   </span>
                 </label>
                 <div
@@ -1116,7 +390,7 @@
 
                     <label
                       for={@uploads.attachments.ref}
-                      class="btn btn-sm btn-ghost btn-secondary cursor-pointer"
+                      class="btn btn-sm btn-secondary cursor-pointer"
                     >
                       <.icon name="hero-folder-open" class="w-4 h-4 mr-1" /> {gettext(
                         "Choose Files"
@@ -1169,22 +443,146 @@
                   <p class="text-error text-sm mt-2">{error_to_string(err)}</p>
                 <% end %>
               </div>
+              <!-- Delivery Options -->
+              <div class="rounded-lg border border-base-300/60 divide-y divide-base-300/60">
+                <div class="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p class="text-sm font-semibold">{gettext("Send later")}</p>
+                    <p class="text-xs text-base-content/60">
+                      {gettext("Leave blank to send now. Times are UTC.")}
+                    </p>
+                  </div>
+                  <input
+                    type="datetime-local"
+                    name="email[send_at]"
+                    value={@form[:send_at].value}
+                    class="input input-bordered input-sm w-full sm:w-64"
+                    min={
+                      DateTime.utc_now()
+                      |> DateTime.add(60, :second)
+                      |> Calendar.strftime("%Y-%m-%dT%H:%M")
+                    }
+                  />
+                </div>
+
+                <div class="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p class="text-sm font-semibold">{gettext("Format")}</p>
+                    <p class="text-xs text-base-content/60">
+                      {gettext("Plain text sends the body without Markdown formatting or HTML.")}
+                    </p>
+                  </div>
+                  <select
+                    name="email[body_format]"
+                    value={@body_format}
+                    class="select select-bordered select-sm w-full sm:w-64"
+                  >
+                    <option value="markdown" selected={@body_format == "markdown"}>
+                      {gettext("Markdown + HTML")}
+                    </option>
+
+                    <option value="plaintext" selected={@body_format == "plaintext"}>
+                      {gettext("Plain text only")}
+                    </option>
+                  </select>
+                </div>
+
+                <div class="space-y-2 p-3">
+                  <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p class="text-sm font-semibold">{gettext("Encryption")}</p>
+                      <p class="text-xs text-base-content/60">
+                        {gettext(
+                          "OpenPGP encrypts the body for recipients with public keys. Subject, headers, and attachments are not encrypted."
+                        )}
+                      </p>
+                    </div>
+                    <select
+                      name="email[encryption_mode]"
+                      value={@encryption_mode}
+                      phx-change="change_encryption_mode"
+                      class="select select-bordered select-sm w-full sm:w-64"
+                    >
+                      <option value="off" selected={@encryption_mode == "off"}>
+                        {gettext("Standard delivery")}
+                      </option>
+
+                      <option value="auto" selected={@encryption_mode == "auto"}>
+                        {gettext("Encrypt when possible")}
+                      </option>
+
+                      <option value="require" selected={@encryption_mode == "require"}>
+                        {gettext("Require encryption")}
+                      </option>
+                    </select>
+                  </div>
+
+                  <%= if not @encryption_status.server_ready? and @encryption_mode != "off" do %>
+                    <p class="flex items-start gap-2 text-sm text-error">
+                      <.icon name="hero-exclamation-triangle" class="mt-0.5 h-4 w-4 shrink-0" />
+                      <span>
+                        {gettext("OpenPGP delivery is not available on this server right now.")}
+                      </span>
+                    </p>
+                  <% end %>
+
+                  <%= if @encryption_status.total_count > 0 do %>
+                    <%= if @encryption_status.can_encrypt? do %>
+                      <p class="flex items-start gap-2 text-sm text-success">
+                        <.icon name="hero-check-circle" class="mt-0.5 h-4 w-4 shrink-0" />
+                        <span>
+                          {gettext("Public keys are available for all %{count} recipients.",
+                            count: @encryption_status.total_count
+                          )}
+                        </span>
+                      </p>
+                    <% else %>
+                      <div class="flex items-start gap-2 text-sm text-warning">
+                        <.icon name="hero-exclamation-triangle" class="mt-0.5 h-4 w-4 shrink-0" />
+                        <div>
+                          {gettext(
+                            "Public keys are available for %{available} of %{total} recipients.",
+                            available: @encryption_status.available_count,
+                            total: @encryption_status.total_count
+                          )}
+                          <%= if @encryption_status.missing_recipients != [] do %>
+                            <div class="mt-1 text-xs">
+                              {gettext("Missing keys for:")} {Enum.join(
+                                Enum.take(@encryption_status.missing_recipients, 4),
+                                ", "
+                              )}
+                              <%= if length(@encryption_status.missing_recipients) > 4 do %>
+                                , ...
+                              <% end %>
+                            </div>
+                          <% end %>
+                        </div>
+                      </div>
+                    <% end %>
+                  <% end %>
+
+                  <%= if @encryption_mode != "off" && (@uploads.attachments.entries != [] || (@original_message && @original_message.attachments && is_map(@original_message.attachments) && map_size(@original_message.attachments) > 0)) do %>
+                    <p class="flex items-start gap-2 text-xs text-warning">
+                      <.icon name="hero-exclamation-triangle" class="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      <span>
+                        {gettext(
+                          "Attachments are sent unencrypted even when the body is encrypted."
+                        )}
+                      </span>
+                    </p>
+                  <% end %>
+                </div>
+              </div>
               <!-- Action Buttons -->
-              <div class="flex flex-col sm:flex-row gap-3 pt-4 items-center">
+              <div class="flex flex-col gap-3 pt-4 sm:flex-row sm:items-center">
                 <.button
                   type="submit"
-                  variant="secondary"
-                  class="min-w-[10rem] h-11 px-4 transition-all duration-150 phx-submit-loading:pointer-events-none phx-submit-loading:opacity-80"
+                  variant="primary"
+                  class="min-w-[8rem] h-11 px-4"
                   loading={@sending}
                   loading_text={gettext("Sending...")}
                 >
-                  <span class="inline-flex items-center phx-submit-loading:hidden">
-                    {gettext("Send Message")}
-                    <.icon name="hero-arrow-right" class="ml-2 h-5 w-5" />
-                  </span>
-                  <span class="hidden items-center phx-submit-loading:inline-flex">
-                    <.spinner size="sm" class="mr-2" /> {gettext("Sending...")}
-                  </span>
+                  {gettext("Send")}
                 </.button>
                 <.link navigate={email_return_url(assigns)} class="btn btn-ghost h-11 px-4">
                   <.icon name="hero-arrow-left" class="h-5 w-5 mr-2" /> {email_back_button_text(
@@ -1192,20 +590,20 @@
                   )}
                 </.link>
                 <!-- Auto-save status indicator -->
-                <div class="flex-1 text-right text-sm text-base-content/60">
+                <div class="text-sm text-base-content/60 sm:flex-1 sm:text-right">
                   <%= case @draft_status do %>
                     <% :saving -> %>
-                      <span class="flex items-center justify-end gap-1">
+                      <span class="flex items-center gap-1 sm:justify-end">
                         <.spinner size="sm" /> {gettext("Saving...")}
                       </span>
                     <% :saved -> %>
-                      <span class="flex items-center justify-end gap-1">
+                      <span class="flex items-center gap-1 sm:justify-end">
                         <.icon name="hero-check" class="w-4 h-4 text-success" /> {gettext(
                           "Draft saved"
                         )}
                       </span>
                     <% :error -> %>
-                      <span class="flex items-center justify-end gap-1 text-error">
+                      <span class="flex items-center gap-1 text-error sm:justify-end">
                         <.icon name="hero-exclamation-triangle" class="w-4 h-4" /> {gettext(
                           "Failed to save"
                         )}
@@ -1214,6 +612,12 @@
                   <% end %>
                 </div>
               </div>
+
+              <p class="text-xs text-base-content/50">
+                {gettext(
+                  "External email sends use Identity Credits unless your account has high trust."
+                )}
+              </p>
             </.form>
           </div>
         </div>

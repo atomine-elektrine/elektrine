@@ -238,18 +238,6 @@ defmodule Elektrine.NerveTest do
       assert {:ok, _deleted} = Nerve.delete_entry(user.id, entry.id)
       assert {:error, :not_found} = Nerve.get_entry_ciphertext(user.id, entry.id)
     end
-
-    test "delete_nerve/1 removes all of a user's entries", %{user: user} do
-      assert {:ok, _entry} =
-               Nerve.create_entry(user.id, %{
-                 "title" => "Wipe Me",
-                 "encrypted_metadata" => encrypted_payload("metadata"),
-                 "encrypted_password" => encrypted_payload("temporary")
-               })
-
-      assert {:ok, %{deleted_entries: 1}} = Nerve.delete_nerve(user.id)
-      assert Nerve.list_entries(user.id, include_secrets: true) == []
-    end
   end
 
   # Entries are encrypted under the master key's Nerve subkey (keyed AES-256-GCM);

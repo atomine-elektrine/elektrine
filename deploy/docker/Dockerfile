@@ -90,7 +90,7 @@ COPY apps/elektrine/mix.exs apps/elektrine/mix.exs
 COPY apps/arblarg/mix.exs apps/arblarg/mix.exs
 COPY apps/atomine/mix.exs apps/atomine/mix.exs
 COPY apps/kairo/mix.exs apps/kairo/mix.exs
-COPY apps/maid/mix.exs apps/maid/mix.exs
+COPY apps/paige/mix.exs apps/paige/mix.exs
 COPY apps/elektrine_web/mix.exs apps/elektrine_web/mix.exs
 COPY apps/elektrine_email/mix.exs apps/elektrine_email/mix.exs
 COPY apps/elektrine_social/mix.exs apps/elektrine_social/mix.exs

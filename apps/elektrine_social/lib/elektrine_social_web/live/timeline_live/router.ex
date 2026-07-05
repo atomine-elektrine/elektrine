@@ -154,8 +154,10 @@ defmodule ElektrineSocialWeb.TimelineLive.Router do
     @operation_events[event_name].handle_event(event_name, params, socket)
   end
 
-  def route_event(event_name, params, socket) when event_name in @presence_events do
-    ElektrineWeb.Live.Hooks.PresenceEvents.handle_presence_event(event_name, params, socket)
+  # Presence events are handled by ElektrineWeb's PresenceHook where it is
+  # mounted; swallow them here so stray client events don't log warnings.
+  def route_event(event_name, _params, socket) when event_name in @presence_events do
+    {:noreply, socket}
   end
 
   def route_event(event_name, _params, socket) when event_name in [nil, ""] do

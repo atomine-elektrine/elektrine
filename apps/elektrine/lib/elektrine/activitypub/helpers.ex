@@ -410,7 +410,7 @@ defmodule Elektrine.ActivityPub.Helpers do
     end
   end
 
-  def get_or_store_remote_post(activitypub_id, actor_uri) do
+  def get_or_store_remote_post(activitypub_id, actor_uri, opts \\ []) do
     case cached_remote_post(activitypub_id) do
       nil ->
         case Elektrine.ActivityPub.RemoteFetch.fetch_object(activitypub_id) do
@@ -418,7 +418,9 @@ defmodule Elektrine.ActivityPub.Helpers do
             preferred_actor_uri =
               extracted_object_actor_uri(post_object) || actor_uri
 
-            store_or_resolve_remote_post(post_object, preferred_actor_uri)
+            post_object
+            |> tag_ancestor_depth(opts)
+            |> store_or_resolve_remote_post(preferred_actor_uri)
 
           {:error, reason} ->
             {:error, reason}
@@ -428,6 +430,19 @@ defmodule Elektrine.ActivityPub.Helpers do
         {:ok, message}
     end
   end
+
+  # Carries the ingestion-time ancestor-fetch depth into the stored object so
+  # CreateHandler can bound how far the "fetch missing parent" recursion walks
+  # up a reply chain (a hostile server can otherwise serve an endless
+  # inReplyTo chain and drive unbounded fetches).
+  defp tag_ancestor_depth(post_object, opts) when is_map(post_object) do
+    case Keyword.get(opts, :ancestor_depth) do
+      depth when is_integer(depth) -> Map.put(post_object, "_elektrine_ancestor_depth", depth)
+      _ -> post_object
+    end
+  end
+
+  defp tag_ancestor_depth(post_object, _opts), do: post_object
 
   defp extracted_object_actor_uri(%{} = post_object) do
     Elektrine.ActivityPub.Normalizer.actor_uri(post_object)

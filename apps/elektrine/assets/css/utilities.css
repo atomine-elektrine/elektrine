@@ -150,6 +150,20 @@
   color: var(--profile-text, var(--color-base-content));
 }
 
+.profile-modal-surface {
+  background-color: color-mix(in srgb, var(--profile-bg, var(--color-base-100)) 88%, var(--color-base-100) 12%) !important;
+  border-color: color-mix(in srgb, var(--profile-accent, var(--color-primary)) 28%, transparent) !important;
+  color: var(--profile-text, var(--color-base-content)) !important;
+}
+
+.profile-modal-row {
+  color: var(--profile-text, var(--color-base-content));
+}
+
+.profile-modal-row:hover {
+  background-color: color-mix(in srgb, var(--profile-accent, var(--color-primary)) 14%, transparent);
+}
+
 .profile-text-muted {
   color: color-mix(in srgb, var(--profile-text, var(--color-base-content)) 70%, transparent);
 }

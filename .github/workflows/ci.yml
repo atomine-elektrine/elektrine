@@ -60,6 +60,9 @@ jobs:
       - name: Install dependencies
         run: mix deps.get
 
+      - name: Install JavaScript dependencies
+        run: npm --prefix apps/elektrine/assets ci
+
       - name: Verify formatting
         id: format_check
         continue-on-error: ${{ inputs.allow_format_failure }}
@@ -74,6 +77,9 @@ jobs:
       - name: Check JavaScript assets
         run: npm --prefix apps/elektrine/assets run check
 
+      - name: Run JavaScript dependency audit
+        run: npm --prefix apps/elektrine/assets audit --omit=dev
+
       - name: Emit warning when formatting is allowed to fail
         if: ${{ inputs.allow_format_failure && steps.format_check.outcome == 'failure' }}
         run: echo "::warning::Formatting check failed, but deploy can continue."
@@ -86,3 +92,6 @@ jobs:
 
       - name: Run dependency audit
         run: mix deps.audit
+
+      - name: Run Hex package retirement audit
+        run: mix hex.audit

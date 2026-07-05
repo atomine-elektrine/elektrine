@@ -55,11 +55,28 @@ defmodule Elektrine.Profiles do
     to: Elektrine.Profiles.PerSiteIdentities,
     as: :available_base_domains
 
+  defp profile_links_query(:all) do
+    from(l in ProfileLink, order_by: [desc: l.pinned, asc: l.position, asc: l.id])
+  end
+
+  defp profile_links_query(:visible) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    from(l in ProfileLink,
+      where: l.is_active == true,
+      where: is_nil(l.active_from) or l.active_from <= ^now,
+      where: is_nil(l.active_until) or l.active_until > ^now,
+      order_by: [desc: l.pinned, asc: l.position, asc: l.id]
+    )
+  end
+
+  defp profile_links_query(_mode), do: profile_links_query(:visible)
+
   @doc """
   Gets a user's profile page.
   """
-  def get_user_profile(user_id) do
-    links_query = from(l in ProfileLink, where: l.is_active == true, order_by: l.position)
+  def get_user_profile(user_id, opts \\ []) do
+    links_query = profile_links_query(Keyword.get(opts, :links, :visible))
     widgets_query = from(w in ProfileWidget, where: w.is_active == true, order_by: w.position)
 
     UserProfile
@@ -72,7 +89,7 @@ defmodule Elektrine.Profiles do
   Gets a profile by username.
   """
   def get_profile_by_username(username) do
-    links_query = from(l in ProfileLink, where: l.is_active == true, order_by: l.position)
+    links_query = profile_links_query(:visible)
     widgets_query = from(w in ProfileWidget, where: w.is_active == true, order_by: w.position)
 
     UserProfile
@@ -88,7 +105,7 @@ defmodule Elektrine.Profiles do
   Used for subdomain profile lookups (e.g., handle.example.com).
   """
   def get_profile_by_handle(handle) do
-    links_query = from(l in ProfileLink, where: l.is_active == true, order_by: l.position)
+    links_query = profile_links_query(:visible)
     widgets_query = from(w in ProfileWidget, where: w.is_active == true, order_by: w.position)
 
     UserProfile
@@ -388,7 +405,15 @@ defmodule Elektrine.Profiles do
         where: l.profile_id == ^profile.id,
         order_by: [desc: l.clicks],
         limit: ^limit,
-        select: %{id: l.id, title: l.title, url: l.url, platform: l.platform, clicks: l.clicks}
+        select: %{
+          id: l.id,
+          title: l.title,
+          url: l.url,
+          platform: l.platform,
+          clicks: l.clicks,
+          impressions: l.impressions,
+          last_clicked_at: l.last_clicked_at
+        }
       )
       |> Repo.all()
     else
@@ -929,8 +954,30 @@ defmodule Elektrine.Profiles do
   """
   def increment_link_clicks(link_id) do
     from(l in ProfileLink, where: l.id == ^link_id)
-    |> Repo.update_all(inc: [clicks: 1])
+    |> Repo.update_all(
+      inc: [clicks: 1],
+      set: [last_clicked_at: DateTime.utc_now() |> DateTime.truncate(:second)]
+    )
   end
+
+  @doc """
+  Increments impression counters for visible profile links.
+  """
+  def increment_link_impressions(link_ids) when is_list(link_ids) do
+    ids =
+      link_ids
+      |> Enum.filter(&is_integer/1)
+      |> Enum.uniq()
+
+    if ids == [] do
+      {0, nil}
+    else
+      from(l in ProfileLink, where: l.id in ^ids)
+      |> Repo.update_all(inc: [impressions: 1])
+    end
+  end
+
+  def increment_link_impressions(_link_ids), do: {0, nil}
 
   @doc """
   Follow a user.

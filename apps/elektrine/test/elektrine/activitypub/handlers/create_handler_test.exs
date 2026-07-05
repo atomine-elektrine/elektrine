@@ -254,6 +254,75 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandlerTest do
     end
   end
 
+  describe "reply_count accounting" do
+    test "duplicate delivery of a reply does not double-count the parent" do
+      parent_author = remote_actor_fixture("dupparent")
+      reply_author = remote_actor_fixture("dupreply")
+      parent_ap_id = "https://remote.example/notes/#{System.unique_integer([:positive])}"
+
+      {:ok, parent} =
+        Messaging.create_federated_message(%{
+          content: "Parent",
+          visibility: "public",
+          activitypub_id: parent_ap_id,
+          activitypub_url: parent_ap_id,
+          federated: true,
+          remote_actor_id: parent_author.id
+        })
+
+      reply =
+        note_object(reply_author.uri, %{
+          "id" => "https://remote.example/notes/#{System.unique_integer([:positive])}",
+          "inReplyTo" => parent_ap_id
+        })
+
+      assert {:ok, %{} = stored} = CreateHandler.create_note(reply, reply_author.uri)
+      assert stored.reply_to_id == parent.id
+      assert reload_reply_count(parent.id) == 1
+
+      # Redelivery (Mastodon retries) or an Announce of the same reply must not
+      # increment the parent again.
+      assert {:ok, :already_exists} = CreateHandler.create_note(reply, reply_author.uri)
+      assert reload_reply_count(parent.id) == 1
+    end
+
+    test "deleting a reply decrements the parent's reply_count" do
+      parent_author = remote_actor_fixture("delparent")
+      reply_author = remote_actor_fixture("delreply")
+      parent_ap_id = "https://remote.example/notes/#{System.unique_integer([:positive])}"
+      reply_ap_id = "https://remote.example/notes/#{System.unique_integer([:positive])}"
+
+      {:ok, parent} =
+        Messaging.create_federated_message(%{
+          content: "Parent",
+          visibility: "public",
+          activitypub_id: parent_ap_id,
+          activitypub_url: parent_ap_id,
+          federated: true,
+          remote_actor_id: parent_author.id
+        })
+
+      reply = note_object(reply_author.uri, %{"id" => reply_ap_id, "inReplyTo" => parent_ap_id})
+      assert {:ok, _stored} = CreateHandler.create_note(reply, reply_author.uri)
+      assert reload_reply_count(parent.id) == 1
+
+      delete_activity = %{
+        "type" => "Delete",
+        "actor" => reply_author.uri,
+        "object" => %{"id" => reply_ap_id, "type" => "Tombstone"}
+      }
+
+      assert {:ok, :deleted} =
+               Elektrine.ActivityPub.Handlers.DeleteHandler.handle(
+                 delete_activity,
+                 reply_author.uri,
+                 nil
+               )
+
+      assert reload_reply_count(parent.id) == 0
+    end
+  end
+
   describe "handle/3 actor verification" do
     test "rejects Create when attributedTo does not match the verified actor" do
       signer = remote_actor_fixture("signer")
@@ -416,6 +485,10 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandlerTest do
       assert {:ok, message} = CreateHandler.create_note(object, author.uri)
       assert message.content == "Hello @maxfield@#{ActivityPub.instance_domain()}"
     end
+  end
+
+  defp reload_reply_count(message_id) do
+    Repo.get!(Elektrine.Social.Message, message_id).reply_count || 0
   end
 
   defp note_object(author_uri, overrides) do

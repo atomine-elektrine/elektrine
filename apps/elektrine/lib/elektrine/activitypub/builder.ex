@@ -353,6 +353,10 @@ defmodule Elektrine.ActivityPub.Builder do
       end
 
     note
+    # Mastodon only treats an Update as a content edit (rather than a silent
+    # metadata refresh) when the object carries an `updated` timestamp newer
+    # than `published`; without it, edits to plain Notes are ignored remotely.
+    |> maybe_put("updated", format_datetime(message.edited_at))
     |> maybe_add_content_warning(message)
     |> maybe_add_title_as_name(message)
     |> maybe_add_quote_url(message)
@@ -462,7 +466,10 @@ defmodule Elektrine.ActivityPub.Builder do
         "public" ->
           ["https://www.w3.org/ns/activitystreams#Public"]
 
-        "followers" ->
+        vis when vis in ["followers", "unlisted"] ->
+          # Unlisted uses the same primary audience as followers-only; the
+          # Public magic URI is demoted to `cc` (see build_cc_addresses), which
+          # is exactly how Mastodon distinguishes unlisted from public.
           [ActivityPub.user_collection_uri(user, "followers", base_url)]
 
         _ ->
@@ -486,6 +493,11 @@ defmodule Elektrine.ActivityPub.Builder do
         "public" ->
           # CC to followers when posting publicly
           [ActivityPub.user_collection_uri(user, "followers", base_url)]
+
+        "unlisted" ->
+          # Public in cc (not to) = unlisted: reaches the public web but stays
+          # out of remote public/federated timelines.
+          ["https://www.w3.org/ns/activitystreams#Public"]
 
         _ ->
           []
@@ -960,7 +972,13 @@ defmodule Elektrine.ActivityPub.Builder do
   """
   def build_announce_activity(%User{} = user, object_uri) do
     base_url = ActivityPub.instance_url()
-    activity_id = "#{base_url}/activities/#{Ecto.UUID.generate()}"
+
+    # Deterministic id per (user, object): a user has at most one active boost of
+    # a given post, so a stable id is semantically correct AND lets Undo Announce
+    # reconstruct the exact original id when the stored activity row is missing —
+    # instead of minting a fresh UUID that strict remote servers can't match to
+    # the boost, leaving a ghost boost.
+    activity_id = "#{base_url}/activities/#{announce_ref(user, object_uri)}"
 
     %{
       "@context" => "https://www.w3.org/ns/activitystreams",
@@ -972,6 +990,12 @@ defmodule Elektrine.ActivityPub.Builder do
       "cc" => [ActivityPub.user_collection_uri(user, "followers", base_url)],
       "published" => DateTime.utc_now() |> DateTime.to_iso8601()
     }
+  end
+
+  defp announce_ref(%User{id: user_id}, object_uri) do
+    :crypto.hash(:sha256, "announce:#{user_id}:#{object_uri}")
+    |> Base.url_encode64(padding: false)
+    |> binary_part(0, 24)
   end
 
   @doc """

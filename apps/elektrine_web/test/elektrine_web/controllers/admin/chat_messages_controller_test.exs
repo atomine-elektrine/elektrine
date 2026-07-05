@@ -36,7 +36,7 @@ defmodule ArblargWeb.Admin.ChatMessagesControllerTest do
         |> get("/pripyat/arblarg/messages/#{message.id}/view")
 
       response = html_response(conn, 200)
-      assert response =~ "Chat Admin"
+      assert response =~ "Chat Message"
       assert response =~ message.content
 
       log = latest_message_log(admin.id, message.id)

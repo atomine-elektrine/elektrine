@@ -88,6 +88,16 @@ defmodule Elektrine.PubSubTopics do
   def users_presence, do: "users"
 
   @doc """
+  Topic carrying aggregated per-user presence snapshots.
+
+  `ElektrineWeb.Presence` broadcasts `{:presence_changed, user_id, snapshot}`
+  here (node-locally) whenever a user's aggregate status actually changes.
+  Subscribe to this instead of `users_presence/0` to observe presence without
+  receiving every raw per-device diff.
+  """
+  def users_presence_updates, do: "users:presence_updates"
+
+  @doc """
   Topic for global announcements.
   """
   def announcements, do: "announcements:all"

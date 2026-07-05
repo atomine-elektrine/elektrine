@@ -4,10 +4,20 @@ defmodule ElektrineWeb.ClientIP do
 
   Forwarded headers are honored only when the direct remote peer is in
   `:trusted_proxy_cidrs`. Otherwise, `conn.remote_ip` is used.
+
+  When headers are honored, the client is the rightmost `x-forwarded-for`
+  entry that is not itself a trusted proxy — entries to its left were
+  supplied by the client or by proxies we do not control, so they are
+  spoofable. A client whose own address falls inside a trusted CIDR (for
+  example a user reaching us over the NetBird mesh) resolves to the leftmost
+  chain entry, and when no forwarded header is usable at all we fall back to
+  the peer address rather than reporting `unknown`.
   """
 
   import Plug.Conn, only: [get_req_header: 2]
   import Bitwise
+
+  require Logger
 
   @type ip_tuple :: :inet.ip4_address() | :inet.ip6_address()
   @type cidr :: {ip_tuple(), non_neg_integer()}
@@ -21,13 +31,8 @@ defmodule ElektrineWeb.ClientIP do
 
   @spec client_ip(ip_tuple() | nil, [{String.t(), String.t()}]) :: String.t()
   def client_ip(remote_ip, headers) when is_list(headers) do
-    remote_ip = normalize_ip_tuple(remote_ip)
-
-    if trusted_proxy?(remote_ip) do
-      forwarded_ip(headers)
-    else
-      remote_ip
-    end
+    remote_ip
+    |> resolve_client_ip(headers)
     |> format_ip()
   end
 
@@ -40,13 +45,7 @@ defmodule ElektrineWeb.ClientIP do
 
   @spec client_ip_tuple(Plug.Conn.t()) :: ip_tuple() | nil
   def client_ip_tuple(conn) do
-    remote_ip = normalize_ip_tuple(conn.remote_ip)
-
-    if trusted_proxy?(remote_ip) do
-      forwarded_ip(conn)
-    else
-      remote_ip
-    end
+    resolve_client_ip(conn.remote_ip, conn)
   end
 
   @spec forwarded_as_https?(Plug.Conn.t()) :: boolean()
@@ -76,43 +75,92 @@ defmodule ElektrineWeb.ClientIP do
 
   def ip_in_cidrs?(_, _), do: false
 
-  defp forwarded_ip(conn) do
-    with nil <- x_forwarded_for_ip(conn),
-         nil <- header_ip(conn, "x-real-ip") do
-      nil
+  defp resolve_client_ip(remote_ip, headers) do
+    remote_ip = normalize_ip_tuple(remote_ip)
+
+    if trusted_proxy?(remote_ip) do
+      forwarded_client_ip(headers) || remote_ip
     else
-      ip -> ip
+      maybe_warn_untrusted_forwarding(remote_ip, headers)
+      remote_ip
     end
   end
 
-  defp x_forwarded_for_ip(conn) do
-    case header_values(conn, "x-forwarded-for") do
-      [] ->
-        nil
+  defp forwarded_client_ip(headers) do
+    chain = forwarded_chain(headers)
 
-      values ->
-        parsed_ips =
-          values
-          |> Enum.flat_map(&String.split(&1, ","))
-          |> Enum.map(&parse_ip_string/1)
-          |> Enum.flat_map(fn
-            {:ok, ip} -> [ip]
-            _ -> []
-          end)
-
-        Enum.find(parsed_ips, &public_forwarded_client_ip_candidate?/1) ||
-          Enum.find(parsed_ips, &forwarded_client_ip_candidate?/1)
-    end
+    rightmost_untrusted(chain) || List.first(chain) || header_ip(headers, "x-real-ip")
   end
 
-  defp header_ip(conn, header_name) do
-    conn
+  # All x-forwarded-for entries in wire order (leftmost = origin-most claim),
+  # unparseable entries dropped.
+  defp forwarded_chain(headers) do
+    headers
+    |> header_values("x-forwarded-for")
+    |> Enum.flat_map(&String.split(&1, ","))
+    |> Enum.flat_map(fn value ->
+      case parse_ip_string(value) do
+        {:ok, ip} -> [normalize_ip_tuple(ip)]
+        :error -> []
+      end
+    end)
+  end
+
+  defp rightmost_untrusted(chain) do
+    chain
+    |> Enum.reverse()
+    |> Enum.find(&(not trusted_proxy?(&1)))
+  end
+
+  defp header_ip(headers, header_name) do
+    headers
     |> header_values(header_name)
     |> List.first()
     |> parse_ip_string()
     |> case do
-      {:ok, ip} -> if forwarded_client_ip_candidate?(ip), do: ip
+      {:ok, ip} -> normalize_ip_tuple(ip)
       _ -> nil
+    end
+  end
+
+  # Forwarded headers from a peer outside :trusted_proxy_cidrs are ignored,
+  # which records the peer's own (usually private) address instead of the real
+  # client. That is almost always a deployment misconfiguration, so flag it
+  # once per peer instead of failing silently.
+  defp maybe_warn_untrusted_forwarding(remote_ip, headers) do
+    with true <- is_tuple(remote_ip),
+         false <- public_client_ip_candidate?(remote_ip),
+         [_ | _] <- header_values(headers, "x-forwarded-for"),
+         false <- already_warned?(remote_ip) do
+      Logger.warning(
+        "Ignoring forwarded client IP headers from untrusted private peer " <>
+          "#{format_ip(remote_ip)}; its address will be recorded as the client IP. " <>
+          "If this peer is a reverse proxy, add it to TRUSTED_PROXY_CIDRS."
+      )
+    end
+
+    :ok
+  end
+
+  # Single bounded persistent_term entry: peers outside the cap stay silent so
+  # spoofed private source addresses cannot grow the term (each put rescans all
+  # process heaps).
+  @warned_peers_key {__MODULE__, :untrusted_peer_warnings}
+  @max_warned_peers 100
+
+  defp already_warned?(remote_ip) do
+    warned = :persistent_term.get(@warned_peers_key, MapSet.new())
+
+    cond do
+      MapSet.member?(warned, remote_ip) ->
+        true
+
+      MapSet.size(warned) >= @max_warned_peers ->
+        true
+
+      true ->
+        :persistent_term.put(@warned_peers_key, MapSet.put(warned, remote_ip))
+        false
     end
   end
 
@@ -252,12 +300,6 @@ defmodule ElektrineWeb.ClientIP do
   defp ip_to_int({a, b, c, d, e, f, g, h}) do
     Enum.reduce([a, b, c, d, e, f, g, h], 0, fn part, acc -> (acc <<< 16) + part end)
   end
-
-  defp public_forwarded_client_ip_candidate?(ip) do
-    public_client_ip_candidate?(ip) and forwarded_client_ip_candidate?(ip)
-  end
-
-  defp forwarded_client_ip_candidate?(ip), do: not trusted_proxy?(ip)
 
   defp public_client_ip_candidate?(ip) do
     case maybe_unwrap_mapped_ipv4(ip) do

@@ -24,34 +24,28 @@
       <div id="raw-email-card" class="card panel-card rounded-lg">
         <div class="card-body p-3 sm:p-6">
           <!-- Header -->
-          <div class="mb-6">
-            <div class="flex items-start gap-4 mb-4">
-              <div class="p-3 bg-secondary/10 rounded-lg flex-shrink-0">
-                <.icon name="hero-code-bracket" class="h-7 w-7 text-secondary" />
-              </div>
+          <div class="mb-6 flex flex-wrap items-start justify-between gap-3">
+            <div class="min-w-0">
+              <h1 class="text-2xl font-semibold tracking-tight break-words">
+                {gettext("Raw Message")}
+              </h1>
 
-              <div class="flex-1 min-w-0">
-                <h2 class="text-3xl font-bold break-words mb-2">{gettext("Raw Message")}</h2>
+              <p class="mt-1 text-sm text-base-content/60">
+                {gettext("Original email data and metadata")}
+              </p>
+            </div>
 
-                <p class="text-sm text-base-content/60">
-                  {gettext("Original email data and metadata")}
-                </p>
-              </div>
-            </div>
-            <!-- Action buttons -->
-            <div class="flex flex-wrap gap-3 pt-4 border-t border-base-300">
-              <.link
-                navigate={~p"/email/view/#{@message.hash || @message.id}"}
-                class="btn btn-ghost btn-sm"
-              >
-                <.icon name="hero-arrow-left" class="h-4 w-4 mr-1" /> {gettext("Back to Email")}
-              </.link>
-            </div>
+            <.link
+              navigate={~p"/email/view/#{@message.hash || @message.id}"}
+              class="btn btn-ghost btn-sm"
+            >
+              <.icon name="hero-arrow-left" class="h-4 w-4 mr-1" /> {gettext("Back to Email")}
+            </.link>
           </div>
           <!-- Metadata Section -->
           <div class="mb-6">
             <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
-              <.icon name="hero-information-circle" class="h-5 w-5 text-purple-600" /> {gettext(
+              <.icon name="hero-information-circle" class="h-5 w-5 text-secondary" /> {gettext(
                 "Message Metadata"
               )}
             </h3>
@@ -107,7 +101,7 @@
           <!-- Raw Content Section -->
           <div>
             <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
-              <.icon name="hero-document-text" class="h-5 w-5 text-purple-600" /> {gettext(
+              <.icon name="hero-document-text" class="h-5 w-5 text-secondary" /> {gettext(
                 "Raw Email Data"
               )}
             </h3>

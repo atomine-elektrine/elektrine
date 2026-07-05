@@ -42,12 +42,21 @@ defmodule Elektrine.Profiles.UserProfile do
     field :use_discord_avatar, :boolean, default: false
     field :avatar_url, :string
     field :avatar_size, :integer, default: 0
+    field :avatar_alt_text, :string
+    field :avatar_focal_x, :float, default: 50.0
+    field :avatar_focal_y, :float, default: 50.0
     field :avatar_effect, :string, default: "none"
     field :banner_url, :string
     field :banner_size, :integer, default: 0
+    field :banner_alt_text, :string
     field :background_url, :string
     field :background_size, :integer, default: 0
     field :background_type, :string, default: "gradient"
+    field :background_alt_text, :string
+    field :background_focal_x, :float, default: 50.0
+    field :background_focal_y, :float, default: 50.0
+    field :background_brightness, :integer, default: 100
+    field :background_overlay_blur, :integer, default: 0
     field :music_url, :string
     field :music_title, :string
     field :discord_user_id, :string
@@ -137,12 +146,21 @@ defmodule Elektrine.Profiles.UserProfile do
       :cursor_style,
       :avatar_url,
       :avatar_size,
+      :avatar_alt_text,
+      :avatar_focal_x,
+      :avatar_focal_y,
       :avatar_effect,
       :banner_url,
       :banner_size,
+      :banner_alt_text,
       :background_url,
       :background_size,
       :background_type,
+      :background_alt_text,
+      :background_focal_x,
+      :background_focal_y,
+      :background_brightness,
+      :background_overlay_blur,
       :music_url,
       :music_title,
       :discord_user_id,
@@ -181,6 +199,9 @@ defmodule Elektrine.Profiles.UserProfile do
     |> validate_length(:description, max: 1000)
     |> validate_length(:location, max: 100)
     |> validate_length(:page_title, max: 100)
+    |> validate_length(:avatar_alt_text, max: 250)
+    |> validate_length(:banner_alt_text, max: 250)
+    |> validate_length(:background_alt_text, max: 250)
     |> validate_inclusion(:theme, [
       "purple",
       "blue",
@@ -250,6 +271,24 @@ defmodule Elektrine.Profiles.UserProfile do
       less_than_or_equal_to: 1.0
     )
     |> validate_number(:profile_blur, greater_than_or_equal_to: 0, less_than_or_equal_to: 100)
+    |> validate_number(:avatar_focal_x, greater_than_or_equal_to: 0, less_than_or_equal_to: 100)
+    |> validate_number(:avatar_focal_y, greater_than_or_equal_to: 0, less_than_or_equal_to: 100)
+    |> validate_number(:background_focal_x,
+      greater_than_or_equal_to: 0,
+      less_than_or_equal_to: 100
+    )
+    |> validate_number(:background_focal_y,
+      greater_than_or_equal_to: 0,
+      less_than_or_equal_to: 100
+    )
+    |> validate_number(:background_brightness,
+      greater_than_or_equal_to: 25,
+      less_than_or_equal_to: 150
+    )
+    |> validate_number(:background_overlay_blur,
+      greater_than_or_equal_to: 0,
+      less_than_or_equal_to: 40
+    )
     |> validate_number(:container_opacity,
       greater_than_or_equal_to: 0.0,
       less_than_or_equal_to: 1.0

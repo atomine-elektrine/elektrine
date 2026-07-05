@@ -143,7 +143,7 @@ check_generated_path_location() {
       ;;
     "$ROOT_DIR/deploy/docker/"*|"$ROOT_DIR/deploy/caddy/"*)
       check_error "$label points into a source template directory: $path"
-      echo "Hint: set ELEKTRINE_GENERATED_DIR=$ROOT_DIR/deploy/generated or remove legacy generated-path overrides." >&2
+      echo "Hint: set ELEKTRINE_GENERATED_DIR=$ROOT_DIR/deploy/generated or remove older generated-path overrides." >&2
       ;;
     *)
       check_warn "$label is outside deploy/generated: $path"
@@ -152,12 +152,12 @@ check_generated_path_location() {
   esac
 }
 
-check_legacy_generated_files() {
+check_old_generated_files() {
   local paths=()
-  local legacy_path=""
+  local old_path=""
 
-  while IFS= read -r legacy_path; do
-    paths+=("$legacy_path")
+  while IFS= read -r old_path; do
+    paths+=("$old_path")
   done < <(
     find "$ROOT_DIR/deploy/docker" "$ROOT_DIR/deploy/caddy" \
       \( -name 'generated*.yml' -o -name 'generated.Caddyfile' -o -name 'compose.override.yml' \) \
@@ -165,11 +165,11 @@ check_legacy_generated_files() {
   )
 
   if [[ "${#paths[@]}" -eq 0 ]]; then
-    check_ok "no legacy generated files found in source template directories"
+    check_ok "no older generated files found in source template directories"
     return
   fi
 
-  check_warn "legacy generated files found in source template directories"
+  check_warn "older generated files found in source template directories"
   printf '  %s\n' "${paths[@]}" >&2
   echo "Hint: move disposable rendered outputs to deploy/generated/ and keep deploy/docker/ and deploy/caddy/ as templates." >&2
 }
@@ -307,7 +307,7 @@ check_generated_path_location "$GENERATED_COMPOSE_PATH" "generated Compose outpu
 check_generated_path_location "$GENERATED_CADDY_PATH" "generated Caddy output"
 check_generated_output_path "$GENERATED_COMPOSE_PATH" "generated Compose output"
 check_generated_output_path "$GENERATED_CADDY_PATH" "generated Caddy output"
-check_legacy_generated_files
+check_old_generated_files
 check_root_owned_generated_files
 check_stale_deploy_worktrees
 check_compose_project_name

@@ -6,21 +6,29 @@ defmodule Elektrine.Nerve do
   server-side. The server stores and returns ciphertext envelopes only.
   """
   import Ecto.Query, warn: false
-  alias Elektrine.Nerve.NerveEntry
+  alias Elektrine.Nerve.{NerveEntry, NerveSettings}
   alias Elektrine.Repo
 
   @doc """
-  Deletes all of a user's encrypted Nerve entries.
-
-  Nerve entries are encrypted under the master key; this is the "start over"
-  path when that data is no longer wanted or recoverable.
+  Creates or updates per-user Nerve setup metadata.
   """
-  def delete_nerve(user_id) when is_integer(user_id) do
-    {deleted_entries, _} =
-      from(entry in NerveEntry, where: entry.user_id == ^user_id)
-      |> Repo.delete_all()
+  def setup_nerve(user_id, attrs) when is_integer(user_id) and is_map(attrs) do
+    attrs = attrs |> normalize_params() |> Map.put("user_id", user_id)
+    settings = get_nerve_settings(user_id) || %NerveSettings{}
 
-    {:ok, %{deleted_entries: deleted_entries}}
+    settings
+    |> NerveSettings.setup_changeset(attrs)
+    |> Repo.insert_or_update()
+  end
+
+  @doc "Returns the user's Nerve setup metadata, or nil."
+  def get_nerve_settings(user_id) when is_integer(user_id) do
+    Repo.get_by(NerveSettings, user_id: user_id)
+  end
+
+  @doc "Whether the user has Nerve setup metadata."
+  def nerve_configured?(user_id) when is_integer(user_id) do
+    Repo.exists?(from(settings in NerveSettings, where: settings.user_id == ^user_id))
   end
 
   @doc """

@@ -1,6 +1,6 @@
 defmodule Elektrine.Email.AttachmentStorage do
   @moduledoc """
-  Handles storage and retrieval of email attachments in local or S3-compatible storage.
+  Handles storage and retrieval of email attachments in local or S3 API storage.
   """
 
   require Logger
@@ -35,7 +35,7 @@ defmodule Elektrine.Email.AttachmentStorage do
   end
 
   @doc """
-  Downloads an attachment from S3-compatible storage.
+  Downloads an attachment from S3 API storage.
   """
   def download_attachment(storage_metadata) when is_map(storage_metadata) do
     case storage_metadata do

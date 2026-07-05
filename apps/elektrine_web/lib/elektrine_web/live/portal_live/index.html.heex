@@ -63,9 +63,14 @@
           ]}>
             <.icon name={stat.icon} class="h-4 w-4" />
           </span>
-          <div class="min-w-0">
+          <div class="min-w-0" data-dashboard-loading={to_string(@loading_dashboard)}>
             <%= if @loading_dashboard do %>
-              <div class="h-5 w-8 animate-pulse rounded bg-base-300"></div>
+              <p
+                class="min-w-8 text-lg font-semibold leading-none tabular-nums text-transparent select-none"
+                aria-hidden="true"
+              >
+                &nbsp;
+              </p>
             <% else %>
               <p class="text-lg font-semibold leading-none tabular-nums">{stat.count}</p>
             <% end %>
@@ -75,7 +80,24 @@
       </.link>
     </section>
 
-    <section class="space-y-4 sm:space-y-6">
+    <div role="tablist" class="tabs tabs-boxed w-fit">
+      <.link
+        patch={~p"/portal?#{[filter: @filter]}"}
+        role="tab"
+        class={["tab", @portal_view == "feed" && "tab-active"]}
+      >
+        <.icon name="hero-sparkles" class="mr-1 h-4 w-4" /> Feed
+      </.link>
+      <.link
+        patch={~p"/portal?view=reader"}
+        role="tab"
+        class={["tab", @portal_view == "reader" && "tab-active"]}
+      >
+        <.icon name="hero-rss" class="mr-1 h-4 w-4" /> Reader
+      </.link>
+    </div>
+
+    <section :if={@portal_view == "reader"} class="space-y-4 sm:space-y-6">
       <.live_component
         module={ElektrineWeb.PortalLive.Reader}
         id="portal-rss-reader"
@@ -91,34 +113,11 @@
 
   <div class="mt-4 flex flex-col gap-4 sm:mt-6 sm:gap-6 lg:flex-row">
     <!-- Main Feed -->
-    <div class="flex-1 min-w-0">
+    <div :if={@portal_view == "feed"} class="flex-1 min-w-0">
       <% posts = filtered_posts(@filtered_all_posts, @filter, assigns) %> <% visible_posts =
         Enum.take(posts, @visible_post_limit) %>
       <div class="card panel-card overflow-hidden">
         <div class="card-body p-4 sm:p-5">
-          <div class="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <h2 class="text-xl font-semibold">Social feed</h2>
-            </div>
-
-            <div class="text-sm text-base-content/60">
-              <%= case @filter do %>
-                <% "timeline" -> %>
-                  Timeline
-                <% "gallery" -> %>
-                  Gallery
-                <% "discussions" -> %>
-                  Communities
-                <% "my_posts" -> %>
-                  My Posts
-                <% _ -> %>
-                  For You
-              <% end %>
-              / {if @last_fetched_post_count > 0,
-                do: @last_fetched_post_count,
-                else: length(visible_posts)} posts
-            </div>
-          </div>
           <!-- Filter Pills -->
           <div class="-mx-1 flex gap-2 overflow-x-auto px-1 pt-1 pb-4 sm:mx-0 sm:px-0">
             <button
