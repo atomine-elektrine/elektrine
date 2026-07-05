@@ -118,7 +118,7 @@ defmodule ElektrineWeb.MixProject do
       internal_dep(:paige),
       internal_dep(:kairo),
       internal_dep(:elektrine_nerve),
-      {:posthog, "~> 2.5"}
+      {:posthog, "~> 2.10"}
     ]
   end
 
