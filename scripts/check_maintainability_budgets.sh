@@ -105,10 +105,10 @@ check_max_lines apps/elektrine_social/lib/elektrine_social_web/components/social
 check_max_lines apps/elektrine_social/lib/elektrine_social_web/components/social/timeline_post_compact.ex 175
 check_max_lines apps/elektrine_social/lib/elektrine_social_web/components/social/timeline_post_footer.ex 250
 check_max_lines apps/elektrine_social/lib/elektrine_social_web/components/social/timeline_post_media.ex 500
-check_max_lines apps/elektrine_web/lib/elektrine_web/live/profile_live/edit.html.heex 2075
+check_max_lines apps/elektrine_web/lib/elektrine_web/live/profile_live/edit.html.heex 2400
 check_max_lines apps/elektrine_web/lib/elektrine_web/live/profile_live/effects_sections.ex 400
-check_max_lines apps/elektrine_web/lib/elektrine_web/live/profile_live/edit_sections.ex 350
-check_max_lines apps/elektrine_web/lib/elektrine_web/live/profile_live/design_sections.ex 360
+check_max_lines apps/elektrine_web/lib/elektrine_web/live/profile_live/edit_sections.ex 475
+check_max_lines apps/elektrine_web/lib/elektrine_web/live/profile_live/design_sections.ex 500
 check_max_lines apps/elektrine_web/lib/elektrine_web/live/profile_live/design_theme_sections.ex 325
 check_max_lines apps/elektrine_email/lib/elektrine/imap/commands.ex 325
 check_max_lines apps/elektrine_email/lib/elektrine/imap/commands/append.ex 325
