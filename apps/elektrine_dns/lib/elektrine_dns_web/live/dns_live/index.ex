@@ -584,15 +584,15 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                     <% end %>
                     <span class={[
                       "badge badge-outline",
-                      if(@zone_scan.delegated_to_elektrine,
+                      if(scan_delegation_matches?(@zones, @zone_scan),
                         do: "badge-success",
                         else: "badge-warning"
                       )
                     ]}>
-                      <%= if @zone_scan.delegated_to_elektrine do %>
-                        Delegated to Elektrine
+                      <%= if scan_delegation_matches?(@zones, @zone_scan) do %>
+                        Assigned nameservers active
                       <% else %>
-                        Delegation points elsewhere
+                        Delegation does not match assigned nameservers
                       <% end %>
                     </span>
                   </div>
@@ -624,7 +624,7 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                   <div class="grid gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
                     <div>
                       <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
-                        Nameservers
+                        Current public nameservers
                       </div>
                       <div class="mt-2 rounded-xl border border-base-content/10 bg-base-200/20 p-3 font-mono text-xs break-all text-base-content/80">
                         <%= if @zone_scan.nameservers == [] do %>
@@ -1673,6 +1673,21 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
 
   defp format_scan_values(values) when is_list(values), do: Enum.join(values, ", ")
   defp format_scan_values(value), do: to_string(value)
+
+  defp scan_delegation_matches?(zones, scan) do
+    case matching_scan_zone(zones, scan) do
+      %Zone{} = zone ->
+        observed = scan.nameservers |> Enum.map(&normalize_dns_name/1) |> Enum.sort()
+
+        expected =
+          zone |> DNS.assigned_nameservers() |> Enum.map(&normalize_dns_name/1) |> Enum.sort()
+
+        observed == expected
+
+      _ ->
+        false
+    end
+  end
 
   defp matching_scan_zone(zones, %{domain: domain}) when is_list(zones) do
     expected = normalize_dns_name(domain)
