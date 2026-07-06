@@ -15,31 +15,32 @@ defmodule Elektrine.Social.Hashtags do
   Gets or creates a hashtag by name.
   """
   def get_or_create_hashtag(name) do
+    name = normalize_hashtag_name(name)
     normalized_name = String.downcase(name)
 
-    case first_hashtag_by_normalized_name(normalized_name) do
-      nil ->
-        case %Hashtag{}
-             |> Hashtag.changeset(%{
-               name: name,
-               normalized_name: normalized_name,
-               use_count: 0,
-               last_used_at: DateTime.utc_now()
-             })
-             |> Repo.insert(
-               on_conflict: :nothing,
-               conflict_target: :normalized_name,
-               returning: true
-             ) do
-          {:ok, hashtag} ->
-            if hashtag.id, do: hashtag, else: first_hashtag_by_normalized_name(normalized_name)
+    with true <- valid_hashtag_name?(name) do
+      now = Elektrine.Time.utc_now()
+      timestamp = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
 
-          {:error, _} ->
-            first_hashtag_by_normalized_name(normalized_name)
-        end
+      Repo.insert_all(
+        Hashtag,
+        [
+          %{
+            name: name,
+            normalized_name: normalized_name,
+            use_count: 0,
+            last_used_at: now,
+            inserted_at: timestamp,
+            updated_at: timestamp
+          }
+        ],
+        on_conflict: :nothing,
+        conflict_target: :normalized_name
+      )
 
-      hashtag ->
-        hashtag
+      first_hashtag_by_normalized_name(normalized_name)
+    else
+      _ -> nil
     end
   end
 
@@ -87,6 +88,20 @@ defmodule Elektrine.Social.Hashtags do
       limit: 1
     )
     |> Repo.one()
+  end
+
+  defp normalize_hashtag_name(name) when is_binary(name) do
+    name
+    |> String.trim()
+    |> String.trim_leading("#")
+  end
+
+  defp normalize_hashtag_name(_name), do: ""
+
+  defp valid_hashtag_name?(name) do
+    String.length(name) >= 1 and
+      String.length(name) <= 50 and
+      Regex.match?(~r/^[A-Za-z0-9_]+$/, name)
   end
 
   @doc """

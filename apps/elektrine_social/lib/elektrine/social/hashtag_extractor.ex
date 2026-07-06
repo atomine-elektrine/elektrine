@@ -7,7 +7,7 @@ defmodule Elektrine.Social.HashtagExtractor do
   alias Elektrine.Accounts.{BlockedUsersCache, UserMute}
   alias Elektrine.ActivityPub.{Instance, UserBlock}
   alias Elektrine.Repo
-  alias Elektrine.Social.{Hashtag, Message, PostHashtag, TimelinePagination}
+  alias Elektrine.Social.{Hashtag, Hashtags, Message, PostHashtag, TimelinePagination}
 
   @doc """
   Extracts hashtags from text content.
@@ -28,9 +28,10 @@ defmodule Elektrine.Social.HashtagExtractor do
   """
   def process_hashtags_for_message(message_id, hashtags) when is_list(hashtags) do
     Enum.each(hashtags, fn hashtag_name ->
-      hashtag = get_or_create_hashtag(hashtag_name)
-      create_post_hashtag_association(message_id, hashtag.id)
-      increment_hashtag_usage(hashtag.id)
+      if hashtag = Hashtags.get_or_create_hashtag(hashtag_name) do
+        create_post_hashtag_association(message_id, hashtag.id)
+        increment_hashtag_usage(hashtag.id)
+      end
     end)
   end
 
@@ -294,44 +295,6 @@ defmodule Elektrine.Social.HashtagExtractor do
   end
 
   defp normalize_hashtag_name(_name), do: ""
-
-  defp get_or_create_hashtag(name) do
-    normalized_name = String.downcase(name)
-
-    case first_hashtag_by_normalized_name(normalized_name) do
-      nil ->
-        case %Hashtag{}
-             |> Hashtag.changeset(%{
-               name: name,
-               normalized_name: normalized_name,
-               use_count: 0,
-               last_used_at: DateTime.utc_now()
-             })
-             |> Repo.insert(
-               on_conflict: :nothing,
-               conflict_target: :normalized_name,
-               returning: true
-             ) do
-          {:ok, hashtag} ->
-            if hashtag.id, do: hashtag, else: first_hashtag_by_normalized_name(normalized_name)
-
-          {:error, _} ->
-            first_hashtag_by_normalized_name(normalized_name)
-        end
-
-      hashtag ->
-        hashtag
-    end
-  end
-
-  defp first_hashtag_by_normalized_name(normalized_name) do
-    from(h in Hashtag,
-      where: h.normalized_name == ^normalized_name,
-      order_by: [asc: h.id],
-      limit: 1
-    )
-    |> Repo.one()
-  end
 
   defp create_post_hashtag_association(message_id, hashtag_id) do
     %PostHashtag{}
