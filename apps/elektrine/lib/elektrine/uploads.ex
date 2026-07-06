@@ -50,6 +50,13 @@ defmodule Elektrine.Uploads do
     text/plain
   ]
   @chat_attachment_extensions ~w[.jpg .jpeg .png .gif .webp .heic .heif .avif .mp4 .webm .ogv .mov .mp3 .wav .m4a .aac .flac .pdf .doc .docx .xls .xlsx .txt]
+  @kairo_source_mime_types @chat_attachment_mime_types ++
+                             ~w[
+                               application/json
+                               application/markdown
+                               text/markdown
+                             ]
+  @kairo_source_extensions @chat_attachment_extensions ++ ~w[.json .md .markdown]
   @voice_message_mime_types ~w[
     audio/webm
     audio/mp4
@@ -79,6 +86,7 @@ defmodule Elektrine.Uploads do
     timeline-attachments/
     discussion-attachments/
     gallery-attachments/
+    kairo-sources/
     voice-messages/
   ]
   @private_attachment_token_salt "private attachment"
@@ -108,6 +116,7 @@ defmodule Elektrine.Uploads do
     "timeline-attachments/",
     "discussion-attachments/",
     "gallery-attachments/",
+    "kairo-sources/",
     "voice-messages/",
     "favicons/",
     "email-attachments/"
@@ -210,6 +219,22 @@ defmodule Elektrine.Uploads do
       end
 
     emit_upload_result(:chat_attachment, result)
+    result
+  end
+
+  @doc "Uploads a Kairo source file and returns private attachment metadata."
+  def upload_kairo_source(%Plug.Upload{} = upload, user_id) do
+    result =
+      with {:ok, %File.Stat{size: file_size}} <- File.stat(upload.path),
+           :ok <- validate_kairo_source_upload(upload, user_id) do
+        store_upload_with_metadata(upload, user_id, "kairo-sources", file_size)
+      else
+        error ->
+          Logger.error("Kairo source upload failed for user #{user_id}: #{inspect(error)}")
+          error
+      end
+
+    emit_upload_result(:kairo_source, result)
     result
   end
 
@@ -462,6 +487,14 @@ defmodule Elektrine.Uploads do
     end
   end
 
+  defp validate_kairo_source_upload(%Plug.Upload{} = upload, user_id) do
+    with :ok <- validate_file_size(upload, :kairo_source, user_id),
+         :ok <- validate_file_type(upload, @kairo_source_mime_types),
+         :ok <- validate_file_extension(upload, @kairo_source_extensions) do
+      validate_attachment_content(upload)
+    end
+  end
+
   defp validate_file_size(%Plug.Upload{} = upload, type, user_id) do
     user = Accounts.get_user!(user_id)
 
@@ -477,6 +510,10 @@ defmodule Elektrine.Uploads do
   end
 
   defp max_file_size_for_upload_type(:chat_attachment) do
+    Constants.max_chat_attachment_size()
+  end
+
+  defp max_file_size_for_upload_type(:kairo_source) do
     Constants.max_chat_attachment_size()
   end
 
@@ -602,6 +639,11 @@ defmodule Elektrine.Uploads do
   end
 
   defp magic_bytes_match?(content, "text/plain") do
+    :binary.match(content, <<0>>) == :nomatch
+  end
+
+  defp magic_bytes_match?(content, type)
+       when type in ["application/json", "application/markdown", "text/markdown"] do
     :binary.match(content, <<0>>) == :nomatch
   end
 
@@ -1063,7 +1105,8 @@ defmodule Elektrine.Uploads do
         "chat-attachments/",
         "timeline-attachments/",
         "discussion-attachments/",
-        "gallery-attachments/"
+        "gallery-attachments/",
+        "kairo-sources/"
       ],
       &String.starts_with?(attachment, &1)
     )
@@ -1173,7 +1216,7 @@ defmodule Elektrine.Uploads do
       when is_binary(key) and is_integer(user_id) do
     normalized_upload_path = "/uploads/#{key}"
 
-    query =
+    chat_query =
       from(message in ChatMessage,
         join: member in ChatConversationMember,
         on:
@@ -1186,7 +1229,18 @@ defmodule Elektrine.Uploads do
         limit: 1
       )
 
-    Repo.exists?(query)
+    kairo_query =
+      from(source in "kairo_sources",
+        where: field(source, :user_id) == ^user_id,
+        where:
+          fragment("?->>'key' = ?", field(source, :metadata), ^key) or
+            fragment("?->>'storage_key' = ?", field(source, :metadata), ^key) or
+            fragment("?->>'url' = ?", field(source, :metadata), ^normalized_upload_path),
+        select: 1,
+        limit: 1
+      )
+
+    Repo.exists?(chat_query) or Repo.exists?(kairo_query)
   end
 
   def private_attachment_accessible_by_user?(_, _), do: false

@@ -587,28 +587,42 @@ defmodule Elektrine.Social do
     preloads = MessagingMessages.timeline_feed_preloads()
     all_blocked_ids = blocked_user_ids(user_id)
 
-    base_query =
-      from m in Message,
-        left_join: parent in Message,
-        on: parent.id == m.reply_to_id,
-        left_join: c in Conversation,
-        on: c.id == m.conversation_id,
-        where:
-          m.visibility == "public" and
-            m.is_draft != true and
-            is_nil(m.deleted_at) and
-            (m.approval_status == "approved" or is_nil(m.approval_status)) and
-            ((not is_nil(m.reply_to_id) and parent.federated == true) or
-               fragment("(?->>'inReplyTo' IS NOT NULL)", m.media_metadata)) and
-            (c.type == "timeline" or (is_nil(m.conversation_id) and m.federated == true)),
-        order_by: [desc: m.id],
-        limit: ^limit,
-        preload: ^preloads
-
     query =
       case source_filter do
-        "federated" -> from [m, _parent, _c] in base_query, where: m.federated == true
-        _ -> base_query
+        "federated" ->
+          from m in Message,
+            left_join: c in Conversation,
+            on: c.id == m.conversation_id,
+            where:
+              m.federated == true and
+                m.visibility == "public" and
+                fragment("? IS NOT TRUE", m.is_draft) and
+                is_nil(m.deleted_at) and
+                (m.approval_status == "approved" or is_nil(m.approval_status)) and
+                (not is_nil(m.reply_to_id) or
+                   fragment("(?->>'inReplyTo' IS NOT NULL)", m.media_metadata)) and
+                (c.type == "timeline" or is_nil(m.conversation_id)),
+            order_by: [desc: m.id],
+            limit: ^limit,
+            preload: ^preloads
+
+        _ ->
+          from m in Message,
+            left_join: parent in Message,
+            on: parent.id == m.reply_to_id,
+            left_join: c in Conversation,
+            on: c.id == m.conversation_id,
+            where:
+              m.visibility == "public" and
+                fragment("? IS NOT TRUE", m.is_draft) and
+                is_nil(m.deleted_at) and
+                (m.approval_status == "approved" or is_nil(m.approval_status)) and
+                ((not is_nil(m.reply_to_id) and parent.federated == true) or
+                   fragment("(?->>'inReplyTo' IS NOT NULL)", m.media_metadata)) and
+                (c.type == "timeline" or (is_nil(m.conversation_id) and m.federated == true)),
+            order_by: [desc: m.id],
+            limit: ^limit,
+            preload: ^preloads
       end
 
     query = maybe_exclude_blocked_senders_or_nil(query, all_blocked_ids)

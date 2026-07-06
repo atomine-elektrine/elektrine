@@ -74,6 +74,32 @@ defmodule ElektrineWeb.KairoLiveTest do
     assert source.status == "received"
   end
 
+  test "uploads a file source from the explorer", %{conn: conn} do
+    {user, view} = mount_kairo(conn)
+
+    upload =
+      file_input(view, "#kairo-upload-form", :kairo_files, [
+        %{
+          last_modified: 1_594_171_879_000,
+          name: "notes.txt",
+          content: "remember this file",
+          type: "text/plain"
+        }
+      ])
+
+    assert render_upload(upload, "notes.txt") =~ "notes.txt"
+
+    view
+    |> element("#kairo-upload-form")
+    |> render_submit(%{"upload" => %{"project_id" => "", "tags" => "files"}})
+
+    assert [source] = Kairo.list_sources(user)
+    assert source.source_type == "file"
+    assert source.content == "remember this file"
+    assert source.tags == ["files"]
+    assert source.metadata["key"] =~ "kairo-sources/#{user.id}/"
+  end
+
   test "manages the project lifecycle", %{conn: conn} do
     {user, view} = mount_kairo(conn)
 

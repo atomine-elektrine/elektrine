@@ -117,6 +117,13 @@ defmodule ElektrineWeb.API.MetaController do
         platform_module: nil
       },
       %{
+        method: "POST",
+        path: "/api/ext/v1/mcp",
+        summary: "MCP JSON-RPC endpoint for tool discovery and scoped tool calls",
+        required_scopes: [],
+        platform_module: nil
+      },
+      %{
         method: "GET",
         path: "/api/ext/v1/me",
         summary: "Inspect the authenticated user and token metadata",

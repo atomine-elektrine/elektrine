@@ -3,9 +3,20 @@ defmodule ElektrineWeb.API.KairoControllerTest do
 
   import Elektrine.AccountsFixtures
 
+  alias Elektrine.Developer
   alias ElektrineWeb.API.KairoController
 
   defp as_user(conn, user), do: assign(conn, :current_user, user)
+
+  defp token_for(user, scopes) do
+    {:ok, token} =
+      Developer.create_api_token(user.id, %{
+        name: "Kairo API test token",
+        scopes: scopes
+      })
+
+    token.token
+  end
 
   describe "projects" do
     test "create, update, and delete a project", %{conn: conn} do
@@ -76,6 +87,62 @@ defmodule ElektrineWeb.API.KairoControllerTest do
       assert %{"data" => %{"source" => %{"id" => ^id}}} = json_response(conn, 201)
     end
 
+    test "create source accepts a file upload", %{conn: conn} do
+      user = user_fixture()
+      upload = temp_upload("api-notes.txt", "api upload body", "text/plain")
+
+      conn =
+        conn
+        |> as_user(user)
+        |> KairoController.create_source(%{"file" => upload, "tags" => "api"})
+
+      assert %{
+               "data" => %{
+                 "source" => %{
+                   "source_type" => "file",
+                   "content" => "api upload body",
+                   "tags" => ["api"],
+                   "metadata" => %{"key" => key}
+                 }
+               }
+             } = json_response(conn, 201)
+
+      assert key =~ "kairo-sources/#{user.id}/"
+    end
+
+    test "extension route accepts multipart file uploads", %{conn: conn} do
+      user = user_fixture()
+      token = token_for(user, ["write:kairo"])
+      upload = temp_upload("linked-file.txt", "linked body", "text/plain")
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer #{token}")
+        |> post("/api/ext/v1/kairo/sources", %{
+          "source" => %{
+            "file" => upload,
+            "title" => "linked-file.txt",
+            "url" => "https://example.com/linked-file.txt",
+            "tags" => "capture, browser-extension",
+            "metadata" => %{"capture_type" => "file"}
+          }
+        })
+
+      assert %{
+               "data" => %{
+                 "source" => %{
+                   "source_type" => "file",
+                   "title" => "linked-file.txt",
+                   "url" => "https://example.com/linked-file.txt",
+                   "content" => "linked body",
+                   "metadata" => %{"capture_type" => "file", "key" => key}
+                 }
+               }
+             } = json_response(conn, 201)
+
+      assert key =~ "kairo-sources/#{user.id}/"
+    end
+
     test "sources listing supports offset pagination", %{conn: conn} do
       user = user_fixture()
 
@@ -117,5 +184,18 @@ defmodule ElektrineWeb.API.KairoControllerTest do
 
       assert Kairo.get_source(owner, source.id).title == "Private"
     end
+  end
+
+  defp temp_upload(filename, content, content_type) do
+    path =
+      Path.join(
+        System.tmp_dir!(),
+        "kairo-api-upload-test-#{System.unique_integer([:positive])}-#{filename}"
+      )
+
+    File.write!(path, content)
+    on_exit(fn -> File.rm(path) end)
+
+    %Plug.Upload{path: path, filename: filename, content_type: content_type}
   end
 end

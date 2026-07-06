@@ -312,16 +312,24 @@ defmodule Elektrine.Social.FederatedFeeds do
     pagination = pagination_opts(opts)
     user_id = Keyword.get(opts, :user_id)
     search_query = Keyword.get(opts, :search_query)
+    only_media = Keyword.get(opts, :only_media, false)
     preloads = MessagingMessages.timeline_feed_preloads()
 
     if Elektrine.Strings.present?(search_query) do
-      get_public_federated_posts_query(limit, pagination, user_id, search_query, preloads)
+      get_public_federated_posts_query(
+        limit,
+        pagination,
+        user_id,
+        search_query,
+        only_media,
+        preloads
+      )
     else
-      get_public_federated_posts_fast(limit, pagination, preloads, user_id)
+      get_public_federated_posts_fast(limit, pagination, preloads, user_id, only_media)
     end
   end
 
-  defp get_public_federated_posts_fast(limit, pagination, preloads, user_id) do
+  defp get_public_federated_posts_fast(limit, pagination, preloads, user_id, only_media) do
     candidate_limit = max(limit * 10, 100)
 
     # Phase 1: fetch only the fields needed to evaluate exclusion policies, so
@@ -331,13 +339,15 @@ defmodule Elektrine.Social.FederatedFeeds do
         left_join: ra in assoc(m, :remote_actor),
         where: m.federated == true and m.visibility == "public",
         where:
-          m.is_draft != true and is_nil(m.deleted_at) and is_nil(m.reply_to_id) and
+          fragment("? IS NOT TRUE", m.is_draft) and is_nil(m.deleted_at) and
+            is_nil(m.reply_to_id) and
             fragment("(?->>'inReplyTo' IS NULL)", m.media_metadata) and
             (m.approval_status == "approved" or is_nil(m.approval_status)),
         order_by: [desc: m.id],
         limit: ^candidate_limit,
         select: %{id: m.id, sender_id: m.sender_id, actor_uri: ra.uri, actor_domain: ra.domain}
       )
+      |> maybe_filter_timeline_media(only_media)
 
     excluded_domains = compile_domain_policy(public_timeline_excluded_instance_domains())
     viewer_policy = public_timeline_viewer_policy(user_id)
@@ -361,12 +371,20 @@ defmodule Elektrine.Social.FederatedFeeds do
     end
   end
 
-  defp get_public_federated_posts_query(limit, pagination, user_id, search_query, preloads) do
+  defp get_public_federated_posts_query(
+         limit,
+         pagination,
+         user_id,
+         search_query,
+         only_media,
+         preloads
+       ) do
     query =
       from(m in Message,
         where: m.federated == true and m.visibility == "public",
         where:
-          m.is_draft != true and is_nil(m.deleted_at) and is_nil(m.reply_to_id) and
+          fragment("? IS NOT TRUE", m.is_draft) and is_nil(m.deleted_at) and
+            is_nil(m.reply_to_id) and
             fragment("(?->>'inReplyTo' IS NULL)", m.media_metadata) and
             (m.approval_status == "approved" or is_nil(m.approval_status)),
         order_by: [desc: m.id],
@@ -379,6 +397,7 @@ defmodule Elektrine.Social.FederatedFeeds do
       |> maybe_apply_viewer_timeline_policy(user_id)
       |> maybe_exclude_public_timeline_removed_instances()
       |> maybe_apply_timeline_search(search_query)
+      |> maybe_filter_timeline_media(only_media)
       |> apply_id_pagination(pagination)
       |> apply_id_order(pagination.order)
 

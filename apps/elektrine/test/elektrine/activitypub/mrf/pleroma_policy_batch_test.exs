@@ -228,6 +228,25 @@ defmodule Elektrine.ActivityPub.MRF.PleromaPolicyBatchTest do
              UserAllowListPolicy.filter(create_activity(%{"actor" => denied}))
   end
 
+  test "UserAllowListPolicy does not create atoms for remote actor hosts" do
+    host = "untrusted-#{System.unique_integer([:positive])}.example"
+
+    Application.put_env(:elektrine, :mrf_user_allowlist, hosts: [])
+
+    assert_raise ArgumentError, fn ->
+      :erlang.binary_to_existing_atom(host, :utf8)
+    end
+
+    assert {:ok, _} =
+             UserAllowListPolicy.filter(
+               create_activity(%{"actor" => "https://#{host}/users/alice"})
+             )
+
+    assert_raise ArgumentError, fn ->
+      :erlang.binary_to_existing_atom(host, :utf8)
+    end
+  end
+
   test "ForceBotUnlistedPolicy removes public delivery from likely bot posts" do
     activity =
       create_activity(%{

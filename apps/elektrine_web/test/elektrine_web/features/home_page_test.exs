@@ -19,6 +19,13 @@ defmodule ElektrineWeb.Features.HomePageTest do
     |> assert_has(Query.link("Sign in"))
   end
 
+  feature "home page includes MCP feature", %{session: session} do
+    session
+    |> visit("/")
+    |> assert_has(Query.text("AI tools, scoped to you"))
+    |> assert_has(Query.text("Connect Claude, Codex, or local agents"))
+  end
+
   feature "can navigate to login page", %{session: session} do
     session
     |> visit("/")

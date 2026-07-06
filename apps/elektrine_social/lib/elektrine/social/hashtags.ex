@@ -18,30 +18,32 @@ defmodule Elektrine.Social.Hashtags do
     name = normalize_hashtag_name(name)
     normalized_name = String.downcase(name)
 
-    with true <- valid_hashtag_name?(name) do
-      now = Elektrine.Time.utc_now()
-      timestamp = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
-
-      Repo.insert_all(
-        Hashtag,
-        [
-          %{
-            name: name,
-            normalized_name: normalized_name,
-            use_count: 0,
-            last_used_at: now,
-            inserted_at: timestamp,
-            updated_at: timestamp
-          }
-        ],
-        on_conflict: :nothing,
-        conflict_target: :normalized_name
-      )
-
-      first_hashtag_by_normalized_name(normalized_name)
-    else
-      _ -> nil
+    if valid_hashtag_name?(name) do
+      insert_hashtag_name(name, normalized_name)
     end
+  end
+
+  defp insert_hashtag_name(name, normalized_name) do
+    now = Elektrine.Time.utc_now()
+    timestamp = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+
+    Repo.insert_all(
+      Hashtag,
+      [
+        %{
+          name: name,
+          normalized_name: normalized_name,
+          use_count: 0,
+          last_used_at: now,
+          inserted_at: timestamp,
+          updated_at: timestamp
+        }
+      ],
+      on_conflict: :nothing,
+      conflict_target: :normalized_name
+    )
+
+    first_hashtag_by_normalized_name(normalized_name)
   end
 
   @doc """

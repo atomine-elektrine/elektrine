@@ -106,6 +106,12 @@ defmodule ElektrineWeb.MixProject do
       ElektrineUptimeWeb.UptimeLive.Index,
       ElektrineSocialWeb.WebFingerController,
       ElektrineEmailWeb.WKDController,
+      Elektrine.Email,
+      Elektrine.Email.Folders,
+      Elektrine.Email.Mailbox,
+      Elektrine.Email.Message,
+      Elektrine.Email.Search,
+      Elektrine.Email.Sender,
       Elektrine.DNS,
       Elektrine.DNS.MailSecurity
     ]

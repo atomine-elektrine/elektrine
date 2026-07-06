@@ -205,7 +205,16 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
           |> assign(:timeline_sort, timeline_sort)
           |> assign(:search_query, search_query)
 
-        {:noreply, load_initial_timeline_state(loading_socket, filter)}
+        cond do
+          Application.get_env(:elektrine, :environment) == :test ->
+            {:noreply, load_initial_timeline_state(loading_socket, filter)}
+
+          connected?(loading_socket) ->
+            {:noreply, queue_timeline_reload(loading_socket, filter, timeline_view)}
+
+          true ->
+            {:noreply, loading_socket}
+        end
 
       filter != socket.assigns.current_filter ->
         case apply_cached_timeline_view(params_socket, filter, timeline_view, search_query) do
@@ -735,6 +744,12 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
 
   @impl true
   def handle_info(:load_timeline_data, %{assigns: %{loading_timeline: false}} = socket) do
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info(:load_timeline_data, %{assigns: %{timeline_load_ref: load_ref}} = socket)
+      when not is_nil(load_ref) do
     {:noreply, socket}
   end
 
@@ -1580,6 +1595,9 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
           search_query: search_query
         )
 
+      "media" ->
+        load_media_posts_for_filter(filter, user, search_query)
+
       _ ->
         case filter do
           "home" ->
@@ -1654,8 +1672,43 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
     end
   end
 
+  defp load_media_posts_for_filter("federated", user, search_query) do
+    Social.get_public_federated_posts(
+      limit: 20,
+      user_id: user && user.id,
+      search_query: search_query,
+      only_media: true
+    )
+  end
+
+  defp load_media_posts_for_filter("local", user, search_query) do
+    if user do
+      Social.get_local_timeline(
+        limit: 20,
+        user_id: user.id,
+        search_query: search_query,
+        only_media: true
+      )
+    else
+      Social.get_local_timeline(limit: 20, search_query: search_query, only_media: true)
+    end
+  end
+
+  defp load_media_posts_for_filter(_filter, user, search_query) do
+    if user do
+      Social.get_public_timeline(
+        limit: 20,
+        user_id: user.id,
+        search_query: search_query,
+        only_media: true
+      )
+    else
+      Social.get_public_timeline(limit: 20, search_query: search_query, only_media: true)
+    end
+  end
+
   defp view_requires_data_reload?(timeline_view) do
-    timeline_view in ["communities", "replies", "friends", "my_posts", "trusted"]
+    timeline_view in ["communities", "replies", "media", "friends", "my_posts", "trusted"]
   end
 
   defp preload_timeline_post_async(post, source) do

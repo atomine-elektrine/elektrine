@@ -57,8 +57,19 @@ defmodule ElektrineWeb.API.KairoController do
 
   def create_source(conn, params) do
     attrs = Map.get(params, "source", params)
+    upload = attrs["file"] || attrs["upload"]
 
-    case Kairo.create_source(conn.assigns.current_user, attrs) do
+    result =
+      case upload do
+        %Plug.Upload{} ->
+          attrs = Map.drop(attrs, ["file", "upload"])
+          Kairo.create_upload_source(conn.assigns.current_user, upload, attrs)
+
+        _ ->
+          Kairo.create_source(conn.assigns.current_user, attrs)
+      end
+
+    case result do
       {:ok, source} ->
         Response.created(conn, %{source: source_json(source, true)})
 

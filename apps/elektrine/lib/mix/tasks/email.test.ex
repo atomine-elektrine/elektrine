@@ -88,16 +88,22 @@ defmodule Mix.Tasks.Email.Test do
       "received_with_ssl" => true
     }
 
-    # Process the webhook
-    case ElektrineEmailWeb.HarakaWebhookController.create(
-           webhook_payload["text_part"],
-           webhook_payload["to"]
-         ) do
-      {:ok, message} ->
-        Mix.shell().info("Test email received successfully! Message ID: #{message.id}")
+    conn = %Plug.Conn{
+      remote_ip: {127, 0, 0, 1},
+      req_headers: [{"x-real-ip", "127.0.0.1"}]
+    }
 
-      {:error, reason} ->
-        Mix.shell().error("Failed to process test email: #{inspect(reason)}")
+    # Process the webhook through the controller action. Controller actions
+    # return a Plug.Conn, not an {:ok, message} tuple.
+    case ElektrineEmailWeb.HarakaWebhookController.create(conn, webhook_payload) do
+      %{status: 200, resp_body: body} ->
+        Mix.shell().info("Test email received successfully! Response: #{body}")
+
+      %{status: status, resp_body: body} ->
+        Mix.shell().error("Failed to process test email: status=#{status} response=#{body}")
+
+      result ->
+        Mix.shell().error("Failed to process test email: #{inspect(result)}")
     end
   end
 end

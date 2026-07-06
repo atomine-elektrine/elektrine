@@ -279,6 +279,18 @@ defmodule ElektrineWeb.PageLive.Home do
               </div>
               <div class="bg-[#05070a] px-4 py-3.5">
                 <div class="font-mono text-[10px] uppercase tracking-[0.18em] text-white/35">
+                  MCP
+                </div>
+                <div class="mt-1 text-sm font-medium text-white/90">
+                  AI tools, scoped to you
+                </div>
+                <div class="mt-0.5 text-xs leading-relaxed text-white/50">
+                  Connect Claude, Codex, or local agents to mail, Kairo, Nerve, and search
+                  through scoped personal access tokens
+                </div>
+              </div>
+              <div class="bg-[#05070a] px-4 py-3.5">
+                <div class="font-mono text-[10px] uppercase tracking-[0.18em] text-white/35">
                   OIDC
                 </div>
                 <div class="mt-1 text-sm font-medium text-white/90">

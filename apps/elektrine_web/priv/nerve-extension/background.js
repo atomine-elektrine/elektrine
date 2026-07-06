@@ -1,4 +1,11 @@
-import { createEntry, createKairoSource, getEntry, listEntries, updateEntry } from "./lib/api.js"
+import {
+  createEntry,
+  createKairoFileSource,
+  createKairoSource,
+  getEntry,
+  listEntries,
+  updateEntry
+} from "./lib/api.js"
 import {
   deriveFeatureKey,
   decryptValue,
@@ -23,11 +30,19 @@ import { kairoErrorMessage, kairoSourceAttrs } from "./lib/kairo_capture.js"
 const PENDING_SAVE_EXPIRY_MS = 5 * 60 * 1000
 const STAGED_FILL_EXPIRY_MS = 3 * 60 * 1000
 const VAULT_SESSION_IDLE_TIMEOUT_MS = 15 * 60 * 1000
+const KAIRO_CAPTURE_MAX_FILE_BYTES = 25 * 1024 * 1024
 const FEATURE = "nerve"
 const KAIRO_CONTEXT_MENUS = {
   PAGE: "kairo-capture-page",
-  SELECTION: "kairo-capture-selection"
+  SELECTION: "kairo-capture-selection",
+  FILE: "kairo-capture-file"
 }
+const ALLOWED_PAGE_PATTERNS = [
+  "https://*/*",
+  "http://localhost/*",
+  "http://127.0.0.1/*",
+  "http://[::1]/*"
+]
 let sessionPassphrase = ""
 let sessionPassphraseExpiresAt = 0
 let sessionPassphraseTimer = null
@@ -81,7 +96,9 @@ if (chrome.runtime?.onStartup) {
 
 if (chrome.contextMenus?.onClicked) {
   chrome.contextMenus.onClicked.addListener((info, tab) => {
-    if (Object.values(KAIRO_CONTEXT_MENUS).includes(info.menuItemId)) {
+    if (info.menuItemId === KAIRO_CONTEXT_MENUS.FILE) {
+      void captureFileToKairo(info)
+    } else if (Object.values(KAIRO_CONTEXT_MENUS).includes(info.menuItemId)) {
       void captureContextToKairo(info, tab)
     }
   })
@@ -180,14 +197,21 @@ function installContextMenus() {
       id: KAIRO_CONTEXT_MENUS.PAGE,
       title: "Capture page to Kairo",
       contexts: ["page"],
-      documentUrlPatterns: ["http://*/*", "https://*/*"]
+      documentUrlPatterns: ALLOWED_PAGE_PATTERNS
     })
 
     contextMenuCreate({
       id: KAIRO_CONTEXT_MENUS.SELECTION,
       title: "Capture selection to Kairo",
       contexts: ["selection"],
-      documentUrlPatterns: ["http://*/*", "https://*/*"]
+      documentUrlPatterns: ALLOWED_PAGE_PATTERNS
+    })
+
+    contextMenuCreate({
+      id: KAIRO_CONTEXT_MENUS.FILE,
+      title: "Save file to Kairo",
+      contexts: ["image", "video", "audio", "link"],
+      targetUrlPatterns: ALLOWED_PAGE_PATTERNS
     })
   })
 }
@@ -217,6 +241,176 @@ async function captureContextToKairo(info, tab) {
   } catch (error) {
     console.warn("Kairo capture failed:", kairoErrorMessage(error))
     await setActionBadge("!", "#a56b68")
+  }
+}
+
+async function captureFileToKairo(info) {
+  try {
+    const settings = await getSettings()
+
+    if (!settings.serverUrl || !settings.apiToken) {
+      throw new Error("Connect your Elektrine account before capturing.")
+    }
+
+    const targetUrl = info.srcUrl || info.linkUrl || ""
+
+    if (!allowedRemoteFileUrl(targetUrl)) {
+      throw new Error("Only http and https files can be saved to Kairo.")
+    }
+
+    await verifyRemoteFileSize(targetUrl)
+
+    const response = await fetch(targetUrl, { credentials: "omit" })
+
+    if (!response.ok) {
+      throw new Error(`Could not download file (${response.status}).`)
+    }
+
+    assertContentLengthWithinLimit(response.headers.get("content-length"))
+
+    const contentType = normalizedContentType(response.headers.get("content-type"))
+    const blob = await response.blob()
+
+    if (blob.size > KAIRO_CAPTURE_MAX_FILE_BYTES) {
+      throw new Error("That file is too large to save to Kairo.")
+    }
+
+    const filename = downloadFilename(targetUrl, response, contentType)
+    const file = new File([blob], filename, { type: contentType || blob.type })
+
+    await createKairoFileSource(settings, file, {
+      title: filename,
+      url: targetUrl,
+      tags: "capture, browser-extension",
+      metadata: {
+        capture_type: "file",
+        captured_at: new Date().toISOString(),
+        source: "nerve-extension"
+      }
+    })
+
+    await setActionBadge("OK", "#6f8b74")
+  } catch (error) {
+    console.warn("Kairo file capture failed:", kairoErrorMessage(error))
+    await setActionBadge("!", "#a56b68")
+  }
+}
+
+async function verifyRemoteFileSize(targetUrl) {
+  try {
+    const response = await fetch(targetUrl, { method: "HEAD", credentials: "omit" })
+
+    if (response.ok) {
+      assertContentLengthWithinLimit(response.headers.get("content-length"))
+    }
+  } catch (_error) {
+    // Some servers reject HEAD; the GET response and blob size are checked too.
+  }
+}
+
+function assertContentLengthWithinLimit(value) {
+  const size = Number.parseInt(value || "", 10)
+
+  if (Number.isFinite(size) && size > KAIRO_CAPTURE_MAX_FILE_BYTES) {
+    throw new Error("That file is too large to save to Kairo.")
+  }
+}
+
+function allowedRemoteFileUrl(value) {
+  try {
+    const url = new URL(value)
+
+    return url.protocol === "https:" || localHttpUrl(url)
+  } catch (_error) {
+    return false
+  }
+}
+
+function localHttpUrl(url) {
+  return (
+    url.protocol === "http:" &&
+    ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
+  )
+}
+
+function normalizedContentType(value) {
+  return String(value || "").split(";")[0].trim().toLowerCase()
+}
+
+function downloadFilename(url, response, contentType) {
+  const disposition = response.headers.get("content-disposition") || ""
+  const dispositionName = filenameFromContentDisposition(disposition)
+  const urlName = filenameFromUrl(url)
+  const filename = sanitizeDownloadFilename(dispositionName || urlName || "kairo-file")
+
+  if (/\.[a-z0-9]{1,8}$/i.test(filename)) {
+    return filename
+  }
+
+  return `${filename}${extensionForContentType(contentType)}`
+}
+
+function filenameFromContentDisposition(disposition) {
+  const encoded = disposition.match(/filename\*=UTF-8''([^;]+)/i)
+
+  if (encoded) {
+    try {
+      return decodeURIComponent(encoded[1].replace(/^"|"$/g, ""))
+    } catch (_error) {
+      return encoded[1].replace(/^"|"$/g, "")
+    }
+  }
+
+  const plain = disposition.match(/filename="?([^";]+)"?/i)
+  return plain ? plain[1] : ""
+}
+
+function filenameFromUrl(value) {
+  try {
+    const pathname = new URL(value).pathname
+    return decodeURIComponent(pathname.split("/").filter(Boolean).pop() || "")
+  } catch (_error) {
+    return ""
+  }
+}
+
+function sanitizeDownloadFilename(value) {
+  return String(value || "kairo-file")
+    .split(/[\\/]/)
+    .pop()
+    .replace(/[\u0000-\u001f\u007f]/g, "")
+    .trim()
+    .slice(0, 120) || "kairo-file"
+}
+
+function extensionForContentType(contentType) {
+  switch (contentType) {
+    case "image/jpeg":
+    case "image/jpg":
+      return ".jpg"
+    case "image/png":
+      return ".png"
+    case "image/gif":
+      return ".gif"
+    case "image/webp":
+      return ".webp"
+    case "image/heic":
+      return ".heic"
+    case "image/heif":
+      return ".heif"
+    case "image/avif":
+      return ".avif"
+    case "application/pdf":
+      return ".pdf"
+    case "application/json":
+      return ".json"
+    case "application/markdown":
+    case "text/markdown":
+      return ".md"
+    case "text/plain":
+      return ".txt"
+    default:
+      return ".bin"
   }
 }
 
@@ -689,7 +883,7 @@ async function broadcastNerveSessionChanged(status) {
 
 function queryPageTabs() {
   return new Promise((resolve) => {
-    chrome.tabs.query({ url: ["http://*/*", "https://*/*"] }, (tabs) => {
+    chrome.tabs.query({ url: ALLOWED_PAGE_PATTERNS }, (tabs) => {
       if (chrome.runtime.lastError) {
         resolve([])
         return

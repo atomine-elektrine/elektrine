@@ -2917,6 +2917,171 @@
                 <% end %>
               </div>
             </div>
+            <!-- MCP Section -->
+            <div class="card panel-card">
+              <div class="card-body p-4 sm:p-6">
+                <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h2 class="card-title text-lg sm:text-xl flex items-center gap-2">
+                      <.icon name="hero-command-line" class="w-5 h-5" /> {gettext(
+                        "MCP for AI Clients"
+                      )}
+                    </h2>
+
+                    <p class="mt-2 text-sm text-base-content/70">
+                      {gettext(
+                        "Connect Claude, Codex, or another MCP client to your Elektrine tools with a personal access token."
+                      )}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    class="btn btn-outline btn-sm"
+                    data-copy-to-clipboard={mcp_endpoint_url()}
+                  >
+                    <.icon name="hero-clipboard-document" class="w-4 h-4" /> {gettext(
+                      "Copy Endpoint"
+                    )}
+                  </button>
+                </div>
+
+                <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.9fr)]">
+                  <div class="space-y-3">
+                    <div class="rounded-lg border border-base-300 bg-base-200/40 p-4">
+                      <div class="flex items-center justify-between gap-3">
+                        <p class="text-sm font-semibold">{gettext("Server URL")}</p>
+                        <code class="rounded bg-base-300 px-2 py-1 text-xs">POST</code>
+                      </div>
+
+                      <code class="mt-2 block overflow-x-auto rounded bg-base-300 p-3 text-xs">
+                        {mcp_endpoint_url()}
+                      </code>
+                    </div>
+
+                    <div class="rounded-lg border border-base-300 bg-base-200/40 p-4">
+                      <p class="text-sm font-semibold">{gettext("Setup")}</p>
+
+                      <ol class="mt-3 space-y-2 text-sm text-base-content/70">
+                        <li>
+                          <span class="font-medium text-base-content">
+                            {gettext("Create a token.")}
+                          </span>
+                          {gettext("Choose only the scopes your client needs.")}
+                        </li>
+                        <li>
+                          <span class="font-medium text-base-content">
+                            {gettext("Add it to your MCP client.")}
+                          </span>
+                          {gettext("Use the token as a Bearer authorization header.")}
+                        </li>
+                        <li>
+                          <span class="font-medium text-base-content">
+                            {gettext("List tools first.")}
+                          </span>
+                          {gettext("Elektrine only exposes tools allowed by that token.")}
+                        </li>
+                      </ol>
+                    </div>
+
+                    <div class="rounded-lg border border-base-300 bg-base-200/40 p-4">
+                      <p class="text-sm font-semibold">{gettext("Scope guide")}</p>
+
+                      <div class="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+                        <div class="rounded bg-base-300/60 p-2">
+                          <code>read:kairo</code>
+                          <p class="mt-1 text-base-content/60">
+                            {gettext("Projects and ingested sources")}
+                          </p>
+                        </div>
+                        <div class="rounded bg-base-300/60 p-2">
+                          <code>write:kairo</code>
+                          <p class="mt-1 text-base-content/60">
+                            {gettext("Create Kairo notes and captures")}
+                          </p>
+                        </div>
+                        <div class="rounded bg-base-300/60 p-2">
+                          <code>read:email</code>
+                          <p class="mt-1 text-base-content/60">
+                            {gettext("Read and search email")}
+                          </p>
+                        </div>
+                        <div class="rounded bg-base-300/60 p-2">
+                          <code>write:email</code>
+                          <p class="mt-1 text-base-content/60">
+                            {gettext("Send and update email")}
+                          </p>
+                        </div>
+                        <div class="rounded bg-base-300/60 p-2">
+                          <code>read:nerve</code>
+                          <p class="mt-1 text-base-content/60">
+                            {gettext("List encrypted Nerve entries")}
+                          </p>
+                        </div>
+                        <div class="rounded bg-base-300/60 p-2">
+                          <code>write:nerve</code>
+                          <p class="mt-1 text-base-content/60">
+                            {gettext("Create encrypted Nerve entries")}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="space-y-3">
+                    <div class="rounded-lg border border-base-300 bg-base-200/40 p-4">
+                      <div class="mb-2 flex items-center justify-between gap-3">
+                        <p class="text-sm font-semibold">{gettext("Client config")}</p>
+                        <button
+                          type="button"
+                          class="btn btn-ghost btn-xs"
+                          data-copy-to-clipboard={mcp_client_config_example()}
+                        >
+                          <.icon name="hero-clipboard-document" class="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      <pre class="max-h-64 overflow-auto rounded bg-neutral p-3 text-xs text-neutral-content"><code>{mcp_client_config_example()}</code></pre>
+                    </div>
+
+                    <div class="rounded-lg border border-base-300 bg-base-200/40 p-4">
+                      <div class="mb-2 flex items-center justify-between gap-3">
+                        <p class="text-sm font-semibold">{gettext("Test with curl")}</p>
+                        <button
+                          type="button"
+                          class="btn btn-ghost btn-xs"
+                          data-copy-to-clipboard={mcp_curl_example()}
+                        >
+                          <.icon name="hero-clipboard-document" class="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      <pre class="max-h-56 overflow-auto rounded bg-neutral p-3 text-xs text-neutral-content"><code>{mcp_curl_example()}</code></pre>
+                    </div>
+
+                    <div class="rounded-lg border border-base-300 bg-base-200/40 p-4">
+                      <p class="text-sm font-semibold">{gettext("JSON-RPC basics")}</p>
+
+                      <div class="mt-3 space-y-2">
+                        <div>
+                          <p class="mb-1 text-xs font-medium text-base-content/70">
+                            {gettext("Initialize")}
+                          </p>
+                          <pre class="overflow-auto rounded bg-base-300 p-3 text-xs"><code>{mcp_initialize_example()}</code></pre>
+                        </div>
+
+                        <div>
+                          <p class="mb-1 text-xs font-medium text-base-content/70">
+                            {gettext("List available tools")}
+                          </p>
+                          <pre class="overflow-auto rounded bg-base-300 p-3 text-xs"><code>{mcp_tools_list_example()}</code></pre>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
             <!-- API Info Section -->
             <div class="card panel-card">
               <div class="card-body p-4 sm:p-6">
@@ -2964,6 +3129,14 @@
                           <td><code>any PAT</code></td>
 
                           <td>{gettext("Inspect scopes, presets, and allowed endpoints")}</td>
+                        </tr>
+
+                        <tr>
+                          <td><code>POST /api/ext/v1/mcp</code></td>
+
+                          <td><code>any PAT</code></td>
+
+                          <td>{gettext("JSON-RPC MCP endpoint for tool clients")}</td>
                         </tr>
 
                         <tr>

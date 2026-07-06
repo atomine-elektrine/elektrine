@@ -41,15 +41,22 @@ defmodule Elektrine.ActivityPub.MRF.UserAllowListPolicy do
   end
 
   defp get_host_value(map, host) when is_map(map) do
-    Map.get(map, host) || Map.get(map, String.to_atom(host))
-  rescue
-    ArgumentError -> Map.get(map, host)
+    Enum.find_value(map, [], fn {configured_host, actors} ->
+      if host_key(configured_host) == host, do: actors
+    end)
   end
 
-  defp get_host_value(keyword, host) when is_list(keyword),
-    do: Keyword.get(keyword, String.to_atom(host), [])
+  defp get_host_value(keyword, host) when is_list(keyword) do
+    Enum.find_value(keyword, [], fn {configured_host, actors} ->
+      if host_key(configured_host) == host, do: actors
+    end)
+  end
 
   defp get_host_value(_config, _host), do: []
+
+  defp host_key(host) when is_binary(host), do: String.downcase(host)
+  defp host_key(host) when is_atom(host), do: host |> Atom.to_string() |> String.downcase()
+  defp host_key(_host), do: nil
 
   defp actor_host(actor) do
     case URI.parse(actor) do

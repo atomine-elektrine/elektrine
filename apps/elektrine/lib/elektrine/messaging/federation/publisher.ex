@@ -1,8 +1,12 @@
 defmodule Elektrine.Messaging.Federation.Publisher do
   @moduledoc false
 
+  require Logger
+
   alias Elektrine.Async
   alias Elektrine.Messaging.{ChatMessage, ChatMessageReaction}
+
+  @missing_identity_config_message "messaging federation requires explicit identity keys in production; configure :identity_keys or :identity_shared_secret"
 
   def push_server_snapshot(server_id, context) when is_map(context) do
     if enabled?(context) do
@@ -459,5 +463,22 @@ defmodule Elektrine.Messaging.Federation.Publisher do
     context
     |> Map.fetch!(key)
     |> Kernel.apply(args)
+  rescue
+    error in ArgumentError ->
+      if missing_identity_config_error?(error) do
+        Logger.error(
+          "Messaging federation publish skipped because identity signing is not configured. " <>
+            "Set MESSAGING_FEDERATION_IDENTITY_SHARED_SECRET or " <>
+            "MESSAGING_FEDERATION_IDENTITY_KEYS_JSON in production."
+        )
+
+        {:error, :identity_not_configured}
+      else
+        reraise error, __STACKTRACE__
+      end
+  end
+
+  defp missing_identity_config_error?(%ArgumentError{} = error) do
+    Exception.message(error) == @missing_identity_config_message
   end
 end

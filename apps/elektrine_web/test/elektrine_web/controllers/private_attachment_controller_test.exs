@@ -16,6 +16,7 @@ defmodule ElektrineWeb.PrivateAttachmentControllerTest do
       )
 
     File.mkdir_p!(Path.join(tmp_dir, "chat-attachments"))
+    File.mkdir_p!(Path.join(tmp_dir, "kairo-sources"))
 
     Application.put_env(:elektrine, :uploads,
       adapter: :local,
@@ -94,6 +95,54 @@ defmodule ElektrineWeb.PrivateAttachmentControllerTest do
     conn =
       conn
       |> log_in_user(non_member)
+      |> get(url)
+
+    assert response(conn, 404) == "Not found"
+  end
+
+  test "serves Kairo source files to the owning user", %{conn: conn, tmp_dir: tmp_dir} do
+    user = AccountsFixtures.user_fixture()
+    key = "kairo-sources/source.txt"
+    filepath = Path.join([tmp_dir, "kairo-sources", "source.txt"])
+    File.write!(filepath, "kairo payload")
+
+    {:ok, _source} =
+      Kairo.create_source(user, %{
+        "source_type" => "file",
+        "title" => "source.txt",
+        "metadata" => %{"key" => key, "content_type" => "text/plain"}
+      })
+
+    url = Uploads.attachment_url(key, %{visibility: "private"})
+
+    conn =
+      conn
+      |> log_in_user(user)
+      |> get(url)
+
+    assert response(conn, 200) == "kairo payload"
+    assert get_resp_header(conn, "content-disposition") == ["inline; filename=\"source.txt\""]
+  end
+
+  test "rejects Kairo source files for other users", %{conn: conn, tmp_dir: tmp_dir} do
+    owner = AccountsFixtures.user_fixture()
+    other_user = AccountsFixtures.user_fixture()
+    key = "kairo-sources/owner-only.txt"
+    filepath = Path.join([tmp_dir, "kairo-sources", "owner-only.txt"])
+    File.write!(filepath, "owner only")
+
+    {:ok, _source} =
+      Kairo.create_source(owner, %{
+        "source_type" => "file",
+        "title" => "owner-only.txt",
+        "metadata" => %{"key" => key, "content_type" => "text/plain"}
+      })
+
+    url = Uploads.attachment_url(key, %{visibility: "private"})
+
+    conn =
+      conn
+      |> log_in_user(other_user)
       |> get(url)
 
     assert response(conn, 404) == "Not found"

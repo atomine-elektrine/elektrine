@@ -126,6 +126,35 @@ defmodule ElektrineWeb.Router do
     plug(ElektrineWeb.Plugs.RequestTelemetry, scope: :api)
   end
 
+  pipeline :api_pat_only_authenticated do
+    plug(:accepts, ["json"])
+    plug(ElektrineWeb.Plugs.RequirePlatformModule)
+    plug(ElektrineWeb.Plugs.APIRateLimit, key_prefix: "preauth", ip_only: true)
+    plug(ElektrineWeb.Plugs.PATAuth)
+    plug(ElektrineWeb.Plugs.RequireModuleAccess)
+    plug(ElektrineWeb.Plugs.APIRateLimit)
+    plug(ElektrineWeb.Plugs.RequestTelemetry, scope: :api)
+  end
+
+  pipeline :api_mcp_authenticated do
+    plug(ElektrineWeb.Plugs.RequirePlatformModule)
+    plug(ElektrineWeb.Plugs.APIRateLimit, key_prefix: "preauth", ip_only: true)
+    plug(ElektrineWeb.Plugs.PATAuth)
+    plug(ElektrineWeb.Plugs.RequireModuleAccess)
+    plug(ElektrineWeb.Plugs.APIRateLimit)
+    plug(ElektrineWeb.Plugs.RequestTelemetry, scope: :api)
+  end
+
+  pipeline :api_pat_authenticated_upload do
+    plug(:accepts, ["json", "multipart"])
+    plug(ElektrineWeb.Plugs.RequirePlatformModule)
+    plug(ElektrineWeb.Plugs.APIRateLimit, key_prefix: "preauth", ip_only: true)
+    plug(ElektrineWeb.Plugs.PATAuth, allow_api_token: true)
+    plug(ElektrineWeb.Plugs.RequireModuleAccess)
+    plug(ElektrineWeb.Plugs.APIRateLimit)
+    plug(ElektrineWeb.Plugs.RequestTelemetry, scope: :api)
+  end
+
   pipeline :api_nerve_authenticated do
     plug(:accepts, ["json"])
     plug(ElektrineWeb.Plugs.RequirePlatformModule)
@@ -1497,7 +1526,15 @@ defmodule ElektrineWeb.Router do
 
   # External PAT-authenticated API endpoints for integrations.
   scope "/api/ext/v1", ElektrineWeb.API do
-    pipe_through([:api_pat_authenticated])
+    pipe_through([:api_mcp_authenticated])
+
+    get("/mcp", MCPController, :event_stream)
+    post("/mcp", MCPController, :rpc)
+    delete("/mcp", MCPController, :delete_session)
+  end
+
+  scope "/api/ext/v1", ElektrineWeb.API do
+    pipe_through([:api_pat_only_authenticated])
 
     get("/capabilities", MetaController, :capabilities)
   end
@@ -1647,7 +1684,7 @@ defmodule ElektrineWeb.Router do
   end
 
   scope "/api/ext/v1/kairo", ElektrineWeb.API do
-    pipe_through([:api_pat_authenticated, :api_pat_kairo_write_scope])
+    pipe_through([:api_pat_authenticated_upload, :api_pat_kairo_write_scope])
 
     post("/projects", KairoController, :create_project)
     patch("/projects/:id", KairoController, :update_project)

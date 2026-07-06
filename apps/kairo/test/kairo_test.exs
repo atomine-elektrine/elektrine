@@ -202,6 +202,37 @@ defmodule KairoTest do
       assert Elektrine.Accounts.Storage.get_storage_info(user.id).used_bytes > 0
     end
 
+    test "create_upload_source/3 stores private files and extracts readable text" do
+      user = user_fixture()
+      other_user = user_fixture()
+      upload = temp_upload("field-notes.md", "# Field notes\n\nhello upload", "text/markdown")
+
+      assert {:ok, source} =
+               Kairo.create_upload_source(user, upload, %{
+                 "tags" => "uploads, notes",
+                 "project_id" => ""
+               })
+
+      assert source.source_type == "file"
+      assert source.content_format == "markdown"
+      assert source.status == "compiled"
+      assert source.content =~ "hello upload"
+      assert source.tags == ["uploads", "notes"]
+      assert source.metadata["original_filename"] == "field-notes.md"
+      assert source.metadata["key"] =~ "kairo-sources/#{user.id}/"
+      assert source.metadata["url"] =~ "/uploads/kairo-sources/#{user.id}/"
+
+      assert Elektrine.Uploads.private_attachment_accessible_by_user?(
+               source.metadata["key"],
+               user.id
+             )
+
+      refute Elektrine.Uploads.private_attachment_accessible_by_user?(
+               source.metadata["key"],
+               other_user.id
+             )
+    end
+
     test "update_source/3 edits an owned source" do
       user = user_fixture()
 
@@ -335,5 +366,18 @@ defmodule KairoTest do
       page = Kairo.list_sources(user, limit: 2, offset: 2)
       assert Enum.map(page, & &1.id) == all |> Enum.drop(2) |> Enum.map(& &1.id)
     end
+  end
+
+  defp temp_upload(filename, content, content_type) do
+    path =
+      Path.join(
+        System.tmp_dir!(),
+        "kairo-upload-test-#{System.unique_integer([:positive])}-#{filename}"
+      )
+
+    File.write!(path, content)
+    ExUnit.Callbacks.on_exit(fn -> File.rm(path) end)
+
+    %Plug.Upload{path: path, filename: filename, content_type: content_type}
   end
 end

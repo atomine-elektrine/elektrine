@@ -1135,6 +1135,14 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
            search_query: search_query
          ), nil}
 
+      "media" ->
+        fetch_more_media_posts_for_source_filter(
+          source_filter,
+          current_user,
+          before_id,
+          search_query
+        )
+
       "communities" ->
         if current_user do
           {Social.get_public_community_posts(
@@ -1355,7 +1363,48 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
   end
 
   defp special_timeline_view?(view) do
-    view in ["communities", "replies", "friends", "my_posts", "trusted"]
+    view in ["communities", "replies", "media", "friends", "my_posts", "trusted"]
+  end
+
+  defp fetch_more_media_posts_for_source_filter(
+         "federated",
+         current_user,
+         before_id,
+         search_query
+       ) do
+    {Social.get_public_federated_posts(
+       limit: @load_more_page_size,
+       before_id: before_id,
+       user_id: current_user && current_user.id,
+       search_query: search_query,
+       only_media: true
+     ), nil}
+  end
+
+  defp fetch_more_media_posts_for_source_filter("local", current_user, before_id, search_query) do
+    opts = [
+      limit: @load_more_page_size,
+      before_id: before_id,
+      search_query: search_query,
+      only_media: true
+    ]
+
+    opts = if current_user, do: Keyword.put(opts, :user_id, current_user.id), else: opts
+
+    {Social.get_local_timeline(opts), nil}
+  end
+
+  defp fetch_more_media_posts_for_source_filter(_filter, current_user, before_id, search_query) do
+    opts = [
+      limit: @load_more_page_size,
+      before_id: before_id,
+      search_query: search_query,
+      only_media: true
+    ]
+
+    opts = if current_user, do: Keyword.put(opts, :user_id, current_user.id), else: opts
+
+    {Social.get_public_timeline(opts), nil}
   end
 
   defp append_gap_marker(existing_markers, current_posts, [first_new_post | _])

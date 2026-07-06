@@ -1,6 +1,8 @@
 defmodule Elektrine.Messaging.FederationTest do
   use Elektrine.DataCase, async: false
 
+  import ExUnit.CaptureLog
+
   alias Elektrine.AccountsFixtures
   alias Elektrine.ActivityPub.Actor
   alias Elektrine.Messaging
@@ -30,6 +32,56 @@ defmodule Elektrine.Messaging.FederationTest do
   alias Elektrine.Messaging.ChatConversationMember, as: ConversationMember
 
   alias Elektrine.Repo
+
+  describe "publisher identity configuration" do
+    test "skips outbound publishing when production signing identity is missing" do
+      context = %{
+        enabled?: fn -> true end,
+        build_membership_upsert_event: fn _conversation_id, _user_id, _state, _role ->
+          raise ArgumentError,
+                "messaging federation requires explicit identity keys in production; configure :identity_keys or :identity_shared_secret"
+        end,
+        enqueue_outbox_event: fn _event, _target_domains ->
+          flunk("outbox event should not be enqueued without signing identity")
+        end
+      }
+
+      log =
+        capture_log(fn ->
+          assert :ok =
+                   Elektrine.Messaging.Federation.Publisher.publish_membership_state(
+                     1,
+                     2,
+                     "active",
+                     "member",
+                     context
+                   )
+        end)
+
+      assert log =~
+               "Messaging federation publish skipped because identity signing is not configured"
+    end
+
+    test "does not swallow unrelated publisher argument errors" do
+      context = %{
+        enabled?: fn -> true end,
+        build_membership_upsert_event: fn _conversation_id, _user_id, _state, _role ->
+          raise ArgumentError, "bad membership payload"
+        end,
+        enqueue_outbox_event: fn _event, _target_domains -> :ok end
+      }
+
+      assert_raise ArgumentError, "bad membership payload", fn ->
+        Elektrine.Messaging.Federation.Publisher.publish_membership_state(
+          1,
+          2,
+          "active",
+          "member",
+          context
+        )
+      end
+    end
+  end
 
   describe "build_server_snapshot/2" do
     test "builds snapshot with channels and recent messages" do

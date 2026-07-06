@@ -165,6 +165,21 @@ defmodule ElektrineWeb.UserSettingsLiveTest do
   end
 
   describe "developer webhooks" do
+    test "shows MCP setup guidance on the developer tab", %{conn: conn, user: user} do
+      {:ok, view, _html} =
+        conn
+        |> log_in_user(user)
+        |> live(~p"/account?tab=developer")
+
+      html = render(view)
+
+      assert html =~ "MCP for AI Clients"
+      assert html =~ "/api/ext/v1/mcp"
+      assert html =~ "ekt_your_token_here"
+      assert html =~ "tools/list"
+      assert html =~ "read:kairo"
+    end
+
     test "shows webhook secret fingerprints without exposing stored secrets", %{
       conn: conn,
       user: user

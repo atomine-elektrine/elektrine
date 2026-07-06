@@ -1138,6 +1138,83 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
     refute html =~ "Local reply to federated parent"
   end
 
+  test "federated view chips patch from posts to replies media and communities", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    remote_actor = remote_actor_fixture(%{domain: "mastodon.example"})
+
+    {:ok, _top_level_post} =
+      Messaging.create_federated_message(%{
+        remote_actor_id: remote_actor.id,
+        content: "Remote top level post",
+        visibility: "public",
+        federated: true,
+        activitypub_id: "https://mastodon.example/posts/#{System.unique_integer([:positive])}",
+        activitypub_url:
+          "https://mastodon.example/posts/url-#{System.unique_integer([:positive])}"
+      })
+
+    {:ok, _reply} =
+      Messaging.create_federated_message(%{
+        remote_actor_id: remote_actor.id,
+        content: "Remote reply chip target",
+        visibility: "public",
+        federated: true,
+        activitypub_id: "https://mastodon.example/replies/#{System.unique_integer([:positive])}",
+        activitypub_url:
+          "https://mastodon.example/replies/url-#{System.unique_integer([:positive])}",
+        media_metadata: %{"inReplyTo" => "https://mastodon.example/posts/root"}
+      })
+
+    {:ok, _media_post} =
+      Messaging.create_federated_message(%{
+        remote_actor_id: remote_actor.id,
+        content: "Remote media chip target",
+        visibility: "public",
+        federated: true,
+        activitypub_id: "https://mastodon.example/media/#{System.unique_integer([:positive])}",
+        activitypub_url:
+          "https://mastodon.example/media/url-#{System.unique_integer([:positive])}",
+        media_urls: ["https://mastodon.example/media/photo.jpg"]
+      })
+
+    {:ok, _community_post} =
+      Messaging.create_federated_message(%{
+        remote_actor_id: remote_actor.id,
+        content: "Remote community chip target",
+        visibility: "public",
+        federated: true,
+        activitypub_id: "https://lemmy.example/post/#{System.unique_integer([:positive])}",
+        activitypub_url: "https://lemmy.example/post/url-#{System.unique_integer([:positive])}",
+        media_metadata: %{"community_actor_uri" => "https://lemmy.example/c/elixir"}
+      })
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=federated&view=posts")
+
+    view
+    |> element(~s(#timeline-desktop-view-filters a[data-timeline-view="replies"]))
+    |> render_click()
+
+    assert_patch(view, ~p"/timeline?filter=federated&view=replies")
+    assert render(view) =~ "Remote reply chip target"
+
+    view
+    |> element(~s(#timeline-desktop-view-filters a[data-timeline-view="media"]))
+    |> render_click()
+
+    assert_patch(view, ~p"/timeline?filter=federated&view=media")
+    assert render(view) =~ "Remote media chip target"
+
+    view
+    |> element(~s(#timeline-desktop-view-filters a[data-timeline-view="communities"]))
+    |> render_click()
+
+    assert_patch(view, ~p"/timeline?filter=federated&view=communities")
+    assert render(view) =~ "Remote community chip target"
+  end
+
   test "navigate_to_post routes federated posts to local remote post detail", %{conn: conn} do
     viewer = AccountsFixtures.user_fixture()
     author = AccountsFixtures.user_fixture()

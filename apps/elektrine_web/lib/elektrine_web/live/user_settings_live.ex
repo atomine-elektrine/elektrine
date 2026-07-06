@@ -1882,6 +1882,55 @@ defmodule ElektrineWeb.UserSettingsLive do
 
   defp invite_code_usage_percent(_invite_code), do: 0
 
+  defp mcp_endpoint_url do
+    "#{Elektrine.Domains.public_base_url()}/api/ext/v1/mcp"
+  end
+
+  defp mcp_client_config_example do
+    Jason.encode!(
+      %{
+        "mcpServers" => %{
+          "elektrine" => %{
+            "type" => "http",
+            "url" => mcp_endpoint_url(),
+            "headers" => %{
+              "Authorization" => "Bearer ekt_your_token_here"
+            }
+          }
+        }
+      },
+      pretty: true
+    )
+  end
+
+  defp mcp_initialize_example do
+    Jason.encode!(
+      %{
+        "jsonrpc" => "2.0",
+        "id" => 1,
+        "method" => "initialize",
+        "params" => %{"protocolVersion" => "2025-06-18"}
+      },
+      pretty: true
+    )
+  end
+
+  defp mcp_tools_list_example do
+    Jason.encode!(%{"jsonrpc" => "2.0", "id" => 2, "method" => "tools/list"}, pretty: true)
+  end
+
+  defp mcp_curl_example do
+    body = mcp_tools_list_example() |> String.replace("'", "'\"'\"'")
+
+    """
+    curl #{mcp_endpoint_url()} \\
+      -H "Authorization: Bearer ekt_your_token_here" \\
+      -H "Content-Type: application/json" \\
+      --data '#{body}'
+    """
+    |> String.trim()
+  end
+
   def email_tab_content(assigns) do
     case Integrations.user_settings_email_component() do
       nil ->

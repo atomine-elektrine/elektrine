@@ -3,6 +3,7 @@ defmodule ElektrineWeb.KairoLive.Index do
 
   @source_page 200
   @max_sources 1000
+  @kairo_upload_extensions ~w(.jpg .jpeg .png .gif .webp .heic .heif .avif .pdf .doc .docx .xls .xlsx .txt .md .markdown .json)
 
   @impl true
   def mount(_params, _session, socket) do
@@ -24,6 +25,11 @@ defmodule ElektrineWeb.KairoLive.Index do
          |> assign(:compose, empty_compose())
          |> assign(:compose_tab, "write")
          |> assign(:source_limit, @source_page)
+         |> allow_upload(:kairo_files,
+           accept: @kairo_upload_extensions,
+           max_entries: 5,
+           max_file_size: Elektrine.Constants.max_chat_attachment_size()
+         )
          |> load_kairo(user)}
     end
   end
@@ -129,6 +135,58 @@ defmodule ElektrineWeb.KairoLive.Index do
       {:error, _reason} ->
         {:noreply, put_flash(socket, :error, "Enter a valid URL first.")}
     end
+  end
+
+  def handle_event("validate_kairo_upload", _params, socket), do: {:noreply, socket}
+
+  def handle_event("cancel_kairo_upload", %{"ref" => ref}, socket) do
+    {:noreply, cancel_upload(socket, :kairo_files, ref)}
+  end
+
+  def handle_event("upload_kairo_files", %{"upload" => upload_params}, socket) do
+    user = socket.assigns.current_user
+
+    attrs = %{
+      "project_id" => blank_to_nil(upload_params["project_id"]),
+      "tags" => upload_params["tags"]
+    }
+
+    results =
+      consume_uploaded_entries(socket, :kairo_files, fn %{path: path}, entry ->
+        upload = %Plug.Upload{
+          path: path,
+          filename: entry.client_name,
+          content_type: entry.client_type
+        }
+
+        {:ok, Kairo.create_upload_source(user, upload, attrs)}
+      end)
+
+    successes = for {:ok, source} <- results, do: source
+    failures = for {:error, reason} <- results, do: reason
+
+    cond do
+      successes != [] and failures == [] ->
+        {:noreply,
+         socket
+         |> assign(:selected_id, List.last(successes).id)
+         |> put_flash(:info, upload_success_message(successes))
+         |> load_kairo(user)}
+
+      successes != [] ->
+        {:noreply,
+         socket
+         |> assign(:selected_id, List.last(successes).id)
+         |> put_flash(:error, "Some files could not be saved.")
+         |> load_kairo(user)}
+
+      true ->
+        {:noreply, put_flash(socket, :error, "Choose a supported file first.")}
+    end
+  end
+
+  def handle_event("upload_kairo_files", _params, socket) do
+    {:noreply, put_flash(socket, :error, "Choose a supported file first.")}
   end
 
   # Zero-knowledge save: the KairoVault hook encrypts the body client-side and
@@ -571,7 +629,79 @@ defmodule ElektrineWeb.KairoLive.Index do
     end
   end
 
+  defp source_icon(%{encrypted: true}), do: "hero-lock-closed"
+  defp source_icon(%{source_type: "image"}), do: "hero-photo"
+  defp source_icon(%{source_type: "pdf"}), do: "hero-document"
+  defp source_icon(%{source_type: "file"}), do: "hero-paper-clip"
+  defp source_icon(_source), do: "hero-document-text"
+
   defp present?(value), do: is_binary(value) and String.trim(value) != ""
+
+  defp preformatted_content?(%{content_format: format}) when format in ["text", "json"], do: true
+  defp preformatted_content?(_source), do: false
+
+  defp upload_success_message([_one]), do: "File saved"
+  defp upload_success_message(sources), do: "#{length(sources)} files saved"
+
+  defp upload_error_text(:too_large), do: "File is too large"
+  defp upload_error_text(:too_many_files), do: "Too many files"
+  defp upload_error_text(:not_accepted), do: "Unsupported file type"
+  defp upload_error_text(error), do: Phoenix.Naming.humanize(to_string(error))
+
+  defp source_file_url(source) do
+    with key when is_binary(key) <- source_file_key(source),
+         url when is_binary(url) <-
+           Elektrine.Uploads.attachment_url(key, %{visibility: "private"}) do
+      url
+    else
+      _ -> nil
+    end
+  end
+
+  defp source_file_key(%{metadata: metadata}) when is_map(metadata) do
+    metadata["storage_key"] || metadata[:storage_key] || metadata["key"] || metadata[:key]
+  end
+
+  defp source_file_key(_source), do: nil
+
+  defp source_file_content_type(%{metadata: metadata}) when is_map(metadata) do
+    metadata["content_type"] || metadata[:content_type]
+  end
+
+  defp source_file_content_type(_source), do: nil
+
+  defp source_file_name(%{metadata: metadata} = source) when is_map(metadata) do
+    metadata["original_filename"] || metadata[:original_filename] || metadata["filename"] ||
+      metadata[:filename] || source_label(source)
+  end
+
+  defp source_file_name(source), do: source_label(source)
+
+  defp source_file_size(%{metadata: metadata}) when is_map(metadata) do
+    metadata["size"] || metadata[:size]
+  end
+
+  defp source_file_size(_source), do: nil
+
+  defp source_image?(source) do
+    source.source_type == "image" or
+      (source_file_content_type(source) || "") |> String.starts_with?("image/")
+  end
+
+  defp source_pdf?(source) do
+    source.source_type == "pdf" or source_file_content_type(source) == "application/pdf"
+  end
+
+  defp format_file_size(size) when is_integer(size) and size >= 1_048_576 do
+    "#{Float.round(size / 1_048_576, 1)} MB"
+  end
+
+  defp format_file_size(size) when is_integer(size) and size >= 1024 do
+    "#{Float.round(size / 1024, 1)} KB"
+  end
+
+  defp format_file_size(size) when is_integer(size), do: "#{size} B"
+  defp format_file_size(_size), do: nil
 
   defp format_datetime(%DateTime{} = datetime) do
     Calendar.strftime(datetime, "%Y-%m-%d %H:%M UTC")
@@ -642,6 +772,63 @@ defmodule ElektrineWeb.KairoLive.Index do
                     />
                   </div>
                   <button type="submit" class="btn btn-secondary btn-sm w-full">Save link</button>
+                </form>
+
+                <form
+                  id="kairo-upload-form"
+                  phx-change="validate_kairo_upload"
+                  phx-submit="upload_kairo_files"
+                  class="space-y-2 rounded-lg border border-base-300 bg-base-200/40 p-2"
+                >
+                  <div class="flex items-center gap-2">
+                    <label for={@uploads.kairo_files.ref} class="btn btn-outline btn-sm flex-1">
+                      <.icon name="hero-arrow-up-tray" class="h-4 w-4" /> Add files
+                    </label>
+                    <button type="submit" class="btn btn-secondary btn-sm">
+                      Save
+                    </button>
+                  </div>
+                  <div class="sr-only">
+                    <.live_file_input upload={@uploads.kairo_files} />
+                  </div>
+                  <div class="grid grid-cols-2 gap-2">
+                    <select name="upload[project_id]" class="select select-bordered select-sm">
+                      <option value="">Inbox</option>
+                      <option :for={project <- @projects} value={project.id}>{project.name}</option>
+                    </select>
+                    <input
+                      type="text"
+                      name="upload[tags]"
+                      placeholder="tags, comma"
+                      autocomplete="off"
+                      class="input input-bordered input-sm w-full"
+                    />
+                  </div>
+                  <div :if={@uploads.kairo_files.entries != []} class="space-y-1">
+                    <div
+                      :for={entry <- @uploads.kairo_files.entries}
+                      class="flex items-center gap-2 rounded bg-base-100 px-2 py-1 text-xs"
+                    >
+                      <.icon name="hero-paper-clip" class="h-3.5 w-3.5 shrink-0" />
+                      <span class="min-w-0 flex-1 truncate">{entry.client_name}</span>
+                      <span class="text-base-content/50">{entry.progress}%</span>
+                      <button
+                        type="button"
+                        phx-click="cancel_kairo_upload"
+                        phx-value-ref={entry.ref}
+                        class="btn btn-ghost btn-xs h-6 min-h-0 w-6 p-0"
+                        aria-label="Remove file"
+                      >
+                        <.icon name="hero-x-mark" class="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                  <p
+                    :for={error <- upload_errors(@uploads.kairo_files)}
+                    class="text-xs text-error"
+                  >
+                    {upload_error_text(error)}
+                  </p>
                 </form>
 
                 <form id="kairo-search-form" phx-change="search" phx-submit="search" class="relative">
@@ -833,9 +1020,7 @@ defmodule ElektrineWeb.KairoLive.Index do
                         ]}
                       >
                         <.icon
-                          name={
-                            if(source.encrypted, do: "hero-lock-closed", else: "hero-document-text")
-                          }
+                          name={source_icon(source)}
                           class="h-4 w-4 shrink-0"
                         />
                         <span class="truncate">{source_label(source)}</span>
@@ -1153,7 +1338,61 @@ defmodule ElektrineWeb.KairoLive.Index do
                   ></pre>
                 </div>
 
-                <div :if={!@selected.encrypted} class="prose max-w-none">
+                <%= if file_url = source_file_url(@selected) do %>
+                  <div class="space-y-3 rounded-lg border border-base-300 bg-base-200/30 p-3">
+                    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div class="flex min-w-0 items-center gap-2 text-sm">
+                        <.icon name={source_icon(@selected)} class="h-4 w-4 shrink-0" />
+                        <span class="min-w-0 truncate font-medium">
+                          {source_file_name(@selected)}
+                        </span>
+                        <span
+                          :if={format_file_size(source_file_size(@selected))}
+                          class="text-xs text-base-content/50"
+                        >
+                          {format_file_size(source_file_size(@selected))}
+                        </span>
+                      </div>
+                      <a
+                        href={file_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="btn btn-outline btn-xs"
+                      >
+                        <.icon name="hero-arrow-top-right-on-square" class="h-3.5 w-3.5" /> Open
+                      </a>
+                    </div>
+                    <img
+                      :if={source_image?(@selected)}
+                      src={file_url}
+                      alt={source_file_name(@selected)}
+                      class="max-h-[70vh] w-full rounded border border-base-300 object-contain"
+                    />
+                    <iframe
+                      :if={source_pdf?(@selected)}
+                      src={file_url}
+                      class="h-[70vh] w-full rounded border border-base-300 bg-base-100"
+                      title={source_file_name(@selected)}
+                    >
+                    </iframe>
+                  </div>
+                <% end %>
+
+                <pre
+                  :if={
+                    !@selected.encrypted and present?(@selected.content) and
+                      preformatted_content?(@selected)
+                  }
+                  class="max-w-none whitespace-pre-wrap break-words rounded border border-base-300 bg-base-200/30 p-3 text-sm"
+                ><%= @selected.content %></pre>
+
+                <div
+                  :if={
+                    !@selected.encrypted and present?(@selected.content) and
+                      !preformatted_content?(@selected)
+                  }
+                  class="prose max-w-none"
+                >
                   {Phoenix.HTML.raw(Elektrine.Markdown.to_html(@selected.content || ""))}
                 </div>
 
@@ -1170,7 +1409,7 @@ defmodule ElektrineWeb.KairoLive.Index do
                         class="flex w-full items-center gap-1.5 truncate rounded px-2 py-1 text-left text-sm hover:bg-base-300/40"
                       >
                         <.icon
-                          name={if(source.encrypted, do: "hero-lock-closed", else: "hero-link")}
+                          name={source_icon(source)}
                           class="h-3.5 w-3.5 shrink-0"
                         />
                         <span class="truncate">{source_label(source)}</span>

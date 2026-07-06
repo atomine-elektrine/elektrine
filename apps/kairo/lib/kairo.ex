@@ -8,10 +8,12 @@ defmodule Kairo do
 
   alias Elektrine.Accounts.User
   alias Elektrine.Repo
+  alias Elektrine.Uploads
   alias Kairo.{Project, Source}
 
   @default_source_limit 50
   @max_source_limit 1000
+  @max_extracted_content_chars 200_000
 
   def list_projects(user_or_id, opts \\ [])
 
@@ -192,6 +194,217 @@ defmodule Kairo do
     end
   end
 
+  def create_upload_source(user_or_id, upload, attrs \\ [])
+
+  def create_upload_source(%User{id: user_id}, %Plug.Upload{} = upload, attrs) do
+    create_upload_source(user_id, upload, attrs)
+  end
+
+  def create_upload_source(user_id, %Plug.Upload{} = upload, attrs) when is_integer(user_id) do
+    attrs = normalize_attrs(attrs)
+
+    case Uploads.upload_kairo_source(upload, user_id) do
+      {:ok, upload_metadata} ->
+        source_attrs =
+          upload
+          |> upload_source_attrs(upload_metadata, attrs)
+          |> Map.put("user_id", user_id)
+
+        case resolve_project_id(user_id, source_attrs) do
+          {:ok, source_attrs} ->
+            case %Source{}
+                 |> Source.changeset(source_attrs)
+                 |> Repo.insert()
+                 |> tap_storage_update(user_id) do
+              {:ok, source} ->
+                {:ok, decrypt_at_rest_content(source)}
+
+              {:error, %Ecto.Changeset{} = changeset} = error ->
+                case existing_duplicate(user_id, changeset) do
+                  %Source{} = source ->
+                    {:ok, source}
+
+                  nil ->
+                    delete_uploaded_source_file(upload_metadata)
+                    error
+                end
+            end
+
+          error ->
+            delete_uploaded_source_file(upload_metadata)
+            error
+        end
+
+      error ->
+        error
+    end
+  end
+
+  def create_upload_source(_user_id, _upload, _attrs), do: {:error, :invalid_upload}
+
+  defp upload_source_attrs(%Plug.Upload{} = upload, upload_metadata, attrs) do
+    extracted = extract_upload_content(upload)
+
+    metadata =
+      attrs
+      |> Map.get("metadata")
+      |> normalize_metadata()
+      |> Map.merge(upload_source_metadata(upload, upload_metadata, extracted))
+
+    attrs
+    |> Map.drop(["source_type", "content", "content_format", "metadata", "status"])
+    |> put_default_upload_title(upload.filename)
+    |> Map.put("source_type", uploaded_source_type(upload.content_type))
+    |> Map.put("content", extracted.content)
+    |> Map.put("content_format", extracted.content_format)
+    |> Map.put("status", extracted.status)
+    |> Map.put("metadata", metadata)
+  end
+
+  defp put_default_upload_title(attrs, filename) do
+    if present_value?(attrs["title"]) do
+      attrs
+    else
+      Map.put(attrs, "title", filename)
+    end
+  end
+
+  defp present_value?(value) when is_binary(value), do: String.trim(value) != ""
+  defp present_value?(value), do: not is_nil(value)
+
+  defp normalize_metadata(metadata) when is_map(metadata) do
+    Map.new(metadata, fn {key, value} -> {to_string(key), value} end)
+  end
+
+  defp normalize_metadata(_metadata), do: %{}
+
+  defp upload_source_metadata(%Plug.Upload{} = upload, upload_metadata, extracted) do
+    original_key = Map.get(upload_metadata, :key)
+    private_key = normalize_private_upload_key(original_key)
+
+    upload_metadata
+    |> Map.new(fn {key, value} -> {to_string(key), value} end)
+    |> Map.merge(%{
+      "key" => private_key,
+      "storage_key" => private_key,
+      "url" => original_key,
+      "original_filename" => upload.filename,
+      "content_type" => upload.content_type
+    })
+    |> maybe_put_metadata("extraction", extracted.metadata)
+  end
+
+  defp normalize_private_upload_key(key) when is_binary(key) do
+    key
+    |> strip_prefix("/uploads/")
+    |> strip_prefix("uploads/")
+  end
+
+  defp normalize_private_upload_key(key), do: key
+
+  defp strip_prefix(value, prefix) when is_binary(value) and is_binary(prefix) do
+    if String.starts_with?(value, prefix) do
+      binary_part(value, byte_size(prefix), byte_size(value) - byte_size(prefix))
+    else
+      value
+    end
+  end
+
+  defp maybe_put_metadata(metadata, _key, value) when value in [nil, %{}], do: metadata
+  defp maybe_put_metadata(metadata, key, value), do: Map.put(metadata, key, value)
+
+  defp uploaded_source_type(content_type) when is_binary(content_type) do
+    cond do
+      String.starts_with?(content_type, "image/") -> "image"
+      content_type == "application/pdf" -> "pdf"
+      true -> "file"
+    end
+  end
+
+  defp uploaded_source_type(_content_type), do: "file"
+
+  defp extract_upload_content(%Plug.Upload{content_type: content_type, path: path}) do
+    cond do
+      content_type in ["text/markdown", "application/markdown"] ->
+        extract_text_file(path, "markdown")
+
+      content_type == "application/json" ->
+        extract_text_file(path, "json")
+
+      content_type == "text/plain" ->
+        extract_text_file(path, "text")
+
+      content_type == "application/pdf" ->
+        extract_pdf_text(path)
+
+      true ->
+        extracted_content(nil, nil, "stored", %{})
+    end
+  end
+
+  defp extract_text_file(path, format) do
+    case File.read(path) do
+      {:ok, bytes} ->
+        case upload_text(bytes) do
+          {:ok, content} ->
+            {content, truncated?} = truncate_extracted_content(content)
+            status = if String.trim(content) == "", do: "stored", else: "compiled"
+            extracted_content(content, format, status, extraction_metadata(truncated?))
+
+          {:error, reason} ->
+            extracted_content(nil, nil, "stored", %{"error" => reason})
+        end
+
+      {:error, reason} ->
+        extracted_content(nil, nil, "stored", %{"error" => inspect(reason)})
+    end
+  end
+
+  defp extract_pdf_text(path) do
+    case System.find_executable("pdftotext") do
+      nil ->
+        extracted_content(nil, nil, "stored", %{"error" => "pdftotext_not_available"})
+
+      executable ->
+        case System.cmd(executable, ["-layout", path, "-"], stderr_to_stdout: true) do
+          {content, 0} ->
+            {content, truncated?} = truncate_extracted_content(content)
+            status = if String.trim(content) == "", do: "stored", else: "compiled"
+            extracted_content(content, "text", status, extraction_metadata(truncated?))
+
+          {message, _status} ->
+            extracted_content(nil, nil, "stored", %{"error" => String.slice(message, 0, 500)})
+        end
+    end
+  rescue
+    error ->
+      extracted_content(nil, nil, "stored", %{"error" => Exception.message(error)})
+  end
+
+  defp extracted_content(content, content_format, status, metadata) do
+    %{content: content, content_format: content_format, status: status, metadata: metadata}
+  end
+
+  defp upload_text(bytes) when is_binary(bytes) do
+    case :unicode.characters_to_binary(bytes, :utf8, :utf8) do
+      content when is_binary(content) -> {:ok, content}
+      _ -> {:error, "invalid_utf8"}
+    end
+  rescue
+    _ -> {:error, "invalid_utf8"}
+  end
+
+  defp truncate_extracted_content(content) do
+    if String.length(content) > @max_extracted_content_chars do
+      {String.slice(content, 0, @max_extracted_content_chars), true}
+    else
+      {content, false}
+    end
+  end
+
+  defp extraction_metadata(false), do: %{}
+  defp extraction_metadata(true), do: %{"truncated" => true}
+
   defp existing_duplicate(user_id, changeset) do
     raw_hash = Ecto.Changeset.get_field(changeset, :raw_hash)
 
@@ -253,9 +466,14 @@ defmodule Kairo do
   def delete_source(user_id, id) do
     case get_source(user_id, id) do
       %Source{} = source ->
-        source
-        |> Repo.delete()
-        |> tap_storage_update(user_id)
+        case Repo.delete(source) do
+          {:ok, deleted_source} = result ->
+            delete_uploaded_source_file(deleted_source)
+            tap_storage_update(result, user_id)
+
+          other ->
+            other
+        end
 
       nil ->
         {:error, :not_found}
@@ -265,6 +483,32 @@ defmodule Kairo do
   def source_types, do: Source.source_types()
   def source_statuses, do: Source.statuses()
   def project_statuses, do: Project.statuses()
+
+  defp delete_uploaded_source_file(%Source{} = source) do
+    source
+    |> source_file_key()
+    |> delete_uploaded_source_file()
+  end
+
+  defp delete_uploaded_source_file(%{} = upload_metadata) do
+    upload_metadata
+    |> Map.get(:key)
+    |> delete_uploaded_source_file()
+  end
+
+  defp delete_uploaded_source_file(key) when is_binary(key) do
+    _ = Uploads.delete_uploaded_file(key)
+    :ok
+  end
+
+  defp delete_uploaded_source_file(_key), do: :ok
+
+  defp source_file_key(%Source{metadata: metadata}) when is_map(metadata) do
+    metadata["storage_key"] || metadata[:storage_key] || metadata["key"] || metadata[:key] ||
+      metadata["url"] || metadata[:url]
+  end
+
+  defp source_file_key(_source), do: nil
 
   defp normalize_attrs(attrs) when is_map(attrs) do
     Map.new(attrs, fn {key, value} ->

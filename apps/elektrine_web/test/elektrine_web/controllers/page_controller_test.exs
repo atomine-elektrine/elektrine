@@ -11,6 +11,14 @@ defmodule ElektrineWeb.PageControllerTest do
     assert html_response(conn, 200)
   end
 
+  test "home page includes MCP in developer features", %{conn: conn} do
+    conn = get(conn, ~p"/")
+    html = html_response(conn, 200)
+
+    assert html =~ "AI tools, scoped to you"
+    assert html =~ "Connect Claude, Codex, or local agents"
+  end
+
   test "tracks site-wide page visits", %{conn: conn} do
     conn = get(conn, ~p"/")
 

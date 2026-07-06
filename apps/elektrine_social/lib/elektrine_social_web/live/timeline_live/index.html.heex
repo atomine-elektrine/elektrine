@@ -998,14 +998,16 @@
               </div>
 
               <div
+                id="timeline-desktop-view-filters"
                 class="flex flex-wrap items-center gap-2"
                 role="tablist"
                 aria-label="Timeline view filters"
               >
-                <button
-                  type="button"
-                  phx-click="filter_timeline"
-                  phx-value-filter="all"
+                <.link
+                  patch={
+                    timeline_sort_path(@current_filter, "all", @timeline_sort, @search_query)
+                  }
+                  data-timeline-view="all"
                   role="tab"
                   aria-selected={@timeline_filter == "all"}
                   class={[
@@ -1017,11 +1019,12 @@
                   ]}
                 >
                   <.icon name="hero-squares-2x2" class="w-4 h-4 mr-1" /> All
-                </button>
-                <button
-                  type="button"
-                  phx-click="filter_timeline"
-                  phx-value-filter="posts"
+                </.link>
+                <.link
+                  patch={
+                    timeline_sort_path(@current_filter, "posts", @timeline_sort, @search_query)
+                  }
+                  data-timeline-view="posts"
                   role="tab"
                   aria-selected={@timeline_filter == "posts"}
                   class={[
@@ -1033,11 +1036,12 @@
                   ]}
                 >
                   <.icon name="hero-document-text" class="w-4 h-4 mr-1" /> Posts
-                </button>
-                <button
-                  type="button"
-                  phx-click="filter_timeline"
-                  phx-value-filter="replies"
+                </.link>
+                <.link
+                  patch={
+                    timeline_sort_path(@current_filter, "replies", @timeline_sort, @search_query)
+                  }
+                  data-timeline-view="replies"
                   role="tab"
                   aria-selected={@timeline_filter == "replies"}
                   class={[
@@ -1049,11 +1053,12 @@
                   ]}
                 >
                   <.icon name="hero-chat-bubble-left-right" class="w-4 h-4 mr-1" /> Replies
-                </button>
-                <button
-                  type="button"
-                  phx-click="filter_timeline"
-                  phx-value-filter="media"
+                </.link>
+                <.link
+                  patch={
+                    timeline_sort_path(@current_filter, "media", @timeline_sort, @search_query)
+                  }
+                  data-timeline-view="media"
                   role="tab"
                   aria-selected={@timeline_filter == "media"}
                   class={[
@@ -1065,11 +1070,17 @@
                   ]}
                 >
                   <.icon name="hero-photo" class="w-4 h-4 mr-1" /> Media
-                </button>
-                <button
-                  type="button"
-                  phx-click="filter_timeline"
-                  phx-value-filter="communities"
+                </.link>
+                <.link
+                  patch={
+                    timeline_sort_path(
+                      @current_filter,
+                      "communities",
+                      @timeline_sort,
+                      @search_query
+                    )
+                  }
+                  data-timeline-view="communities"
                   role="tab"
                   aria-selected={@timeline_filter == "communities"}
                   class={[
@@ -1081,7 +1092,7 @@
                   ]}
                 >
                   <.icon name="hero-users" class="w-4 h-4 mr-1" /> Communities
-                </button>
+                </.link>
                 <%= if @current_filter != "federated" && @current_user do %>
                   <div class="h-6 w-px bg-base-300 mx-1"></div>
 

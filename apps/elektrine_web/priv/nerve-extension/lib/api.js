@@ -89,7 +89,9 @@ async function request(settings, path, options = {}) {
     headers.Authorization = `Bearer ${token}`
   }
 
-  if (options.body !== undefined) {
+  if (options.formData !== undefined) {
+    fetchOptions.body = options.formData
+  } else if (options.body !== undefined) {
     headers["Content-Type"] = "application/json"
     fetchOptions.body = JSON.stringify(options.body)
   }
@@ -144,6 +146,42 @@ export function createKairoSource(settings, attrs) {
       source: attrs
     }
   })
+}
+
+export function createKairoFileSource(settings, file, attrs = {}) {
+  const formData = new FormData()
+  const filename = file?.name || attrs.title || "kairo-file"
+
+  formData.append("source[file]", file, filename)
+
+  for (const [key, value] of Object.entries(attrs)) {
+    appendFormValue(formData, `source[${key}]`, value)
+  }
+
+  return request(settings, "/api/ext/v1/kairo/sources", {
+    method: "POST",
+    formData
+  })
+}
+
+function appendFormValue(formData, field, value) {
+  if (value === undefined || value === null || value === "") {
+    return
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach((item) => appendFormValue(formData, `${field}[]`, item))
+    return
+  }
+
+  if (typeof value === "object") {
+    for (const [nestedKey, nestedValue] of Object.entries(value)) {
+      appendFormValue(formData, `${field}[${nestedKey}]`, nestedValue)
+    }
+    return
+  }
+
+  formData.append(field, value)
 }
 
 export function isPersonalAccessToken(token) {
