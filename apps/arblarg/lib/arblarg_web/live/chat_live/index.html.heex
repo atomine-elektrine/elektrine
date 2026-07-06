@@ -1285,7 +1285,7 @@
 <!-- Load more button (shown when there are more messages) -->
           <%= if @has_more_older_messages && !@loading_older_messages do %>
             <div class="flex justify-center py-2">
-              <button phx-click="load_older_messages" class="btn btn-ghost btn-sm">
+              <button phx-click="load_older_messages" class="btn btn-sm load-more-button">
                 Load older messages
               </button>
             </div>

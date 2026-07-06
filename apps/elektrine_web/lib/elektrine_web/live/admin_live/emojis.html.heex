@@ -280,7 +280,7 @@
   <!-- Load More -->
   <%= if length(@emojis) < @total_count do %>
     <div class="text-center mt-6">
-      <button type="button" phx-click="load_more" class="btn btn-ghost">
+      <button type="button" phx-click="load_more" class="btn load-more-button">
         Load More ({@total_count - length(@emojis)} remaining)
       </button>
     </div>

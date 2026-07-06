@@ -848,7 +848,7 @@ defmodule ElektrineWeb.KairoLive.Index do
                   :if={length(@sources) < @sources_total}
                   type="button"
                   phx-click="load_more"
-                  class="btn btn-ghost btn-xs w-full"
+                  class="btn btn-xs w-full load-more-button"
                 >
                   Load more ({length(@sources)} of {@sources_total} loaded)
                 </button>

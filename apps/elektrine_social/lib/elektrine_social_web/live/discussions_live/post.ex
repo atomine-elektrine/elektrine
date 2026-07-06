@@ -933,7 +933,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
         <button
           phx-click="load_more_replies"
           phx-value-parent_id="#{reply.id}"
-          class="text-sm text-error hover:underline inline-flex items-center gap-1 btn btn-ghost btn-xs"
+          class="load-more-button text-sm inline-flex items-center gap-1 btn btn-xs"
         >
           <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path>

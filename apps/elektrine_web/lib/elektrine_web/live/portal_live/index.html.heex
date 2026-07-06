@@ -233,7 +233,7 @@
                 <button
                   type="button"
                   phx-click="load-more"
-                  class="btn btn-sm border border-base-300 bg-base-200 hover:bg-base-300"
+                  class="btn btn-sm load-more-button"
                   disabled={@loading_more}
                 >
                   <%= if @loading_more do %>
@@ -484,7 +484,11 @@
               <% end %>
 
               <div :if={!@activity_inspector.no_more} class="flex justify-center pt-1">
-                <button type="button" phx-click="load_more_activity" class="btn btn-ghost btn-sm">
+                <button
+                  type="button"
+                  phx-click="load_more_activity"
+                  class="btn btn-sm load-more-button"
+                >
                   Load more
                 </button>
               </div>
