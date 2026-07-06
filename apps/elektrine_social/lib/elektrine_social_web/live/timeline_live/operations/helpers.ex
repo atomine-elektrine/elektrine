@@ -57,21 +57,32 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.Helpers do
     load_ref = System.unique_integer([:positive, :monotonic])
     send(self(), {:load_view_data, load_ref, filter, timeline_view})
 
-    socket
-    |> assign(:timeline_load_ref, load_ref)
-    |> assign(:timeline_hydration_ref, nil)
-    |> assign(:current_filter, filter)
-    |> assign(:timeline_filter, timeline_view)
-    |> assign(:timeline_posts, [])
-    |> assign(:filtered_posts, [])
-    |> assign(:filtered_post_ids, [])
-    |> assign(:timeline_gap_marker_ids, MapSet.new())
-    |> assign(:saved_scroll_cursor, nil)
-    |> assign(:timeline_load_more_cursor, nil)
-    |> assign(:loading_timeline, true)
-    |> assign(:loading_more, false)
-    |> assign(:no_more_posts, false)
-    |> stream(:timeline_filtered_posts, [], reset: true)
+    has_visible_timeline? =
+      not Enum.empty?(socket.assigns[:filtered_posts] || []) or
+        not Enum.empty?(socket.assigns[:rss_items] || [])
+
+    reloading_socket =
+      socket
+      |> assign(:timeline_load_ref, load_ref)
+      |> assign(:timeline_hydration_ref, nil)
+      |> assign(:current_filter, filter)
+      |> assign(:timeline_filter, timeline_view)
+      |> assign(:timeline_gap_marker_ids, MapSet.new())
+      |> assign(:saved_scroll_cursor, nil)
+      |> assign(:timeline_load_more_cursor, nil)
+      |> assign(:loading_timeline, true)
+      |> assign(:loading_more, false)
+      |> assign(:no_more_posts, false)
+
+    if has_visible_timeline? do
+      reloading_socket
+    else
+      reloading_socket
+      |> assign(:timeline_posts, [])
+      |> assign(:filtered_posts, [])
+      |> assign(:filtered_post_ids, [])
+      |> stream(:timeline_filtered_posts, [], reset: true)
+    end
   end
 
   # Apply timeline filter to socket
