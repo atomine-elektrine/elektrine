@@ -138,7 +138,7 @@ defmodule ElektrineWeb.PortalLive.Index do
       socket
       |> assign(:filter, filter)
       |> assign(:attention_filter, attention_filter)
-      |> assign(:portal_view, normalize_portal_view(params["view"]))
+      |> assign(:portal_view, normalize_portal_view(params))
       |> assign(:reader_params, reader_params)
 
     socket =
@@ -1919,8 +1919,16 @@ defmodule ElektrineWeb.PortalLive.Index do
     @default_filter
   end
 
-  defp normalize_portal_view("reader"), do: "reader"
-  defp normalize_portal_view(_), do: "feed"
+  defp normalize_portal_view(%{"view" => "reader"}), do: "reader"
+  defp normalize_portal_view(%{"filter" => "rss"}), do: "reader"
+
+  defp normalize_portal_view(params) when is_map(params) do
+    if Enum.any?(["rss_source", "rss_density", "rss_item"], &Map.has_key?(params, &1)) do
+      "reader"
+    else
+      "feed"
+    end
+  end
 
   defp maybe_switch_portal_filter(socket, previous_filter, filter) do
     cond do

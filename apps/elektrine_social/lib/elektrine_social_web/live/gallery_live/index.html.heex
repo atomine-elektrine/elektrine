@@ -466,7 +466,7 @@
 
     <div
       class="w-full space-y-4"
-      phx-hook="InfiniteScroll"
+      phx-hook="ManualPagination"
       id="gallery-infinite-scroll"
       data-offset="500"
       data-no-more={@end_of_feed}
@@ -594,12 +594,6 @@
             <% end %>
           </div>
 
-          <%= if @loading_more do %>
-            <div class="flex justify-center py-8">
-              <.spinner size="md" />
-            </div>
-          <% end %>
-
           <%= if @end_of_feed && length(image_posts) > 0 do %>
             <div class="flex justify-center py-8 text-base-content/50 text-sm">
               No more photos to load
@@ -608,10 +602,20 @@
 
           <div
             :if={!@end_of_feed}
-            class="h-px w-full"
-            data-infinite-scroll-sentinel
-            aria-hidden="true"
+            class="flex justify-center py-6"
           >
+            <button
+              type="button"
+              phx-click="load-more"
+              class="btn btn-ghost"
+              disabled={@loading_more}
+            >
+              <%= if @loading_more do %>
+                <.spinner size="sm" class="mr-2" /> Loading photos
+              <% else %>
+                Load more photos
+              <% end %>
+            </button>
           </div>
         <% end %>
       <% end %>

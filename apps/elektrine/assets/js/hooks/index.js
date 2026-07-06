@@ -80,6 +80,7 @@ import { UPlotChart } from "./analytics_hooks";
 import {
   PostClick,
   InfiniteScroll,
+  ManualPagination,
 } from "./timeline_hooks";
 import { UserHoverCard, ImageModal } from "./timeline_media_hooks";
 import {
@@ -187,6 +188,7 @@ export const Hooks = {
   AnimatedCount,
   RemoteFollowButton,
   InfiniteScroll,
+  ManualPagination,
   PreserveStreamAnchor,
   PreserveQueuedPostsButtonScroll,
   UserHoverCard,

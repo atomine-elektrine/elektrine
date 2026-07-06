@@ -98,7 +98,7 @@
         <%= if @posts && length(@posts) > 0 do %>
           <div
             class="space-y-4"
-            phx-hook="InfiniteScroll"
+            phx-hook="ManualPagination"
             id="hashtag-infinite-scroll"
             data-offset="500"
           >
@@ -133,7 +133,20 @@
                 <p class="text-sm">You've seen all posts</p>
               </div>
             <% else %>
-              <div class="text-center py-6"><.spinner size="md" class="text-primary" /></div>
+              <div class="text-center py-6">
+                <button
+                  type="button"
+                  phx-click="load_more_posts"
+                  class="btn btn-ghost"
+                  disabled={@loading_more}
+                >
+                  <%= if @loading_more do %>
+                    <.spinner size="sm" class="mr-2" /> Loading posts
+                  <% else %>
+                    Load older posts
+                  <% end %>
+                </button>
+              </div>
             <% end %>
           </div>
         <% else %>

@@ -40,7 +40,7 @@ defmodule ElektrineEmailWeb.EmailLive.ComposeTest do
       |> log_in_user(user)
       |> live(~p"/email/compose?to=#{recipient_email}")
 
-    assert html =~ "Protected Delivery"
+    assert html =~ "Encryption"
     assert html =~ "Public keys are available for all 1 recipients."
     assert html =~ "Encrypt when possible"
   end
@@ -54,7 +54,7 @@ defmodule ElektrineEmailWeb.EmailLive.ComposeTest do
       |> log_in_user(user)
       |> live(~p"/email/compose?to=#{missing_email}")
 
-    assert html =~ "Protected Delivery"
+    assert html =~ "Encryption"
     assert html =~ "Public keys are available for 0 of 1 recipients."
     assert html =~ "Missing keys for:"
     assert html =~ missing_email
@@ -81,7 +81,8 @@ defmodule ElektrineEmailWeb.EmailLive.ComposeTest do
     assert accept =~ ".webp"
     assert accept =~ ".mp4"
     assert accept =~ "video/*"
-    assert html =~ "Allowed: Images, PDFs, Office docs, Text, Archives, Audio/Video"
+    assert html =~ "Attachments"
+    assert html =~ "Up to 5 files, 10MB each"
   end
 
   test "malformed compose route ids do not crash", %{conn: conn} do
@@ -136,7 +137,7 @@ defmodule ElektrineEmailWeb.EmailLive.ComposeTest do
       |> live(~p"/email/compose?mode=reply&message_id=#{message.id}")
 
     assert html =~ "Protected Original Message"
-    assert html =~ "Unlock this mailbox in the current tab"
+    assert html =~ "Unlock this mailbox to load the protected original message into the composer"
   end
 
   test "sends compose message as plain text only", %{conn: conn} do

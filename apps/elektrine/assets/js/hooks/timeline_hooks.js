@@ -18,6 +18,59 @@ function currentScrollY() {
   );
 }
 
+function postAnchorFromElement(card) {
+  const postId = card?.dataset?.postId;
+  if (!postId) return null;
+
+  return { postId, top: card.getBoundingClientRect().top };
+}
+
+function findVisiblePostAnchor(root = document) {
+  const viewportHeight =
+    window.innerHeight || document.documentElement.clientHeight;
+  const viewportWidth =
+    window.innerWidth || document.documentElement.clientWidth;
+
+  if (viewportHeight <= 0 || viewportWidth <= 0) return null;
+
+  const rootRect = root.getBoundingClientRect?.();
+  const rootCenterX = rootRect
+    ? rootRect.left + rootRect.width / 2
+    : viewportWidth / 2;
+  const sampleX = Math.max(0, Math.min(viewportWidth - 1, rootCenterX));
+  const sampleYs = [
+    Math.min(96, viewportHeight - 1),
+    Math.floor(viewportHeight * 0.25),
+    Math.floor(viewportHeight * 0.5),
+    Math.floor(viewportHeight * 0.75),
+  ].filter((y) => y >= 0 && y < viewportHeight);
+
+  for (const sampleY of sampleYs) {
+    const target = document.elementFromPoint(sampleX, sampleY);
+    const card = target?.closest?.("[data-post-id]");
+    if (card && root.contains(card)) {
+      const anchor = postAnchorFromElement(card);
+      if (anchor) return anchor;
+    }
+  }
+
+  const lowerBound = -Math.max(viewportHeight * 1.5, 1200);
+  const belowBreak = viewportHeight + Math.max(viewportHeight, 1200);
+  const postCards = root.querySelectorAll("[data-post-id]");
+
+  for (const card of postCards) {
+    const rect = card.getBoundingClientRect();
+    if (rect.bottom <= lowerBound) continue;
+    if (rect.top >= belowBreak) break;
+    if (rect.bottom <= 0 || rect.top >= viewportHeight) continue;
+
+    const anchor = postAnchorFromElement(card);
+    if (anchor) return anchor;
+  }
+
+  return null;
+}
+
 // Global state for batching dwell time updates
 let dwellTimeBuffer = new Map();
 let batchTimeout = null;
@@ -375,11 +428,13 @@ export const PostClick = {
 };
 
 /**
- * Infinite Scroll Hook
- * Automatically loads more content when user scrolls near the bottom
+ * Feed pagination hook.
+ * Preserves scroll position around manual "load more" updates.
+ * Auto-loading is opt-in with data-auto-load="true".
  */
-export const InfiniteScroll = {
+export const ManualPagination = {
   mounted() {
+    this.autoLoad = this.el.dataset.autoLoad === "true";
     this.pending = false;
     this.disabled =
       this.el.dataset.noMore === "true" ||
@@ -406,15 +461,27 @@ export const InfiniteScroll = {
     this.resetReloadScrollPosition();
     this.clearGlobalRestoreSnapshot();
 
-    this.setupObserver();
-    this.requestCheck();
+    if (this.autoLoad) {
+      this.setupObserver();
+      this.requestCheck();
+    }
 
     this.handleScroll = () => {
       this.lastKnownScrollY = currentScrollY();
       this.cancelSettledRestore();
-      if (!this.pending && !this.disabled) this.requestCheck();
+      if (this.autoLoad && !this.pending && !this.disabled) this.requestCheck();
     };
     window.addEventListener("scroll", this.handleScroll, { passive: true });
+
+    this.handleClick = (event) => {
+      const loadMoreTrigger = event.target?.closest?.(
+        '[phx-click="load-more"], [phx-click="load_more_posts"], [phx-click="load_more_overview"], [data-load-more-trigger]',
+      );
+      if (!loadMoreTrigger || !this.el.contains(loadMoreTrigger)) return;
+
+      this.beginLoadCycle();
+    };
+    this.el.addEventListener("click", this.handleClick);
   },
 
   beforeUpdate() {
@@ -432,6 +499,8 @@ export const InfiniteScroll = {
   },
 
   setupObserver() {
+    if (!this.autoLoad) return;
+
     if (this.observer) {
       this.observer.disconnect();
       this.observer = null;
@@ -473,6 +542,8 @@ export const InfiniteScroll = {
   },
 
   requestCheck() {
+    if (!this.autoLoad) return;
+
     if (this.checkRAF) cancelAnimationFrame(this.checkRAF);
     this.checkRAF = requestAnimationFrame(() => {
       this.checkRAF = null;
@@ -481,6 +552,8 @@ export const InfiniteScroll = {
   },
 
   checkViewportDistance() {
+    if (!this.autoLoad) return;
+
     const viewportHeight =
       window.innerHeight || document.documentElement.clientHeight;
     const scrollBottom = currentScrollY() + viewportHeight;
@@ -503,6 +576,7 @@ export const InfiniteScroll = {
   },
 
   loadMore() {
+    if (!this.autoLoad) return;
     if (this.pending || this.disabled) return;
 
     const now = Date.now();
@@ -530,6 +604,8 @@ export const InfiniteScroll = {
   },
 
   beginLoadCycle() {
+    if (this.pending) return;
+
     this.pending = true;
     this.lastKnownScrollY = currentScrollY();
     this.loadCycleStartY = this.lastKnownScrollY;
@@ -574,26 +650,14 @@ export const InfiniteScroll = {
     this.disabled =
       this.el.dataset.noMore === "true" ||
       this.el.dataset.loadingMore === "true";
-    this.setupObserver();
-    this.requestCheck();
+    if (this.autoLoad) {
+      this.setupObserver();
+      this.requestCheck();
+    }
   },
 
   findVisiblePostAnchor() {
-    const postCards = this.el.querySelectorAll("[data-post-id]");
-    const viewportHeight =
-      window.innerHeight || document.documentElement.clientHeight;
-
-    for (const card of postCards) {
-      const rect = card.getBoundingClientRect();
-      if (rect.bottom <= 0 || rect.top >= viewportHeight) continue;
-
-      const postId = card.dataset.postId;
-      if (!postId) continue;
-
-      return { postId, top: rect.top };
-    }
-
-    return null;
+    return findVisiblePostAnchor(this.el);
   },
 
   getStableScrollY() {
@@ -737,6 +801,7 @@ export const InfiniteScroll = {
     this.cancelSettledRestore();
     if (this.handleScroll)
       window.removeEventListener("scroll", this.handleScroll);
+    if (this.handleClick) this.el.removeEventListener("click", this.handleClick);
     if (this.observer) this.observer.disconnect();
     if (
       this.previousScrollRestoration &&
@@ -747,3 +812,5 @@ export const InfiniteScroll = {
     }
   },
 };
+
+export const InfiniteScroll = ManualPagination;

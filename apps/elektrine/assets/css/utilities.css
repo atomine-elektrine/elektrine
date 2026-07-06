@@ -417,20 +417,20 @@ div.message-selected:hover {
   contain: layout;
 }
 
-.portal-post-entry {
-  content-visibility: visible;
-  contain: none;
-  overflow: visible;
-}
-
+.timeline-stream-entry,
 .portal-post-entry {
   position: relative;
   z-index: 1;
   overflow: visible;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 34rem;
 }
 
+.timeline-stream-entry:hover,
+.timeline-stream-entry:focus-within,
 .portal-post-entry:hover,
 .portal-post-entry:focus-within {
+  content-visibility: visible;
   z-index: 220;
 }
 

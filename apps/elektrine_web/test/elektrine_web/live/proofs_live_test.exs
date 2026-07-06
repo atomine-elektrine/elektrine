@@ -33,18 +33,16 @@ defmodule ElektrineWeb.ProofsLiveTest do
     refute html =~ "API Credits"
     refute html =~ "Invite Credits"
     assert html =~ "Ways to earn credits"
-    assert html =~ "The same DNS name, profile, or page will not pay twice"
-    assert html =~ "Proof of personhood/control"
-    assert html =~ "5-15 Identity Credits per verified proof"
-    assert html =~ "Proof of work"
-    assert html =~ "1 Identity Credit per run, up to 20 per day."
+    assert html =~ "Each DNS name, profile, or page pays once"
+    assert html =~ "Create a proof"
+    assert html =~ "5 Identity Credits"
     assert html =~ "DNS control proof"
     assert html =~ "10 Identity Credits"
     assert html =~ "Web page proof"
     assert html =~ "8 Identity Credits"
     assert html =~ "Social/profile proof"
     assert html =~ "GitHub account proof"
-    assert html =~ "Planned: stake, reputation, service"
+    assert html =~ "What credits are spent on"
     assert html =~ "First DM"
     assert html =~ "External email"
     assert html =~ ~r/First DM.*1 Identity Credit/s
@@ -89,14 +87,14 @@ defmodule ElektrineWeb.ProofsLiveTest do
       |> log_in_user(user)
       |> live(~p"/account/proofs")
 
-    assert html =~ "Publish this signed claim"
+    assert html =~ "Where to publish"
     assert html =~ "DNS TXT record"
     assert html =~ "_atomine.example.com"
     assert html =~ dns_proof.challenge
     assert html =~ "Public web page"
     assert html =~ "https://example.com/proof"
     assert html =~ web_proof.challenge
-    assert html =~ "validates the Identity signature"
+    assert html =~ "Verification fetches this location and looks for the exact statement"
   end
 
   test "unsafe legacy evidence URLs are not rendered as clickable links", %{conn: conn} do

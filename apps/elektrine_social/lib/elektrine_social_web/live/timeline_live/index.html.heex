@@ -493,7 +493,7 @@
         <!-- Main Timeline -->
         <div
           class="card panel-card overflow-hidden"
-          phx-hook="InfiniteScroll"
+          phx-hook="ManualPagination"
           id="timeline-infinite-scroll"
           data-offset="500"
           data-no-more={@no_more_posts}
@@ -1703,7 +1703,7 @@
                   <% end %>
                 </div>
               <% end %>
-              <!-- Load More Button -->
+              <!-- Manual pagination button -->
               <%= if length(@timeline_posts) >= 20 do %>
                 <div class="py-4 h-24 flex items-center justify-center timeline-load-more-zone">
                   <%= if @loading_more do %>
@@ -1719,14 +1719,12 @@
                         phx-click="load_more_posts"
                         class="btn btn-ghost"
                       >
-                        Load More
+                        Load older posts
                       </button>
                     </div>
                   <% end %>
                 </div>
               <% end %>
-
-              <div class="h-px w-full" data-infinite-scroll-sentinel aria-hidden="true"></div>
             <% end %>
             <!-- End of loading_timeline check -->
           </div>

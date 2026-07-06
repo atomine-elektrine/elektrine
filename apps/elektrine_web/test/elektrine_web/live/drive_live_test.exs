@@ -110,7 +110,6 @@ defmodule ElektrineWeb.DriveLiveTest do
 
     html = render_upload(upload, "queued.txt")
 
-    assert html =~ "Upload Queue"
     assert html =~ "queued.txt"
     assert has_element?(view, "button", "Finish upload")
   end

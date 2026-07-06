@@ -1588,7 +1588,7 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
       |> live(~p"/timeline?filter=all&view=all")
 
     initial_html = render(view)
-    assert initial_html =~ "Load More"
+    assert initial_html =~ "Load older posts"
     assert initial_html =~ ~s(button type="button" phx-click="load_more_posts")
     refute initial_html =~ "Load more timeline post 01"
 

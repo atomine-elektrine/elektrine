@@ -16,7 +16,7 @@ defmodule Elektrine.Push.WebPushClientTest do
       record = WebPushClient.encrypt(plaintext, ua_public, auth_secret)
 
       <<salt::binary-16, _rs::unsigned-32, key_len::unsigned-8, rest::binary>> = record
-      <<as_public::binary-size(key_len), body::binary>> = rest
+      <<as_public::binary-size(^key_len), body::binary>> = rest
 
       ecdh_secret = :crypto.compute_key(:ecdh, as_public, ua_private, @curve)
       prk_key = :crypto.mac(:hmac, :sha256, auth_secret, ecdh_secret)
@@ -28,7 +28,7 @@ defmodule Elektrine.Push.WebPushClientTest do
 
       tag_size = 16
       data_size = byte_size(body) - tag_size
-      <<ciphertext::binary-size(data_size), tag::binary-size(tag_size)>> = body
+      <<ciphertext::binary-size(^data_size), tag::binary-size(^tag_size)>> = body
 
       decrypted =
         :crypto.crypto_one_time_aead(:aes_128_gcm, cek, nonce, ciphertext, <<>>, tag, false)

@@ -157,7 +157,7 @@
           <!-- Unified Feed -->
           <div
             class="space-y-4"
-            phx-hook="InfiniteScroll"
+            phx-hook="ManualPagination"
             id="portal-infinite-scroll"
             data-offset="500"
             data-no-more={@no_more_posts}
@@ -229,7 +229,6 @@
               <div
                 :if={!@no_more_posts}
                 class="flex justify-center py-2"
-                data-infinite-scroll-sentinel
               >
                 <button
                   type="button"
@@ -240,7 +239,7 @@
                   <%= if @loading_more do %>
                     <.spinner size="sm" class="mr-2" /> Loading more
                   <% else %>
-                    Load more
+                    Load older posts
                   <% end %>
                 </button>
               </div>

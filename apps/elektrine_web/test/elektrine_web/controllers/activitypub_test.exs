@@ -1400,9 +1400,17 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
 
       assert json_response(conn, 202) == %{}
 
+      queued_activity =
+        activity
+        |> Map.put("_elektrine_target_community_id", community.id)
+        |> Map.put(
+          "_elektrine_target_community_uri",
+          ActivityPub.community_actor_uri(community.name)
+        )
+
       assert {:ok, _} =
                Elektrine.ActivityPub.Handler.process_activity_async(
-                 activity,
+                 queued_activity,
                  remote_actor.uri,
                  nil
                )

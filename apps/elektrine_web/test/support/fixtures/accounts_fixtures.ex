@@ -4,7 +4,7 @@ defmodule Elektrine.AccountsFixtures do
   entities via the `Elektrine.Accounts` context.
   """
 
-  alias Elektrine.Accounts
+  alias Elektrine.{Accounts, Repo}
 
   def unique_user_username do
     "u" <> (Ecto.UUID.generate() |> String.replace("-", "") |> String.slice(0, 19))
@@ -49,8 +49,9 @@ defmodule Elektrine.AccountsFixtures do
 
     # If there are privacy settings, update the user with them
     if map_size(privacy_attrs) > 0 do
-      {:ok, updated_user} = Accounts.update_user(user, privacy_attrs)
-      updated_user
+      user
+      |> Ecto.Changeset.change(privacy_attrs)
+      |> Repo.update!()
     else
       user
     end

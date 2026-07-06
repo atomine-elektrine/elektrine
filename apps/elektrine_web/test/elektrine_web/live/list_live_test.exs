@@ -155,6 +155,10 @@ defmodule ElektrineSocialWeb.ListLiveTest do
       |> log_in_user(viewer)
       |> live(~p"/lists")
 
+    view
+    |> element(~s(button[phx-click="open_create_modal"]), "New List")
+    |> render_click()
+
     failure_html =
       view
       |> form("#list-create-form", %{

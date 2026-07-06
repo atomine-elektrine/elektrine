@@ -243,11 +243,14 @@ defmodule Elektrine.Accounts.User do
   defp hash_password(changeset), do: changeset
 
   defp validate_preferred_email_domain(changeset, user) do
-    case get_field(changeset, :preferred_email_domain) do
-      nil ->
+    case fetch_change(changeset, :preferred_email_domain) do
+      :error ->
         changeset
 
-      preferred_domain ->
+      {:ok, nil} ->
+        changeset
+
+      {:ok, preferred_domain} ->
         allowed_domains = Elektrine.Domains.available_email_domains_for_user(user)
 
         if preferred_domain in allowed_domains do

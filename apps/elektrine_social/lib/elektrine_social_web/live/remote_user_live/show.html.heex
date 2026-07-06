@@ -335,7 +335,7 @@
           local_replies = replies_by_local_id(@local_posts, @post_replies) %>
           <div
             class="space-y-3"
-            phx-hook="InfiniteScroll"
+            phx-hook="ManualPagination"
             id="remote-profile-infinite-scroll"
             data-offset="500"
           >
@@ -1408,7 +1408,7 @@
 <!-- Timeline Posts -->
           <div
             class="social-page-card panel-card rounded-lg overflow-hidden"
-            phx-hook="InfiniteScroll"
+            phx-hook="ManualPagination"
             id="remote-profile-infinite-scroll-person"
             data-offset="500"
           >

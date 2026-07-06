@@ -51,7 +51,7 @@ defmodule ElektrineWeb.PortalLiveTest do
              ~s(button[phx-click="set_filter"][phx-value-filter="all"].btn-secondary)
            )
 
-    assert html =~ "0 posts"
+    assert html =~ "No posts in this view"
   end
 
   test "loader log label formats tuple keys safely" do
@@ -79,7 +79,7 @@ defmodule ElektrineWeb.PortalLiveTest do
     {:ok, _view, html} =
       conn
       |> log_in_user(user)
-      |> live(~p"/portal?filter=timeline")
+      |> live(~p"/portal?view=reader&filter=timeline")
 
     assert html =~ ~s(data-test="global-composer")
     assert html =~ "Feed Reader"
@@ -105,13 +105,13 @@ defmodule ElektrineWeb.PortalLiveTest do
     {:ok, _view, html} =
       conn
       |> log_in_user(user)
-      |> live(~p"/portal")
+      |> live(~p"/portal?view=reader")
 
     assert html =~ "Feed Reader"
     assert html =~ "Portal RSS headline"
     assert html =~ "Example Feed"
     assert html =~ "A useful article from a subscribed feed."
-    assert html =~ "Social feed"
+    assert html =~ "Feed"
   end
 
   test "portal RSS reader filters by source and previews full selected item", %{conn: conn} do
@@ -150,7 +150,7 @@ defmodule ElektrineWeb.PortalLiveTest do
     {:ok, view, html} =
       conn
       |> log_in_user(user)
-      |> live(~p"/portal")
+      |> live(~p"/portal?view=reader")
 
     assert html =~ ~s(data-role="rss-reader-list")
     assert html =~ "Rust analysis roundup"
@@ -200,7 +200,7 @@ defmodule ElektrineWeb.PortalLiveTest do
     {:ok, view, _html} =
       conn
       |> log_in_user(user)
-      |> live(~p"/portal")
+      |> live(~p"/portal?view=reader")
 
     html =
       view
@@ -240,7 +240,7 @@ defmodule ElektrineWeb.PortalLiveTest do
     {:ok, view, html} =
       conn
       |> log_in_user(user)
-      |> live(~p"/portal")
+      |> live(~p"/portal?view=reader")
 
     assert html =~ "Stable older item"
     assert html =~ "Stable newer item"
@@ -355,7 +355,7 @@ defmodule ElektrineWeb.PortalLiveTest do
     {:ok, view, _html} =
       conn
       |> log_in_user(user)
-      |> live(~p"/portal")
+      |> live(~p"/portal?view=reader")
 
     html =
       view
@@ -495,7 +495,7 @@ defmodule ElektrineWeb.PortalLiveTest do
     assert count_occurrences(html, ~s(text-transparent select-none")) == 5
   end
 
-  test "portal uses the infinite scroll feed container", %{conn: conn} do
+  test "portal uses the manual pagination feed container", %{conn: conn} do
     user = AccountsFixtures.user_fixture()
 
     {:ok, view, _html} =
@@ -503,7 +503,7 @@ defmodule ElektrineWeb.PortalLiveTest do
       |> log_in_user(user)
       |> live(~p"/portal")
 
-    assert has_element?(view, ~s(#portal-infinite-scroll[phx-hook="InfiniteScroll"]))
+    assert has_element?(view, ~s(#portal-infinite-scroll[phx-hook="ManualPagination"]))
     assert has_element?(view, ~s(#portal-posts-list))
   end
 

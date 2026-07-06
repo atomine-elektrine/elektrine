@@ -47,12 +47,9 @@ defmodule ElektrineWeb.AuthPowCopyTest do
       |> log_in_user(user)
       |> live(~p"/account/proofs")
 
-    assert html =~ "Proof of work"
+    assert html =~ "Daily browser work"
     assert html =~ "pow-credit-atomine-pow"
-    assert html =~ "Security check"
-    assert html =~ "check level 8"
-    assert html =~ "Your browser does a short calculation"
-    assert html =~ "without asking you to solve a puzzle"
+    assert html =~ "The computation runs when you claim"
     refute html =~ "two-layer gate"
     refute html =~ "anonymous effort token"
   end

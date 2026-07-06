@@ -457,7 +457,7 @@
               <% "communities" -> %>
                 <div
                   class="space-y-6"
-                  phx-hook={if !search_active?, do: "InfiniteScroll", else: nil}
+                  phx-hook={if !search_active?, do: "ManualPagination", else: nil}
                   id="communities-overview-infinite-scroll"
                   data-offset="500"
                   data-no-more={if(search_active?, do: true, else: @overview_no_more)}
@@ -1276,20 +1276,17 @@
                       <% else %>
                         <div class="text-center">
                           <button phx-click="load_more_overview" class="btn btn-ghost">
-                            Load More
+                            Load more communities
                           </button>
                         </div>
                       <% end %>
-                    </div>
-
-                    <div class="h-px w-full" data-infinite-scroll-sentinel aria-hidden="true">
                     </div>
                   <% end %>
                 </div>
               <% "feed" -> %>
                 <div
                   class="space-y-5"
-                  phx-hook="InfiniteScroll"
+                  phx-hook="ManualPagination"
                   id="communities-feed-infinite-scroll"
                   data-offset="500"
                   data-no-more={@no_more_posts}
@@ -1431,7 +1428,7 @@
                                     phx-click="load_more_posts"
                                     class="btn btn-ghost"
                                   >
-                                    Load More
+                                    Load older posts
                                   </button>
                                 </div>
                               <% end %>
@@ -1489,8 +1486,6 @@
                       </.link>
                     </div>
                   <% end %>
-
-                  <div class="h-px w-full" data-infinite-scroll-sentinel aria-hidden="true"></div>
                 </div>
               <% "my_activity" -> %>
                 <div class="space-y-4">

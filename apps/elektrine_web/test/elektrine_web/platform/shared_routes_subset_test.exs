@@ -28,7 +28,8 @@ defmodule ElektrineWeb.Platform.SharedRoutesSubsetTest do
       |> log_in_user(user)
       |> live(~p"/portal")
 
-    assert html =~ "Social feed"
+    assert html =~ "For You"
+    assert html =~ "Reader"
     refute html =~ "Compose Email"
     refute html =~ "New Message"
     refute html =~ "New Post"
