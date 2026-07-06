@@ -31,7 +31,7 @@ mail.
 
 | Concern | Uses | Examples |
 | --- | --- | --- |
-| product capabilities | `ELEKTRINE_ENABLED_MODULES` | `chat`, `social`, `email`, `nerve`, `vpn`, `dns`, `atomine` |
+| product capabilities | `ELEKTRINE_ENABLED_MODULES` | `chat`, `social`, `email`, `nerve`, `vpn`, `dns`, `uptime`, `atomine`, `kairo` |
 | long-lived infra/services | `DOCKER_PROFILES` | `email`, `dns`, `tor`, `turn`, `vpn`, `caddy`, `bluesky` |
 | runtime behavior inside a container | env vars | `ONION_TLS_ENABLED=true` |
 
@@ -404,7 +404,7 @@ Deploy secrets for `.github/workflows/docker-deploy.yml`:
 - `DEPLOY_HOST`
 - `DEPLOY_USER`
 - `DEPLOY_SSH_KEY`
-- `DEPLOY_PATH` optional, defaults to `/opt/elektrine/app`
+- `DEPLOY_PATH` optional, defaults to `/opt/elektrine`
 - `DEPLOY_PORT` optional, defaults to `22`
 - `MAIL_TLS_CERT_PATH` / `MAIL_TLS_KEY_PATH` required for native IMAPS/POP3S on the `email` profile; plain IMAP/POP remain on `143/110`
 - `MAIL_TLS_MOUNT_DIR` optional, defaults to `/opt/elektrine/certs`, and is bind-mounted into the mail container for native IMAPS/POP3S cert access

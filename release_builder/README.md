@@ -44,11 +44,14 @@ service stays off.
 - `nerve`
 - `vpn`
 - `dns`
+- `uptime`
+- `atomine`
+- `kairo`
 
 Accepted aliases:
 
-- `nerve`
-- `nerve`
+- `proofs` -> `atomine`
+- `personhood` -> `atomine`
 
 Special values:
 

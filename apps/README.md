@@ -12,6 +12,10 @@ Elektrine is organized as an Elixir umbrella project.
 - [`elektrine_vpn`](./elektrine_vpn/README.md) - VPN features
 - [`elektrine_nerve`](./elektrine_nerve/README.md) - Password nerve domain and route macros
 - [`elektrine_dns`](./elektrine_dns/README.md) - Managed DNS runtime, PAT API, and DNS LiveViews
+- [`elektrine_uptime`](./elektrine_uptime/README.md) - Uptime monitors, check history, incidents, and dashboard routes
+- [`atomine`](./atomine) - Proofs, personhood, account trust, and credit policy domain logic
+- [`kairo`](./kairo) - Capture, indexing, and graph-oriented knowledge features
+- [`paige`](./paige) - Search provider integration and ranking support
 
 ## Running app-focused tests
 
@@ -25,6 +29,10 @@ mix test apps/elektrine_social/test
 mix test apps/elektrine_vpn/test
 mix test apps/elektrine_nerve/test
 mix test apps/elektrine_dns/test
+mix test apps/elektrine_uptime/test
+mix test apps/atomine/test
+mix test apps/kairo/test
+mix test apps/paige/test
 ```
 
 ## Protocol docs

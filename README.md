@@ -25,6 +25,10 @@ product areas are split into their own umbrella apps.
 - `apps/elektrine_vpn`: WireGuard management and VPN UI/API
 - `apps/elektrine_nerve`: Nerve domain and extracted routes
 - `apps/elektrine_dns`: managed DNS runtime, DNS API routes, and DNS LiveViews
+- `apps/elektrine_uptime`: uptime monitors, check history, incidents, and dashboard routes
+- `apps/atomine`: proofs, personhood, account trust, and credit policy domain logic
+- `apps/kairo`: capture, indexing, and graph-oriented knowledge features
+- `apps/paige`: search provider integration and ranking support
 
 Requests enter through `ElektrineWeb.Router`, pass through shared plugs and
 module guards, and then land in the controller or LiveView mounted for the
@@ -57,9 +61,9 @@ Normal deployments use one public module switch:
 - `ELEKTRINE_RELEASE_MODULES` still exists as an advanced override when you need
   to compile more modules than you expose at runtime
 
-Supported module ids are `chat`, `social`, `email`, `nerve`, `vpn`, and `dns`.
-`nerve` and `nerve` are accepted aliases for `nerve` in
-the deploy scripts.
+Supported module ids are `chat`, `social`, `email`, `nerve`, `vpn`, `dns`,
+`uptime`, `atomine`, and `kairo`. `proofs` and `personhood` are accepted aliases
+for `atomine` in the deploy scripts.
 
 In normal use, set `ELEKTRINE_ENABLED_MODULES` and leave
 `ELEKTRINE_RELEASE_MODULES` unset.
@@ -131,7 +135,7 @@ peer state in-app.
 The self-hosting docs are split by profile:
 
 - `core`: Phoenix app and Postgres only
-- `mail`: Elektrine mail protocols plus Haraka for production SMTP edge/delivery
+- `mail`: Elektrine mail protocols; production SMTP edge/delivery still needs a separate Haraka deployment
 - `dns`: optional authoritative DNS service enabled through the Docker `dns` profile
 - `vpn`: optional Docker-managed WireGuard on the same stack, with optional fleet mode
 - `addons`: Caddy edge, TURN, Bluesky PDS, onion hosting, and client artifacts

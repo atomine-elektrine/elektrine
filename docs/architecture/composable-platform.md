@@ -17,11 +17,14 @@ Current platform module ids:
 - `nerve`
 - `vpn`
 - `dns`
+- `uptime`
+- `atomine`
+- `kairo`
 
 Accepted aliases:
 
-- `nerve`
-- `nerve`
+- `proofs` -> `atomine`
+- `personhood` -> `atomine`
 
 Operational rules:
 

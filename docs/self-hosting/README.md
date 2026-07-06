@@ -26,7 +26,7 @@ appended only when you enable that feature.
 ## Profiles
 
 - `core`: app and Postgres only
-- `mail`: Elektrine mail protocols plus Haraka for production SMTP edge/delivery
+- `mail`: Elektrine mail protocols; production SMTP edge/delivery still needs a separate Haraka deployment
 - `dns`: optional authoritative DNS service enabled through the Docker `dns` profile
 - `vpn`: optional Docker-managed WireGuard, with optional fleet mode
 - `addons`: Caddy edge, TURN, Bluesky PDS, onion hosting, and client artifacts
