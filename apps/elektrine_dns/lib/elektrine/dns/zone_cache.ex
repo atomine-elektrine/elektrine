@@ -99,7 +99,7 @@ defmodule Elektrine.DNS.ZoneCache do
   defp load_zones(repo_opts) do
     {:ok,
      Zone
-     |> where([z], z.status in ["provisioning", "pending", "verified"])
+     |> where([z], z.status == "verified")
      |> preload(:records)
      |> Repo.all(repo_opts)
      |> Enum.map(&repair_builtin_zone_records/1)}

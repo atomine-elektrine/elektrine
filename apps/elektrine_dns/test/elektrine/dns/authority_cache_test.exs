@@ -77,16 +77,16 @@ defmodule Elektrine.DNS.AuthorityCacheTest do
     assert header(response).ancount == 2
   end
 
-  test "pending zones serve an authoritative SOA so delegation can verify" do
+  test "pending zones are not served authoritatively before verification" do
     user = AccountsFixtures.user_fixture()
     {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
 
     response = Query.answer(build_query(zone.domain, 6))
 
     assert zone.status == "provisioning"
-    assert header(response).rcode == 0
-    assert header(response).aa == 1
-    assert header(response).ancount == 1
+    assert header(response).rcode == 5
+    assert header(response).aa == 0
+    assert header(response).ancount == 0
   end
 
   test "managed mail records are served authoritatively right after apply" do
