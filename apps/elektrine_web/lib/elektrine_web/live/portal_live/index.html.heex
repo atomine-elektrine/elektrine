@@ -80,18 +80,24 @@
       </.link>
     </section>
 
-    <div role="tablist" class="tabs tabs-boxed w-fit">
+    <div role="tablist" class="flex w-fit flex-wrap gap-2">
       <.link
         patch={~p"/portal?#{[filter: @filter]}"}
         role="tab"
-        class={["tab", @portal_view == "feed" && "tab-active"]}
+        class={[
+          "btn btn-sm min-h-10 rounded-full border border-base-300 px-4",
+          if(@portal_view == "feed", do: "btn-primary", else: "btn-ghost")
+        ]}
       >
         <.icon name="hero-sparkles" class="mr-1 h-4 w-4" /> Feed
       </.link>
       <.link
         patch={~p"/portal?view=reader"}
         role="tab"
-        class={["tab", @portal_view == "reader" && "tab-active"]}
+        class={[
+          "btn btn-sm min-h-10 rounded-full border border-base-300 px-4",
+          if(@portal_view == "reader", do: "btn-primary", else: "btn-ghost")
+        ]}
       >
         <.icon name="hero-rss" class="mr-1 h-4 w-4" /> Reader
       </.link>

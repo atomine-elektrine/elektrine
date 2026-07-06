@@ -42,7 +42,7 @@ defmodule ElektrineWeb.Components.UI.PillSwitcher do
         "md" -> "btn-md"
         _ -> "btn-sm"
       end,
-      if(active, do: "btn-secondary", else: "btn-ghost")
+      if(active, do: "btn-primary", else: "btn-ghost")
     ]
   end
 end

@@ -30,18 +30,28 @@
           <%= if @show_add_member_form do %>
             <div class="mb-4 p-3 bg-base-50 rounded-lg border border-base-300">
               <!-- Tab Selector -->
-              <div class="tabs tabs-boxed mb-3">
+              <div class="mb-3 flex flex-wrap gap-2" role="tablist" aria-label="Add list members">
                 <button
                   phx-click="set_add_mode"
                   phx-value-mode="search"
-                  class={["tab", if(@add_mode == "search", do: "tab-active", else: "")]}
+                  class={[
+                    "btn btn-sm min-h-10 rounded-full border border-base-300 px-4",
+                    if(@add_mode == "search", do: "btn-primary", else: "btn-ghost")
+                  ]}
+                  role="tab"
+                  aria-selected={@add_mode == "search"}
                 >
                   Search
                 </button>
                 <button
                   phx-click="set_add_mode"
                   phx-value-mode="bulk"
-                  class={["tab", if(@add_mode == "bulk", do: "tab-active", else: "")]}
+                  class={[
+                    "btn btn-sm min-h-10 rounded-full border border-base-300 px-4",
+                    if(@add_mode == "bulk", do: "btn-primary", else: "btn-ghost")
+                  ]}
+                  role="tab"
+                  aria-selected={@add_mode == "bulk"}
                 >
                   Bulk Add
                 </button>

@@ -48,7 +48,7 @@ defmodule ElektrineWeb.PortalLiveTest do
 
     assert has_element?(
              view,
-             ~s(button[phx-click="set_filter"][phx-value-filter="all"].btn-secondary)
+             ~s(button[phx-click="set_filter"][phx-value-filter="all"].btn-primary)
            )
 
     assert html =~ "No posts in this view"

@@ -23,12 +23,15 @@
           </:actions>
         </ElektrineWeb.Components.Platform.ENav.product_header>
 
-        <div role="tablist" class="tabs tabs-boxed w-fit">
+        <div role="tablist" class="flex w-fit flex-wrap gap-2">
           <button
             phx-click="set_view_mode"
             phx-value-mode="my_lists"
             role="tab"
-            class={["tab", @view_mode == "my_lists" && "tab-active"]}
+            class={[
+              "btn btn-sm min-h-10 rounded-full border border-base-300 px-4",
+              if(@view_mode == "my_lists", do: "btn-primary", else: "btn-ghost")
+            ]}
           >
             My Lists <span class="ml-1 opacity-60">{@list_stats.my_lists}</span>
           </button>
@@ -36,7 +39,10 @@
             phx-click="set_view_mode"
             phx-value-mode="discover"
             role="tab"
-            class={["tab", @view_mode == "discover" && "tab-active"]}
+            class={[
+              "btn btn-sm min-h-10 rounded-full border border-base-300 px-4",
+              if(@view_mode == "discover", do: "btn-primary", else: "btn-ghost")
+            ]}
           >
             Discover
           </button>
@@ -83,7 +89,7 @@
                   phx-value-visibility={visibility}
                   class={[
                     "btn btn-sm join-item",
-                    if(@my_lists_visibility == visibility, do: "btn-secondary", else: "btn-ghost")
+                    if(@my_lists_visibility == visibility, do: "btn-primary", else: "btn-ghost")
                   ]}
                 >
                   {String.capitalize(visibility)}

@@ -655,15 +655,15 @@ defmodule ElektrineWeb.FriendsLive do
 
   defp tab_button_class(current_tab, tab) do
     [
-      "btn btn-sm",
-      if(current_tab == tab, do: "btn-secondary", else: "btn-ghost")
+      "btn btn-sm rounded-full border border-base-300",
+      if(current_tab == tab, do: "btn-primary", else: "btn-ghost")
     ]
   end
 
   defp friend_filter_button_class(current_filter, filter) do
     [
-      "btn btn-xs",
-      if(current_filter == filter, do: "btn-secondary", else: "btn-ghost")
+      "btn btn-xs rounded-full border border-base-300",
+      if(current_filter == filter, do: "btn-primary", else: "btn-ghost")
     ]
   end
 end

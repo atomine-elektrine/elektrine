@@ -765,18 +765,28 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Community do
             </button>
           </div>
 
-          <div class="tabs tabs-boxed mb-4">
+          <div class="mb-4 flex flex-wrap gap-2" role="tablist" aria-label="Vote direction">
             <button
-              class={["tab", if(@voters_tab == "upvotes", do: "tab-active")]}
+              class={[
+                "btn btn-sm min-h-10 rounded-full border border-base-300 px-4",
+                if(@voters_tab == "upvotes", do: "btn-primary", else: "btn-ghost")
+              ]}
               phx-click="switch_voters_tab"
               phx-value-tab="upvotes"
+              role="tab"
+              aria-selected={@voters_tab == "upvotes"}
             >
               <.icon name="hero-arrow-up" class="w-4 h-4 mr-1" /> Upvotes ({length(@upvoters || [])})
             </button>
             <button
-              class={["tab", if(@voters_tab == "downvotes", do: "tab-active")]}
+              class={[
+                "btn btn-sm min-h-10 rounded-full border border-base-300 px-4",
+                if(@voters_tab == "downvotes", do: "btn-primary", else: "btn-ghost")
+              ]}
               phx-click="switch_voters_tab"
               phx-value-tab="downvotes"
+              role="tab"
+              aria-selected={@voters_tab == "downvotes"}
             >
               <.icon name="hero-arrow-down" class="w-4 h-4 mr-1" />
               Downvotes ({length(@downvoters || [])})

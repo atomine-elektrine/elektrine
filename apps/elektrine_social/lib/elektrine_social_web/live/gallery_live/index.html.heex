@@ -256,8 +256,8 @@
                     phx-click="set_filter"
                     phx-value-filter={value}
                     class={[
-                      "btn btn-sm",
-                      if(@current_filter == value, do: "btn-secondary", else: "btn-ghost")
+                      "btn btn-sm rounded-full border border-base-300",
+                      if(@current_filter == value, do: "btn-primary", else: "btn-ghost")
                     ]}
                   >
                     <.icon name={icon} class="w-4 h-4 mr-1" /> {label}
@@ -360,8 +360,8 @@
                 class={[
                   "btn btn-sm min-h-10 rounded-full border border-base-300 px-3",
                   if(@current_filter == value,
-                    do: "btn-secondary border-secondary",
-                    else: "bg-base-200 text-base-content hover:bg-base-300"
+                    do: "btn-primary",
+                    else: "btn-ghost"
                   )
                 ]}
               >

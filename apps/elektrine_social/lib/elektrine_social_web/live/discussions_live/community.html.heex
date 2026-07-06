@@ -197,9 +197,11 @@
         phx-click="switch_view"
         phx-value-view="flairs"
         class={[
-          "tab",
-          if(@current_view == "flairs", do: "tab-active")
+          "btn btn-sm min-h-10 flex-1 rounded-full border border-base-300 px-4",
+          if(@current_view == "flairs", do: "btn-primary", else: "btn-ghost")
         ]}
+        role="tab"
+        aria-selected={@current_view == "flairs"}
       >
         <.icon name="hero-tag" class="w-4 h-4 mr-2" /> Flairs
       </button>
@@ -207,9 +209,11 @@
         phx-click="switch_view"
         phx-value-view="queue"
         class={[
-          "tab",
-          if(@current_view == "queue", do: "tab-active")
+          "btn btn-sm min-h-10 flex-1 rounded-full border border-base-300 px-4",
+          if(@current_view == "queue", do: "btn-primary", else: "btn-ghost")
         ]}
+        role="tab"
+        aria-selected={@current_view == "queue"}
       >
         <.icon name="hero-queue-list" class="w-4 h-4 mr-2" /> Queue ({length(@pending_posts)})
       </button>
@@ -217,9 +221,11 @@
         phx-click="switch_view"
         phx-value-view="bans"
         class={[
-          "tab",
-          if(@current_view == "bans", do: "tab-active")
+          "btn btn-sm min-h-10 flex-1 rounded-full border border-base-300 px-4",
+          if(@current_view == "bans", do: "btn-primary", else: "btn-ghost")
         ]}
+        role="tab"
+        aria-selected={@current_view == "bans"}
       >
         <.icon name="hero-no-symbol" class="w-4 h-4 mr-2" /> Bans ({length(@banned_users)})
       </button>
@@ -227,9 +233,11 @@
         phx-click="switch_view"
         phx-value-view="log"
         class={[
-          "tab",
-          if(@current_view == "log", do: "tab-active")
+          "btn btn-sm min-h-10 flex-1 rounded-full border border-base-300 px-4",
+          if(@current_view == "log", do: "btn-primary", else: "btn-ghost")
         ]}
+        role="tab"
+        aria-selected={@current_view == "log"}
       >
         <.icon name="hero-clipboard-document-list" class="w-4 h-4 mr-2" /> Log
       </button>
@@ -237,9 +245,11 @@
         phx-click="switch_view"
         phx-value-view="automod"
         class={[
-          "tab",
-          if(@current_view == "automod", do: "tab-active")
+          "btn btn-sm min-h-10 flex-1 rounded-full border border-base-300 px-4",
+          if(@current_view == "automod", do: "btn-primary", else: "btn-ghost")
         ]}
+        role="tab"
+        aria-selected={@current_view == "automod"}
       >
         <.icon name="hero-shield-check" class="w-4 h-4 mr-2" /> Auto-Mod
       </button>
@@ -256,12 +266,17 @@
             <h3 class="font-semibold mb-4">Create Post</h3>
             
 <!-- Post Type Selector -->
-            <div class="tabs tabs-boxed mb-4">
+            <div class="mb-4 flex flex-wrap gap-2" role="tablist" aria-label="Post type">
               <button
                 type="button"
                 phx-click="select_post_type"
                 phx-value-type="text"
-                class={["tab", if(@post_type == "text", do: "tab-active")]}
+                class={[
+                  "btn btn-sm min-h-10 rounded-full border border-base-300 px-4",
+                  if(@post_type == "text", do: "btn-primary", else: "btn-ghost")
+                ]}
+                role="tab"
+                aria-selected={@post_type == "text"}
               >
                 <.icon name="hero-document-text" class="w-4 h-4 mr-1" /> Text
               </button>
@@ -269,7 +284,12 @@
                 type="button"
                 phx-click="select_post_type"
                 phx-value-type="link"
-                class={["tab", if(@post_type == "link", do: "tab-active")]}
+                class={[
+                  "btn btn-sm min-h-10 rounded-full border border-base-300 px-4",
+                  if(@post_type == "link", do: "btn-primary", else: "btn-ghost")
+                ]}
+                role="tab"
+                aria-selected={@post_type == "link"}
               >
                 <.icon name="hero-link" class="w-4 h-4 mr-1" /> Link
               </button>
@@ -277,7 +297,12 @@
                 type="button"
                 phx-click="select_post_type"
                 phx-value-type="image"
-                class={["tab", if(@post_type == "image", do: "tab-active")]}
+                class={[
+                  "btn btn-sm min-h-10 rounded-full border border-base-300 px-4",
+                  if(@post_type == "image", do: "btn-primary", else: "btn-ghost")
+                ]}
+                role="tab"
+                aria-selected={@post_type == "image"}
               >
                 <.icon name="hero-photo" class="w-4 h-4 mr-1" /> Media
               </button>
@@ -285,7 +310,12 @@
                 type="button"
                 phx-click="select_post_type"
                 phx-value-type="poll"
-                class={["tab", if(@post_type == "poll", do: "tab-active")]}
+                class={[
+                  "btn btn-sm min-h-10 rounded-full border border-base-300 px-4",
+                  if(@post_type == "poll", do: "btn-primary", else: "btn-ghost")
+                ]}
+                role="tab"
+                aria-selected={@post_type == "poll"}
               >
                 <.icon name="hero-chart-bar" class="w-4 h-4 mr-1" /> Poll
               </button>

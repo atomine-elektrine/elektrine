@@ -1025,8 +1025,8 @@
                         class={[
                           "btn btn-sm min-h-10 px-3 rounded-full border border-base-300",
                           if(is_nil(@selected_bookmark_folder_id),
-                            do: "btn-primary border-primary",
-                            else: "bg-base-200 text-base-content hover:bg-base-300"
+                            do: "btn-primary",
+                            else: "btn-ghost"
                           )
                         ]}
                       >
@@ -1040,8 +1040,8 @@
                           class={[
                             "btn btn-sm min-h-10 px-3 rounded-full border border-base-300",
                             if(@selected_bookmark_folder_id == folder.id,
-                              do: "btn-primary border-primary",
-                              else: "bg-base-200 text-base-content hover:bg-base-300"
+                              do: "btn-primary",
+                              else: "btn-ghost"
                             )
                           ]}
                         >

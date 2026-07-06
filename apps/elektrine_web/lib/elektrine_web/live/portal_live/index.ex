@@ -1975,8 +1975,8 @@ defmodule ElektrineWeb.PortalLive.Index do
     [
       "btn btn-sm rounded-full whitespace-nowrap border border-base-300",
       if(current_filter == filter,
-        do: "btn-secondary text-secondary-content border-secondary shadow-sm",
-        else: "bg-base-200 text-base-content hover:bg-base-300"
+        do: "btn-primary",
+        else: "btn-ghost"
       )
     ]
   end

@@ -51,11 +51,16 @@
   
 <!-- Tabs for viewing items -->
   <div class="overflow-x-auto mb-6">
-    <div class="tabs tabs-boxed inline-flex min-w-max">
+    <div class="inline-flex min-w-max flex-wrap gap-2" role="tablist" aria-label="Storage views">
       <button
         phx-click="change_tab"
         phx-value-tab="overview"
-        class={["tab", @active_tab == "overview" && "tab-active"]}
+        class={[
+          "btn btn-sm min-h-10 rounded-full border border-base-300 px-4",
+          if(@active_tab == "overview", do: "btn-primary", else: "btn-ghost")
+        ]}
+        role="tab"
+        aria-selected={@active_tab == "overview"}
       >
         Overview
       </button>
@@ -63,7 +68,12 @@
         <button
           phx-click="change_tab"
           phx-value-tab="emails"
-          class={["tab", @active_tab == "emails" && "tab-active"]}
+          class={[
+            "btn btn-sm min-h-10 rounded-full border border-base-300 px-4",
+            if(@active_tab == "emails", do: "btn-primary", else: "btn-ghost")
+          ]}
+          role="tab"
+          aria-selected={@active_tab == "emails"}
         >
           Email Attachments
         </button>

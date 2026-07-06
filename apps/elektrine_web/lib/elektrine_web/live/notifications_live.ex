@@ -664,10 +664,10 @@ defmodule ElektrineWeb.NotificationsLive do
 
   defp state_filter_button_class(current_filter, filter) do
     [
-      "btn btn-sm btn-surface",
+      "btn btn-sm rounded-full border border-base-300",
       if(current_filter == filter,
-        do: "btn-secondary border-secondary text-secondary-content shadow-sm",
-        else: "text-base-content"
+        do: "btn-primary",
+        else: "btn-ghost"
       )
     ]
   end
@@ -703,10 +703,10 @@ defmodule ElektrineWeb.NotificationsLive do
 
   defp source_filter_button_class(current_filter, filter) do
     [
-      "btn btn-xs btn-surface",
+      "btn btn-xs rounded-full border border-base-300",
       if(current_filter == filter,
-        do: "btn-secondary border-secondary text-secondary-content shadow-sm",
-        else: "text-base-content"
+        do: "btn-primary",
+        else: "btn-ghost"
       )
     ]
   end

@@ -23,18 +23,28 @@
   </div>
   
 <!-- Tabs -->
-  <div class="tabs tabs-boxed mb-6">
+  <div class="mb-6 flex flex-wrap gap-2" role="tablist" aria-label="Community settings">
     <a
-      class={"tab #{if @active_tab == "general", do: "tab-active"}"}
+      class={[
+        "btn btn-sm min-h-10 rounded-full border border-base-300 px-4",
+        if(@active_tab == "general", do: "btn-primary", else: "btn-ghost")
+      ]}
       phx-click="switch_tab"
       phx-value-tab="general"
+      role="tab"
+      aria-selected={@active_tab == "general"}
     >
       General
     </a>
     <a
-      class={"tab #{if @active_tab == "moderators", do: "tab-active"}"}
+      class={[
+        "btn btn-sm min-h-10 rounded-full border border-base-300 px-4",
+        if(@active_tab == "moderators", do: "btn-primary", else: "btn-ghost")
+      ]}
       phx-click="switch_tab"
       phx-value-tab="moderators"
+      role="tab"
+      aria-selected={@active_tab == "moderators"}
     >
       Moderators
     </a>
