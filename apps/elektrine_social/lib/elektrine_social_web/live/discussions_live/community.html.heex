@@ -167,14 +167,16 @@
   </div>
   
 <!-- View Tabs -->
-  <div class="tabs tabs-boxed mb-4">
+  <div class="mb-4 flex flex-wrap gap-2" role="tablist" aria-label="Community sections">
     <button
       phx-click="switch_view"
       phx-value-view="posts"
       class={[
-        "tab",
-        if(@current_view == "posts", do: "tab-active")
+        "btn btn-sm min-h-10 flex-1 rounded-full border border-base-300 px-4",
+        if(@current_view == "posts", do: "btn-primary", else: "btn-ghost")
       ]}
+      role="tab"
+      aria-selected={@current_view == "posts"}
     >
       <.icon name="hero-chat-bubble-bottom-center-text" class="w-4 h-4 mr-2" /> Posts
     </button>
@@ -182,9 +184,11 @@
       phx-click="switch_view"
       phx-value-view="members"
       class={[
-        "tab",
-        if(@current_view == "members", do: "tab-active")
+        "btn btn-sm min-h-10 flex-1 rounded-full border border-base-300 px-4",
+        if(@current_view == "members", do: "btn-primary", else: "btn-ghost")
       ]}
+      role="tab"
+      aria-selected={@current_view == "members"}
     >
       <.icon name="hero-users" class="w-4 h-4 mr-2" /> Members ({length(@members)})
     </button>
@@ -610,8 +614,8 @@
                 phx-click="set_sort"
                 phx-value-sort="hot"
                 class={[
-                  "btn btn-sm min-h-10",
-                  if(@sort_by == "hot", do: "btn-secondary", else: "btn-ghost")
+                  "btn btn-sm min-h-10 rounded-full border border-base-300",
+                  if(@sort_by == "hot", do: "btn-primary", else: "btn-ghost")
                 ]}
                 role="tab"
                 aria-selected={@sort_by == "hot"}
@@ -622,8 +626,8 @@
                 phx-click="set_sort"
                 phx-value-sort="new"
                 class={[
-                  "btn btn-sm min-h-10",
-                  if(@sort_by == "new", do: "btn-secondary", else: "btn-ghost")
+                  "btn btn-sm min-h-10 rounded-full border border-base-300",
+                  if(@sort_by == "new", do: "btn-primary", else: "btn-ghost")
                 ]}
                 role="tab"
                 aria-selected={@sort_by == "new"}
@@ -634,8 +638,8 @@
                 phx-click="set_sort"
                 phx-value-sort="top"
                 class={[
-                  "btn btn-sm min-h-10",
-                  if(@sort_by in ["top", "likes"], do: "btn-secondary", else: "btn-ghost")
+                  "btn btn-sm min-h-10 rounded-full border border-base-300",
+                  if(@sort_by in ["top", "likes"], do: "btn-primary", else: "btn-ghost")
                 ]}
                 role="tab"
                 aria-selected={@sort_by in ["top", "likes"]}
@@ -646,8 +650,8 @@
                 phx-click="set_sort"
                 phx-value-sort="oldest"
                 class={[
-                  "btn btn-sm min-h-10",
-                  if(@sort_by == "oldest", do: "btn-secondary", else: "btn-ghost")
+                  "btn btn-sm min-h-10 rounded-full border border-base-300",
+                  if(@sort_by == "oldest", do: "btn-primary", else: "btn-ghost")
                 ]}
                 role="tab"
                 aria-selected={@sort_by == "oldest"}
@@ -658,8 +662,8 @@
                 phx-click="set_sort"
                 phx-value-sort="unanswered"
                 class={[
-                  "btn btn-sm min-h-10",
-                  if(@sort_by == "unanswered", do: "btn-secondary", else: "btn-ghost")
+                  "btn btn-sm min-h-10 rounded-full border border-base-300",
+                  if(@sort_by == "unanswered", do: "btn-primary", else: "btn-ghost")
                 ]}
                 role="tab"
                 aria-selected={@sort_by == "unanswered"}

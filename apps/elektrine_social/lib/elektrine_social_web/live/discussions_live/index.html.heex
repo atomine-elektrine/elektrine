@@ -71,22 +71,19 @@
       </button>
     <% end %>
 
-    <div class="grid grid-cols-3 gap-2" role="tablist" aria-label="Community views">
+    <div class="flex flex-wrap gap-2" role="tablist" aria-label="Community views">
       <button
         phx-click="set_view"
         phx-value-view="feed"
         role="tab"
         aria-selected={@current_view == "feed"}
         class={[
-          "btn h-auto min-h-16 flex-col gap-1 rounded-2xl px-3 py-3 text-sm font-medium relative",
-          if(@current_view == "feed",
-            do: "btn-secondary",
-            else: "btn-ghost bg-base-200/60 hover:bg-base-200 text-base-content/70"
-          )
+          "btn btn-sm min-h-10 flex-1 rounded-full border border-base-300 px-4 relative",
+          if(@current_view == "feed", do: "btn-primary", else: "btn-ghost")
         ]}
       >
-        <div class="flex flex-col items-center gap-1">
-          <.icon name="hero-rss" class="w-5 h-5" />
+        <div class="flex items-center justify-center gap-1.5">
+          <.icon name="hero-rss" class="w-4 h-4" />
           <span>Feed</span>
         </div>
         <%= if length(@followed_community_posts) > 0 do %>
@@ -101,15 +98,12 @@
         role="tab"
         aria-selected={@current_view == "communities"}
         class={[
-          "btn h-auto min-h-16 flex-col gap-1 rounded-2xl px-3 py-3 text-sm font-medium relative",
-          if(@current_view == "communities",
-            do: "btn-secondary",
-            else: "btn-ghost bg-base-200/60 hover:bg-base-200 text-base-content/70"
-          )
+          "btn btn-sm min-h-10 flex-1 rounded-full border border-base-300 px-4 relative",
+          if(@current_view == "communities", do: "btn-primary", else: "btn-ghost")
         ]}
       >
-        <div class="flex flex-col items-center gap-1">
-          <.icon name="hero-user-group" class="w-5 h-5" />
+        <div class="flex items-center justify-center gap-1.5">
+          <.icon name="hero-user-group" class="w-4 h-4" />
           <span>Joined</span>
         </div>
       </button>
@@ -119,16 +113,13 @@
         role="tab"
         aria-selected={@current_view == "my_activity"}
         class={[
-          "btn h-auto min-h-16 flex-col gap-1 rounded-2xl px-3 py-3 text-sm font-medium relative",
-          if(@current_view == "my_activity",
-            do: "btn-secondary",
-            else: "btn-ghost bg-base-200/60 hover:bg-base-200 text-base-content/70"
-          )
+          "btn btn-sm min-h-10 flex-1 rounded-full border border-base-300 px-4 relative",
+          if(@current_view == "my_activity", do: "btn-primary", else: "btn-ghost")
         ]}
       >
-        <div class="flex flex-col items-center gap-1">
-          <.icon name="hero-document-text" class="w-5 h-5" />
-          <span>My Activity</span>
+        <div class="flex items-center justify-center gap-1.5">
+          <.icon name="hero-document-text" class="w-4 h-4" />
+          <span>Mine</span>
         </div>
       </button>
     </div>
@@ -157,11 +148,8 @@
               phx-click="set_view"
               phx-value-view="feed"
               class={[
-                "btn btn-sm min-h-10 px-3 rounded-full w-full justify-start",
-                if(@current_view == "feed",
-                  do: "btn-secondary",
-                  else: "btn-ghost hover:bg-base-200"
-                )
+                "btn btn-sm min-h-10 px-3 rounded-full w-full justify-start border border-base-300",
+                if(@current_view == "feed", do: "btn-primary", else: "btn-ghost")
               ]}
             >
               <.icon name="hero-rss" class="w-4 h-4 mr-2" /> Community Feed
@@ -175,11 +163,8 @@
               phx-click="set_view"
               phx-value-view="communities"
               class={[
-                "btn btn-sm min-h-10 px-3 rounded-full w-full justify-start",
-                if(@current_view == "communities",
-                  do: "btn-secondary",
-                  else: "btn-ghost hover:bg-base-200"
-                )
+                "btn btn-sm min-h-10 px-3 rounded-full w-full justify-start border border-base-300",
+                if(@current_view == "communities", do: "btn-primary", else: "btn-ghost")
               ]}
             >
               <.icon name="hero-user-group" class="w-4 h-4 mr-2" /> Joined Communities
@@ -188,11 +173,8 @@
               phx-click="set_view"
               phx-value-view="my_activity"
               class={[
-                "btn btn-sm min-h-10 px-3 rounded-full w-full justify-start",
-                if(@current_view == "my_activity",
-                  do: "btn-secondary",
-                  else: "btn-ghost hover:bg-base-200"
-                )
+                "btn btn-sm min-h-10 px-3 rounded-full w-full justify-start border border-base-300",
+                if(@current_view == "my_activity", do: "btn-primary", else: "btn-ghost")
               ]}
             >
               <.icon name="hero-document-text" class="w-4 h-4 mr-2" /> My Activity
@@ -339,8 +321,8 @@
                       class={[
                         "btn btn-sm rounded-full gap-2 border border-base-300",
                         if(search_scope == scope,
-                          do: "btn-secondary border-secondary",
-                          else: "bg-base-200 text-base-content hover:bg-base-300"
+                          do: "btn-primary",
+                          else: "btn-ghost"
                         )
                       ]}
                     >
@@ -1307,8 +1289,8 @@
                           class={[
                             "btn btn-sm min-h-10 w-full items-center justify-center rounded-full border border-base-300 leading-none",
                             if(@feed_sort == "hot",
-                              do: "btn-secondary border-secondary",
-                              else: "bg-base-200 text-base-content hover:bg-base-300"
+                              do: "btn-primary",
+                              else: "btn-ghost"
                             )
                           ]}
                         >
@@ -1322,8 +1304,8 @@
                           class={[
                             "btn btn-sm min-h-10 w-full items-center justify-center rounded-full border border-base-300 leading-none",
                             if(@feed_sort == "new",
-                              do: "btn-secondary border-secondary",
-                              else: "bg-base-200 text-base-content hover:bg-base-300"
+                              do: "btn-primary",
+                              else: "btn-ghost"
                             )
                           ]}
                         >
@@ -1337,8 +1319,8 @@
                           class={[
                             "btn btn-sm min-h-10 w-full items-center justify-center rounded-full border border-base-300 leading-none",
                             if(@feed_sort == "top",
-                              do: "btn-secondary border-secondary",
-                              else: "bg-base-200 text-base-content hover:bg-base-300"
+                              do: "btn-primary",
+                              else: "btn-ghost"
                             )
                           ]}
                         >
@@ -1352,8 +1334,8 @@
                           class={[
                             "btn btn-sm min-h-10 w-full items-center justify-center rounded-full border border-base-300 leading-none",
                             if(@feed_sort == "comments",
-                              do: "btn-secondary border-secondary",
-                              else: "bg-base-200 text-base-content hover:bg-base-300"
+                              do: "btn-primary",
+                              else: "btn-ghost"
                             )
                           ]}
                         >
