@@ -1592,10 +1592,11 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
     assert initial_html =~ ~s(button type="button" phx-click="load_more_posts")
     refute initial_html =~ "Load more timeline post 01"
 
-    html =
-      view
-      |> element("button[phx-click='load_more_posts']")
-      |> render_click()
+    view
+    |> element("button[phx-click='load_more_posts']")
+    |> render_click()
+
+    html = render(view)
 
     assert html =~ "Load more timeline post 01"
 
@@ -1649,12 +1650,64 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
     refute initial_html =~ "Hidden reply load-more page 01"
     refute initial_html =~ "Older visible load-more post 01"
 
-    html =
-      view
-      |> element("button[phx-click='load_more_posts']")
-      |> render_click()
+    view
+    |> element("button[phx-click='load_more_posts']")
+    |> render_click()
+
+    html = render(view)
 
     assert html =~ "Older visible load-more post 01"
+  end
+
+  test "load more appends older federated posts without duplicates", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    remote_actor = remote_actor_fixture(%{domain: "load-more-fed.example"})
+
+    for i <- 1..25 do
+      content = "Federated load-more post #{String.pad_leading(to_string(i), 2, "0")}"
+
+      %Message{}
+      |> Message.federated_changeset(%{
+        activitypub_id:
+          "https://load-more-fed.example/objects/#{System.unique_integer([:positive])}",
+        activitypub_url: "https://load-more-fed.example/@alice/#{i}",
+        content: content,
+        message_type: "text",
+        visibility: "public",
+        post_type: "post",
+        remote_actor_id: remote_actor.id,
+        like_count: 0,
+        reply_count: 0,
+        share_count: 0
+      })
+      |> Repo.insert!()
+    end
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=federated&view=all")
+
+    initial_html = render(view)
+    assert initial_html =~ "Federated load-more post 25"
+    assert initial_html =~ "Federated load-more post 06"
+    refute initial_html =~ "Federated load-more post 05"
+
+    view
+    |> element("button[phx-click='load_more_posts']")
+    |> render_click()
+
+    html = render(view)
+
+    assert html =~ "Federated load-more post 05"
+    assert html =~ "Federated load-more post 01"
+
+    assert {existing_page_pos, _} = :binary.match(html, "Federated load-more post 06")
+    assert {loaded_page_pos, _} = :binary.match(html, "Federated load-more post 05")
+    assert existing_page_pos < loaded_page_pos
+
+    assert html |> occurrences("Federated load-more post 06") == 1
+    assert html |> occurrences("Federated load-more post 05") == 1
   end
 
   test "hide_post removes the post from the timeline immediately", %{conn: conn} do
@@ -1678,5 +1731,12 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
     html = render(view)
     refute html =~ "Hide me from timeline"
     assert html =~ "Post hidden from your timeline."
+  end
+
+  defp occurrences(haystack, needle) do
+    haystack
+    |> String.split(needle)
+    |> length()
+    |> Kernel.-(1)
   end
 end

@@ -426,7 +426,8 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
     if socket.assigns.loading_more || socket.assigns[:no_more_posts] do
       {:noreply, socket}
     else
-      {:noreply, handle_load_more(socket)}
+      send(self(), :load_more_timeline_posts)
+      {:noreply, assign(socket, :loading_more, true)}
     end
   end
 
@@ -934,7 +935,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
     |> assign(:timeline_gap_marker_ids, updated_gap_marker_ids)
     |> maybe_assign_saved_scroll_cursor(saved_cursor)
     |> maybe_merge_saved_item_folders(more_posts)
-    |> Helpers.apply_timeline_filter(true)
+    |> Helpers.apply_timeline_filter()
     |> maybe_queue_reply_context_preview_fetch(more_posts)
     |> maybe_schedule_background_refresh_jobs(more_posts)
     |> maybe_schedule_reply_ingestion_jobs(more_posts)
@@ -975,27 +976,18 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
          previous_visible_ids,
          batches_left
        ) do
-    {page, next_saved_cursor} =
+    {raw_page, next_saved_cursor} =
       fetch_more_posts(socket, before_id, saved_cursor, current_posts, accumulated)
 
     next_saved_cursor = next_saved_cursor || saved_cursor
 
-    if page == [] do
+    if raw_page == [] do
       {accumulated, true, next_saved_cursor}
     else
-      accumulated = Helpers.dedupe_posts(accumulated ++ page)
-      candidate_posts = Helpers.dedupe_posts(current_posts ++ accumulated)
+      page = reject_loaded_posts(raw_page, current_posts, accumulated)
 
-      candidate_visible_ids =
-        socket
-        |> Helpers.filter_timeline_posts(candidate_posts)
-        |> Enum.map(& &1.id)
-        |> MapSet.new()
-
-      if MapSet.difference(candidate_visible_ids, previous_visible_ids) |> MapSet.size() > 0 do
-        {accumulated, false, next_saved_cursor}
-      else
-        next_before_id = page |> List.last() |> Map.get(:id)
+      if page == [] do
+        next_before_id = raw_page |> List.last() |> Map.get(:id)
 
         do_load_more_until_visible(
           socket,
@@ -1005,8 +997,42 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
           previous_visible_ids,
           batches_left - 1
         )
+      else
+        accumulated = Helpers.dedupe_posts(accumulated ++ page)
+        candidate_posts = Helpers.dedupe_posts(current_posts ++ accumulated)
+
+        candidate_visible_ids =
+          socket
+          |> Helpers.filter_timeline_posts(candidate_posts)
+          |> Enum.map(& &1.id)
+          |> MapSet.new()
+
+        if MapSet.difference(candidate_visible_ids, previous_visible_ids) |> MapSet.size() > 0 do
+          {accumulated, false, next_saved_cursor}
+        else
+          next_before_id = raw_page |> List.last() |> Map.get(:id)
+
+          do_load_more_until_visible(
+            socket,
+            current_posts,
+            {next_before_id, next_saved_cursor},
+            accumulated,
+            previous_visible_ids,
+            batches_left - 1
+          )
+        end
       end
     end
+  end
+
+  defp reject_loaded_posts(posts, current_posts, accumulated_posts) do
+    loaded_ids =
+      (current_posts ++ accumulated_posts)
+      |> Enum.map(&Map.get(&1, :id))
+      |> Enum.reject(&is_nil/1)
+      |> MapSet.new()
+
+    Enum.reject(posts, fn post -> MapSet.member?(loaded_ids, Map.get(post, :id)) end)
   end
 
   # Keyset pagination applies to the saved source filter whenever load-more is

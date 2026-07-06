@@ -515,6 +515,10 @@ export const InfiniteScroll = {
       this.pushEvent("load-more", {});
     } catch (e) {
       this.pending = false;
+      if (this.pendingResetTimeout) {
+        clearTimeout(this.pendingResetTimeout);
+        this.pendingResetTimeout = null;
+      }
       return;
     }
 
@@ -522,7 +526,7 @@ export const InfiniteScroll = {
     this.pendingResetTimeout = setTimeout(() => {
       this.pending = false;
       this.pendingResetTimeout = null;
-    }, 3000);
+    }, 15000);
   },
 
   beginLoadCycle() {
@@ -539,6 +543,11 @@ export const InfiniteScroll = {
 
   updated() {
     this.restoreFromGlobalSnapshotIfNeeded();
+
+    if (this.pendingResetTimeout) {
+      clearTimeout(this.pendingResetTimeout);
+      this.pendingResetTimeout = null;
+    }
 
     this.loadingMore = this.el.dataset.loadingMore === "true";
 

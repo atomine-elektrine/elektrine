@@ -579,7 +579,6 @@ defmodule ElektrineWeb.PortalLiveTest do
 
     html =
       Enum.reduce_while(1..100, "", fn _, _acc ->
-        send(view.pid, :load_feed_data)
         rendered = render(view)
 
         if rendered =~ "20 posts" and rendered =~ "Portal batch token 25" do
@@ -593,8 +592,9 @@ defmodule ElektrineWeb.PortalLiveTest do
     assert html =~ "Portal batch token 25"
     refute html =~ "Portal batch token 01"
 
-    render_hook(view, "load-more", %{})
-    send(view.pid, {:load_more_feed, 40})
+    view
+    |> element(~s(button[phx-click="load-more"]))
+    |> render_click()
 
     html =
       Enum.reduce_while(1..100, html, fn _, _acc ->
@@ -609,6 +609,104 @@ defmodule ElektrineWeb.PortalLiveTest do
       end)
 
     assert html =~ "Portal batch token 25"
+    assert html =~ "Portal batch token 01"
+    assert {existing_page_pos, _} = :binary.match(html, "Portal batch token 25")
+    assert {loaded_page_pos, _} = :binary.match(html, "Portal batch token 01")
+    assert existing_page_pos < loaded_page_pos
+    assert count_occurrences(html, "Portal batch token 25") == 1
+    assert count_occurrences(html, "Portal batch token 01") == 1
+  end
+
+  test "portal feed loads older federated posts without duplicates", %{conn: conn} do
+    previous = Application.get_env(:elektrine, :recommendations_enabled, true)
+    Application.put_env(:elektrine, :recommendations_enabled, false)
+    on_exit(fn -> Application.put_env(:elektrine, :recommendations_enabled, previous) end)
+
+    viewer = AccountsFixtures.user_fixture()
+    unique = System.unique_integer([:positive])
+
+    remote_actor =
+      %Actor{}
+      |> Actor.changeset(%{
+        uri: "https://portal-fed.example/users/alice#{unique}",
+        username: "alice#{unique}",
+        domain: "portal-fed.example",
+        display_name: "Portal Fed #{unique}",
+        inbox_url: "https://portal-fed.example/inbox",
+        public_key: "test-public-key-#{unique}"
+      })
+      |> Repo.insert!()
+
+    for index <- 1..5 do
+      {:ok, _post} =
+        Messaging.create_federated_message(%{
+          activitypub_id: "https://portal-fed.example/objects/#{unique}-#{index}",
+          activitypub_url: "https://portal-fed.example/@alice/#{unique}-#{index}",
+          remote_actor_id: remote_actor.id,
+          content:
+            "Portal federated batch token #{String.pad_leading(Integer.to_string(index), 2, "0")}",
+          message_type: "text",
+          visibility: "public",
+          post_type: "post",
+          like_count: 0,
+          reply_count: 0,
+          share_count: 0
+        })
+    end
+
+    author = AccountsFixtures.user_fixture()
+
+    for index <- 1..20 do
+      post_fixture(%{
+        user: author,
+        content:
+          "Portal local lead token #{String.pad_leading(Integer.to_string(index), 2, "0")}",
+        visibility: "public"
+      })
+    end
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/portal?filter=timeline")
+
+    html =
+      Enum.reduce_while(1..100, "", fn _, _acc ->
+        rendered = render(view)
+
+        if rendered =~ "20 posts" and rendered =~ "Portal local lead token 20" do
+          {:halt, rendered}
+        else
+          Process.sleep(50)
+          {:cont, rendered}
+        end
+      end)
+
+    assert html =~ "Portal local lead token 20"
+
+    view
+    |> element(~s(button[phx-click="load-more"]))
+    |> render_click()
+
+    html =
+      Enum.reduce_while(1..100, html, fn _, _acc ->
+        rendered = render(view)
+
+        if rendered =~ "25 posts" and rendered =~ "Portal federated batch token 01" do
+          {:halt, rendered}
+        else
+          Process.sleep(50)
+          {:cont, rendered}
+        end
+      end)
+
+    assert html =~ "Portal local lead token 20"
+    assert html =~ "Portal federated batch token 01"
+    assert {existing_page_pos, _} = :binary.match(html, "Portal local lead token 20")
+    assert {loaded_page_pos, _} = :binary.match(html, "Portal federated batch token 01")
+    assert existing_page_pos < loaded_page_pos
+    assert count_occurrences(html, "Portal local lead token 20") == 1
+    assert count_occurrences(html, "Portal federated batch token 01") == 1
   end
 
   test "gallery filter fetches its own recommendation-backed feed", %{conn: conn} do

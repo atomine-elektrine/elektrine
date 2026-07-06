@@ -2008,9 +2008,10 @@ defmodule ElektrineWeb.PortalLive.Index do
   defp assign_feed_data(socket, feed_data) do
     visible_limit = socket.assigns[:visible_post_limit] || @portal_feed_limit
     fetched_posts = feed_data.all_posts || []
+    loading_more? = socket.assigns[:loading_more] == true
 
     fetched_posts =
-      if socket.assigns[:loading_more] do
+      if loading_more? do
         merge_portal_posts(socket.assigns[:all_posts] || [], fetched_posts)
       else
         Enum.take(fetched_posts, visible_limit)
@@ -2022,7 +2023,7 @@ defmodule ElektrineWeb.PortalLive.Index do
 
     no_more_posts =
       fetched_post_count < socket.assigns.visible_post_limit or
-        (previous_count > 0 and fetched_post_count <= previous_count)
+        (loading_more? and previous_count > 0 and fetched_post_count <= previous_count)
 
     socket
     |> put_feed_posts_cache(source_key, fetched_posts)
@@ -2045,15 +2046,15 @@ defmodule ElektrineWeb.PortalLive.Index do
   end
 
   defp merge_portal_posts(existing_posts, fetched_posts) do
-    existing_by_id = Map.new(existing_posts, &{&1.id, &1})
+    fetched_by_id = Map.new(fetched_posts, &{&1.id, &1})
 
-    fetched_posts
-    |> Enum.map(fn fetched_post ->
-      case Map.get(existing_by_id, fetched_post.id) do
+    existing_posts
+    |> Enum.map(fn existing_post ->
+      case Map.get(fetched_by_id, existing_post.id) do
         nil ->
-          fetched_post
+          existing_post
 
-        existing_post ->
+        fetched_post ->
           Map.merge(fetched_post, existing_post, fn key, fetched_value, existing_value ->
             if key in [:upvotes, :downvotes, :score] do
               existing_value
@@ -2063,9 +2064,9 @@ defmodule ElektrineWeb.PortalLive.Index do
           end)
       end
     end)
-    |> then(fn merged_fetched_posts ->
-      merged_ids = MapSet.new(Enum.map(merged_fetched_posts, & &1.id))
-      merged_fetched_posts ++ Enum.reject(existing_posts, &MapSet.member?(merged_ids, &1.id))
+    |> then(fn preserved_existing_posts ->
+      existing_ids = MapSet.new(Enum.map(existing_posts, & &1.id))
+      preserved_existing_posts ++ Enum.reject(fetched_posts, &MapSet.member?(existing_ids, &1.id))
     end)
   end
 
@@ -2241,12 +2242,29 @@ defmodule ElektrineWeb.PortalLive.Index do
   end
 
   defp load_portal_feed_posts(user_id, filter, limit, session_context) do
-    Integrations.portal_for_you_feed(
-      user_id,
-      filter: filter,
-      limit: limit,
-      session_context: session_context
-    )
+    recommended_posts =
+      Integrations.portal_for_you_feed(
+        user_id,
+        filter: filter,
+        limit: limit,
+        session_context: session_context
+      )
+
+    if length(recommended_posts) < limit do
+      fallback_posts = fallback_feed_posts(user_id, filter, limit)
+      merge_portal_feed_posts(recommended_posts, fallback_posts, limit)
+    else
+      recommended_posts
+    end
+  end
+
+  defp merge_portal_feed_posts(primary_posts, fallback_posts, limit) do
+    primary_ids = MapSet.new(Enum.map(primary_posts, & &1.id))
+
+    fallback_posts =
+      Enum.reject(fallback_posts, &MapSet.member?(primary_ids, &1.id))
+
+    Enum.take(primary_posts ++ fallback_posts, limit)
   end
 
   defp parse_positive_int(value) when is_integer(value) and value > 0 do
