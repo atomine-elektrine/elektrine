@@ -67,6 +67,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.Helpers do
     |> assign(:filtered_post_ids, [])
     |> assign(:timeline_gap_marker_ids, MapSet.new())
     |> assign(:saved_scroll_cursor, nil)
+    |> assign(:timeline_load_more_cursor, nil)
     |> assign(:loading_timeline, true)
     |> assign(:loading_more, false)
     |> assign(:no_more_posts, false)

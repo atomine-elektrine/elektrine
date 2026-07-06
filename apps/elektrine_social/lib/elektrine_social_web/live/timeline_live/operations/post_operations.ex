@@ -828,15 +828,16 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
     search_query = socket.assigns[:search_query] || ""
 
     before_id =
-      if Enum.empty?(current_posts) do
-        nil
-      else
-        List.last(current_posts).id
-      end
+      socket.assigns[:timeline_load_more_cursor] ||
+        if Enum.empty?(current_posts) do
+          nil
+        else
+          List.last(current_posts).id
+        end
 
     timeline_view = socket.assigns.timeline_filter || "all"
 
-    {more_posts, no_more_posts, saved_cursor} =
+    {more_posts, no_more_posts, saved_cursor, timeline_load_more_cursor} =
       load_more_until_visible(socket, current_posts, before_id)
 
     merged_lemmy_counts =
@@ -924,6 +925,10 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
     socket
     |> assign(:loading_more, false)
     |> assign(:no_more_posts, no_more_posts)
+    |> assign(
+      :timeline_load_more_cursor,
+      next_timeline_load_more_cursor(more_posts, no_more_posts, timeline_load_more_cursor)
+    )
     |> assign(:lemmy_counts, merged_lemmy_counts)
     |> assign(:base_timeline_posts, updated_base_timeline_posts)
     |> assign(:base_timeline_key, updated_base_timeline_key)
@@ -960,12 +965,12 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
   defp do_load_more_until_visible(
          _socket,
          _current_posts,
-         {_before_id, saved_cursor},
+         {before_id, saved_cursor},
          accumulated,
          _visible_ids,
          0
        ) do
-    {accumulated, Enum.empty?(accumulated), saved_cursor}
+    {accumulated, false, saved_cursor, before_id}
   end
 
   defp do_load_more_until_visible(
@@ -982,7 +987,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
     next_saved_cursor = next_saved_cursor || saved_cursor
 
     if raw_page == [] do
-      {accumulated, true, next_saved_cursor}
+      {accumulated, true, next_saved_cursor, nil}
     else
       page = reject_loaded_posts(raw_page, current_posts, accumulated)
 
@@ -1008,7 +1013,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
           |> MapSet.new()
 
         if MapSet.difference(candidate_visible_ids, previous_visible_ids) |> MapSet.size() > 0 do
-          {accumulated, false, next_saved_cursor}
+          {accumulated, false, next_saved_cursor, nil}
         else
           next_before_id = raw_page |> List.last() |> Map.get(:id)
 
@@ -1034,6 +1039,10 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
 
     Enum.reject(posts, fn post -> MapSet.member?(loaded_ids, Map.get(post, :id)) end)
   end
+
+  defp next_timeline_load_more_cursor(_more_posts, true, _cursor), do: nil
+  defp next_timeline_load_more_cursor([], false, cursor), do: cursor
+  defp next_timeline_load_more_cursor(_more_posts, false, _cursor), do: nil
 
   # Keyset pagination applies to the saved source filter whenever load-more is
   # served by fetch_more_posts_for_source_filter (i.e. not a special view).
@@ -1225,7 +1234,13 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
         )
         |> Helpers.filter_posts_by_search_query(search_query)
         |> Enum.reject(fn post -> MapSet.member?(current_ids, post.id) end)
-        |> Enum.take(@load_more_page_size)
+        |> backfill_for_you_posts(
+          current_user,
+          before_id,
+          search_query,
+          current_ids,
+          @load_more_page_size
+        )
 
       {posts, nil}
     else
@@ -1314,6 +1329,28 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
         before_id: before_id,
         search_query: search_query
       )
+    end
+  end
+
+  defp backfill_for_you_posts(posts, current_user, before_id, search_query, loaded_ids, limit) do
+    posts = Enum.take(posts, limit)
+
+    if length(posts) >= limit do
+      posts
+    else
+      seen_ids =
+        posts
+        |> Enum.map(& &1.id)
+        |> MapSet.new()
+        |> MapSet.union(loaded_ids)
+
+      backfill =
+        current_user
+        |> get_public_timeline_page(before_id, search_query)
+        |> Enum.reject(fn post -> MapSet.member?(seen_ids, post.id) end)
+        |> Enum.take(limit - length(posts))
+
+      posts ++ backfill
     end
   end
 

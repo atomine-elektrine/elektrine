@@ -124,6 +124,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
       |> assign(:selected_bookmark_folder_id, nil)
       |> assign(:saved_item_folders, %{})
       |> assign(:saved_scroll_cursor, nil)
+      |> assign(:timeline_load_more_cursor, nil)
       |> assign(:show_bookmark_folder_manager, false)
       |> assign(:editing_bookmark_folder_id, nil)
       |> assign(:remote_data_request_ref, nil)
@@ -228,6 +229,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
             {:noreply,
              updated_socket
              |> assign(:timeline_posts, socket.assigns.base_timeline_posts)
+             |> assign(:timeline_load_more_cursor, nil)
              |> assign(:loading_timeline, false)
              |> apply_timeline_filter()}
 
@@ -389,6 +391,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
     |> assign(:post_replies, load_state.cached_post_replies)
     |> assign(:loading_more, false)
     |> assign(:no_more_posts, false)
+    |> assign(:timeline_load_more_cursor, nil)
     |> assign(:recently_loaded_post_ids, [])
     |> assign(:recently_loaded_count, 0)
     |> assign(:timeline_gap_marker_ids, MapSet.new())
@@ -446,6 +449,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
           |> assign(:loading_timeline, false)
           |> assign(:loading_more, false)
           |> assign(:no_more_posts, false)
+          |> assign(:timeline_load_more_cursor, nil)
           |> assign(:recently_loaded_post_ids, [])
           |> assign(:recently_loaded_count, 0)
           |> assign(:timeline_gap_marker_ids, MapSet.new())
@@ -1455,6 +1459,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
       |> assign(:timeline_filter, timeline_view)
       |> assign(:loading_more, false)
       |> assign(:no_more_posts, false)
+      |> assign(:timeline_load_more_cursor, nil)
       |> apply_timeline_load_state(build_timeline_load_state(context, filter))
     else
       parent = self()
@@ -1486,6 +1491,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
       |> assign(:timeline_filter, timeline_view)
       |> assign(:loading_more, false)
       |> assign(:no_more_posts, false)
+      |> assign(:timeline_load_more_cursor, nil)
     end
   end
 

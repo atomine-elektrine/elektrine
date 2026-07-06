@@ -1605,6 +1605,57 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
     assert existing_page_pos < loaded_page_pos
   end
 
+  test "load more continues across multiple older pages", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    author = AccountsFixtures.user_fixture()
+    author_timeline = timeline_conversation_fixture(author)
+
+    for i <- 1..65 do
+      _post =
+        post_fixture(
+          user: author,
+          conversation: author_timeline,
+          content: "Repeated load-more post #{String.pad_leading(to_string(i), 2, "0")}"
+        )
+    end
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=all&view=all")
+
+    initial_html = render(view)
+    assert initial_html =~ "Repeated load-more post 65"
+    assert initial_html =~ "Repeated load-more post 46"
+    refute initial_html =~ "Repeated load-more post 45"
+
+    view
+    |> element("button[phx-click='load_more_posts']")
+    |> render_click()
+
+    first_page_html = render(view)
+    assert first_page_html =~ "Repeated load-more post 45"
+    assert first_page_html =~ "Repeated load-more post 26"
+    refute first_page_html =~ "Repeated load-more post 25"
+
+    view
+    |> element("button[phx-click='load_more_posts']")
+    |> render_click()
+
+    second_page_html = render(view)
+    assert second_page_html =~ "Repeated load-more post 25"
+    assert second_page_html =~ "Repeated load-more post 06"
+    refute second_page_html =~ "Repeated load-more post 05"
+
+    view
+    |> element("button[phx-click='load_more_posts']")
+    |> render_click()
+
+    final_page_html = render(view)
+    assert final_page_html =~ "Repeated load-more post 05"
+    assert final_page_html =~ "Repeated load-more post 01"
+  end
+
   test "load more skips hidden-only pages until older visible posts are found", %{conn: conn} do
     viewer = AccountsFixtures.user_fixture()
     author = AccountsFixtures.user_fixture()
