@@ -125,7 +125,7 @@ defmodule Elektrine.DNS.QueryTest do
   end
 
   test "answers assigned nameserver address queries from configured nameservers" do
-    response = Query.answer(build_query("z123-deadbeef.ns1.elektrine.com", 1))
+    response = Query.answer(build_query("rose.ns1.elektrine.com", 1))
 
     assert header(response).rcode == 0
     assert header(response).aa == 1

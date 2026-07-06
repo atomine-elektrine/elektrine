@@ -203,7 +203,7 @@ defmodule Elektrine.DNSContextTest do
     assert updated.name == "ns1"
   end
 
-  test "zone onboarding records use unique assigned nameservers" do
+  test "zone onboarding records use the assigned short nameserver set" do
     user = AccountsFixtures.user_fixture()
     {:ok, first_zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
     {:ok, second_zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
@@ -212,8 +212,12 @@ defmodule Elektrine.DNSContextTest do
     second_nameservers = DNS.assigned_nameservers(second_zone)
 
     assert first_nameservers != DNS.nameservers()
-    assert first_nameservers != second_nameservers
-    assert Enum.all?(first_nameservers, &String.ends_with?(&1, ".elektrine.com"))
+    assert is_integer(first_zone.nameserver_set)
+    assert is_integer(second_zone.nameserver_set)
+    assert Enum.at(first_nameservers, 0) |> String.ends_with?(".ns1.elektrine.com")
+    assert Enum.at(first_nameservers, 1) |> String.ends_with?(".ns2.elektrine.com")
+    assert Enum.at(second_nameservers, 0) |> String.ends_with?(".ns1.elektrine.com")
+    assert Enum.at(second_nameservers, 1) |> String.ends_with?(".ns2.elektrine.com")
     assert Enum.map(DNS.zone_onboarding_records(first_zone), & &1.value) == first_nameservers
   end
 

@@ -133,9 +133,15 @@ The doctor also checks the self-host file layout:
 By default, the DNS service derives:
 
 - nameservers as `ns1.<PRIMARY_DOMAIN>` and `ns2.<PRIMARY_DOMAIN>`
+- assigned customer-zone nameservers as short pairs under `ns1.<PRIMARY_DOMAIN>` and
+  `ns2.<PRIMARY_DOMAIN>`, such as `rose.ns1.<PRIMARY_DOMAIN>` and
+  `mint.ns2.<PRIMARY_DOMAIN>`
 - SOA contact as `admin.<PRIMARY_DOMAIN>`
 
 Override those only if you want custom DNS branding via `DNS_NAMESERVERS` or `DNS_SOA_RNAME`.
+If `<PRIMARY_DOMAIN>` is hosted outside Elektrine DNS, add wildcard A/AAAA records for
+`*.ns1.<PRIMARY_DOMAIN>` and `*.ns2.<PRIMARY_DOMAIN>` that point at the same DNS servers
+as `ns1.<PRIMARY_DOMAIN>` and `ns2.<PRIMARY_DOMAIN>`.
 
 ## Storage
 

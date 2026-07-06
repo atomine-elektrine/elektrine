@@ -23,6 +23,7 @@ defmodule Elektrine.DNS.Zone do
     field :last_checked_at, :utc_datetime
     field :last_published_at, :utc_datetime
     field :last_error, :string
+    field :nameserver_set, :integer
 
     belongs_to :user, Elektrine.Accounts.User
     has_many :records, Elektrine.DNS.Record, foreign_key: :zone_id
@@ -50,6 +51,7 @@ defmodule Elektrine.DNS.Zone do
       :last_checked_at,
       :last_published_at,
       :last_error,
+      :nameserver_set,
       :user_id
     ])
     |> update_change(:domain, &normalize_domain/1)
@@ -60,6 +62,7 @@ defmodule Elektrine.DNS.Zone do
     |> validate_number(:soa_retry, greater_than: 0)
     |> validate_number(:soa_expire, greater_than: 0)
     |> validate_number(:soa_minimum, greater_than: 0)
+    |> validate_number(:nameserver_set, greater_than_or_equal_to: 0, less_than_or_equal_to: 4095)
     |> validate_format(:domain, ~r/^(?:[a-z0-9-]+\.)+[a-z]{2,}$/)
     |> unique_constraint(:domain, name: :dns_zones_domain_ci_unique)
     |> foreign_key_constraint(:user_id)

@@ -29,6 +29,16 @@ defmodule Elektrine.DNS do
   @builtin_user_zone_allowed_apex_types ~w(CAA TXT)
   @builtin_user_zone_modes BuiltInSubdomain.modes()
   @user_schema :"Elixir.Elektrine.Accounts.User"
+  @nameserver_label_pairs [
+    ~w(rose mint),
+    ~w(lumen quartz),
+    ~w(ember slate),
+    ~w(onyx pearl),
+    ~w(cobalt amber),
+    ~w(violet cedar),
+    ~w(indigo copper),
+    ~w(silver olive)
+  ]
 
   def list_user_zones(%{id: user_id} = user) when is_integer(user_id) do
     _ = ensure_builtin_user_zone(user)
@@ -320,8 +330,14 @@ defmodule Elektrine.DNS do
     |> Zone.changeset(create_zone_attrs(attrs, user_id))
     |> Repo.insert()
     |> case do
-      {:ok, zone} -> {:ok, Repo.preload(zone, [:records, :service_configs])}
-      error -> error
+      {:ok, zone} ->
+        zone
+        |> assign_nameserver_set_on_create()
+        |> Repo.preload([:records, :service_configs])
+        |> then(&{:ok, &1})
+
+      error ->
+        error
     end
     |> refresh_authority_cache_after_write()
     |> maybe_ensure_profile_wildcards_after_zone_write()
@@ -689,12 +705,9 @@ defmodule Elektrine.DNS do
   end
 
   def assigned_nameservers(%Zone{} = zone) do
-    base_nameservers = nameservers()
-
-    if assign_unique_nameservers?(zone, base_nameservers) do
-      Enum.map(base_nameservers, &assigned_nameserver(zone, &1))
-    else
-      base_nameservers
+    case nameserver_sets() do
+      [] -> nameservers()
+      sets -> Enum.at(sets, zone_nameserver_set(zone, length(sets)))
     end
   end
 
@@ -1374,32 +1387,78 @@ defmodule Elektrine.DNS do
 
   defp parse_rr_ip(answer), do: answer |> elem(6)
 
-  defp assign_unique_nameservers?(%Zone{id: id, user_id: user_id, domain: domain}, nameservers)
-       when is_integer(id) and is_integer(user_id) and is_binary(domain) do
-    Enum.all?(nameservers, fn nameserver ->
-      nameserver = normalize_hostname(nameserver)
-      public_hostname?(nameserver) and not ip_literal?(nameserver)
+  defp assign_nameserver_set_on_create(%Zone{} = zone) do
+    case nameserver_sets() do
+      [] ->
+        zone
+
+      sets ->
+        nameserver_set = safe_nameserver_set(zone, sets)
+
+        zone
+        |> Zone.changeset(%{nameserver_set: nameserver_set})
+        |> Repo.update!()
+    end
+  end
+
+  defp safe_nameserver_set(%Zone{} = zone, sets) do
+    initial = deterministic_nameserver_set(zone, length(sets))
+    observed = observed_delegation_for_assignment(zone.domain)
+
+    if nameserver_set_matches_observed?(Enum.at(sets, initial), observed) do
+      next_safe_nameserver_set(initial, sets, observed)
+    else
+      initial
+    end
+  end
+
+  defp next_safe_nameserver_set(initial, sets, observed) do
+    set_count = length(sets)
+
+    1..set_count
+    |> Enum.map(&rem(initial + &1, set_count))
+    |> Enum.find(fn index ->
+      not nameserver_set_matches_observed?(Enum.at(sets, index), observed)
     end)
+    |> case do
+      nil -> initial
+      index -> index
+    end
   end
 
-  defp assign_unique_nameservers?(_, _), do: false
+  defp nameserver_set_matches_observed?(_set, []), do: false
 
-  defp assigned_nameserver(%Zone{} = zone, nameserver) do
-    "#{assigned_nameserver_label(zone)}.#{normalize_hostname(nameserver)}"
+  defp nameserver_set_matches_observed?(set, observed) do
+    set |> Enum.map(&normalize_hostname/1) |> Enum.sort() == observed
   end
 
-  defp assigned_nameserver_label(%Zone{} = zone) do
-    token =
+  defp observed_delegation_for_assignment(domain) do
+    domain
+    |> lookup_dns_values(:ns, timeout: 1_500)
+    |> Enum.map(&normalize_hostname/1)
+    |> Enum.sort()
+  end
+
+  defp deterministic_nameserver_set(%Zone{} = zone, set_count) when set_count > 0 do
+    digest =
       :crypto.mac(
         :hmac,
         :sha256,
         nameserver_assignment_secret(),
         nameserver_assignment_payload(zone)
       )
-      |> Base.encode16(case: :lower)
-      |> binary_part(0, 16)
 
-    "z#{zone.id}-#{token}"
+    <<value::unsigned-big-integer-size(32), _::binary>> = digest
+    rem(value, set_count)
+  end
+
+  defp zone_nameserver_set(%Zone{nameserver_set: set}, set_count)
+       when is_integer(set) and set >= 0 and set_count > 0 do
+    rem(set, set_count)
+  end
+
+  defp zone_nameserver_set(%Zone{} = zone, set_count) when set_count > 0 do
+    deterministic_nameserver_set(zone, set_count)
   end
 
   defp nameserver_assignment_payload(%Zone{} = zone) do
@@ -1423,10 +1482,77 @@ defmodule Elektrine.DNS do
   end
 
   defp assigned_nameserver_base(host) do
+    base_nameservers = nameservers()
+
+    nameserver_sets()
+    |> Enum.find_value(fn set ->
+      set
+      |> Enum.find_index(&(normalize_hostname(&1) == host))
+      |> case do
+        nil -> nil
+        index -> Enum.at(base_nameservers, rem(index, max(length(base_nameservers), 1)))
+      end
+    end)
+    |> case do
+      nil -> legacy_assigned_nameserver_base(host)
+      nameserver -> nameserver
+    end
+  end
+
+  defp legacy_assigned_nameserver_base(host) do
     Enum.find(nameservers(), fn nameserver ->
       nameserver = normalize_hostname(nameserver)
       String.starts_with?(host, "z") and String.ends_with?(host, "." <> nameserver)
     end)
+  end
+
+  defp nameserver_sets do
+    configured =
+      Application.get_env(:elektrine, :dns, [])
+      |> Keyword.get(:nameserver_sets, [])
+      |> normalize_nameserver_sets()
+
+    case configured do
+      [] -> default_nameserver_sets()
+      sets -> sets
+    end
+  end
+
+  defp normalize_nameserver_sets(sets) when is_list(sets) do
+    sets
+    |> Enum.map(fn set ->
+      set
+      |> List.wrap()
+      |> Enum.map(&normalize_hostname/1)
+      |> Enum.reject(&nil_or_blank?/1)
+    end)
+    |> Enum.filter(&(length(&1) >= 2))
+  end
+
+  defp normalize_nameserver_sets(_), do: []
+
+  defp default_nameserver_sets do
+    base_nameservers =
+      nameservers()
+      |> Enum.map(&normalize_hostname/1)
+      |> Enum.reject(&nil_or_blank?/1)
+
+    case base_nameservers do
+      [] ->
+        []
+
+      [_single] ->
+        []
+
+      base_nameservers ->
+        Enum.map(@nameserver_label_pairs, fn labels ->
+          labels
+          |> Enum.with_index()
+          |> Enum.map(fn {label, index} ->
+            "#{label}.#{Enum.at(base_nameservers, rem(index, length(base_nameservers)))}"
+          end)
+        end)
+    end
   end
 
   defp maybe_add_nameserver_address_records(
@@ -1463,8 +1589,13 @@ defmodule Elektrine.DNS do
   end
 
   defp delegated_to_elektrine?(observed_nameservers) do
-    expected = nameservers() |> Enum.map(&normalize_hostname/1) |> Enum.sort()
-    Enum.sort(observed_nameservers) == expected
+    observed = observed_nameservers |> Enum.map(&normalize_hostname/1) |> Enum.sort()
+    base_nameservers = nameservers() |> Enum.map(&normalize_hostname/1) |> Enum.sort()
+
+    observed == base_nameservers or
+      Enum.any?(nameserver_sets(), fn set ->
+        set |> Enum.map(&normalize_hostname/1) |> Enum.sort() == observed
+      end)
   end
 
   defp provider_hint([]), do: nil

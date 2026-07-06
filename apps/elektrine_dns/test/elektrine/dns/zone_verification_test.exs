@@ -122,7 +122,7 @@ defmodule Elektrine.DNS.ZoneVerificationTest do
     assert updated.last_error == nil
   end
 
-  test "verify_zone rejects delegation to the shared nameservers without the assigned zone label" do
+  test "verify_zone rejects delegation to the base nameservers without the assigned set" do
     user = AccountsFixtures.user_fixture()
     {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
 
