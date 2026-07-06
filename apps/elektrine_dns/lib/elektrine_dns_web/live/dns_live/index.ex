@@ -876,9 +876,9 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                 </div>
                 <div class="space-y-4 p-5">
                   <div class="rounded-2xl border border-base-content/10 bg-base-200/20 px-4 py-4">
-                    <p class="text-sm font-semibold">Elektrine nameservers</p>
+                    <p class="text-sm font-semibold">Assigned Elektrine nameservers</p>
                     <div class="mt-3 rounded-xl border border-base-content/10 bg-base-100 px-3 py-3 font-mono text-xs break-all text-base-content/80">
-                      {Enum.join(@nameservers, ", ")}
+                      {Enum.join(DNS.assigned_nameservers(@active_zone), ", ")}
                     </div>
                   </div>
                   <div class="overflow-x-auto">

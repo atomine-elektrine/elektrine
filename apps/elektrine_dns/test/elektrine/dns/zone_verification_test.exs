@@ -60,6 +60,7 @@ defmodule Elektrine.DNS.ZoneVerificationTest do
       :dns,
       Keyword.merge(old_dns,
         nameservers: ["ns1.elektrine.com", "ns2.elektrine.com"],
+        nameserver_assignment_secret: "zone-verification-test-secret",
         dns_resolver: Elektrine.DNS.TestResolver,
         recursive_transport: Elektrine.DNS.TestVerificationTransport,
         recursive_timeout: 100,
@@ -88,8 +89,10 @@ defmodule Elektrine.DNS.ZoneVerificationTest do
     assert {:ok, updated} = DNS.verify_zone(zone)
     assert updated.status == "pending"
 
+    expected = DNS.assigned_nameservers(zone) |> Enum.sort() |> Enum.join(", ")
+
     assert updated.last_error ==
-             "Delegation mismatch for the configured nameservers. Expected: ns1.elektrine.com, ns2.elektrine.com. Observed: ns1.wrong.test."
+             "Delegation mismatch for the configured nameservers. Expected: #{expected}. Observed: ns1.wrong.test."
   end
 
   test "verify_zone reports when no nameservers are observed" do
@@ -100,15 +103,17 @@ defmodule Elektrine.DNS.ZoneVerificationTest do
 
     assert {:ok, updated} = DNS.verify_zone(zone)
 
+    expected = DNS.assigned_nameservers(zone) |> Enum.sort() |> Enum.join(", ")
+
     assert updated.last_error ==
-             "Delegation mismatch for the configured nameservers. Expected: ns1.elektrine.com, ns2.elektrine.com. Observed: none."
+             "Delegation mismatch for the configured nameservers. Expected: #{expected}. Observed: none."
   end
 
   test "verify_zone marks the zone verified when delegation matches" do
     user = AccountsFixtures.user_fixture()
     {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
 
-    put_tld_delegation(zone.domain, ["ns2.elektrine.com", "ns1.elektrine.com"], [
+    put_tld_delegation(zone.domain, Enum.reverse(DNS.assigned_nameservers(zone)), [
       {{203, 0, 113, 10}, 53}
     ])
 
@@ -117,17 +122,19 @@ defmodule Elektrine.DNS.ZoneVerificationTest do
     assert updated.last_error == nil
   end
 
-  test "verify_zone marks the zone verified when delegation matches before SOA is served" do
+  test "verify_zone rejects delegation to the shared nameservers without the assigned zone label" do
     user = AccountsFixtures.user_fixture()
     {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
 
-    put_tld_delegation(zone.domain, ["ns1.elektrine.com", "ns2.elektrine.com"], [
+    put_tld_delegation(zone.domain, DNS.nameservers(), [
       {{203, 0, 113, 10}, 53}
     ])
 
     assert {:ok, updated} = DNS.verify_zone(zone)
-    assert updated.status == "verified"
-    assert updated.last_error == nil
+    assert updated.status == "pending"
+    assert updated.last_error =~ "Delegation mismatch for the configured nameservers."
+    assert updated.last_error =~ List.first(DNS.assigned_nameservers(zone))
+    assert updated.last_error =~ "Observed: ns1.elektrine.com, ns2.elektrine.com."
   end
 
   defp put_tld_delegation(domain, nameservers, endpoints) do

@@ -65,8 +65,9 @@ defmodule Elektrine.DNS.Zone do
     |> foreign_key_constraint(:user_id)
   end
 
-  def nameserver_records(%__MODULE__{domain: domain}) when is_binary(domain) do
-    Elektrine.DNS.nameservers()
+  def nameserver_records(%__MODULE__{domain: domain} = zone) when is_binary(domain) do
+    zone
+    |> Elektrine.DNS.assigned_nameservers()
     |> Enum.map(fn nameserver ->
       %{type: "NS", host: domain, value: nameserver, priority: nil}
     end)

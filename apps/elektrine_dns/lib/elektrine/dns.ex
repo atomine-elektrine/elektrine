@@ -688,6 +688,35 @@ defmodule Elektrine.DNS do
     if builtin_user_zone?(zone), do: [], else: Zone.nameserver_records(zone)
   end
 
+  def assigned_nameservers(%Zone{} = zone) do
+    base_nameservers = nameservers()
+
+    if assign_unique_nameservers?(zone, base_nameservers) do
+      Enum.map(base_nameservers, &assigned_nameserver(zone, &1))
+    else
+      base_nameservers
+    end
+  end
+
+  def assigned_nameservers(_), do: nameservers()
+
+  def assigned_nameserver_address_records(host, qtype) when is_binary(host) do
+    normalized_host = normalize_hostname(host)
+    qtype = normalize_query_type(qtype)
+
+    case assigned_nameserver_base(normalized_host) do
+      nil ->
+        []
+
+      base ->
+        []
+        |> maybe_add_nameserver_address_records(normalized_host, base, :a, "A", qtype)
+        |> maybe_add_nameserver_address_records(normalized_host, base, :aaaa, "AAAA", qtype)
+    end
+  end
+
+  def assigned_nameserver_address_records(_, _), do: []
+
   def nameservers do
     configured =
       Application.get_env(:elektrine, :dns, [])
@@ -1102,9 +1131,9 @@ defmodule Elektrine.DNS do
     end
   end
 
-  defp verify_nameservers(%Zone{domain: domain}) do
+  defp verify_nameservers(%Zone{domain: domain} = zone) do
     if public_hostname?(domain) do
-      expected = nameservers() |> Enum.map(&normalize_hostname/1) |> Enum.sort()
+      expected = zone |> assigned_nameservers() |> Enum.map(&normalize_hostname/1) |> Enum.sort()
 
       case delegated_nameserver_data(domain) do
         {:ok, %{nameservers: resolved, endpoints: endpoints}} ->
@@ -1344,6 +1373,87 @@ defmodule Elektrine.DNS do
   defp parse_ip(_value), do: nil
 
   defp parse_rr_ip(answer), do: answer |> elem(6)
+
+  defp assign_unique_nameservers?(%Zone{id: id, user_id: user_id, domain: domain}, nameservers)
+       when is_integer(id) and is_integer(user_id) and is_binary(domain) do
+    Enum.all?(nameservers, fn nameserver ->
+      nameserver = normalize_hostname(nameserver)
+      public_hostname?(nameserver) and not ip_literal?(nameserver)
+    end)
+  end
+
+  defp assign_unique_nameservers?(_, _), do: false
+
+  defp assigned_nameserver(%Zone{} = zone, nameserver) do
+    "#{assigned_nameserver_label(zone)}.#{normalize_hostname(nameserver)}"
+  end
+
+  defp assigned_nameserver_label(%Zone{} = zone) do
+    token =
+      :crypto.mac(
+        :hmac,
+        :sha256,
+        nameserver_assignment_secret(),
+        nameserver_assignment_payload(zone)
+      )
+      |> Base.encode16(case: :lower)
+      |> binary_part(0, 16)
+
+    "z#{zone.id}-#{token}"
+  end
+
+  defp nameserver_assignment_payload(%Zone{} = zone) do
+    "#{zone.id}:#{zone.user_id}:#{normalize_hostname(zone.domain)}"
+  end
+
+  defp nameserver_assignment_secret do
+    Application.get_env(:elektrine, :dns, [])
+    |> Keyword.get(:nameserver_assignment_secret)
+    |> case do
+      secret when is_binary(secret) and secret != "" ->
+        secret
+
+      _ ->
+        endpoint_config = Application.get_env(:elektrine, ElektrineWeb.Endpoint, [])
+
+        endpoint_config[:secret_key_base] ||
+          Elektrine.RuntimeSecrets.secret_key_base() ||
+          "elektrine-dns-development-nameserver-assignment"
+    end
+  end
+
+  defp assigned_nameserver_base(host) do
+    Enum.find(nameservers(), fn nameserver ->
+      nameserver = normalize_hostname(nameserver)
+      String.starts_with?(host, "z") and String.ends_with?(host, "." <> nameserver)
+    end)
+  end
+
+  defp maybe_add_nameserver_address_records(
+         records,
+         host,
+         nameserver,
+         lookup_type,
+         record_type,
+         qtype
+       ) do
+    if qtype in [:any, lookup_type] do
+      nameserver
+      |> lookup_dns_values(lookup_type, timeout: 5_000)
+      |> Enum.map(fn address ->
+        %{host: host, type: record_type, content: address, ttl: default_ttl()}
+      end)
+      |> Kernel.++(records)
+    else
+      records
+    end
+  end
+
+  defp normalize_query_type(type) when type in [:a, :aaaa, :any], do: type
+  defp normalize_query_type("A"), do: :a
+  defp normalize_query_type("AAAA"), do: :aaaa
+  defp normalize_query_type("ANY"), do: :any
+  defp normalize_query_type(type), do: type
 
   defp tld_domain(domain) do
     domain

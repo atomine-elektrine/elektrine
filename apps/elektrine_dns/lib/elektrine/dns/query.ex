@@ -71,6 +71,22 @@ defmodule Elektrine.DNS.Query do
   defp zone_domain(_), do: nil
 
   defp route_query(packet, query, opts) do
+    case DNS.assigned_nameserver_address_records(query.qname, query.qtype) do
+      records when records != [] ->
+        response =
+          Packet.encode_response(query, records, :noerror,
+            authoritative: true,
+            transport: Keyword.get(opts, :transport)
+          )
+
+        response_meta(query, response, nil, :noerror, true)
+
+      [] ->
+        route_zone_query(packet, query, opts)
+    end
+  end
+
+  defp route_zone_query(packet, query, opts) do
     case fetch_zone(query.qname) do
       {:ok, zone} ->
         if query.qtype == :any do

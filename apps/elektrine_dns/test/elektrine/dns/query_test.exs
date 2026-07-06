@@ -14,6 +14,15 @@ defmodule Elektrine.DNS.QueryTest do
     def lookup(_, _, _, timeout: 5_000), do: []
   end
 
+  defmodule DNSResolverStub do
+    def lookup(~c"ns1.elektrine.com", :in, :a, timeout: 5_000), do: [{192, 0, 2, 53}]
+
+    def lookup(~c"ns1.elektrine.com", :in, :aaaa, timeout: 5_000),
+      do: [{0x2001, 0xDB8, 0, 0, 0, 0, 0, 0x53}]
+
+    def lookup(_, _, _, timeout: 5_000), do: []
+  end
+
   setup do
     previous_dns_config = Application.get_env(:elektrine, :dns, [])
 
@@ -22,6 +31,8 @@ defmodule Elektrine.DNS.QueryTest do
       :dns,
       Keyword.merge(previous_dns_config,
         alias_resolver: AliasResolverStub,
+        dns_resolver: DNSResolverStub,
+        nameservers: ["ns1.elektrine.com", "ns2.elektrine.com"],
         edge_proxy_ipv4_addresses: ["198.51.100.200"],
         edge_proxy_ipv6_addresses: ["2001:db8::200"]
       )
@@ -111,6 +122,15 @@ defmodule Elektrine.DNS.QueryTest do
     assert header(response).ancount == 1
     assert header(response).rcode == 0
     assert response =~ <<203, 0, 113, 20>>
+  end
+
+  test "answers assigned nameserver address queries from configured nameservers" do
+    response = Query.answer(build_query("z123-deadbeef.ns1.elektrine.com", 1))
+
+    assert header(response).rcode == 0
+    assert header(response).aa == 1
+    assert header(response).ancount == 1
+    assert response =~ <<192, 0, 2, 53>>
   end
 
   test "answers proxied A records with edge addresses" do

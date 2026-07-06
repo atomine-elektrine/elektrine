@@ -37,6 +37,7 @@ defmodule Elektrine.DNSContextTest do
       :dns,
       Keyword.merge(old_dns,
         nameservers: ["ns1.elektrine.com", "ns2.elektrine.com"],
+        nameserver_assignment_secret: "dns-context-test-secret",
         dns_resolver: Elektrine.DNS.ScanResolver
       )
     )
@@ -200,6 +201,20 @@ defmodule Elektrine.DNSContextTest do
              })
 
     assert updated.name == "ns1"
+  end
+
+  test "zone onboarding records use unique assigned nameservers" do
+    user = AccountsFixtures.user_fixture()
+    {:ok, first_zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
+    {:ok, second_zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
+
+    first_nameservers = DNS.assigned_nameservers(first_zone)
+    second_nameservers = DNS.assigned_nameservers(second_zone)
+
+    assert first_nameservers != DNS.nameservers()
+    assert first_nameservers != second_nameservers
+    assert Enum.all?(first_nameservers, &String.ends_with?(&1, ".elektrine.com"))
+    assert Enum.map(DNS.zone_onboarding_records(first_zone), & &1.value) == first_nameservers
   end
 
   test "normalizes escaped apex names on create" do
