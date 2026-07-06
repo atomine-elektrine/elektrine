@@ -644,9 +644,11 @@ export const ManualPagination = {
     this.prePatchScrollY = null;
     this.prePatchAnchor = null;
     this.lastKnownScrollY = currentScrollY();
-    this.clearGlobalRestoreSnapshot();
-    if (!this.loadingMore) this.loadCycleStartY = null;
-    this.pending = false;
+    if (!this.loadingMore) {
+      this.clearGlobalRestoreSnapshot();
+      this.loadCycleStartY = null;
+      this.pending = false;
+    }
     this.disabled =
       this.el.dataset.noMore === "true" ||
       this.el.dataset.loadingMore === "true";

@@ -159,7 +159,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePostTest do
     refute html =~ ~s(class="mt-3 border border-base-300 rounded-lg overflow-hidden)
   end
 
-  test "timeline post dropdown uses stable upward placement and wrapping class" do
+  test "timeline post dropdown prefers downward placement and wrapping class" do
     post =
       remote_post(%{
         id: 902,
@@ -171,7 +171,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePostTest do
 
     html = render_timeline_post(post, "dropdown-layout")
 
-    assert html =~ ~s(data-portal-placement="top")
+    assert html =~ ~s(data-portal-placement="bottom")
     assert html =~ "timeline-post-dropdown-menu"
   end
 
