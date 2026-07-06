@@ -83,6 +83,22 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
     refute html =~ "Community timeline post"
   end
 
+  test "initial timeline render does not stay on the loading skeleton", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    author = AccountsFixtures.user_fixture()
+
+    {:ok, _post} =
+      Social.create_timeline_post(author.id, "Initial timeline loaded post", visibility: "public")
+
+    {:ok, _view, html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=all&view=all")
+
+    refute html =~ "Loading timeline updates..."
+    assert html =~ "Initial timeline loaded post"
+  end
+
   test "hide replies remains applied after timeline refreshes", %{conn: conn} do
     viewer = AccountsFixtures.user_fixture()
     author = AccountsFixtures.user_fixture()

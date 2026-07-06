@@ -198,12 +198,14 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
 
     cond do
       socket.assigns.loading_timeline ->
-        {:noreply,
-         params_socket
-         |> assign(:current_filter, filter)
-         |> assign(:timeline_filter, timeline_view)
-         |> assign(:timeline_sort, timeline_sort)
-         |> assign(:search_query, search_query)}
+        loading_socket =
+          params_socket
+          |> assign(:current_filter, filter)
+          |> assign(:timeline_filter, timeline_view)
+          |> assign(:timeline_sort, timeline_sort)
+          |> assign(:search_query, search_query)
+
+        {:noreply, load_initial_timeline_state(loading_socket, filter)}
 
       filter != socket.assigns.current_filter ->
         case apply_cached_timeline_view(params_socket, filter, timeline_view, search_query) do
@@ -391,6 +393,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
     |> assign(:post_replies, load_state.cached_post_replies)
     |> assign(:loading_more, false)
     |> assign(:no_more_posts, false)
+    |> assign(:timeline_load_ref, nil)
     |> assign(:timeline_load_more_cursor, nil)
     |> assign(:recently_loaded_post_ids, [])
     |> assign(:recently_loaded_count, 0)
@@ -623,6 +626,20 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
     }
   end
 
+  defp load_initial_timeline_state(socket, filter) do
+    socket =
+      socket
+      |> timeline_load_context()
+      |> build_timeline_load_state(filter)
+      |> then(&apply_timeline_load_state(socket, &1))
+
+    if connected?(socket) && socket.assigns[:current_user] do
+      send(self(), :load_user_timeline_side_data)
+    end
+
+    socket
+  end
+
   @impl true
   def handle_event(event_name, params, socket) do
     Router.route_event(event_name, params, socket)
@@ -714,6 +731,11 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
          |> assign(:user_saves, Map.get(hydrated_state, :user_saves, %{}))
          |> TimelineHelpers.refresh_filtered_posts_stream()}
     end
+  end
+
+  @impl true
+  def handle_info(:load_timeline_data, %{assigns: %{loading_timeline: false}} = socket) do
+    {:noreply, socket}
   end
 
   @impl true
