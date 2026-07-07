@@ -8,7 +8,8 @@ defmodule Elektrine.Social.Recommendations do
     CreatorSatisfaction,
     PostDismissal,
     PostView,
-    RecommendationCache,
+    RecommendationItem,
+    RecommendationRefreshWorker,
     Views
   }
 
@@ -23,6 +24,9 @@ defmodule Elektrine.Social.Recommendations do
   @max_candidate_fetch_limit 200
   @candidate_pool_query_timeout_ms 4_000
   @candidate_pool_task_timeout_ms 5_000
+  @stored_recommendation_limit 100
+  @stored_recommendation_ttl_seconds :timer.hours(1) |> div(1000)
+  @stored_recommendation_query_timeout_ms 2_000
 
   @doc "Gets personalized recommendation feed for a user.\n\n## Options\n- `:limit` - Maximum posts to return (default: 50)\n- `:session_context` - Map with session engagement data for real-time adaptation\n"
   def get_for_you_feed(user_id, opts \\ []) do
@@ -34,8 +38,12 @@ defmodule Elektrine.Social.Recommendations do
       filter == "my_posts" ->
         get_recommended_own_posts(user_id, limit)
 
+      recommendations_enabled?() and recommendation_storeable?(session_context) ->
+        get_stored_or_fallback_recommendations(user_id, filter, limit, session_context)
+        |> prioritize_session_context(session_context)
+
       recommendations_enabled?() or session_context != %{} ->
-        get_cached_or_compute_recommendations(user_id, filter, limit, session_context)
+        compute_recommendations(user_id, filter, limit, session_context)
         |> prioritize_session_context(session_context)
 
       true ->
@@ -44,20 +52,46 @@ defmodule Elektrine.Social.Recommendations do
     end
   end
 
-  defp get_cached_or_compute_recommendations(user_id, filter, limit, session_context) do
-    if recommendation_cacheable?(session_context) do
-      case cached_recommendation_posts(user_id, filter, limit) do
-        posts when length(posts) >= limit ->
-          posts
+  @doc """
+  Rebuilds and persists a user's recommendations for one feed filter.
 
-        _ ->
-          posts = compute_recommendations(user_id, filter, limit, session_context)
-          RecommendationCache.put(user_id, filter, Enum.map(posts, & &1.id))
-          posts
-      end
-    else
-      compute_recommendations(user_id, filter, limit, session_context)
+  This is intended for background workers and maintenance tasks, not LiveView
+  request handling.
+  """
+  def refresh_stored_feed(user_id, filter \\ "all", limit \\ @stored_recommendation_limit)
+      when is_integer(user_id) and is_binary(filter) and is_integer(limit) do
+    filter = normalize_recommendation_filter(filter)
+    limit = limit |> max(20) |> min(200)
+
+    posts = compute_recommendations(user_id, filter, limit, %{})
+    persist_recommendations(user_id, filter, posts)
+
+    {:ok, posts}
+  end
+
+  defp get_stored_or_fallback_recommendations(user_id, filter, limit, session_context) do
+    filter = normalize_recommendation_filter(filter)
+    stored_posts = stored_recommendation_posts(user_id, filter, limit)
+
+    cond do
+      length(stored_posts) >= limit ->
+        maybe_enqueue_recommendation_refresh(user_id, filter)
+        filter_dismissed_posts(user_id, stored_posts)
+
+      stored_posts != [] ->
+        maybe_enqueue_recommendation_refresh(user_id, filter)
+
+        stored_posts
+        |> merge_recommendation_posts(fallback_posts_for_filter(user_id, filter, limit), limit)
+        |> then(&filter_dismissed_posts(user_id, &1))
+
+      true ->
+        maybe_enqueue_recommendation_refresh(user_id, filter)
+
+        fallback_posts_for_filter(user_id, filter, limit)
+        |> then(&filter_dismissed_posts(user_id, &1))
     end
+    |> reject_session_dismissed_posts(session_context)
   end
 
   defp compute_recommendations(user_id, filter, limit, session_context) do
@@ -76,12 +110,24 @@ defmodule Elektrine.Social.Recommendations do
     end
   end
 
-  defp cached_recommendation_posts(user_id, filter, limit) do
-    ids = user_id |> RecommendationCache.get(filter) |> Enum.take(limit)
+  defp stored_recommendation_posts(user_id, filter, limit) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
 
-    if ids == [] do
+    items =
+      from(i in RecommendationItem,
+        where: i.user_id == ^user_id,
+        where: i.filter == ^filter,
+        where: i.expires_at > ^now,
+        order_by: [asc: i.rank],
+        limit: ^limit,
+        select: {i.message_id, i.rank}
+      )
+      |> Repo.all(timeout: @stored_recommendation_query_timeout_ms)
+
+    if items == [] do
       []
     else
+      ids = Enum.map(items, fn {id, _rank} -> id end)
       positions = ids |> Enum.with_index() |> Map.new()
 
       from(m in Message,
@@ -90,17 +136,107 @@ defmodule Elektrine.Social.Recommendations do
           is_nil(m.deleted_at) and (m.approval_status == "approved" or is_nil(m.approval_status)),
         preload: ^recommendation_preloads()
       )
-      |> Repo.all()
+      |> Repo.all(timeout: @stored_recommendation_query_timeout_ms)
       |> Enum.sort_by(fn post -> Map.get(positions, post.id, length(ids)) end)
-      |> filter_posts_for_feed(filter)
+      |> then(&filter_posts_for_feed(filter, &1))
       |> Enum.take(limit)
     end
   end
 
-  defp recommendation_cacheable?(session_context) when is_map(session_context),
+  defp filter_dismissed_posts(user_id, posts) do
+    dismissed_ids = user_id |> get_dismissed_post_ids() |> MapSet.new()
+    Enum.reject(posts, &MapSet.member?(dismissed_ids, &1.id))
+  end
+
+  defp persist_recommendations(user_id, filter, posts) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    expires_at = DateTime.add(now, @stored_recommendation_ttl_seconds, :second)
+    total = length(posts)
+
+    rows =
+      posts
+      |> Enum.uniq_by(& &1.id)
+      |> Enum.with_index(1)
+      |> Enum.map(fn {post, rank} ->
+        %{
+          user_id: user_id,
+          message_id: post.id,
+          filter: filter,
+          rank: rank,
+          score: max(total - rank + 1, 0),
+          reason: "ranked",
+          generated_at: now,
+          expires_at: expires_at,
+          inserted_at: now,
+          updated_at: now
+        }
+      end)
+
+    Repo.transaction(fn ->
+      from(i in RecommendationItem, where: i.user_id == ^user_id and i.filter == ^filter)
+      |> Repo.delete_all()
+
+      if rows != [] do
+        Repo.insert_all(RecommendationItem, rows)
+      end
+    end)
+
+    :ok
+  end
+
+  defp maybe_enqueue_recommendation_refresh(user_id, filter) do
+    RecommendationRefreshWorker.enqueue(user_id,
+      filter: filter,
+      limit: @stored_recommendation_limit
+    )
+
+    :ok
+  end
+
+  defp merge_recommendation_posts(primary_posts, fallback_posts, limit) do
+    primary_ids = MapSet.new(Enum.map(primary_posts, & &1.id))
+
+    fallback_posts =
+      Enum.reject(fallback_posts, &MapSet.member?(primary_ids, &1.id))
+
+    Enum.take(primary_posts ++ fallback_posts, limit)
+  end
+
+  defp reject_session_dismissed_posts(posts, session_context) when is_map(session_context) do
+    dismissed_ids =
+      session_context
+      |> Map.get(:dismissed_posts, Map.get(session_context, "dismissed_posts", []))
+      |> List.wrap()
+      |> Enum.flat_map(fn
+        id when is_integer(id) ->
+          [id]
+
+        id when is_binary(id) ->
+          case Integer.parse(id) do
+            {id, ""} -> [id]
+            _ -> []
+          end
+
+        _ ->
+          []
+      end)
+      |> MapSet.new()
+
+    Enum.reject(posts, &MapSet.member?(dismissed_ids, &1.id))
+  end
+
+  defp reject_session_dismissed_posts(posts, _session_context), do: posts
+
+  defp recommendation_storeable?(session_context) when is_map(session_context),
     do: map_size(session_context) == 0
 
-  defp recommendation_cacheable?(_session_context), do: false
+  defp recommendation_storeable?(_session_context), do: false
+
+  defp normalize_recommendation_filter(filter)
+       when filter in ~w(all timeline gallery discussions),
+       do: filter
+
+  defp normalize_recommendation_filter(_filter), do: "all"
 
   defp prioritize_session_context(posts, session_context)
        when is_list(posts) and is_map(session_context) do
@@ -1509,11 +1645,37 @@ defmodule Elektrine.Social.Recommendations do
       |> Repo.insert(on_conflict: :nothing)
 
     if match?({:ok, _dismissal}, result) do
-      RecommendationCache.delete(user_id, message_id)
+      delete_stored_recommendation(user_id, message_id)
     end
 
     result
   end
+
+  defp delete_stored_recommendation(user_id, message_id) do
+    case normalize_recommendation_id(message_id) do
+      {:ok, message_id} ->
+        from(i in RecommendationItem,
+          where: i.user_id == ^user_id and i.message_id == ^message_id
+        )
+        |> Repo.delete_all()
+
+      :error ->
+        :ok
+    end
+
+    :ok
+  end
+
+  defp normalize_recommendation_id(id) when is_integer(id), do: {:ok, id}
+
+  defp normalize_recommendation_id(id) when is_binary(id) do
+    case Integer.parse(id) do
+      {id, ""} -> {:ok, id}
+      _ -> :error
+    end
+  end
+
+  defp normalize_recommendation_id(_id), do: :error
 
   @doc "Updates or creates a post view with dwell time data.\n"
   def record_view_with_dwell(user_id, message_id, attrs \\ %{}) do

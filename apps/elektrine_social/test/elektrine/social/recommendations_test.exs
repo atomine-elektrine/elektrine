@@ -7,7 +7,7 @@ defmodule Elektrine.Social.RecommendationsTest do
   alias Elektrine.Accounts.UserActivityStats
   alias Elektrine.Profiles.Follow
   alias Elektrine.Repo
-  alias Elektrine.Social.{Message, RecommendationCache}
+  alias Elektrine.Social.{Message, RecommendationItem}
   alias Elektrine.Social.Recommendations
 
   describe "get_for_you_feed/2 visibility rules" do
@@ -58,6 +58,8 @@ defmodule Elektrine.Social.RecommendationsTest do
           visibility: "followers",
           content: "followed author post #{System.unique_integer([:positive])}"
         })
+
+      assert {:ok, _posts} = Recommendations.refresh_stored_feed(viewer.id, "all", 20)
 
       feed_ids =
         Recommendations.get_for_you_feed(viewer.id, limit: 20)
@@ -153,17 +155,38 @@ defmodule Elektrine.Social.RecommendationsTest do
     end
   end
 
-  describe "recommendation cache" do
-    test "stores unique post ids and removes dismissed ids" do
-      user_id = System.unique_integer([:positive])
+  describe "persisted recommendations" do
+    test "serves stored ranked ids without recomputing in the request" do
+      viewer = user_fixture()
+      author = user_fixture()
+      post = post_fixture(%{user: author, content: "stored rec #{System.unique_integer()}"})
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
 
-      on_exit(fn -> RecommendationCache.clear(user_id) end)
+      insert_recommendation_item!(viewer.id, post.id, 1, now)
 
-      assert {:ok, true} = RecommendationCache.put(user_id, "all", [1, 2, 2, "3", "ignored"])
-      assert RecommendationCache.get(user_id, "all") == [1, 2, 3]
+      feed_ids =
+        Recommendations.get_for_you_feed(viewer.id, limit: 1)
+        |> Enum.map(& &1.id)
 
-      assert :ok = RecommendationCache.delete(user_id, "2")
-      assert RecommendationCache.get(user_id, "all") == [1, 3]
+      assert feed_ids == [post.id]
+    end
+
+    test "record_dismissal removes stored recommendation rows" do
+      viewer = user_fixture()
+      author = user_fixture()
+      post = post_fixture(%{user: author, content: "dismiss stored #{System.unique_integer()}"})
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+      insert_recommendation_item!(viewer.id, post.id, 1, now)
+
+      assert {:ok, _dismissal} =
+               Recommendations.record_dismissal(viewer.id, Integer.to_string(post.id), "hidden")
+
+      refute Repo.exists?(
+               from(i in RecommendationItem,
+                 where: i.user_id == ^viewer.id and i.message_id == ^post.id
+               )
+             )
     end
   end
 
@@ -302,5 +325,18 @@ defmodule Elektrine.Social.RecommendationsTest do
   defp set_inserted_at(post_id, inserted_at) do
     from(m in Message, where: m.id == ^post_id)
     |> Repo.update_all(set: [inserted_at: inserted_at])
+  end
+
+  defp insert_recommendation_item!(user_id, message_id, rank, now) do
+    Repo.insert!(%RecommendationItem{
+      user_id: user_id,
+      message_id: message_id,
+      filter: "all",
+      rank: rank,
+      score: 100 - rank,
+      reason: "test",
+      generated_at: now,
+      expires_at: DateTime.add(now, 3600, :second)
+    })
   end
 end
