@@ -331,7 +331,47 @@ defmodule Elektrine.Social do
     user_id = Keyword.get(opts, :user_id)
     search_query = Keyword.get(opts, :search_query)
     only_media = Keyword.get(opts, :only_media, false)
+    query_timeout = Keyword.get(opts, :query_timeout, 5_000)
     preloads = MessagingMessages.timeline_feed_preloads()
+
+    if Elektrine.Strings.present?(search_query) do
+      get_public_timeline_query(
+        limit,
+        pagination,
+        user_id,
+        search_query,
+        only_media,
+        preloads,
+        query_timeout
+      )
+    else
+      get_public_timeline_fast(limit, pagination, user_id, only_media, preloads, query_timeout)
+    end
+  end
+
+  defp get_public_timeline_fast(limit, pagination, user_id, only_media, preloads, query_timeout) do
+    candidate_opts =
+      public_feed_candidate_opts(limit, pagination, user_id, only_media, query_timeout)
+
+    ids =
+      true
+      |> public_timeline_candidates(candidate_opts)
+      |> Enum.reject(&public_feed_candidate_excluded?(&1, candidate_opts))
+      |> Enum.take(limit)
+      |> Enum.map(& &1.id)
+
+    load_timeline_candidate_posts(ids, preloads, pagination.order, query_timeout)
+  end
+
+  defp get_public_timeline_query(
+         limit,
+         pagination,
+         user_id,
+         search_query,
+         only_media,
+         preloads,
+         query_timeout
+       ) do
     all_blocked_ids = blocked_user_ids(user_id)
 
     timeline_scope_filter = public_timeline_scope_filter()
@@ -362,7 +402,113 @@ defmodule Elektrine.Social do
     query = maybe_filter_timeline_media(query, only_media)
     query = query |> apply_id_pagination(pagination) |> apply_id_order(pagination.order)
 
-    Repo.all(query)
+    Repo.all(query, timeout: query_timeout)
+  end
+
+  defp public_feed_candidate_opts(
+         limit,
+         pagination,
+         user_id,
+         only_media \\ false,
+         query_timeout \\ 5_000
+       ) do
+    %{
+      limit: limit,
+      candidate_limit: max(limit * 10, 100),
+      pagination: pagination,
+      user_id: user_id,
+      only_media: only_media,
+      query_timeout: query_timeout,
+      blocked_sender_ids: MapSet.new(blocked_user_ids(user_id)),
+      excluded_domains: compile_domain_policy(public_timeline_excluded_instance_domains()),
+      viewer_policy: public_timeline_viewer_policy(user_id)
+    }
+  end
+
+  defp public_timeline_candidates(scope_filter, opts) do
+    from(m in Message,
+      left_join: c in Conversation,
+      on: c.id == m.conversation_id,
+      left_join: remote_actor in assoc(m, :remote_actor),
+      where: ^public_top_level_post_filter(),
+      where: ^scope_filter,
+      select: %{
+        id: m.id,
+        sender_id: m.sender_id,
+        actor_uri: remote_actor.uri,
+        actor_domain: remote_actor.domain
+      },
+      limit: ^opts.candidate_limit
+    )
+    |> maybe_filter_timeline_media(opts.only_media)
+    |> apply_id_pagination(opts.pagination)
+    |> apply_id_order(opts.pagination.order)
+    |> Repo.all(timeout: opts.query_timeout)
+  end
+
+  defp all_federated_reply_candidates(opts) do
+    federated_reply_candidates(opts) ++ in_reply_to_reference_candidates(opts)
+  end
+
+  defp federated_reply_candidates(opts) do
+    from(m in Message,
+      left_join: c in Conversation,
+      on: c.id == m.conversation_id,
+      left_join: remote_actor in assoc(m, :remote_actor),
+      where: m.federated == true,
+      where: ^public_reply_filter(),
+      where: c.type == "timeline" or is_nil(m.conversation_id),
+      select: %{
+        id: m.id,
+        sender_id: m.sender_id,
+        actor_uri: remote_actor.uri,
+        actor_domain: remote_actor.domain
+      },
+      limit: ^opts.candidate_limit
+    )
+    |> apply_id_pagination(opts.pagination)
+    |> apply_id_order(opts.pagination.order)
+    |> Repo.all(timeout: opts.query_timeout)
+  end
+
+  defp in_reply_to_reference_candidates(opts) do
+    from(m in Message,
+      left_join: c in Conversation,
+      on: c.id == m.conversation_id,
+      left_join: parent in Message,
+      on: parent.id == m.reply_to_id,
+      left_join: remote_actor in assoc(m, :remote_actor),
+      where: ^public_reply_filter(),
+      where:
+        fragment("(?->>'inReplyTo' IS NOT NULL)", m.media_metadata) or
+          (not is_nil(m.reply_to_id) and parent.federated == true),
+      where: c.type == "timeline" or (is_nil(m.conversation_id) and m.federated == true),
+      select: %{
+        id: m.id,
+        sender_id: m.sender_id,
+        actor_uri: remote_actor.uri,
+        actor_domain: remote_actor.domain
+      },
+      limit: ^opts.candidate_limit
+    )
+    |> apply_id_pagination(opts.pagination)
+    |> apply_id_order(opts.pagination.order)
+    |> Repo.all(timeout: opts.query_timeout)
+  end
+
+  defp public_feed_candidate_excluded?(candidate, opts) do
+    MapSet.member?(opts.blocked_sender_ids, candidate.sender_id) or
+      public_timeline_post_excluded?(candidate, opts.excluded_domains, opts.viewer_policy)
+  end
+
+  defp load_timeline_candidate_posts([], _preloads, _order, _query_timeout), do: []
+
+  defp load_timeline_candidate_posts(ids, preloads, order, query_timeout) do
+    Message
+    |> where([m], m.id in ^ids)
+    |> preload(^preloads)
+    |> Repo.all(timeout: query_timeout)
+    |> Enum.sort_by(& &1.id, order)
   end
 
   @doc """
@@ -375,6 +521,7 @@ defmodule Elektrine.Social do
     user_id = Keyword.get(opts, :user_id)
     search_query = Keyword.get(opts, :search_query)
     source_filter = Keyword.get(opts, :source_filter, "all")
+    query_timeout = Keyword.get(opts, :query_timeout, 5_000)
     preloads = [conversation: []] ++ MessagingMessages.timeline_feed_preloads()
 
     # This feed used to be one query whose community condition was an OR spanning
@@ -391,7 +538,8 @@ defmodule Elektrine.Social do
       blocked_sender_ids: MapSet.new(blocked_user_ids(user_id)),
       excluded_domains: compile_domain_policy(public_timeline_excluded_instance_domains()),
       viewer_policy: public_timeline_viewer_policy(user_id),
-      search_query: search_query
+      search_query: search_query,
+      query_timeout: query_timeout
     }
 
     ids =
@@ -409,7 +557,7 @@ defmodule Elektrine.Social do
       Message
       |> where([m], m.id in ^ids)
       |> preload(^preloads)
-      |> Repo.all()
+      |> Repo.all(timeout: query_timeout)
       |> Enum.sort_by(& &1.id, pagination.order)
     end
   end
@@ -419,12 +567,12 @@ defmodule Elektrine.Social do
 
     community_metadata_post_candidates(federated_only, branch_opts) ++
       community_conversation_post_candidates(
-        community_conversation_ids(:communities),
+        community_conversation_ids(:communities, branch_opts.query_timeout),
         federated_only,
         branch_opts
       ) ++
       community_conversation_post_candidates(
-        community_conversation_ids(:federated_mirrors),
+        community_conversation_ids(:federated_mirrors, branch_opts.query_timeout),
         true,
         branch_opts
       )
@@ -432,7 +580,7 @@ defmodule Elektrine.Social do
 
   defp community_post_branch_candidates("local", branch_opts) do
     community_conversation_post_candidates(
-      community_conversation_ids(:local_communities),
+      community_conversation_ids(:local_communities, branch_opts.query_timeout),
       dynamic([m], m.federated != true),
       branch_opts
     )
@@ -441,28 +589,34 @@ defmodule Elektrine.Social do
   defp community_post_branch_candidates(_source_filter, branch_opts) do
     community_metadata_post_candidates(true, branch_opts) ++
       community_conversation_post_candidates(
-        community_conversation_ids(:communities),
+        community_conversation_ids(:communities, branch_opts.query_timeout),
         true,
         branch_opts
       )
   end
 
-  defp community_conversation_ids(:communities) do
-    Repo.all(from c in Conversation, where: c.type == "community", select: c.id)
+  defp community_conversation_ids(:communities, query_timeout) do
+    Repo.all(from(c in Conversation, where: c.type == "community", select: c.id),
+      timeout: query_timeout
+    )
   end
 
-  defp community_conversation_ids(:local_communities) do
+  defp community_conversation_ids(:local_communities, query_timeout) do
     Repo.all(
-      from c in Conversation,
+      from(c in Conversation,
         where:
           c.type == "community" and
             (is_nil(c.is_federated_mirror) or c.is_federated_mirror == false),
         select: c.id
+      ),
+      timeout: query_timeout
     )
   end
 
-  defp community_conversation_ids(:federated_mirrors) do
-    Repo.all(from c in Conversation, where: c.is_federated_mirror == true, select: c.id)
+  defp community_conversation_ids(:federated_mirrors, query_timeout) do
+    Repo.all(from(c in Conversation, where: c.is_federated_mirror == true, select: c.id),
+      timeout: query_timeout
+    )
   end
 
   # Posts tagged with a community actor uri in metadata, regardless of conversation.
@@ -484,7 +638,7 @@ defmodule Elektrine.Social do
     |> maybe_apply_timeline_search(branch_opts.search_query)
     |> apply_id_pagination(branch_opts.pagination)
     |> apply_id_order(branch_opts.pagination.order)
-    |> Repo.all()
+    |> Repo.all(timeout: branch_opts.query_timeout)
   end
 
   # Posts inside the given conversations. A lateral top-N per conversation keeps
@@ -612,6 +766,57 @@ defmodule Elektrine.Social do
     search_query = Keyword.get(opts, :search_query)
     source_filter = Keyword.get(opts, :source_filter)
     preloads = MessagingMessages.timeline_feed_preloads()
+
+    if Elektrine.Strings.present?(search_query) do
+      get_federated_replies_query(
+        limit,
+        pagination,
+        user_id,
+        search_query,
+        source_filter,
+        preloads
+      )
+    else
+      get_federated_replies_fast(limit, pagination, user_id, source_filter, preloads)
+    end
+  end
+
+  defp get_federated_replies_fast(limit, pagination, user_id, "federated", preloads) do
+    candidate_opts = public_feed_candidate_opts(limit, pagination, user_id)
+
+    ids =
+      candidate_opts
+      |> federated_reply_candidates()
+      |> Enum.reject(&public_feed_candidate_excluded?(&1, candidate_opts))
+      |> Enum.take(limit)
+      |> Enum.map(& &1.id)
+
+    load_timeline_candidate_posts(ids, preloads, pagination.order, candidate_opts.query_timeout)
+  end
+
+  defp get_federated_replies_fast(limit, pagination, user_id, _source_filter, preloads) do
+    candidate_opts = public_feed_candidate_opts(limit, pagination, user_id)
+
+    ids =
+      candidate_opts
+      |> all_federated_reply_candidates()
+      |> Enum.reject(&public_feed_candidate_excluded?(&1, candidate_opts))
+      |> Enum.uniq_by(& &1.id)
+      |> Enum.sort_by(& &1.id, pagination.order)
+      |> Enum.take(limit)
+      |> Enum.map(& &1.id)
+
+    load_timeline_candidate_posts(ids, preloads, pagination.order, candidate_opts.query_timeout)
+  end
+
+  defp get_federated_replies_query(
+         limit,
+         pagination,
+         user_id,
+         search_query,
+         source_filter,
+         preloads
+       ) do
     all_blocked_ids = blocked_user_ids(user_id)
 
     query =
@@ -1234,6 +1439,17 @@ defmodule Elektrine.Social do
       [m, c],
       (c.type == "timeline" and m.post_type == "post") or
         (is_nil(m.conversation_id) and m.federated == true)
+    )
+  end
+
+  defp public_reply_filter do
+    dynamic(
+      [m],
+      m.visibility == "public" and
+        fragment("? IS NOT TRUE", m.is_draft) and
+        is_nil(m.deleted_at) and
+        (m.approval_status == "approved" or is_nil(m.approval_status)) and
+        (not is_nil(m.reply_to_id) or fragment("(?->>'inReplyTo' IS NOT NULL)", m.media_metadata))
     )
   end
 

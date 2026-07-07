@@ -227,10 +227,31 @@ defmodule Elektrine.Social.Recommendations do
 
   defp reject_session_dismissed_posts(posts, _session_context), do: posts
 
-  defp recommendation_storeable?(session_context) when is_map(session_context),
-    do: map_size(session_context) == 0
+  defp recommendation_storeable?(session_context) when is_map(session_context) do
+    empty_session_list?(session_context, :liked_hashtags) and
+      empty_session_list?(session_context, :liked_creators) and
+      empty_session_list?(session_context, :liked_local_creators) and
+      empty_session_list?(session_context, :liked_remote_creators) and
+      empty_session_list?(session_context, :viewed_posts) and
+      empty_session_list?(session_context, :dismissed_posts) and
+      session_count(session_context, :total_views) == 0 and
+      session_count(session_context, :total_interactions) == 0
+  end
 
   defp recommendation_storeable?(_session_context), do: false
+
+  defp empty_session_list?(session_context, key) do
+    value = Map.get(session_context, key, Map.get(session_context, to_string(key), []))
+    value in [nil, []]
+  end
+
+  defp session_count(session_context, key) do
+    case Map.get(session_context, key, Map.get(session_context, to_string(key), 0)) do
+      count when is_integer(count) -> count
+      count when is_float(count) -> trunc(count)
+      _ -> 0
+    end
+  end
 
   defp normalize_recommendation_filter(filter)
        when filter in ~w(all timeline gallery discussions),

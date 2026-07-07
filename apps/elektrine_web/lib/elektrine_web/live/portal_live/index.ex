@@ -26,6 +26,8 @@ defmodule ElektrineWeb.PortalLive.Index do
   @default_attention_filter "all"
   @allowed_attention_filters ~w(all email chat requests social system)
   @feed_load_timeout_ms 12_000
+  @feed_fallback_timeout_ms 4_000
+  @portal_public_query_timeout_ms 2_000
   @stats_load_timeout_ms 8000
   @dashboard_load_timeout_ms 10_000
   @portal_feed_limit 20
@@ -2181,13 +2183,24 @@ defmodule ElektrineWeb.PortalLive.Index do
         {:ok, feed_data}
 
       {:error, _reason} ->
-        fallback_posts = fallback_feed_posts(user_id, filter, limit)
+        case load_with_timeout(
+               {:for_you_fallback, source_key},
+               fn ->
+                 fallback_posts = fallback_feed_posts(user_id, filter, limit)
 
-        {:fallback,
-         %{
-           build_feed_state(fallback_posts, user_id)
-           | all_posts: fallback_posts
-         }}
+                 %{
+                   build_feed_state(fallback_posts, user_id)
+                   | all_posts: fallback_posts
+                 }
+               end,
+               @feed_fallback_timeout_ms
+             ) do
+          {:ok, feed_data} ->
+            {:fallback, feed_data}
+
+          {:error, _fallback_reason} ->
+            {:fallback, build_feed_state([], user_id)}
+        end
     end
   end
 
@@ -2202,19 +2215,31 @@ defmodule ElektrineWeb.PortalLive.Index do
   end
 
   defp fallback_feed_posts(user_id, "timeline", limit) do
-    Integrations.portal_public_timeline(user_id: user_id, limit: max(limit * 4, limit + 20))
+    Integrations.portal_public_timeline(
+      user_id: user_id,
+      limit: max(limit * 2, limit + 10),
+      query_timeout: @portal_public_query_timeout_ms
+    )
     |> filtered_posts("timeline", %{})
     |> Enum.take(limit)
   end
 
   defp fallback_feed_posts(user_id, "gallery", limit) do
-    Integrations.portal_public_timeline(user_id: user_id, limit: max(limit * 4, limit + 20))
+    Integrations.portal_public_timeline(
+      user_id: user_id,
+      limit: max(limit * 2, limit + 10),
+      query_timeout: @portal_public_query_timeout_ms
+    )
     |> filtered_posts("gallery", %{})
     |> Enum.take(limit)
   end
 
   defp fallback_feed_posts(user_id, "discussions", limit) do
-    Integrations.portal_public_community_posts(user_id: user_id, limit: limit)
+    Integrations.portal_public_community_posts(
+      user_id: user_id,
+      limit: limit,
+      query_timeout: @portal_public_query_timeout_ms
+    )
   end
 
   defp fallback_feed_posts(user_id, "my_posts", limit) do
@@ -2222,7 +2247,11 @@ defmodule ElektrineWeb.PortalLive.Index do
   end
 
   defp fallback_feed_posts(user_id, _filter, limit) do
-    Integrations.portal_public_timeline(user_id: user_id, limit: limit)
+    Integrations.portal_public_timeline(
+      user_id: user_id,
+      limit: limit,
+      query_timeout: @portal_public_query_timeout_ms
+    )
   end
 
   defp load_portal_feed_posts(user_id, "discussions", limit, session_context) do
@@ -2240,7 +2269,8 @@ defmodule ElektrineWeb.PortalLive.Index do
       if length(community_posts) < limit do
         Integrations.portal_public_community_posts(
           user_id: user_id,
-          limit: max(limit * 2, limit + 20)
+          limit: max(limit * 2, limit + 20),
+          query_timeout: @portal_public_query_timeout_ms
         )
       else
         []
