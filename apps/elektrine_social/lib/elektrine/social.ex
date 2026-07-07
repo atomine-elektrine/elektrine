@@ -385,53 +385,62 @@ defmodule Elektrine.Social do
     # instead, then load the winning page.
     branch_opts = %{
       limit: limit,
+      candidate_limit: max(limit * 10, 100),
       pagination: pagination,
       user_id: user_id,
-      blocked_ids: blocked_user_ids(user_id),
+      blocked_sender_ids: MapSet.new(blocked_user_ids(user_id)),
+      excluded_domains: compile_domain_policy(public_timeline_excluded_instance_domains()),
+      viewer_policy: public_timeline_viewer_policy(user_id),
       search_query: search_query
     }
 
     ids =
       source_filter
-      |> community_post_branch_ids(branch_opts)
-      |> Enum.uniq()
-      |> Enum.sort(pagination.order)
+      |> community_post_branch_candidates(branch_opts)
+      |> Enum.reject(&community_post_candidate_excluded?(&1, branch_opts))
+      |> Enum.uniq_by(& &1.id)
+      |> Enum.sort_by(& &1.id, pagination.order)
       |> Enum.take(limit)
+      |> Enum.map(& &1.id)
 
-    Message
-    |> where([m], m.id in ^ids)
-    |> preload(^preloads)
-    |> Repo.all()
-    |> Enum.sort_by(& &1.id, pagination.order)
+    if ids == [] do
+      []
+    else
+      Message
+      |> where([m], m.id in ^ids)
+      |> preload(^preloads)
+      |> Repo.all()
+      |> Enum.sort_by(& &1.id, pagination.order)
+    end
   end
 
-  defp community_post_branch_ids("federated", branch_opts) do
+  defp community_post_branch_candidates("federated", branch_opts) do
     federated_only = dynamic([m], m.federated == true)
 
-    community_metadata_post_ids(federated_only, branch_opts) ++
-      community_conversation_post_ids(
+    community_metadata_post_candidates(federated_only, branch_opts) ++
+      community_conversation_post_candidates(
         community_conversation_ids(:communities),
         federated_only,
         branch_opts
       ) ++
-      community_conversation_post_ids(
+      community_conversation_post_candidates(
         community_conversation_ids(:federated_mirrors),
         true,
         branch_opts
       )
   end
 
-  defp community_post_branch_ids("local", branch_opts) do
-    community_conversation_post_ids(
+  defp community_post_branch_candidates("local", branch_opts) do
+    community_conversation_post_candidates(
       community_conversation_ids(:local_communities),
       dynamic([m], m.federated != true),
       branch_opts
     )
   end
 
-  defp community_post_branch_ids(_source_filter, branch_opts) do
-    community_metadata_post_ids(true, branch_opts) ++
-      community_conversation_post_ids(
+  defp community_post_branch_candidates(_source_filter, branch_opts) do
+    community_metadata_post_candidates(true, branch_opts) ++
+      community_conversation_post_candidates(
         community_conversation_ids(:communities),
         true,
         branch_opts
@@ -458,15 +467,21 @@ defmodule Elektrine.Social do
 
   # Posts tagged with a community actor uri in metadata, regardless of conversation.
   # Served by the partial index on (id DESC) WHERE community_actor_uri IS NOT NULL.
-  defp community_metadata_post_ids(scope_filter, branch_opts) do
+  defp community_metadata_post_candidates(scope_filter, branch_opts) do
     from(m in Message,
+      left_join: remote_actor in assoc(m, :remote_actor),
       where: ^public_top_level_post_filter(),
       where: fragment("?->>'community_actor_uri' IS NOT NULL", m.media_metadata),
       where: ^scope_filter,
-      select: m.id,
-      limit: ^branch_opts.limit
+      select: %{
+        id: m.id,
+        sender_id: m.sender_id,
+        actor_uri: remote_actor.uri,
+        actor_domain: remote_actor.domain
+      },
+      limit: ^branch_opts.candidate_limit
     )
-    |> apply_community_post_visibility_filters(branch_opts)
+    |> maybe_apply_timeline_search(branch_opts.search_query)
     |> apply_id_pagination(branch_opts.pagination)
     |> apply_id_order(branch_opts.pagination.order)
     |> Repo.all()
@@ -475,18 +490,24 @@ defmodule Elektrine.Social do
   # Posts inside the given conversations. A lateral top-N per conversation keeps
   # each probe on the (conversation_id, id DESC) partial index instead of letting
   # the planner walk the global timeline index.
-  defp community_conversation_post_ids([], _scope_filter, _branch_opts), do: []
+  defp community_conversation_post_candidates([], _scope_filter, _branch_opts), do: []
 
-  defp community_conversation_post_ids(conversation_ids, scope_filter, branch_opts) do
+  defp community_conversation_post_candidates(conversation_ids, scope_filter, branch_opts) do
     per_conversation_query =
       from(m in Message,
+        left_join: remote_actor in assoc(m, :remote_actor),
         where: m.conversation_id == parent_as(:community_conversation).id,
         where: ^public_top_level_post_filter(),
         where: ^scope_filter,
-        select: %{id: m.id},
-        limit: ^branch_opts.limit
+        select: %{
+          id: m.id,
+          sender_id: m.sender_id,
+          actor_uri: remote_actor.uri,
+          actor_domain: remote_actor.domain
+        },
+        limit: ^branch_opts.candidate_limit
       )
-      |> apply_community_post_visibility_filters(branch_opts)
+      |> maybe_apply_timeline_search(branch_opts.search_query)
       |> apply_id_pagination(branch_opts.pagination)
       |> apply_id_order(branch_opts.pagination.order)
 
@@ -496,8 +517,13 @@ defmodule Elektrine.Social do
         inner_lateral_join: p in subquery(per_conversation_query),
         on: true,
         where: c.id in ^conversation_ids,
-        select: p.id,
-        limit: ^branch_opts.limit
+        select: %{
+          id: p.id,
+          sender_id: p.sender_id,
+          actor_uri: p.actor_uri,
+          actor_domain: p.actor_domain
+        },
+        limit: ^branch_opts.candidate_limit
       )
 
     query =
@@ -509,12 +535,13 @@ defmodule Elektrine.Social do
     Repo.all(query)
   end
 
-  defp apply_community_post_visibility_filters(query, branch_opts) do
-    query
-    |> maybe_exclude_blocked_senders_or_nil(branch_opts.blocked_ids)
-    |> maybe_apply_viewer_timeline_policy(branch_opts.user_id)
-    |> maybe_exclude_public_timeline_removed_instances()
-    |> maybe_apply_timeline_search(branch_opts.search_query)
+  defp community_post_candidate_excluded?(candidate, branch_opts) do
+    MapSet.member?(branch_opts.blocked_sender_ids, candidate.sender_id) or
+      public_timeline_post_excluded?(
+        candidate,
+        branch_opts.excluded_domains,
+        branch_opts.viewer_policy
+      )
   end
 
   defp public_top_level_post_filter do

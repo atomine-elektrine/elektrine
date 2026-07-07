@@ -37,8 +37,8 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePostFooter do
 
   def post_footer(assigns) do
     ~H"""
-    <div class="flex flex-wrap items-center justify-between gap-y-2 gap-x-1 pt-2 border-t border-base-300">
-      <div class="flex items-center gap-1 flex-shrink-0">
+    <div class="flex flex-wrap items-center justify-between gap-x-2 gap-y-2 pt-2 border-t border-base-300">
+      <div class="flex items-center gap-1.5 flex-shrink-0">
         <.post_actions
           post_id={@action_post_id || @post.id}
           current_user={@current_user}

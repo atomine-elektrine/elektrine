@@ -79,7 +79,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostReactions do
 
     ~H"""
     <%= if length(@formatted_reactions) > 0 || (@current_user && @show_picker) do %>
-      <div class="flex flex-wrap items-center gap-1.5">
+      <div class="flex flex-wrap items-center gap-x-2 gap-y-1.5">
         <%= for reaction <- @formatted_reactions do %>
           <% tooltip = Enum.join(reaction.usernames, ", ") %>
           <% tooltip =
@@ -103,7 +103,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostReactions do
 
         <%= if @current_user && @show_picker do %>
           <div
-            class="dropdown dropdown-top"
+            class="dropdown dropdown-top ml-0.5 border-l border-base-300/70 pl-2"
             data-reaction-picker-root
             data-portal-dropdown-root
             data-portal-dropdown-mode="anchored"
@@ -121,11 +121,11 @@ defmodule ElektrineSocialWeb.Components.Social.PostReactions do
             </button>
             <div
               tabindex="-1"
-              class="dropdown-content z-30 menu p-2 rounded-box"
+              class="dropdown-content z-30 menu rounded-box border border-base-300 bg-base-100 p-2 shadow-lg"
               role="menu"
               data-portal-dropdown-menu
             >
-              <div class="flex gap-1">
+              <div class="flex gap-1.5">
                 <%= for emoji <- @emojis do %>
                   <button
                     phx-click={@on_react}
@@ -176,7 +176,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostReactions do
     {
       "btn btn-xs sm:btn-sm gap-1 min-w-0",
       "text-xs sm:text-sm",
-      "btn btn-ghost btn-xs sm:btn-sm",
+      "btn btn-ghost btn-square btn-xs sm:btn-sm shrink-0",
       "w-3.5 h-3.5 sm:w-4 sm:h-4"
     }
   end
@@ -185,7 +185,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostReactions do
     {
       "btn btn-sm gap-1 min-w-0",
       "text-sm",
-      "btn btn-ghost btn-sm",
+      "btn btn-ghost btn-square btn-sm shrink-0",
       "w-4 h-4"
     }
   end

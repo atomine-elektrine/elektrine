@@ -383,7 +383,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
             />
             
     <!-- Emoji Reactions -->
-            <div class="mt-2 pt-2 border-t border-base-200">
+            <div class="mt-3 pt-3 border-t border-base-200">
               <.post_reactions
                 post_id={@action_post_id || @post.id}
                 value_name={@action_value_name}
@@ -1922,7 +1922,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
           
     <!-- Emoji Reactions -->
           <%= if @current_user || !Enum.empty?(@formatted_reactions) do %>
-            <div class="flex items-center gap-1 mt-2 flex-wrap">
+            <div class="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-md bg-base-200/45 p-2">
               <%= for {emoji, count, users, user_reacted} <- @formatted_reactions do %>
                 <% tooltip =
                   if length(users) > 10 do
@@ -1962,7 +1962,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
               
     <!-- Quick reaction buttons -->
               <%= if @current_user do %>
-                <div class="flex items-center gap-0.5 ml-1">
+                <div class="ml-0.5 flex items-center gap-1 border-l border-base-300/70 pl-2">
                   <%= for emoji <- ~w(👍 ❤️ 😂 🔥 😮 😢) do %>
                     <% already_reacted =
                       Enum.any?(@formatted_reactions, fn {e, _, _, reacted} ->
@@ -1973,7 +1973,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
                       phx-value-post_id={@post.id}
                       phx-value-emoji={emoji}
                       class={[
-                        "btn btn-ghost btn-xs px-1 text-sm",
+                        "btn btn-ghost btn-square btn-xs text-sm",
                         if(already_reacted,
                           do: "text-secondary",
                           else: "opacity-40 hover:opacity-100"

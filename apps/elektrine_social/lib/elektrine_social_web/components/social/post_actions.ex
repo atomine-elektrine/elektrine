@@ -134,7 +134,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
 
   defp render_default(assigns) do
     ~H"""
-    <div class={["flex items-center gap-1 post-actions-container", @container_class]}>
+    <div class={["flex items-center gap-1.5 post-actions-container", @container_class]}>
       <%= if @show_like do %>
         <%= if @current_user do %>
           <button
@@ -316,6 +316,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
             data-action-lock-key={action_lock_key(@dom_id_prefix, "save")}
             class={[
               @btn_class,
+              "w-9 justify-center px-0 sm:w-8 sm:px-0",
               "cursor-pointer transition-colors phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
               @is_saved &&
                 "bg-primary/10 text-primary phx-click-loading:bg-transparent phx-click-loading:text-base-content/70",
@@ -333,7 +334,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
             </span>
           </button>
         <% else %>
-          <div class={[@btn_class, "cursor-default opacity-60"]}>
+          <div class={[@btn_class, "w-9 justify-center px-0 sm:w-8 sm:px-0 cursor-default opacity-60"]}>
             <.icon name="hero-bookmark" class={@icon_size} />
           </div>
         <% end %>
@@ -476,7 +477,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
             id={action_button_id(@dom_id_prefix, "save")}
             data-action-lock-key={action_lock_key(@dom_id_prefix, "save")}
             class={[
-              "flex items-center gap-1.5 transition-all duration-150 cursor-pointer phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
+              "flex h-8 w-8 items-center justify-center rounded-md transition-all duration-150 cursor-pointer phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
               if(@is_saved,
                 do: "text-primary phx-click-loading:text-base-content/60",
                 else: "text-base-content/60 hover:text-primary phx-click-loading:text-primary"
@@ -493,7 +494,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
             </span>
           </button>
         <% else %>
-          <div class="flex items-center gap-1.5 opacity-50 cursor-default">
+          <div class="flex h-8 w-8 items-center justify-center rounded-md opacity-50 cursor-default">
             <.icon name="hero-bookmark" class={@icon_size} />
           </div>
         <% end %>
@@ -763,7 +764,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
       phx-click={if @is_saved, do: @on_unsave, else: @on_save}
       {@value_name == "message_id" && [{"phx-value-message_id", @post_id}] || [{"phx-value-post_id", @post_id}]}
       class={[
-        "flex items-center gap-1.5 transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
+        "flex h-8 w-8 items-center justify-center rounded-md transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
         if(@is_saved,
           do: "text-primary phx-click-loading:text-base-content/60",
           else: "text-base-content/60 hover:text-primary phx-click-loading:text-primary"

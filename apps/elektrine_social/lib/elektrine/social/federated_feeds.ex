@@ -6,9 +6,6 @@ defmodule Elektrine.Social.FederatedFeeds do
   import Ecto.Query, warn: false
   import Elektrine.Social.FeedQuery
 
-  alias Elektrine.Accounts.UserMute
-  alias Elektrine.ActivityPub.Instance
-  alias Elektrine.ActivityPub.UserBlock
   alias Elektrine.Profiles.Follow
   alias Elektrine.Repo
   alias Elektrine.Social.Conversation
@@ -403,86 +400,4 @@ defmodule Elektrine.Social.FederatedFeeds do
 
     Repo.all(query)
   end
-
-  defp public_timeline_excluded_instance_domains do
-    Repo.all(
-      from i in Instance,
-        where: i.blocked == true or i.silenced == true or i.federated_timeline_removal == true,
-        select: i.domain
-    )
-    |> Enum.filter(&is_binary/1)
-  end
-
-  defp public_timeline_viewer_policy(nil) do
-    %{
-      muted_sender_ids: MapSet.new(),
-      blocked_actor_uris: MapSet.new(),
-      blocked_domains: compile_domain_policy([])
-    }
-  end
-
-  defp public_timeline_viewer_policy(user_id) do
-    muted_sender_ids =
-      Repo.all(
-        from m in UserMute,
-          where: m.muter_id == ^user_id,
-          select: m.muted_id
-      )
-      |> MapSet.new()
-
-    blocks =
-      Repo.all(
-        from b in UserBlock,
-          where: b.user_id == ^user_id,
-          select: {b.block_type, b.blocked_uri}
-      )
-
-    %{
-      muted_sender_ids: muted_sender_ids,
-      blocked_actor_uris:
-        blocks
-        |> Enum.filter(fn {type, uri} -> type == "user" and is_binary(uri) end)
-        |> Enum.map(fn {_type, uri} -> uri end)
-        |> MapSet.new(),
-      blocked_domains:
-        blocks
-        |> Enum.filter(fn {type, domain} -> type == "domain" and is_binary(domain) end)
-        |> Enum.map(fn {_type, domain} -> domain end)
-        |> compile_domain_policy()
-    }
-  end
-
-  defp public_timeline_post_excluded?(candidate, excluded_domains, viewer_policy) do
-    domain_excluded?(excluded_domains, candidate.actor_domain) or
-      public_timeline_viewer_policy_excluded?(candidate, viewer_policy)
-  end
-
-  defp public_timeline_viewer_policy_excluded?(candidate, policy) do
-    MapSet.member?(policy.muted_sender_ids, candidate.sender_id) or
-      (is_binary(candidate.actor_uri) &&
-         MapSet.member?(policy.blocked_actor_uris, candidate.actor_uri)) or
-      domain_excluded?(policy.blocked_domains, candidate.actor_domain)
-  end
-
-  defp compile_domain_policy(domains) do
-    {wildcards, exacts} =
-      domains
-      |> Enum.filter(&is_binary/1)
-      |> Enum.map(&String.downcase/1)
-      |> Enum.split_with(&String.starts_with?(&1, "*."))
-
-    %{
-      exact: MapSet.new(exacts),
-      wildcard_suffixes: Enum.map(wildcards, &("." <> String.trim_leading(&1, "*.")))
-    }
-  end
-
-  defp domain_excluded?(%{exact: exact, wildcard_suffixes: suffixes}, domain)
-       when is_binary(domain) do
-    domain = String.downcase(domain)
-
-    MapSet.member?(exact, domain) or Enum.any?(suffixes, &String.ends_with?(domain, &1))
-  end
-
-  defp domain_excluded?(_policy, _domain), do: false
 end
