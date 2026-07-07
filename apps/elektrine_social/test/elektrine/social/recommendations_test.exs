@@ -7,7 +7,7 @@ defmodule Elektrine.Social.RecommendationsTest do
   alias Elektrine.Accounts.UserActivityStats
   alias Elektrine.Profiles.Follow
   alias Elektrine.Repo
-  alias Elektrine.Social.Message
+  alias Elektrine.Social.{Message, RecommendationCache}
   alias Elektrine.Social.Recommendations
 
   describe "get_for_you_feed/2 visibility rules" do
@@ -150,6 +150,20 @@ defmodule Elektrine.Social.RecommendationsTest do
 
       assert public_post.id in feed_ids
       refute followers_only_post.id in feed_ids
+    end
+  end
+
+  describe "recommendation cache" do
+    test "stores unique post ids and removes dismissed ids" do
+      user_id = System.unique_integer([:positive])
+
+      on_exit(fn -> RecommendationCache.clear(user_id) end)
+
+      assert {:ok, true} = RecommendationCache.put(user_id, "all", [1, 2, 2, "3", "ignored"])
+      assert RecommendationCache.get(user_id, "all") == [1, 2, 3]
+
+      assert :ok = RecommendationCache.delete(user_id, "2")
+      assert RecommendationCache.get(user_id, "all") == [1, 3]
     end
   end
 

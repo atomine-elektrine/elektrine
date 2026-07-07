@@ -3,7 +3,15 @@ defmodule Elektrine.Social.Recommendations do
   import Ecto.Query
   alias Elektrine.Repo
   alias Elektrine.Social
-  alias Elektrine.Social.{CreatorSatisfaction, PostDismissal, PostView, Views}
+
+  alias Elektrine.Social.{
+    CreatorSatisfaction,
+    PostDismissal,
+    PostView,
+    RecommendationCache,
+    Views
+  }
+
   alias Elektrine.Social.Message
   @min_score_threshold 10
   @exploration_ratio 0.15
@@ -27,19 +35,7 @@ defmodule Elektrine.Social.Recommendations do
         get_recommended_own_posts(user_id, limit)
 
       recommendations_enabled?() or session_context != %{} ->
-        user_profile = build_user_profile(user_id, session_context)
-
-        recommended_posts =
-          user_id
-          |> recommend_posts(expanded_limit(filter, limit), user_profile)
-          |> then(&filter_posts_for_feed(filter, &1))
-          |> Enum.take(limit)
-
-        if recommended_posts == [] do
-          fallback_posts_for_filter(user_id, filter, limit)
-        else
-          recommended_posts
-        end
+        get_cached_or_compute_recommendations(user_id, filter, limit, session_context)
         |> prioritize_session_context(session_context)
 
       true ->
@@ -47,6 +43,64 @@ defmodule Elektrine.Social.Recommendations do
         |> prioritize_session_context(session_context)
     end
   end
+
+  defp get_cached_or_compute_recommendations(user_id, filter, limit, session_context) do
+    if recommendation_cacheable?(session_context) do
+      case cached_recommendation_posts(user_id, filter, limit) do
+        posts when length(posts) >= limit ->
+          posts
+
+        _ ->
+          posts = compute_recommendations(user_id, filter, limit, session_context)
+          RecommendationCache.put(user_id, filter, Enum.map(posts, & &1.id))
+          posts
+      end
+    else
+      compute_recommendations(user_id, filter, limit, session_context)
+    end
+  end
+
+  defp compute_recommendations(user_id, filter, limit, session_context) do
+    user_profile = build_user_profile(user_id, session_context)
+
+    recommended_posts =
+      user_id
+      |> recommend_posts(expanded_limit(filter, limit), user_profile)
+      |> then(&filter_posts_for_feed(filter, &1))
+      |> Enum.take(limit)
+
+    if recommended_posts == [] do
+      fallback_posts_for_filter(user_id, filter, limit)
+    else
+      recommended_posts
+    end
+  end
+
+  defp cached_recommendation_posts(user_id, filter, limit) do
+    ids = user_id |> RecommendationCache.get(filter) |> Enum.take(limit)
+
+    if ids == [] do
+      []
+    else
+      positions = ids |> Enum.with_index() |> Map.new()
+
+      from(m in Message,
+        where: m.id in ^ids,
+        where:
+          is_nil(m.deleted_at) and (m.approval_status == "approved" or is_nil(m.approval_status)),
+        preload: ^recommendation_preloads()
+      )
+      |> Repo.all()
+      |> Enum.sort_by(fn post -> Map.get(positions, post.id, length(ids)) end)
+      |> filter_posts_for_feed(filter)
+      |> Enum.take(limit)
+    end
+  end
+
+  defp recommendation_cacheable?(session_context) when is_map(session_context),
+    do: map_size(session_context) == 0
+
+  defp recommendation_cacheable?(_session_context), do: false
 
   defp prioritize_session_context(posts, session_context)
        when is_list(posts) and is_map(session_context) do
@@ -235,6 +289,17 @@ defmodule Elektrine.Social.Recommendations do
       preload: ^own_post_preloads()
     )
     |> Repo.all()
+  end
+
+  defp recommendation_preloads do
+    [
+      :conversation,
+      :remote_actor,
+      :link_preview,
+      :hashtags,
+      sender: [:profile],
+      shared_message: [:link_preview, :remote_actor, sender: [:profile]]
+    ]
   end
 
   defp own_post_preloads do
@@ -1433,14 +1498,21 @@ defmodule Elektrine.Social.Recommendations do
 
   @doc "Records a post dismissal (negative signal).\n"
   def record_dismissal(user_id, message_id, type, dwell_time_ms \\ nil) do
-    %PostDismissal{}
-    |> PostDismissal.changeset(%{
-      user_id: user_id,
-      message_id: message_id,
-      dismissal_type: type,
-      dwell_time_ms: dwell_time_ms
-    })
-    |> Repo.insert(on_conflict: :nothing)
+    result =
+      %PostDismissal{}
+      |> PostDismissal.changeset(%{
+        user_id: user_id,
+        message_id: message_id,
+        dismissal_type: type,
+        dwell_time_ms: dwell_time_ms
+      })
+      |> Repo.insert(on_conflict: :nothing)
+
+    if match?({:ok, _dismissal}, result) do
+      RecommendationCache.delete(user_id, message_id)
+    end
+
+    result
   end
 
   @doc "Updates or creates a post view with dwell time data.\n"
