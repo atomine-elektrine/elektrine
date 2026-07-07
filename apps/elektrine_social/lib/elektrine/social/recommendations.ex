@@ -12,6 +12,10 @@ defmodule Elektrine.Social.Recommendations do
   @dwell_time_threshold_engaged 30_000
   @dwell_time_threshold_interested 10_000
   @dwell_time_threshold_glanced 3000
+  @max_candidate_fetch_limit 200
+  @candidate_pool_query_timeout_ms 4_000
+  @candidate_pool_task_timeout_ms 5_000
+
   @doc "Gets personalized recommendation feed for a user.\n\n## Options\n- `:limit` - Maximum posts to return (default: 50)\n- `:session_context` - Map with session engagement data for real-time adaptation\n"
   def get_for_you_feed(user_id, opts \\ []) do
     limit = Keyword.get(opts, :limit, 50)
@@ -70,7 +74,7 @@ defmodule Elektrine.Social.Recommendations do
   defp prioritize_session_context(posts, _), do: posts
 
   defp recommend_posts(user_id, limit, user_profile) do
-    candidates = get_candidate_posts_fast(user_id, limit * 10)
+    candidates = get_candidate_posts_fast(user_id, candidate_fetch_limit(limit))
 
     pre_scored =
       candidates
@@ -538,14 +542,17 @@ defmodule Elektrine.Social.Recommendations do
 
   defp load_candidate_pool(query, preloads) do
     query
-    |> Repo.all()
-    |> Repo.preload(preloads)
+    |> Repo.all(timeout: @candidate_pool_query_timeout_ms)
+    |> Repo.preload(preloads, timeout: @candidate_pool_query_timeout_ms)
   end
 
   defp load_candidate_pools(queries, preloads) do
     queries
     |> Enum.reject(&is_nil/1)
-    |> maybe_async_map(&load_candidate_pool(&1, preloads), timeout: 15_000, max_concurrency: 6)
+    |> maybe_async_map(&load_candidate_pool(&1, preloads),
+      timeout: @candidate_pool_task_timeout_ms,
+      max_concurrency: 4
+    )
     |> Enum.flat_map(& &1)
   end
 
@@ -568,6 +575,13 @@ defmodule Elektrine.Social.Recommendations do
 
   defp candidate_pool_limit(limit, ratio, min_size) do
     max(trunc(limit * ratio), min_size)
+  end
+
+  defp candidate_fetch_limit(limit) do
+    limit
+    |> Kernel.*(3)
+    |> max(60)
+    |> min(@max_candidate_fetch_limit)
   end
 
   defp score_post_quick(post, user_profile) do
