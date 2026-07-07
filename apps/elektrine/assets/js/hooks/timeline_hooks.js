@@ -298,6 +298,8 @@ export const PostClick = {
     this.el.addEventListener("click", this.handleClick);
 
     // Dwell time tracking
+    if (this.el.dataset.trackDwell === "false") return;
+
     this.postId = this.el.dataset.postId;
     if (!this.postId) return;
 

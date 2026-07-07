@@ -201,7 +201,8 @@ html[data-theme="dark"] .btn:focus-visible,
 } /* Timeline cards need higher stacking when menus are open */
 .timeline-post-card { position: relative; overflow: visible !important; z-index: 1; isolation: isolate; contain: none; transform: none !important;
 } .timeline-post-card:hover,
-.timeline-post-card:focus-within { z-index: 220;
+.timeline-post-card:focus-within,
+.timeline-post-card:has(.timeline-reaction-dropdown[open]) { z-index: 220;
 } .timeline-post-card > .card-body,
 .timeline-post-card .timeline-post-card-body { overflow: visible;
 } .timeline-post-dropdown { position: relative; z-index: 90; overflow: visible;
@@ -210,6 +211,9 @@ html[data-theme="dark"] .btn:focus-visible,
 } .timeline-post-dropdown-menu { width: min(18rem, calc(100vw - 1rem)); max-width: calc(100vw - 1rem); overflow: hidden;
 } .timeline-post-dropdown-menu :where(li > a, li > button, li > details > summary) { min-width: 0; white-space: normal; overflow-wrap: anywhere; word-break: break-word; line-height: 1.25;
 } .timeline-post-dropdown-menu :where(svg, .ui-icon) { flex-shrink: 0;
+} .timeline-reaction-dropdown { position: relative; z-index: 90; overflow: visible;
+} .timeline-reaction-dropdown[open] { z-index: 320;
+} .timeline-reaction-dropdown .dropdown-content { width: max-content; max-width: calc(100vw - 1rem); overflow: visible;
 } .thread-context-card[role="button"] { cursor: pointer;
 } .thread-context-card[role="button"]:focus-visible { outline: 2px solid color-mix(in srgb, var(--color-primary) 55%, transparent); outline-offset: -2px;
 }

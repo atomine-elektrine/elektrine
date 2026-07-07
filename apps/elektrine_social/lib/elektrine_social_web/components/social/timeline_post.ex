@@ -375,6 +375,8 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
               on_comment={@on_comment}
               show_quote_button={@show_quote_button}
               show_save_button={@show_save_button}
+              reactions={@reactions}
+              on_react={@on_react}
               action_post_id={@action_post_id}
               action_value_name={@action_value_name}
               save_action_post_id={@save_action_post_id}
@@ -391,6 +393,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
                 current_user={@current_user}
                 on_react={@on_react}
                 size={:xs}
+                show_picker={false}
               />
             </div>
           </div>

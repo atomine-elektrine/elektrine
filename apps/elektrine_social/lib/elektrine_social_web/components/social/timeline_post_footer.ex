@@ -28,6 +28,8 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePostFooter do
   attr :on_comment, :string, default: "show_reply_form"
   attr :show_quote_button, :boolean, default: true
   attr :show_save_button, :boolean, default: true
+  attr :reactions, :list, default: []
+  attr :on_react, :string, default: "react_to_post"
   attr :action_post_id, :any, default: nil
   attr :action_value_name, :string, default: "message_id"
   attr :save_action_post_id, :any, default: nil
@@ -51,7 +53,10 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePostFooter do
           quote_count={@post.quote_count || 0}
           on_comment={@on_comment}
           show_quote={@show_quote_button}
+          show_react={true}
           show_save={@show_save_button}
+          reactions={@reactions}
+          on_react={@on_react}
           value_name={@action_value_name}
           save_post_id={@save_action_post_id || @post.id}
           save_value_name={@save_action_value_name || "message_id"}

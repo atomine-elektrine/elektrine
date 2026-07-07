@@ -50,6 +50,34 @@ defmodule ElektrineWeb.Components.Social.PostActionsTest do
     refute html =~ "text-transparent select-none"
   end
 
+  test "renders reaction dropdown directly before save button when enabled" do
+    html =
+      render_component(&PostActions.post_actions/1,
+        post_id: 123,
+        value_name: "message_id",
+        dom_id_prefix: "post-actions-123",
+        current_user: %{id: 1, username: "tester"},
+        show_react: true,
+        show_save: true,
+        is_saved: false
+      )
+
+    assert html =~
+             ~s(<details class="dropdown dropdown-end dropdown-top timeline-reaction-dropdown)
+
+    assert html =~ ~s(dropdown-content bottom-full right-0)
+    assert html =~ ~s(title="React")
+    assert html =~ ~s(phx-click="react_to_post")
+    assert html =~ ~s(phx-value-emoji="👍")
+    assert html =~ ~s(phx-value-emoji="🔥")
+    assert html =~ ~s(id="post-actions-123-save")
+
+    reaction_index = :binary.match(html, ~s(title="React")) |> elem(0)
+    save_index = :binary.match(html, ~s(id="post-actions-123-save")) |> elem(0)
+
+    assert reaction_index < save_index
+  end
+
   test "hides zero vote score when there is no active vote" do
     html =
       render_component(&PostActions.vote_buttons/1,

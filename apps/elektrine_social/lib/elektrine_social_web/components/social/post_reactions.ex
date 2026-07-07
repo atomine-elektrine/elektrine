@@ -21,6 +21,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostReactions do
   attr :size, :atom, default: :xs
   attr :value_name, :string, default: "post_id"
   attr :actor_uri, :string, default: nil
+  attr :show_existing, :boolean, default: true
   attr :show_picker, :boolean, default: true
   attr :emojis, :list, default: @default_emojis
 
@@ -78,9 +79,9 @@ defmodule ElektrineSocialWeb.Components.Social.PostReactions do
       )
 
     ~H"""
-    <%= if length(@formatted_reactions) > 0 || (@current_user && @show_picker) do %>
+    <%= if (@show_existing && length(@formatted_reactions) > 0) || (@current_user && @show_picker) do %>
       <div class="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-        <%= for reaction <- @formatted_reactions do %>
+        <%= for reaction <- if(@show_existing, do: @formatted_reactions, else: []) do %>
           <% tooltip = Enum.join(reaction.usernames, ", ") %>
           <% tooltip =
             if reaction.count > 10, do: tooltip <> " and #{reaction.count - 10} more", else: tooltip %>
@@ -103,10 +104,11 @@ defmodule ElektrineSocialWeb.Components.Social.PostReactions do
 
         <%= if @current_user && @show_picker do %>
           <div
-            class="dropdown dropdown-top ml-0.5 border-l border-base-300/70 pl-2"
+            class="dropdown dropdown-end ml-0.5"
             data-reaction-picker-root
             data-portal-dropdown-root
-            data-portal-dropdown-mode="anchored"
+            data-portal-placement="bottom"
+            data-portal-align="end"
           >
             <button
               type="button"
@@ -121,7 +123,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostReactions do
             </button>
             <div
               tabindex="-1"
-              class="dropdown-content z-30 menu rounded-box border border-base-300 bg-base-100 p-2 shadow-lg"
+              class="dropdown-content z-[120] menu rounded-box border border-base-300 bg-base-100 p-2 shadow-lg"
               role="menu"
               data-portal-dropdown-menu
             >

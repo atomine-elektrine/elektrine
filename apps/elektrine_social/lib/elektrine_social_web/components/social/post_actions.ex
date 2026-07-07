@@ -69,13 +69,21 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
   attr :on_quote, :string, default: "quote_post"
   attr :on_save, :string, default: "save_post"
   attr :on_unsave, :string, default: "unsave_post"
+  attr :on_react, :string, default: "react_to_post"
   attr :show_comment, :boolean, default: true
   attr :show_boost, :boolean, default: true
   attr :show_quote, :boolean, default: true
   attr :show_like, :boolean, default: true
+  attr :show_react, :boolean, default: false
   attr :show_save, :boolean, default: true
   attr :is_saved, :boolean, default: false
   attr :quote_count, :integer, default: 0
+  attr :reactions, :list, default: []
+  attr :react_post_id, :any, default: nil
+  attr :react_value_name, :string, default: nil
+  attr :react_emoji, :string, default: "👍"
+  attr :emojis, :list, default: ["👍", "❤️", "😂", "🔥", "😮", "😢"]
+  attr :actor_uri, :string, default: nil
   attr :value_name, :string, default: "post_id"
   attr :save_post_id, :any, default: nil
   attr :save_value_name, :string, default: nil
@@ -114,6 +122,8 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
     actual_comment_value_name = assigns.comment_value_name || assigns.value_name
     actual_save_value_name = assigns.save_value_name || assigns.value_name
     actual_save_post_id = assigns.save_post_id || assigns.post_id
+    actual_react_value_name = assigns.react_value_name || assigns.value_name
+    actual_react_post_id = assigns.react_post_id || assigns.post_id
 
     assigns =
       assigns
@@ -123,6 +133,8 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
       |> assign(:actual_comment_value_name, actual_comment_value_name)
       |> assign(:actual_save_value_name, actual_save_value_name)
       |> assign(:actual_save_post_id, actual_save_post_id)
+      |> assign(:actual_react_value_name, actual_react_value_name)
+      |> assign(:actual_react_post_id, actual_react_post_id)
       |> assign(:dom_id_prefix, assigns.dom_id_prefix || default_dom_id_prefix(assigns))
 
     if assigns.style == :minimal do
@@ -307,6 +319,50 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
         <% end %>
       <% end %>
 
+      <%= if @show_react do %>
+        <%= if @current_user do %>
+          <details
+            class="dropdown dropdown-end dropdown-top timeline-reaction-dropdown ml-0.5"
+            data-reaction-picker-root
+          >
+            <summary
+              class={[
+                @btn_class,
+                "w-9 justify-center px-0 sm:w-8 sm:px-0 cursor-pointer list-none transition-colors [&::-webkit-details-marker]:hidden",
+                user_reacted_any?(@reactions, @current_user, @emojis) &&
+                  "bg-primary/10 text-primary",
+                !user_reacted_any?(@reactions, @current_user, @emojis) && "hover:text-primary"
+              ]}
+              title="React"
+              aria-label="React"
+            >
+              <.icon name="hero-face-smile" class={@icon_size} />
+            </summary>
+            <div class="dropdown-content bottom-full right-0 z-[320] mb-2 menu rounded-box border border-base-300 bg-base-100 p-2 shadow-lg">
+              <div class="flex gap-1.5">
+                <%= for emoji <- @emojis do %>
+                  <button
+                    phx-click={@on_react}
+                    {reaction_value_attrs(@actual_react_value_name, @actual_react_post_id, emoji, @actor_uri)}
+                    class={[
+                      "btn btn-ghost btn-sm text-lg",
+                      user_reacted?(@reactions, @current_user, emoji) && "btn-primary"
+                    ]}
+                    type="button"
+                  >
+                    {emoji}
+                  </button>
+                <% end %>
+              </div>
+            </div>
+          </details>
+        <% else %>
+          <div class={[@btn_class, "w-9 justify-center px-0 sm:w-8 sm:px-0 cursor-default opacity-60"]}>
+            <.icon name="hero-face-smile" class={@icon_size} />
+          </div>
+        <% end %>
+      <% end %>
+
       <%= if @show_save do %>
         <%= if @current_user do %>
           <button
@@ -465,6 +521,50 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
               count={@boost_count}
               loading={@counts_loading}
             />
+          </div>
+        <% end %>
+      <% end %>
+
+      <%= if @show_react do %>
+        <%= if @current_user do %>
+          <details
+            class="dropdown dropdown-end dropdown-top timeline-reaction-dropdown"
+            data-reaction-picker-root
+          >
+            <summary
+              class={[
+                "flex h-8 w-8 items-center justify-center rounded-md transition-all duration-150 cursor-pointer list-none [&::-webkit-details-marker]:hidden",
+                if(user_reacted_any?(@reactions, @current_user, @emojis),
+                  do: "text-primary",
+                  else: "text-base-content/60 hover:text-primary"
+                )
+              ]}
+              title="React"
+              aria-label="React"
+            >
+              <.icon name="hero-face-smile" class={@icon_size} />
+            </summary>
+            <div class="dropdown-content bottom-full right-0 z-[320] mb-2 menu rounded-box border border-base-300 bg-base-100 p-2 shadow-lg">
+              <div class="flex gap-1.5">
+                <%= for emoji <- @emojis do %>
+                  <button
+                    phx-click={@on_react}
+                    {reaction_value_attrs(@actual_react_value_name, @actual_react_post_id, emoji, @actor_uri)}
+                    class={[
+                      "btn btn-ghost btn-sm text-lg",
+                      user_reacted?(@reactions, @current_user, emoji) && "btn-primary"
+                    ]}
+                    type="button"
+                  >
+                    {emoji}
+                  </button>
+                <% end %>
+              </div>
+            </div>
+          </details>
+        <% else %>
+          <div class="flex h-8 w-8 items-center justify-center rounded-md opacity-50 cursor-default">
+            <.icon name="hero-face-smile" class={@icon_size} />
           </div>
         <% end %>
       <% end %>
@@ -788,6 +888,37 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
 
   defp count_id(prefix, action), do: "#{action_button_id(prefix, action)}-count"
   defp action_lock_key(prefix, action), do: "#{action_button_id(prefix, action)}-lock"
+
+  defp reaction_value_attrs(value_name, post_id, emoji, actor_uri) do
+    [{"phx-value-#{value_name}", post_id}, {"phx-value-emoji", emoji}] ++
+      reaction_actor_uri_attr(actor_uri)
+  end
+
+  defp reaction_actor_uri_attr(actor_uri) when is_binary(actor_uri) do
+    case String.trim(actor_uri) do
+      "" -> []
+      trimmed -> [{"phx-value-actor_uri", trimmed}]
+    end
+  end
+
+  defp reaction_actor_uri_attr(_), do: []
+
+  defp user_reacted?(reactions, current_user, emoji)
+       when is_list(reactions) and is_map(current_user) do
+    Enum.any?(reactions, fn
+      %{emoji: ^emoji, user_id: user_id} -> user_id == current_user.id
+      %{"emoji" => ^emoji, "user_id" => user_id} -> user_id == current_user.id
+      _ -> false
+    end)
+  end
+
+  defp user_reacted?(_, _, _), do: false
+
+  defp user_reacted_any?(reactions, current_user, emojis) when is_list(emojis) do
+    Enum.any?(emojis, &user_reacted?(reactions, current_user, &1))
+  end
+
+  defp user_reacted_any?(_, _, _), do: false
 
   attr :id, :string, required: true
   attr :class, :any, default: nil

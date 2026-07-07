@@ -158,6 +158,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.ThreadedCommentComponents do
               ]}
               data-post-id={reply_view.card_post_id}
               data-source="remote_post_reply"
+              data-track-dwell="false"
               phx-hook={reply_click && "PostClick"}
               style="background: var(--color-base-300); box-shadow: 0 2px 12px color-mix(in srgb, var(--color-base-content) 8%, transparent);"
             >
@@ -359,6 +360,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.ThreadedCommentComponents do
             ]}
             data-post-id={reply_view.card_post_id}
             data-source="remote_post_reply"
+            data-track-dwell="false"
             phx-hook={reply_click && "PostClick"}
             style="background: var(--color-base-300); box-shadow: 0 4px 16px color-mix(in srgb, var(--color-base-content) 10%, transparent);"
           >

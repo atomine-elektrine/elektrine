@@ -42,4 +42,44 @@ defmodule ElektrineSocialWeb.Components.Social.PostReactionsTest do
     refute html =~ raw_img
     assert html =~ escaped_img
   end
+
+  test "can render existing reaction chips without picker" do
+    html =
+      render_component(&PostReactions.post_reactions/1,
+        post_id: 1,
+        reactions: [
+          %{
+            emoji: "🧪",
+            user_id: 2,
+            user: nil,
+            remote_actor: nil
+          }
+        ],
+        current_user: %{id: 1},
+        show_picker: false
+      )
+
+    assert html =~ "🧪"
+    refute html =~ ~s(title="Add reaction")
+  end
+
+  test "can render picker without existing reaction chips" do
+    html =
+      render_component(&PostReactions.post_reactions/1,
+        post_id: 1,
+        reactions: [
+          %{
+            emoji: "🧪",
+            user_id: 2,
+            user: nil,
+            remote_actor: nil
+          }
+        ],
+        current_user: %{id: 1},
+        show_existing: false
+      )
+
+    assert html =~ ~s(title="Add reaction")
+    refute html =~ "🧪"
+  end
 end

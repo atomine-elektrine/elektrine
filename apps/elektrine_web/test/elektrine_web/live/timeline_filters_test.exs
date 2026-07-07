@@ -604,6 +604,39 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
            )
   end
 
+  test "reacting to a timeline post works from the inline reaction dropdown", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    author = AccountsFixtures.user_fixture()
+
+    {:ok, post} =
+      Social.create_timeline_post(author.id, "Reaction interaction target", visibility: "public")
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=all&view=all")
+
+    assert render(view) =~ "Reaction interaction target"
+
+    selector =
+      ~s(button[phx-click="react_to_post"][phx-value-message_id="#{post.id}"][phx-value-emoji="👍"])
+
+    assert has_element?(view, ~s(summary[title="React"]))
+    assert has_element?(view, selector)
+
+    view
+    |> element(selector)
+    |> render_click()
+
+    assert Repo.get_by(Elektrine.Social.MessageReaction,
+             message_id: post.id,
+             user_id: viewer.id,
+             emoji: "👍"
+           )
+
+    assert render(view) =~ "👍"
+  end
+
   test "suggested follows use the same local follow button path", %{conn: conn} do
     viewer = AccountsFixtures.user_fixture()
     suggestion = AccountsFixtures.user_fixture()

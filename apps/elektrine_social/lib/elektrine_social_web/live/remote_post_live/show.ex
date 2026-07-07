@@ -2609,7 +2609,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       if attempt >= @cached_reply_poll_max_attempts ||
            length(local_replies) >= max(expected_count, if(local_replies == [], do: 0, else: 1)) do
         if local_replies == [] or current_reply_ids == previous_reply_ids do
-          send(self(), {:replies_loaded, [], post_id})
+          send(self(), {:cached_reply_sync_finished, message_id, post_id})
         end
 
         {:noreply, socket}
@@ -2622,6 +2622,28 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
         {:noreply, socket}
       end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_info({:cached_reply_sync_finished, message_id, post_id}, socket) do
+    current_message_id = field_value(socket.assigns[:local_message], :id)
+    current_post_id = field_value(socket.assigns[:post], ["id", :id])
+
+    if current_message_id == message_id && current_post_id == post_id do
+      replies_present? =
+        socket.assigns[:replies]
+        |> List.wrap()
+        |> Enum.any?()
+
+      {:noreply,
+       socket
+       |> assign(:replies_loading, false)
+       |> assign(:replies_loaded, replies_present?)
+       |> assign(:pending_initial_comment_reveal, false)
+       |> assign(:awaiting_initial_comment_counts, false)
+       |> assign(:reply_sync_checked, true)}
     else
       {:noreply, socket}
     end

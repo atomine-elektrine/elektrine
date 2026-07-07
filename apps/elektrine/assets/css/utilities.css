@@ -428,8 +428,10 @@ div.message-selected:hover {
 
 .timeline-stream-entry:hover,
 .timeline-stream-entry:focus-within,
+.timeline-stream-entry:has(.timeline-reaction-dropdown[open]),
 .portal-post-entry:hover,
-.portal-post-entry:focus-within {
+.portal-post-entry:focus-within,
+.portal-post-entry:has(.timeline-reaction-dropdown[open]) {
   content-visibility: visible;
   z-index: 220;
 }

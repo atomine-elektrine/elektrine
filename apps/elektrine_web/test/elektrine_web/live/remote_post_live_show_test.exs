@@ -120,6 +120,7 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
     assert html =~ "Alice"
     assert html =~ "custom-emoji"
     assert html =~ "blobcat.png"
+    assert html =~ ~s(data-track-dwell="false")
   end
 
   test "renders short mentions in remote comments using in-reply-to author domain" do
@@ -1006,6 +1007,78 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
 
     assert existing_reply.activitypub_id in reply_ids
     assert ingested_reply.activitypub_id in reply_ids
+  end
+
+  test "cached reply polling finishes without rebuilding unchanged comments" do
+    unique = System.unique_integer([:positive])
+
+    remote_actor =
+      %Actor{}
+      |> Actor.changeset(%{
+        uri: "https://remote.example/users/quiet#{unique}",
+        username: "quiet#{unique}",
+        domain: "remote.example",
+        inbox_url: "https://remote.example/users/quiet#{unique}/inbox",
+        public_key: "test-public-key-quiet-#{unique}"
+      })
+      |> Repo.insert!()
+
+    {:ok, root_message} =
+      Messaging.create_federated_message(%{
+        content: "quiet root",
+        visibility: "public",
+        activitypub_id: "https://remote.example/posts/quiet-#{unique}",
+        activitypub_url: "https://remote.example/posts/quiet-#{unique}",
+        federated: true,
+        remote_actor_id: remote_actor.id,
+        reply_count: 3
+      })
+
+    root_message = Repo.preload(root_message, remote_actor: [])
+    root_message_id = root_message.id
+    post_id = root_message.activitypub_id
+
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        local_message: root_message,
+        post: %{"id" => post_id, "reply_count" => 3},
+        replies: [],
+        threaded_replies: [],
+        thread_reply_actors: %{},
+        comment_sort: "hot",
+        current_user: nil,
+        post_interactions: %{keep: true},
+        post_reactions: %{},
+        replies_loading: true,
+        replies_loaded: false,
+        pending_initial_comment_reveal: true,
+        awaiting_initial_comment_counts: true,
+        reply_sync_checked: false
+      }
+    }
+
+    assert {:noreply, same_socket} =
+             Show.handle_info({:refresh_cached_replies, root_message_id, post_id, 8}, socket)
+
+    assert same_socket.assigns.replies == []
+    assert same_socket.assigns.post_interactions == %{keep: true}
+    assert_received {:cached_reply_sync_finished, ^root_message_id, ^post_id}
+    refute_received {:replies_loaded, [], ^post_id}
+
+    assert {:noreply, updated_socket} =
+             Show.handle_info(
+               {:cached_reply_sync_finished, root_message_id, post_id},
+               same_socket
+             )
+
+    refute updated_socket.assigns.replies_loading
+    refute updated_socket.assigns.replies_loaded
+    refute updated_socket.assigns.pending_initial_comment_reveal
+    refute updated_socket.assigns.awaiting_initial_comment_counts
+    assert updated_socket.assigns.reply_sync_checked
+    assert updated_socket.assigns.replies == []
+    assert updated_socket.assigns.post_interactions == %{keep: true}
   end
 
   test "replies_loaded persists the discovered root reply count" do
