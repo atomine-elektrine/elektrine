@@ -241,13 +241,27 @@ defmodule Elektrine.DNS do
       metadata: %{"label" => "Profile subdomain catch-all"}
     }
 
-    case Repo.get_by(Record, zone_id: zone.id, managed_key: managed_key) do
+    case get_profile_wildcard_record(zone, type, managed_key, placeholder_content) do
       %Record{} = record ->
         record |> Record.changeset(attrs) |> Repo.insert_or_update!()
 
       nil ->
         %Record{} |> Record.changeset(attrs) |> Repo.insert!()
     end
+  end
+
+  defp get_profile_wildcard_record(%Zone{} = zone, type, managed_key, content) do
+    Record
+    |> where([r], r.zone_id == ^zone.id)
+    |> where(
+      [r],
+      r.managed_key == ^managed_key or
+        (r.name == "*" and r.type == ^type and
+           fragment("lower(?) = lower(?)", r.content, ^content))
+    )
+    |> order_by([r], desc: r.managed, desc: not is_nil(r.managed_key), asc: r.id)
+    |> limit(1)
+    |> Repo.one()
   end
 
   defp delete_profile_wildcard_record(%Zone{} = zone, managed_key) do

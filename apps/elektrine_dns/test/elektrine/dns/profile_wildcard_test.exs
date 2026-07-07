@@ -108,6 +108,46 @@ defmodule Elektrine.DNS.ProfileWildcardTest do
     assert length(matches) == 1
   end
 
+  test "adopts existing matching wildcard records without managed keys", %{domain: domain} do
+    user = AccountsFixtures.user_fixture()
+    {:ok, zone} = DNS.create_zone(user, %{"domain" => domain})
+
+    wildcard_record(zone.id, "A") |> Repo.delete!()
+    wildcard_record(zone.id, "AAAA") |> Repo.delete!()
+
+    Repo.insert!(%Record{
+      zone_id: zone.id,
+      name: "*",
+      type: "A",
+      ttl: 300,
+      content: "198.51.100.10",
+      source: "user",
+      managed: false
+    })
+
+    Repo.insert!(%Record{
+      zone_id: zone.id,
+      name: "*",
+      type: "AAAA",
+      ttl: 300,
+      content: "2001:DB8::10",
+      source: "user",
+      managed: false
+    })
+
+    assert {^domain, :ok} =
+             DNS.ensure_profile_subdomain_wildcards()
+             |> Enum.find(fn {d, _result} -> d == domain end)
+
+    a_record = wildcard_record(zone.id, "A")
+    assert a_record.managed
+    assert a_record.managed_key == "system:profile-wildcard-a"
+
+    aaaa_record = wildcard_record(zone.id, "AAAA")
+    assert aaaa_record.managed
+    assert aaaa_record.managed_key == "system:profile-wildcard-aaaa"
+  end
+
   test "reports zone_not_found when the base domain is not a managed zone", %{domain: domain} do
     assert {^domain, {:error, :zone_not_found}} =
              DNS.ensure_profile_subdomain_wildcards()

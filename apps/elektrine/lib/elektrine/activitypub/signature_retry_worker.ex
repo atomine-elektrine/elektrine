@@ -85,7 +85,7 @@ defmodule Elektrine.ActivityPub.SignatureRetryWorker do
       "activity_id" => activity["id"],
       "actor_uri" => actor_uri,
       "method" => conn.method,
-      "req_headers" => conn.req_headers,
+      "req_headers" => json_safe_headers(conn.req_headers),
       "request_path" => conn.request_path,
       "query_string" => conn.query_string || "",
       "target_user_id" => target_user && target_user.id
@@ -95,6 +95,16 @@ defmodule Elektrine.ActivityPub.SignatureRetryWorker do
     |> new()
     |> Elektrine.JobQueue.insert()
   end
+
+  defp json_safe_headers(headers) when is_list(headers) do
+    Enum.flat_map(headers, fn
+      {key, value} when is_binary(key) and is_binary(value) -> [[key, value]]
+      [key, value] when is_binary(key) and is_binary(value) -> [[key, value]]
+      _ -> []
+    end)
+  end
+
+  defp json_safe_headers(_headers), do: []
 
   defp normalize_headers(headers) do
     Enum.reduce_while(headers, {:ok, []}, fn
