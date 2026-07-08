@@ -1163,22 +1163,24 @@
                                 class="dropdown-content z-30 menu p-2 rounded-box w-52 z-30"
                               >
                                 <!-- Regular User Actions -->
-                                <%= if remote_post_url =
-                                      ElektrineWeb.HtmlHelpers.safe_external_href(
-                                        post.activitypub_id
-                                      ) do %>
-                                  <li>
-                                    <a
-                                      href={remote_post_url}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                    >
-                                      <.icon
-                                        name="hero-arrow-top-right-on-square"
-                                        class="w-4 h-4"
-                                      /> Open on Remote Instance
-                                    </a>
-                                  </li>
+                                <%= if post.federated do %>
+                                  <%= if remote_post_url =
+                                        ElektrineWeb.HtmlHelpers.safe_external_href(
+                                          post.activitypub_id
+                                        ) do %>
+                                    <li>
+                                      <a
+                                        href={remote_post_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                      >
+                                        <.icon
+                                          name="hero-arrow-top-right-on-square"
+                                          class="w-4 h-4"
+                                        /> Open on Remote Instance
+                                      </a>
+                                    </li>
+                                  <% end %>
                                 <% end %>
                                 <li>
                                   <button

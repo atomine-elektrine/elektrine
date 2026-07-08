@@ -6,11 +6,6 @@ defmodule Elektrine.Paths do
 
   def post_path(%{federated: true, id: id}) when is_integer(id), do: remote_post_path(id)
 
-  def post_path(%{activitypub_id: activitypub_id, id: id})
-      when is_integer(id) and is_binary(activitypub_id) and activitypub_id != "" do
-    remote_post_path(id)
-  end
-
   def post_path(%{id: id, reply_to_id: reply_to_id, conversation: %{type: "timeline"}})
       when is_integer(id) and not is_nil(reply_to_id) do
     anchored_post_path(reply_to_id, id)
