@@ -28,7 +28,7 @@ defmodule ElektrineDNS.MixProject do
       internal_dep(:elektrine_web),
       {:phoenix, "== 1.8.9"},
       {:phoenix_html, "== 4.3.0"},
-      {:phoenix_live_view, "== 1.1.30"},
+      {:phoenix_live_view, "== 1.2.6"},
       {:jason, "== 1.4.5"}
     ]
   end
