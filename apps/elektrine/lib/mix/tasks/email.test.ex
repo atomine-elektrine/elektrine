@@ -101,9 +101,6 @@ defmodule Mix.Tasks.Email.Test do
 
       %{status: status, resp_body: body} ->
         Mix.shell().error("Failed to process test email: status=#{status} response=#{body}")
-
-      result ->
-        Mix.shell().error("Failed to process test email: #{inspect(result)}")
     end
   end
 end
