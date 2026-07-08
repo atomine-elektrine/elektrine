@@ -281,7 +281,6 @@ defmodule ElektrineWeb.DiscussionsIndexLiveTest do
 
     html = render_async(view)
 
-    assert has_element?(view, "h2", "Your Communities")
     assert has_element?(view, "h2", "Discover Local Communities")
     assert has_element?(view, "h2", "Active Conversations")
     assert html =~ joined_community.name

@@ -25,7 +25,7 @@
     case search_scope do
       "posts" -> "Search discussion posts and threads"
       "people" -> "Search people by handle or display name"
-      _ -> "Search communities or paste !community@server"
+      _ -> "Search"
     end
 
   discover_public_communities =
@@ -33,7 +33,6 @@
     |> Enum.reject(&MapSet.member?(@joined_community_ids, &1.id))
 
   discover_remote_communities = @filtered_discover_remote_communities || []
-  sidebar_federated_suggestions = Enum.take(@filtered_discover_remote_communities || [], 3)
   feed_post_count = length(@filtered_community_posts || [])
 
   spotlight_communities = @filtered_popular_communities || []
@@ -185,76 +184,6 @@
               <% end %>
             </button>
           </div>
-
-          <%= if @current_view == "communities" do %>
-            <div class="border-t border-base-300 pt-4 space-y-3">
-              <div>
-                <h3 class="text-sm font-semibold">Suggested Federated Communities</h3>
-                <p class="mt-1 text-xs text-base-content/60 leading-5">
-                  Follow a few remote communities to populate your feed. Full-handle lookups also show a richer preview before you follow.
-                </p>
-              </div>
-
-              <%= if sidebar_federated_suggestions != [] do %>
-                <div class="space-y-2.5">
-                  <%= for actor <- sidebar_federated_suggestions do %>
-                    <div class="rounded-lg border border-base-300 bg-base-200/55 p-3">
-                      <div class="flex items-start gap-2.5">
-                        <%= if avatar_url = safe_external_image_url(actor.avatar_url) do %>
-                          <img
-                            src={avatar_url}
-                            class="w-9 h-9 rounded-lg object-cover flex-shrink-0"
-                            alt={actor.username}
-                          />
-                        <% else %>
-                          <div class="w-9 h-9 rounded-lg bg-info/10 text-info flex items-center justify-center flex-shrink-0">
-                            <.icon name="hero-globe-alt" class="w-4 h-4" />
-                          </div>
-                        <% end %>
-
-                        <div class="min-w-0 flex-1">
-                          <.link
-                            href={community_route(actor)}
-                            class="block text-sm font-medium truncate hover:text-secondary transition-colors"
-                          >
-                            {raw(community_display_name_markup(actor))}
-                          </.link>
-                          <p class="mt-0.5 text-[11px] text-base-content/50 break-all">
-                            {community_address(actor)}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div class="mt-2 flex justify-end">
-                        <%= if @current_user do %>
-                          <button
-                            type="button"
-                            id={"sidebar-follow-community-#{actor.id}"}
-                            phx-click="follow_remote_group"
-                            phx-value-actor_id={actor.id}
-                            class="btn btn-secondary btn-xs transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:bg-base-200 phx-click-loading:text-base-content"
-                          >
-                            <span class="phx-click-loading:hidden">Follow</span>
-                            <span class="hidden items-center phx-click-loading:inline-flex">
-                              <.spinner size="sm" class="mr-1" /> Following...
-                            </span>
-                          </button>
-                        <% else %>
-                          <.link href={Elektrine.Paths.login_path()} class="btn btn-ghost btn-xs">
-                            Sign in
-                          </.link>
-                        <% end %>
-                      </div>
-                    </div>
-                  <% end %>
-                </div>
-              <% else %>
-                <div class="rounded-lg border border-dashed border-base-300 bg-base-200/55 p-3 text-xs text-base-content/60 leading-5">
-                  No suggestions cached yet. Search for a full handle like `!community@server`.
-                </div>
-              <% end %>
-            </div>
-          <% end %>
         </div>
       </div>
     </.sticky_sidebar>
@@ -266,11 +195,6 @@
       <div class="card panel-card overflow-hidden">
         <div class="p-5 sm:p-6 border-b border-base-300">
           <div class="flex flex-col gap-4">
-            <ElektrineWeb.Components.Platform.ENav.product_header
-              title="Community Discussions"
-              description="Discover communities, follow active threads, and keep up with your discussion feed."
-            />
-
             <%= if @current_view == "communities" do %>
               <div class="space-y-3">
                 <.form
@@ -737,11 +661,8 @@
                     </section>
                   <% else %>
                     <section class="space-y-3">
-                      <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                          <h2 class="text-xl font-semibold">Your Communities</h2>
-                        </div>
-                        <%= if @current_user && length(@filtered_community_posts) > 0 do %>
+                      <%= if @current_user && length(@filtered_community_posts) > 0 do %>
+                        <div class="flex justify-end">
                           <button
                             phx-click="set_view"
                             phx-value-view="feed"
@@ -749,8 +670,8 @@
                           >
                             View Feed
                           </button>
-                        <% end %>
-                      </div>
+                        </div>
+                      <% end %>
 
                       <%= if @current_user do %>
                         <%= if joined_count > 0 do %>

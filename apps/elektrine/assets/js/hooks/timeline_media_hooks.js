@@ -79,6 +79,14 @@ export const UserHoverCard = {
     }
   },
 
+  updated() {
+    this.trigger = this.el.querySelector("[data-hover-trigger]") || this.el;
+
+    if (this.isVisible && this.card) {
+      this.portal.positionNear(this.trigger);
+    }
+  },
+
   dismissForScroll() {
     if (!this.showTimeout && !this.hideTimeout && !this.isVisible) return;
 

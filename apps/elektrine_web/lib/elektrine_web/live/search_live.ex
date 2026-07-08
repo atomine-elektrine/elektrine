@@ -461,176 +461,151 @@ defmodule ElektrineWeb.SearchLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="mx-auto max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
+    <div class="mx-auto max-w-7xl px-3 pb-8 sm:px-5 lg:px-8">
       <.e_nav active_tab="paige" current_user={@current_user} />
 
       <%= if @query == "" do %>
-        <div class="space-y-6">
-          <section class="card panel-card overflow-visible shadow-sm">
-            <div class="card-body px-4 py-10 sm:px-8 sm:py-14">
-              <div class="mx-auto w-full max-w-3xl text-center">
-                <div class="mb-8 space-y-3">
-                  <p class="text-xs font-semibold uppercase tracking-[0.28em] text-base-content/45">
+        <div class="space-y-5">
+          <section class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
+            <div class="panel-card rounded-lg border border-base-300 p-4 sm:p-5">
+              <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <p class="text-xs font-semibold uppercase tracking-wide text-base-content/45">
                     Search
                   </p>
-                  <h1 class="text-4xl font-black tracking-tight text-base-content sm:text-6xl">
+                  <h1 class="text-3xl font-bold tracking-tight text-base-content sm:text-4xl">
                     Paige
                   </h1>
-                  <p class="mx-auto max-w-2xl text-sm leading-6 text-base-content/65 sm:text-base">
-                    {paige_intro(@web_search_allowed?)}
-                  </p>
                 </div>
-
-                <.search_form
-                  query={@query}
-                  command_mode={@command_mode}
-                  suggestions={@suggestions}
-                  show_suggestions={@show_suggestions}
-                  hero
-                />
-
-                <div class="mt-4 flex justify-center">
-                  <.pill_switcher
-                    event="set_lens"
-                    param="lens"
-                    active={@active_lens}
-                    options={lenses(@web_search_allowed?)}
-                    class="justify-center"
-                  />
-                </div>
-
-                <.trust_wall_notice
-                  :if={web_search_locked?(@active_lens, @web_search_allowed?)}
-                  min_trust_level={@web_search_min_trust_level}
-                  class="mt-4"
-                />
-
-                <div class="mt-6 flex flex-wrap items-center justify-center gap-2">
-                  <span class="hidden text-xs font-semibold uppercase tracking-[0.18em] text-base-content/40 sm:inline">
-                    Quick actions
-                  </span>
-                  <button
-                    class={quick_action_class()}
-                    phx-click="search"
-                    phx-value-query=">compose email"
-                  >
-                    <.icon name="hero-pencil-square" class="h-4 w-4 text-primary" /> Compose Email
-                  </button>
-                  <button
-                    class={quick_action_class()}
-                    phx-click="search"
-                    phx-value-query=">open chat"
-                  >
-                    <.icon name="hero-chat-bubble-left-right" class="h-4 w-4 text-secondary" />
-                    Open Chat
-                  </button>
-                  <button
-                    class={quick_action_class()}
-                    phx-click="search"
-                    phx-value-query=">open notifications"
-                  >
-                    <.icon name="hero-bell" class="h-4 w-4 text-warning" /> Notifications
-                  </button>
-                  <button
-                    class={quick_action_class()}
-                    phx-click="search"
-                    phx-value-query="settings"
-                  >
-                    <.icon name="hero-cog-6-tooth" class="h-4 w-4 text-info" /> Settings
-                  </button>
-                </div>
+                <span class="badge badge-ghost gap-1">
+                  <.icon name="hero-shield-check" class="h-3.5 w-3.5" />
+                  {paige_intro(@web_search_allowed?)}
+                </span>
               </div>
+
+              <.search_form
+                query={@query}
+                command_mode={@command_mode}
+                suggestions={@suggestions}
+                show_suggestions={@show_suggestions}
+                hero
+              />
+
+              <div class="mt-4">
+                <.pill_switcher
+                  event="set_lens"
+                  param="lens"
+                  active={@active_lens}
+                  options={lenses(@web_search_allowed?)}
+                />
+              </div>
+
+              <.trust_wall_notice
+                :if={web_search_locked?(@active_lens, @web_search_allowed?)}
+                min_trust_level={@web_search_min_trust_level}
+                class="mt-4"
+              />
             </div>
+
+            <aside class="panel-card rounded-lg border border-base-300 p-3">
+              <div class="mb-2 flex items-center justify-between">
+                <h2 class="text-sm font-semibold">Launch</h2>
+                <span class="text-xs text-base-content/45">Commands</span>
+              </div>
+              <div class="grid gap-2">
+                <button
+                  class={quick_action_class()}
+                  phx-click="search"
+                  phx-value-query=">compose email"
+                >
+                  <.icon name="hero-pencil-square" class="h-4 w-4 text-primary" /> Compose Email
+                </button>
+                <button
+                  class={quick_action_class()}
+                  phx-click="search"
+                  phx-value-query=">open chat"
+                >
+                  <.icon name="hero-chat-bubble-left-right" class="h-4 w-4 text-secondary" />
+                  Open Chat
+                </button>
+                <button
+                  class={quick_action_class()}
+                  phx-click="search"
+                  phx-value-query=">open notifications"
+                >
+                  <.icon name="hero-bell" class="h-4 w-4 text-warning" /> Notifications
+                </button>
+                <button class={quick_action_class()} phx-click="search" phx-value-query="settings">
+                  <.icon name="hero-cog-6-tooth" class="h-4 w-4 text-info" /> Settings
+                </button>
+              </div>
+            </aside>
           </section>
 
-          <div class="grid gap-4 md:grid-cols-3">
-            <button
-              class="card panel-card text-left shadow-sm transition hover:border-base-content/20"
-              phx-click="search"
-              phx-value-query="people"
-            >
-              <div class="card-body gap-2 p-4 sm:p-5">
-                <span class="surface-subtle flex h-9 w-9 items-center justify-center rounded text-primary">
-                  <.icon name="hero-user-circle" class="h-5 w-5" />
-                </span>
-                <h2 class="font-semibold">People and profiles</h2>
-                <p class="text-sm text-base-content/65">
-                  Find local people, federated actors, and profile settings.
-                </p>
-              </div>
+          <section class="grid gap-3 md:grid-cols-3">
+            <button class={starter_card_class()} phx-click="search" phx-value-query="people">
+              <.icon name="hero-user-circle" class="h-5 w-5 text-primary" />
+              <span>
+                <span class="block font-semibold">People</span>
+                <span class="block text-xs text-base-content/55">Profiles, actors, contacts</span>
+              </span>
             </button>
-            <button
-              class="card panel-card text-left shadow-sm transition hover:border-base-content/20"
-              phx-click="search"
-              phx-value-query="email"
-            >
-              <div class="card-body gap-2 p-4 sm:p-5">
-                <span class="surface-subtle flex h-9 w-9 items-center justify-center rounded text-secondary">
-                  <.icon name="hero-envelope" class="h-5 w-5" />
-                </span>
-                <h2 class="font-semibold">Mail and files</h2>
-                <p class="text-sm text-base-content/65">
-                  Search inboxes, attachments, drive entries, and app content.
-                </p>
-              </div>
+            <button class={starter_card_class()} phx-click="search" phx-value-query="email">
+              <.icon name="hero-envelope" class="h-5 w-5 text-secondary" />
+              <span>
+                <span class="block font-semibold">Mail and Files</span>
+                <span class="block text-xs text-base-content/55">Inbox, uploads, attachments</span>
+              </span>
             </button>
             <button
               :if={@web_search_allowed?}
-              class="card panel-card text-left shadow-sm transition hover:border-base-content/20"
+              class={starter_card_class()}
               phx-click="search"
               phx-value-query="web search"
             >
-              <div class="card-body gap-2 p-4 sm:p-5">
-                <span class="surface-subtle flex h-9 w-9 items-center justify-center rounded text-accent">
-                  <.icon name="hero-globe-alt" class="h-5 w-5" />
-                </span>
-                <h2 class="font-semibold">Web</h2>
-                <p class="text-sm text-base-content/65">
-                  Search across the wider web.
-                </p>
-              </div>
+              <.icon name="hero-globe-alt" class="h-5 w-5 text-accent" />
+              <span>
+                <span class="block font-semibold">Web</span>
+                <span class="block text-xs text-base-content/55">Pages, images, video, news</span>
+              </span>
             </button>
-          </div>
+          </section>
 
           <section
             :if={@web_search_allowed? and @domain_rules != %{}}
-            class="card panel-card shadow-sm"
+            class="panel-card rounded-lg border border-base-300 p-4"
           >
-            <div class="card-body gap-3 p-4 sm:p-5">
-              <div>
-                <h2 class="text-sm font-semibold text-base-content">Domain rules</h2>
-                <p class="text-xs text-base-content/55">
-                  These sites are pinned, raised, lowered, or blocked in your web results.
-                </p>
-              </div>
-              <ul class="divide-y divide-base-300">
-                <li
-                  :for={{domain, action} <- Enum.sort(@domain_rules)}
-                  class="flex items-center justify-between gap-3 py-2 text-sm"
-                >
-                  <span class="truncate">{domain}</span>
-                  <span class="flex shrink-0 items-center gap-2">
-                    <span class="badge badge-ghost badge-sm">{domain_rule_label(action)}</span>
-                    <button
-                      type="button"
-                      class="btn btn-ghost btn-xs"
-                      phx-click="remove_domain_rule"
-                      phx-value-domain={domain}
-                      aria-label={"Remove rule for #{domain}"}
-                    >
-                      <.icon name="hero-x-mark" class="h-4 w-4" />
-                    </button>
-                  </span>
-                </li>
-              </ul>
+            <div class="mb-3 flex items-center justify-between gap-3">
+              <h2 class="text-sm font-semibold text-base-content">Domain rules</h2>
+              <span class="badge badge-ghost badge-sm">{map_size(@domain_rules)}</span>
             </div>
+            <ul class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              <li
+                :for={{domain, action} <- Enum.sort(@domain_rules)}
+                class="flex min-w-0 items-center justify-between gap-3 rounded border border-base-300 px-3 py-2 text-sm"
+              >
+                <span class="truncate">{domain}</span>
+                <span class="flex shrink-0 items-center gap-2">
+                  <span class="badge badge-ghost badge-sm">{domain_rule_label(action)}</span>
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-xs btn-square"
+                    phx-click="remove_domain_rule"
+                    phx-value-domain={domain}
+                    aria-label={"Remove rule for #{domain}"}
+                  >
+                    <.icon name="hero-x-mark" class="h-4 w-4" />
+                  </button>
+                </span>
+              </li>
+            </ul>
           </section>
         </div>
       <% else %>
-        <div class="space-y-6">
-          <section class="card panel-card overflow-visible shadow-sm">
-            <div class="card-body p-4 sm:p-5">
-              <div class="mx-auto w-full max-w-5xl space-y-4">
+        <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_18rem]">
+          <div class="min-w-0 space-y-4">
+            <section class="panel-card overflow-visible rounded-lg border border-base-300 p-4">
+              <div class="space-y-4">
                 <.search_form
                   query={@query}
                   command_mode={@command_mode}
@@ -650,37 +625,35 @@ defmodule ElektrineWeb.SearchLive do
                   min_trust_level={@web_search_min_trust_level}
                 />
               </div>
-            </div>
-          </section>
+            </section>
 
-          <.results_skeleton :if={@loading} />
+            <.results_skeleton :if={@loading} />
 
-          <%= if not @loading and @searched? do %>
-            <%= if @results != [] do %>
-              <div class="w-full space-y-3">
-                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[color:var(--surface-panel-border)] pb-2 text-sm text-base-content/65">
-                  <p>
-                    About <span class="font-semibold text-base-content">{@total_count}</span>
-                    result{plural_suffix(@total_count)} for
-                    <span class="font-semibold text-base-content">{@query}</span>
-                  </p>
-                  <span :if={@web_degraded?} class="flex items-center gap-1 text-xs text-warning">
-                    <.icon name="hero-exclamation-triangle" class="h-4 w-4" />
-                    Some web sources were unavailable — results may be incomplete.
-                  </span>
+            <%= if not @loading and @searched? do %>
+              <%= if @results != [] do %>
+                <div class="w-full space-y-3">
+                  <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[color:var(--surface-panel-border)] pb-2 text-sm text-base-content/65">
+                    <p>
+                      <span class="font-semibold text-base-content">{@total_count}</span>
+                      result{plural_suffix(@total_count)} for
+                      <span class="font-semibold text-base-content">{@query}</span>
+                    </p>
+                    <span :if={@web_degraded?} class="flex items-center gap-1 text-xs text-warning">
+                      <.icon name="hero-exclamation-triangle" class="h-4 w-4" />
+                      Some web sources were unavailable.
+                    </span>
+                  </div>
+
+                  <.lens_results
+                    results={@results}
+                    active_lens={@active_lens}
+                    domain_rules={@domain_rules}
+                    can_rank_domains?={@current_user != nil and @web_search_allowed?}
+                  />
                 </div>
-
-                <.lens_results
-                  results={@results}
-                  active_lens={@active_lens}
-                  domain_rules={@domain_rules}
-                  can_rank_domains?={@current_user != nil and @web_search_allowed?}
-                />
-              </div>
-            <% else %>
-              <div class="w-full">
-                <div class="card panel-card">
-                  <div class="card-body gap-4 p-4 sm:p-5">
+              <% else %>
+                <div class="w-full">
+                  <div class="panel-card rounded-lg border border-base-300 p-4 sm:p-5">
                     <div class="flex items-start gap-3">
                       <span class="surface-subtle flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-base-content/45">
                         <.icon name="hero-magnifying-glass" class="h-5 w-5" />
@@ -696,7 +669,7 @@ defmodule ElektrineWeb.SearchLive do
                       </div>
                     </div>
 
-                    <div class="flex flex-wrap gap-2">
+                    <div class="mt-4 flex flex-wrap gap-2">
                       <button class="btn btn-sm rounded-full" phx-click="clear_search">
                         <.icon name="hero-arrow-uturn-left" class="h-4 w-4" /> Start over
                       </button>
@@ -714,9 +687,57 @@ defmodule ElektrineWeb.SearchLive do
                     </div>
                   </div>
                 </div>
-              </div>
+              <% end %>
             <% end %>
-          <% end %>
+          </div>
+
+          <aside class="space-y-3 lg:sticky lg:top-20 lg:self-start">
+            <section class="panel-card rounded-lg border border-base-300 p-3">
+              <h2 class="mb-2 text-sm font-semibold">Refine</h2>
+              <div class="grid gap-2">
+                <button class={quick_action_class()} phx-click="set_lens" phx-value-lens="all">
+                  <.icon name="hero-sparkles" class="h-4 w-4" /> All results
+                </button>
+                <button class={quick_action_class()} phx-click="set_lens" phx-value-lens="elektrine">
+                  <.icon name="hero-bolt" class="h-4 w-4" /> Elektrine only
+                </button>
+                <button
+                  :if={@web_search_allowed?}
+                  class={quick_action_class()}
+                  phx-click="set_lens"
+                  phx-value-lens="web"
+                >
+                  <.icon name="hero-globe-alt" class="h-4 w-4" /> Web only
+                </button>
+              </div>
+            </section>
+
+            <section
+              :if={@web_search_allowed? and @domain_rules != %{}}
+              class="panel-card rounded-lg border border-base-300 p-3"
+            >
+              <div class="mb-2 flex items-center justify-between">
+                <h2 class="text-sm font-semibold">Domain rules</h2>
+                <span class="badge badge-ghost badge-sm">{map_size(@domain_rules)}</span>
+              </div>
+              <ul class="space-y-1">
+                <li
+                  :for={{domain, action} <- Enum.sort(@domain_rules)}
+                  class="flex items-center justify-between gap-2 rounded px-2 py-1.5 text-sm hover:bg-base-200/50"
+                >
+                  <span class="min-w-0 truncate">{domain}</span>
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-xs"
+                    phx-click="remove_domain_rule"
+                    phx-value-domain={domain}
+                  >
+                    {domain_rule_label(action)}
+                  </button>
+                </li>
+              </ul>
+            </section>
+          </aside>
         </div>
       <% end %>
     </div>
@@ -786,12 +807,6 @@ defmodule ElektrineWeb.SearchLive do
         </div>
       </form>
 
-      <p :if={@hero} class="mt-3 text-xs text-base-content/45">
-        Press <kbd class="kbd kbd-xs">/</kbd>
-        to focus. Type <kbd class="kbd kbd-xs">&gt;</kbd>
-        for commands
-      </p>
-
       <div
         :if={@show_suggestions and @suggestions != []}
         class="dropdown-content absolute left-0 right-0 z-30 mt-2 overflow-hidden rounded-lg text-left"
@@ -859,7 +874,11 @@ defmodule ElektrineWeb.SearchLive do
   end
 
   defp quick_action_class do
-    "btn btn-sm btn-ghost gap-2 rounded-full"
+    "btn btn-sm btn-ghost justify-start gap-2 rounded px-3"
+  end
+
+  defp starter_card_class do
+    "panel-card flex min-w-0 items-center gap-3 rounded-lg border border-base-300 px-4 py-3 text-left transition hover:border-base-content/20 hover:bg-base-200/35"
   end
 
   defp suggestion_icon("action"), do: "hero-command-line"
@@ -894,8 +913,8 @@ defmodule ElektrineWeb.SearchLive do
     if web_search_allowed?, do: base_lenses ++ web_lenses, else: base_lenses
   end
 
-  defp paige_intro(true), do: "Search Elektrine, the web, and focused lenses."
-  defp paige_intro(false), do: "Search Elektrine and focused lenses."
+  defp paige_intro(true), do: "Elektrine + web"
+  defp paige_intro(false), do: "Elektrine"
 
   defp web_search_locked?(lens, false), do: lens in ["web", "images", "videos", "news"]
   defp web_search_locked?(_lens, _web_search_allowed?), do: false

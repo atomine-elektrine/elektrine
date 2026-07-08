@@ -1,348 +1,404 @@
-<div class="mx-auto max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
-  <.e_nav active_tab="uptime" current_user={@current_user} class="mb-6" />
+<div class="mx-auto max-w-7xl px-3 pb-10 sm:px-5 lg:px-8">
+  <.e_nav active_tab="uptime" current_user={@current_user} class="mb-5" />
 
-  <div class="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
-    <aside class="space-y-6">
-      <section class="card panel-card">
-        <div class="card-body p-0">
-          <div class="border-b border-base-content/10 px-5 py-4">
-            <ElektrineWeb.Components.Platform.ENav.product_header
-              title="Monitors"
-              description="HTTP, TCP, and ping checks probed on an interval."
-            >
-              <:actions>
-                <div class="badge badge-outline badge-sm">
-                  {length(@monitors)} monitor{if length(@monitors) == 1, do: "", else: "s"}
-                </div>
-              </:actions>
-            </ElektrineWeb.Components.Platform.ENav.product_header>
-          </div>
+  <section class="panel-card mb-6 rounded-lg border border-base-300 p-4 sm:p-5">
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <div class="min-w-0">
+        <h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">Uptime</h1>
+        <p class="mt-1 max-w-2xl text-sm text-base-content/65">
+          Track HTTP, TCP, and ping targets with live checks, incidents, and alert delivery.
+        </p>
+      </div>
 
-          <%= if @monitors == [] do %>
-            <div class="px-5 py-4 text-sm text-base-content/65">No monitors yet.</div>
-          <% else %>
-            <div class="overflow-hidden">
-              <%= for monitor <- @monitors do %>
-                <.link
-                  patch={~p"/uptime?monitor_id=#{monitor.id}"}
-                  class={monitor_link_class(monitor, @active_monitor)}
-                >
-                  <div class="min-w-0 pr-2">
-                    <p class="truncate font-medium text-sm">{monitor.name}</p>
-                    <p class="truncate text-xs text-base-content/55">
-                      <span class="uppercase">{monitor.check_type}</span>
-                      &middot; {latency_label(monitor)}
-                    </p>
-                  </div>
-                  <span class={status_badge_class(monitor)}>{status_label(monitor)}</span>
-                </.link>
-              <% end %>
-            </div>
-          <% end %>
+      <div class="grid grid-cols-3 gap-2 text-sm sm:min-w-[26rem]">
+        <div class="rounded-lg border border-base-300 bg-base-200/40 px-3 py-2.5">
+          <p class="text-[11px] uppercase tracking-wide text-base-content/50">Monitors</p>
+          <p class="mt-1 text-lg font-semibold">{length(@monitors)}</p>
+        </div>
+        <div class="rounded-lg border border-base-300 bg-base-200/40 px-3 py-2.5">
+          <p class="text-[11px] uppercase tracking-wide text-base-content/50">Down</p>
+          <p class="mt-1 text-lg font-semibold text-error">
+            {Enum.count(@monitors, &(&1.enabled && &1.last_status == "down"))}
+          </p>
+        </div>
+        <div class="rounded-lg border border-base-300 bg-base-200/40 px-3 py-2.5">
+          <p class="text-[11px] uppercase tracking-wide text-base-content/50">Paused</p>
+          <p class="mt-1 text-lg font-semibold">
+            {Enum.count(@monitors, &(!&1.enabled))}
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
 
-          <div class="border-t border-base-content/10 px-5 py-4">
-            <div class="mb-4 flex items-center justify-between">
-              <h3 class="text-sm font-semibold uppercase tracking-[0.16em] text-base-content/60">
-                {if @editing_monitor_id, do: "Edit monitor", else: "New monitor"}
-              </h3>
-              <button
-                :if={@editing_monitor_id}
-                type="button"
-                phx-click="cancel_edit"
-                class="link link-hover text-xs text-base-content/65"
-              >
-                Cancel
-              </button>
-            </div>
-
-            <.simple_form
-              id="monitor-form"
-              for={@monitor_form}
-              as={:monitor}
-              bare={true}
-              phx-change="monitor_validate"
-              phx-submit="monitor_save"
-            >
-              <div class="space-y-4">
-                <.input field={@monitor_form[:name]} label="Name" placeholder="My site" required />
-
-                <.input
-                  field={@monitor_form[:check_type]}
-                  type="select"
-                  label="Check type"
-                  options={Enum.map(@check_types, &{String.upcase(&1), &1})}
-                />
-
-                <.input
-                  field={@monitor_form[:target]}
-                  label={target_label(@check_type)}
-                  placeholder={
-                    if @check_type == "http", do: "https://example.com", else: "example.com"
-                  }
-                  required
-                />
-
-                <.input
-                  :if={@check_type == "tcp"}
-                  field={@monitor_form[:port]}
-                  type="number"
-                  label="Port"
-                />
-
-                <.input
-                  :if={@check_type == "http"}
-                  field={@monitor_form[:expected_status]}
-                  type="number"
-                  label="Expected status code"
-                />
-
-                <.input
-                  :if={@check_type == "http"}
-                  field={@monitor_form[:keyword]}
-                  label="Keyword (optional)"
-                />
-
-                <.input
-                  field={@monitor_form[:interval_seconds]}
-                  type="number"
-                  label="Interval (seconds, min 60)"
-                />
-
-                <.input
-                  field={@monitor_form[:failure_threshold]}
-                  type="number"
-                  label="Failure threshold"
-                />
-
-                <div class="grid gap-2 rounded-xl border border-base-content/10 bg-base-100/50 p-3">
-                  <.input
-                    field={@monitor_form[:notify_in_app]}
-                    type="checkbox"
-                    label="Notify in app"
-                  />
-                  <.input
-                    field={@monitor_form[:notify_email]}
-                    type="checkbox"
-                    label="Notify by email"
-                  />
-                </div>
-              </div>
-              <:actions>
-                <.button>
-                  {if @editing_monitor_id, do: "Save changes", else: "Create monitor"}
-                </.button>
-              </:actions>
-            </.simple_form>
+  <div class="grid gap-6 xl:grid-cols-[22rem_minmax(0,1fr)] xl:items-start">
+    <aside class="space-y-5 xl:sticky xl:top-20">
+      <section class="panel-card overflow-hidden rounded-lg border border-base-300">
+        <div class="border-b border-base-300 px-4 py-3">
+          <div class="flex items-center justify-between gap-3">
+            <h2 class="text-sm font-semibold">Monitors</h2>
+            <span class="badge badge-outline badge-sm">
+              {length(@monitors)}
+            </span>
           </div>
         </div>
+
+        <%= if @monitors == [] do %>
+          <div class="px-4 py-8 text-center">
+            <.icon name="hero-signal-slash" class="mx-auto h-8 w-8 text-base-content/35" />
+            <p class="mt-2 text-sm font-medium">No monitors yet.</p>
+            <p class="mt-1 text-xs text-base-content/55">Create your first check below.</p>
+          </div>
+        <% else %>
+          <div class="divide-y divide-base-300">
+            <%= for monitor <- @monitors do %>
+              <.link
+                patch={~p"/uptime?monitor_id=#{monitor.id}"}
+                class={monitor_link_class(monitor, @active_monitor)}
+              >
+                <div class="flex min-w-0 items-center gap-3">
+                  <span class={status_dot_class(monitor)}></span>
+                  <div class="min-w-0">
+                    <p class="truncate text-sm font-medium">{monitor.name}</p>
+                    <p class="truncate text-xs text-base-content/55">
+                      <span class="uppercase">{monitor.check_type}</span>
+                      <span class="px-1 text-base-content/35">/</span>
+                      {latency_label(monitor)}
+                    </p>
+                  </div>
+                </div>
+                <span class={status_badge_class(monitor)}>{status_label(monitor)}</span>
+              </.link>
+            <% end %>
+          </div>
+        <% end %>
+      </section>
+
+      <section class="panel-card rounded-lg border border-base-300 p-4">
+        <div class="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <h2 class="text-sm font-semibold">
+              {if @editing_monitor_id, do: "Edit monitor", else: "New monitor"}
+            </h2>
+            <p class="mt-1 text-xs text-base-content/55">
+              {if @editing_monitor_id,
+                do: "Update target, interval, and alerts.",
+                else: "Add a public HTTP, TCP, or ping target."}
+            </p>
+          </div>
+          <button
+            :if={@editing_monitor_id}
+            type="button"
+            phx-click="cancel_edit"
+            class="btn btn-ghost btn-xs"
+          >
+            Cancel
+          </button>
+        </div>
+
+        <.simple_form
+          id="monitor-form"
+          for={@monitor_form}
+          as={:monitor}
+          bare={true}
+          phx-change="monitor_validate"
+          phx-submit="monitor_save"
+        >
+          <div class="space-y-3">
+            <.input field={@monitor_form[:name]} label="Name" placeholder="My site" required />
+
+            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+              <.input
+                field={@monitor_form[:check_type]}
+                type="select"
+                label="Check type"
+                options={Enum.map(@check_types, &{String.upcase(&1), &1})}
+              />
+
+              <.input
+                field={@monitor_form[:interval_seconds]}
+                type="number"
+                label="Interval seconds"
+              />
+            </div>
+
+            <.input
+              field={@monitor_form[:target]}
+              label={target_label(@check_type)}
+              placeholder={
+                if @check_type == "http", do: "https://example.com", else: "example.com"
+              }
+              required
+            />
+
+            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+              <.input
+                :if={@check_type == "tcp"}
+                field={@monitor_form[:port]}
+                type="number"
+                label="Port"
+              />
+
+              <.input
+                :if={@check_type == "http"}
+                field={@monitor_form[:expected_status]}
+                type="number"
+                label="Expected status"
+              />
+
+              <.input
+                field={@monitor_form[:failure_threshold]}
+                type="number"
+                label="Failure threshold"
+              />
+            </div>
+
+            <.input
+              :if={@check_type == "http"}
+              field={@monitor_form[:keyword]}
+              label="Keyword (optional)"
+            />
+
+            <div class="rounded-lg border border-base-300 bg-base-200/35 p-3">
+              <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-base-content/50">
+                Alerts
+              </p>
+              <div class="grid gap-2">
+                <.input
+                  field={@monitor_form[:notify_in_app]}
+                  type="checkbox"
+                  label="Notify in app"
+                />
+                <.input
+                  field={@monitor_form[:notify_email]}
+                  type="checkbox"
+                  label="Notify by email"
+                />
+              </div>
+            </div>
+          </div>
+
+          <:actions>
+            <.button class="w-full">
+              {if @editing_monitor_id, do: "Save changes", else: "Create monitor"}
+            </.button>
+          </:actions>
+        </.simple_form>
       </section>
     </aside>
 
-    <main class="space-y-6">
-      <section :if={!@active_monitor} class="card panel-card">
-        <div class="card-body p-6 sm:p-8">
-          <div class="mx-auto max-w-2xl text-center">
-            <div class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
-              No monitor selected
-            </div>
-            <h2 class="mt-2 text-2xl font-semibold tracking-tight">
-              Add a monitor to track uptime
-            </h2>
-            <p class="mt-3 text-sm text-base-content/65">
-              Register an HTTP, TCP, or ping check. Targets are validated as public addresses.
-            </p>
-          </div>
+    <main class="min-w-0 space-y-5">
+      <section
+        :if={!@active_monitor}
+        class="panel-card rounded-lg border border-base-300 p-6 sm:p-8"
+      >
+        <div class="mx-auto max-w-2xl text-center">
+          <span class="surface-subtle mx-auto flex h-12 w-12 items-center justify-center rounded-full text-base-content/45">
+            <.icon name="hero-chart-bar-square" class="h-6 w-6" />
+          </span>
+          <h2 class="mt-4 text-xl font-semibold tracking-tight">
+            Add a monitor to track uptime
+          </h2>
+          <p class="mt-2 text-sm text-base-content/65">
+            Register an HTTP, TCP, or ping check. Targets are validated as public addresses.
+          </p>
         </div>
       </section>
 
       <%= if @active_monitor do %>
-        <section class="card panel-card">
-          <div class="card-body p-0">
-            <div class="flex flex-col gap-5 border-b border-base-content/10 px-5 py-4 lg:flex-row lg:items-start lg:justify-between">
-              <div class="space-y-3">
-                <h2 class="text-xl font-semibold tracking-tight">{@active_monitor.name}</h2>
-                <div class="flex flex-wrap items-center gap-2">
-                  <span class={status_badge_class(@active_monitor)}>
-                    {status_label(@active_monitor)}
-                  </span>
-                  <span class="badge badge-ghost badge-sm uppercase">
-                    {@active_monitor.check_type}
-                  </span>
-                  <span class="badge badge-outline badge-sm font-mono">
-                    {@active_monitor.target}{if @active_monitor.port,
-                      do: ":#{@active_monitor.port}"}
-                  </span>
-                  <span class="badge badge-outline badge-sm">
-                    {uptime_label(@uptime_percentage)} / 90d
-                  </span>
-                  <span class="badge badge-ghost badge-sm">
-                    every {@active_monitor.interval_seconds}s
-                  </span>
-                </div>
-                <p :if={@active_monitor.last_checked_at} class="text-xs text-base-content/55">
-                  Last checked {format_at(@active_monitor.last_checked_at)}
-                </p>
+        <section class="panel-card rounded-lg border border-base-300 p-4 sm:p-5">
+          <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div class="min-w-0">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class={status_dot_class(@active_monitor)}></span>
+                <h2 class="truncate text-xl font-semibold tracking-tight">
+                  {@active_monitor.name}
+                </h2>
+                <span class={status_badge_class(@active_monitor)}>
+                  {status_label(@active_monitor)}
+                </span>
               </div>
 
-              <div class="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  phx-click="toggle_enabled"
-                  phx-value-id={@active_monitor.id}
-                  class="btn btn-sm btn-outline"
-                >
-                  {if @active_monitor.enabled, do: "Pause", else: "Resume"}
-                </button>
-                <button
-                  type="button"
-                  phx-click="edit_monitor"
-                  phx-value-id={@active_monitor.id}
-                  class="btn btn-sm btn-primary"
-                >
-                  <.icon name="hero-pencil-square" class="h-4 w-4" /> Edit
-                </button>
-                <button
-                  type="button"
-                  phx-click="delete_monitor"
-                  phx-value-id={@active_monitor.id}
-                  data-confirm="Delete this monitor and all its history?"
-                  class="btn btn-sm btn-error btn-outline"
-                >
-                  <.icon name="hero-trash" class="h-4 w-4" /> Delete
-                </button>
+              <div class="mt-3 flex flex-wrap items-center gap-2 text-xs">
+                <span class="badge badge-ghost badge-sm uppercase">
+                  {@active_monitor.check_type}
+                </span>
+                <span class="badge badge-outline badge-sm max-w-full truncate font-mono">
+                  {@active_monitor.target}{if @active_monitor.port, do: ":#{@active_monitor.port}"}
+                </span>
+                <span class="badge badge-outline badge-sm">
+                  every {@active_monitor.interval_seconds}s
+                </span>
               </div>
+
+              <p :if={@active_monitor.last_checked_at} class="mt-2 text-xs text-base-content/55">
+                Last checked {format_at(@active_monitor.last_checked_at)}
+              </p>
+            </div>
+
+            <div class="flex flex-wrap gap-2">
+              <button
+                type="button"
+                phx-click="toggle_enabled"
+                phx-value-id={@active_monitor.id}
+                class="btn btn-sm btn-outline"
+              >
+                {if @active_monitor.enabled, do: "Pause", else: "Resume"}
+              </button>
+              <button
+                type="button"
+                phx-click="edit_monitor"
+                phx-value-id={@active_monitor.id}
+                class="btn btn-sm btn-primary"
+              >
+                <.icon name="hero-pencil-square" class="h-4 w-4" /> Edit
+              </button>
+              <button
+                type="button"
+                phx-click="delete_monitor"
+                phx-value-id={@active_monitor.id}
+                data-confirm="Delete this monitor and all its history?"
+                class="btn btn-sm btn-error btn-outline"
+              >
+                <.icon name="hero-trash" class="h-4 w-4" /> Delete
+              </button>
+            </div>
+          </div>
+
+          <div class="mt-5 grid gap-3 sm:grid-cols-3">
+            <div class="rounded-lg border border-base-300 bg-base-200/35 px-3 py-2.5">
+              <p class="text-[11px] uppercase tracking-wide text-base-content/50">Uptime 90d</p>
+              <p class="mt-1 text-lg font-semibold">{uptime_label(@uptime_percentage)}</p>
+            </div>
+            <div class="rounded-lg border border-base-300 bg-base-200/35 px-3 py-2.5">
+              <p class="text-[11px] uppercase tracking-wide text-base-content/50">Latency</p>
+              <p class="mt-1 text-lg font-semibold">{latency_label(@active_monitor)}</p>
+            </div>
+            <div class="rounded-lg border border-base-300 bg-base-200/35 px-3 py-2.5">
+              <p class="text-[11px] uppercase tracking-wide text-base-content/50">Incidents</p>
+              <p class="mt-1 text-lg font-semibold">{length(@incidents)}</p>
             </div>
           </div>
         </section>
 
-        <section class="card panel-card">
-          <div class="card-body p-0">
-            <div class="border-b border-base-content/10 px-5 py-4">
-              <h3 class="text-sm font-semibold uppercase tracking-[0.16em] text-base-content/60">
-                Uptime (90 days)
-              </h3>
+        <section class="grid gap-5 lg:grid-cols-2">
+          <div class="panel-card rounded-lg border border-base-300 p-4">
+            <div class="mb-3 flex items-center justify-between gap-3">
+              <h3 class="text-sm font-semibold">Uptime (90 days)</h3>
+              <span class="badge badge-ghost badge-sm">{uptime_label(@uptime_percentage)}</span>
             </div>
-            <div class="p-5">
-              <ElektrineWeb.Components.UI.UPlotChart.uplot_chart
-                id="uptime-90d"
-                data={@uptime_series}
-                label_key={:date}
-                value_key={:uptime}
-                unit="%"
-                accent="success"
-                granularity="day"
-                empty_message="No uptime data yet."
-                aria_label="Daily uptime percentage over 90 days"
-              />
+            <ElektrineWeb.Components.UI.UPlotChart.uplot_chart
+              id="uptime-90d"
+              data={@uptime_series}
+              label_key={:date}
+              value_key={:uptime}
+              unit="%"
+              accent="success"
+              granularity="day"
+              empty_message="No uptime data yet."
+              aria_label="Daily uptime percentage over 90 days"
+            />
+          </div>
+
+          <div class="panel-card rounded-lg border border-base-300 p-4">
+            <div class="mb-3 flex items-center justify-between gap-3">
+              <h3 class="text-sm font-semibold">Response time</h3>
+              <span class="badge badge-ghost badge-sm">{latency_label(@active_monitor)}</span>
             </div>
+            <ElektrineWeb.Components.UI.UPlotChart.uplot_chart
+              id="latency"
+              data={@latency_series}
+              label_key={:at}
+              value_key={:response_time_ms}
+              unit="ms"
+              accent="primary"
+              granularity="hour"
+              empty_message="No latency samples yet."
+              aria_label="Recent response times in milliseconds"
+            />
           </div>
         </section>
 
-        <section class="card panel-card">
-          <div class="card-body p-0">
-            <div class="border-b border-base-content/10 px-5 py-4">
-              <h3 class="text-sm font-semibold uppercase tracking-[0.16em] text-base-content/60">
-                Response time
-              </h3>
+        <section class="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(18rem,0.75fr)]">
+          <div class="panel-card rounded-lg border border-base-300 p-4">
+            <div class="mb-3 flex items-center justify-between gap-3">
+              <h3 class="text-sm font-semibold">Recent checks</h3>
+              <span class="badge badge-ghost badge-sm">{length(@recent_checks)}</span>
             </div>
-            <div class="p-5">
-              <ElektrineWeb.Components.UI.UPlotChart.uplot_chart
-                id="latency"
-                data={@latency_series}
-                label_key={:at}
-                value_key={:response_time_ms}
-                unit="ms"
-                accent="primary"
-                granularity="hour"
-                empty_message="No latency samples yet."
-                aria_label="Recent response times in milliseconds"
-              />
-            </div>
-          </div>
-        </section>
 
-        <section class="card panel-card">
-          <div class="card-body p-0">
-            <div class="border-b border-base-content/10 px-5 py-4">
-              <h3 class="text-sm font-semibold uppercase tracking-[0.16em] text-base-content/60">
-                Recent checks
-              </h3>
-            </div>
-            <div class="p-5">
-              <%= if @recent_checks == [] do %>
-                <div class="text-sm text-base-content/65">No checks recorded yet.</div>
-              <% else %>
-                <div class="overflow-x-auto rounded-2xl border border-base-content/10 bg-base-100">
-                  <table class="table table-zebra table-sm">
-                    <thead>
+            <%= if @recent_checks == [] do %>
+              <div class="rounded-lg border border-dashed border-base-300 bg-base-200/30 px-4 py-8 text-center text-sm text-base-content/65">
+                No checks recorded yet.
+              </div>
+            <% else %>
+              <div class="overflow-x-auto rounded-lg border border-base-300 bg-base-100">
+                <table class="table table-zebra table-sm">
+                  <thead>
+                    <tr>
+                      <th>Time</th>
+                      <th>Status</th>
+                      <th>Latency</th>
+                      <th>Code</th>
+                      <th>Error</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <%= for check <- @recent_checks do %>
                       <tr>
-                        <th>Time</th>
-                        <th>Status</th>
-                        <th>Latency</th>
-                        <th>Code</th>
-                        <th>Error</th>
+                        <td class="font-mono text-xs">{format_at(check.inserted_at)}</td>
+                        <td>
+                          <span class={check_status_badge_class(check.status)}>
+                            {check.status}
+                          </span>
+                        </td>
+                        <td class="font-mono text-xs">
+                          {if check.response_time_ms,
+                            do: "#{check.response_time_ms} ms",
+                            else: "-"}
+                        </td>
+                        <td class="font-mono text-xs">{check.status_code || "-"}</td>
+                        <td class="break-all text-xs text-base-content/70">
+                          {check.error || ""}
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      <%= for check <- @recent_checks do %>
-                        <tr>
-                          <td class="font-mono text-xs">{format_at(check.inserted_at)}</td>
-                          <td>
-                            <span class={check_status_badge_class(check.status)}>
-                              {check.status}
-                            </span>
-                          </td>
-                          <td class="font-mono text-xs">
-                            {if check.response_time_ms,
-                              do: "#{check.response_time_ms} ms",
-                              else: "-"}
-                          </td>
-                          <td class="font-mono text-xs">{check.status_code || "-"}</td>
-                          <td class="text-xs break-all text-base-content/70">
-                            {check.error || ""}
-                          </td>
-                        </tr>
-                      <% end %>
-                    </tbody>
-                  </table>
-                </div>
-              <% end %>
-            </div>
+                    <% end %>
+                  </tbody>
+                </table>
+              </div>
+            <% end %>
           </div>
-        </section>
 
-        <section class="card panel-card">
-          <div class="card-body p-0">
-            <div class="border-b border-base-content/10 px-5 py-4">
-              <h3 class="text-sm font-semibold uppercase tracking-[0.16em] text-base-content/60">
-                Incidents
-              </h3>
+          <div class="panel-card rounded-lg border border-base-300 p-4">
+            <div class="mb-3 flex items-center justify-between gap-3">
+              <h3 class="text-sm font-semibold">Incidents</h3>
+              <span class="badge badge-ghost badge-sm">{length(@incidents)}</span>
             </div>
-            <div class="space-y-3 p-5">
-              <%= if @incidents == [] do %>
-                <div class="text-sm text-base-content/65">No incidents recorded.</div>
-              <% else %>
+
+            <%= if @incidents == [] do %>
+              <div class="rounded-lg border border-dashed border-base-300 bg-base-200/30 px-4 py-8 text-center text-sm text-base-content/65">
+                No incidents recorded.
+              </div>
+            <% else %>
+              <div class="space-y-3">
                 <%= for incident <- @incidents do %>
-                  <div class="rounded-2xl border border-base-content/10 bg-base-200/20 p-4">
-                    <div class="flex flex-wrap items-center justify-between gap-3">
-                      <div class="flex items-center gap-2">
-                        <span class={[
-                          "badge badge-sm",
-                          if(incident.resolved_at,
-                            do: "badge-success badge-outline",
-                            else: "badge-error"
-                          )
-                        ]}>
-                          {if incident.resolved_at, do: "resolved", else: "open"}
-                        </span>
-                        <span class="text-sm">
-                          Started {format_at(incident.started_at)}
-                        </span>
-                      </div>
-                      <span :if={incident.resolved_at} class="text-xs text-base-content/55">
-                        Resolved {format_at(incident.resolved_at)}
+                  <div class="rounded-lg border border-base-300 bg-base-100 p-3">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                      <span class={[
+                        "badge badge-sm",
+                        if(incident.resolved_at,
+                          do: "badge-success badge-outline",
+                          else: "badge-error"
+                        )
+                      ]}>
+                        {if incident.resolved_at, do: "resolved", else: "open"}
+                      </span>
+                      <span class="text-xs text-base-content/55">
+                        {format_at(incident.started_at)}
                       </span>
                     </div>
+                    <p :if={incident.resolved_at} class="mt-2 text-xs text-base-content/55">
+                      Resolved {format_at(incident.resolved_at)}
+                    </p>
                     <p
                       :if={incident.last_error}
                       class="mt-2 break-all text-sm text-base-content/65"
@@ -351,8 +407,8 @@
                     </p>
                   </div>
                 <% end %>
-              <% end %>
-            </div>
+              </div>
+            <% end %>
           </div>
         </section>
       <% end %>

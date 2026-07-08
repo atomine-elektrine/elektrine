@@ -724,112 +724,121 @@ defmodule ElektrineWeb.KairoLive.Index do
             <%!-- Explorer --%>
             <aside class="card panel-card flex flex-col overflow-hidden border border-base-300 lg:max-h-[calc(100vh-8rem)]">
               <div class="space-y-2 border-b border-base-300 p-3">
-                <div class="flex gap-2">
-                  <button type="button" phx-click="new_note" class="btn btn-primary btn-sm flex-1">
-                    <.icon name="hero-pencil-square" class="h-4 w-4" /> New note
-                  </button>
-                  <button
-                    type="button"
-                    phx-click="toggle_add_link"
-                    class={["btn btn-sm", if(@adding_link, do: "btn-active", else: "btn-outline")]}
-                    title="Save a link"
-                  >
-                    <.icon name="hero-link" class="h-4 w-4" />
-                  </button>
-                </div>
-
-                <form
-                  :if={@adding_link}
-                  phx-submit="save_link"
-                  class="space-y-2 rounded-lg border border-base-300 bg-base-200/40 p-2"
-                >
-                  <input
-                    type="url"
-                    name="link[url]"
-                    required
-                    placeholder="https://…"
-                    autocomplete="off"
-                    class="input input-bordered input-sm w-full"
-                  />
-                  <input
-                    type="text"
-                    name="link[title]"
-                    placeholder="Title (optional, fetched if empty)"
-                    autocomplete="off"
-                    class="input input-bordered input-sm w-full"
-                  />
-                  <div class="grid grid-cols-2 gap-2">
-                    <select name="link[project_id]" class="select select-bordered select-sm">
-                      <option value="">Inbox</option>
-                      <option :for={project <- @projects} value={project.id}>{project.name}</option>
-                    </select>
-                    <input
-                      type="text"
-                      name="link[tags]"
-                      placeholder="tags, comma"
-                      autocomplete="off"
-                      class="input input-bordered input-sm w-full"
-                    />
-                  </div>
-                  <button type="submit" class="btn btn-secondary btn-sm w-full">Save link</button>
-                </form>
-
-                <form
-                  id="kairo-upload-form"
-                  phx-change="validate_kairo_upload"
-                  phx-submit="upload_kairo_files"
-                  class="space-y-2 rounded-lg border border-base-300 bg-base-200/40 p-2"
-                >
-                  <div class="flex items-center gap-2">
-                    <label for={@uploads.kairo_files.ref} class="btn btn-outline btn-sm flex-1">
-                      <.icon name="hero-arrow-up-tray" class="h-4 w-4" /> Add files
+                <div class="rounded-lg border border-base-300 bg-base-200/35 p-2">
+                  <div class="grid grid-cols-3 gap-1">
+                    <button type="button" phx-click="new_note" class="btn btn-primary btn-sm">
+                      <.icon name="hero-pencil-square" class="h-4 w-4" /> Note
+                    </button>
+                    <label for={@uploads.kairo_files.ref} class="btn btn-outline btn-sm">
+                      <.icon name="hero-arrow-up-tray" class="h-4 w-4" /> File
                     </label>
-                    <button type="submit" class="btn btn-secondary btn-sm">
-                      Save
+                    <button
+                      type="button"
+                      phx-click="toggle_add_link"
+                      class={[
+                        "btn btn-sm",
+                        if(@adding_link, do: "btn-active", else: "btn-outline")
+                      ]}
+                      title="Save a link"
+                    >
+                      <.icon name="hero-link" class="h-4 w-4" /> Link
                     </button>
                   </div>
-                  <div class="sr-only">
-                    <.live_file_input upload={@uploads.kairo_files} />
-                  </div>
-                  <div class="grid grid-cols-2 gap-2">
-                    <select name="upload[project_id]" class="select select-bordered select-sm">
-                      <option value="">Inbox</option>
-                      <option :for={project <- @projects} value={project.id}>{project.name}</option>
-                    </select>
+
+                  <form
+                    id="kairo-upload-form"
+                    phx-change="validate_kairo_upload"
+                    phx-submit="upload_kairo_files"
+                    class={["space-y-1.5", @uploads.kairo_files.entries != [] && "mt-1.5"]}
+                  >
+                    <div class="sr-only">
+                      <.live_file_input upload={@uploads.kairo_files} />
+                    </div>
+
+                    <div :if={@uploads.kairo_files.entries != []} class="space-y-1.5">
+                      <div class="space-y-1">
+                        <div
+                          :for={entry <- @uploads.kairo_files.entries}
+                          class="flex items-center gap-2 rounded bg-base-100 px-2 py-1 text-xs"
+                        >
+                          <.icon name="hero-paper-clip" class="h-3.5 w-3.5 shrink-0" />
+                          <span class="min-w-0 flex-1 truncate">{entry.client_name}</span>
+                          <span class="text-base-content/50">{entry.progress}%</span>
+                          <button
+                            type="button"
+                            phx-click="cancel_kairo_upload"
+                            phx-value-ref={entry.ref}
+                            class="btn btn-ghost btn-xs h-6 min-h-0 w-6 p-0"
+                            aria-label="Remove file"
+                          >
+                            <.icon name="hero-x-mark" class="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                      <div class="grid grid-cols-2 gap-1.5">
+                        <select name="upload[project_id]" class="select select-bordered select-sm">
+                          <option value="">Inbox</option>
+                          <option :for={project <- @projects} value={project.id}>
+                            {project.name}
+                          </option>
+                        </select>
+                        <input
+                          type="text"
+                          name="upload[tags]"
+                          placeholder="tags, comma"
+                          autocomplete="off"
+                          class="input input-bordered input-sm w-full"
+                        />
+                      </div>
+                      <button type="submit" class="btn btn-secondary btn-sm w-full">
+                        Save files
+                      </button>
+                    </div>
+
+                    <p
+                      :for={error <- upload_errors(@uploads.kairo_files)}
+                      class="mt-2 text-xs text-error"
+                    >
+                      {upload_error_text(error)}
+                    </p>
+                  </form>
+
+                  <form
+                    :if={@adding_link}
+                    phx-submit="save_link"
+                    class="mt-1.5 space-y-1.5 border-t border-base-300 pt-1.5"
+                  >
                     <input
-                      type="text"
-                      name="upload[tags]"
-                      placeholder="tags, comma"
+                      type="url"
+                      name="link[url]"
+                      required
+                      placeholder="https://…"
                       autocomplete="off"
                       class="input input-bordered input-sm w-full"
                     />
-                  </div>
-                  <div :if={@uploads.kairo_files.entries != []} class="space-y-1">
-                    <div
-                      :for={entry <- @uploads.kairo_files.entries}
-                      class="flex items-center gap-2 rounded bg-base-100 px-2 py-1 text-xs"
-                    >
-                      <.icon name="hero-paper-clip" class="h-3.5 w-3.5 shrink-0" />
-                      <span class="min-w-0 flex-1 truncate">{entry.client_name}</span>
-                      <span class="text-base-content/50">{entry.progress}%</span>
-                      <button
-                        type="button"
-                        phx-click="cancel_kairo_upload"
-                        phx-value-ref={entry.ref}
-                        class="btn btn-ghost btn-xs h-6 min-h-0 w-6 p-0"
-                        aria-label="Remove file"
-                      >
-                        <.icon name="hero-x-mark" class="h-3.5 w-3.5" />
-                      </button>
+                    <input
+                      type="text"
+                      name="link[title]"
+                      placeholder="Title (optional, fetched if empty)"
+                      autocomplete="off"
+                      class="input input-bordered input-sm w-full"
+                    />
+                    <div class="grid grid-cols-2 gap-1.5">
+                      <select name="link[project_id]" class="select select-bordered select-sm">
+                        <option value="">Inbox</option>
+                        <option :for={project <- @projects} value={project.id}>{project.name}</option>
+                      </select>
+                      <input
+                        type="text"
+                        name="link[tags]"
+                        placeholder="tags, comma"
+                        autocomplete="off"
+                        class="input input-bordered input-sm w-full"
+                      />
                     </div>
-                  </div>
-                  <p
-                    :for={error <- upload_errors(@uploads.kairo_files)}
-                    class="text-xs text-error"
-                  >
-                    {upload_error_text(error)}
-                  </p>
-                </form>
+                    <button type="submit" class="btn btn-secondary btn-sm w-full">Save link</button>
+                  </form>
+                </div>
 
                 <form id="kairo-search-form" phx-change="search" phx-submit="search" class="relative">
                   <input
@@ -855,7 +864,7 @@ defmodule ElektrineWeb.KairoLive.Index do
 
                 <div
                   :if={@has_encrypted_sources || @composing}
-                  class="!mt-3 hidden flex-col gap-2 rounded-lg border border-warning/30 bg-warning/5 p-2"
+                  class="!mt-2 hidden flex-col gap-1.5 rounded-lg border border-warning/30 bg-warning/5 p-2"
                   data-kairo-locked-hint
                 >
                   <%= if @master_vault do %>
@@ -925,8 +934,8 @@ defmodule ElektrineWeb.KairoLive.Index do
                     </button>
                   </div>
 
-                  <div :if={@active_project_record} class="!mt-3">
-                    <div class="space-y-2 rounded-lg border border-base-300 bg-base-200/40 p-2">
+                  <div :if={@active_project_record} class="!mt-2">
+                    <div class="space-y-1.5 rounded-lg border border-base-300 bg-base-200/40 p-2">
                       <form phx-submit="rename_project" class="flex gap-1">
                         <input type="hidden" name="project[id]" value={@active_project_record.id} />
                         <input
@@ -1044,9 +1053,28 @@ defmodule ElektrineWeb.KairoLive.Index do
                   <summary class="flex cursor-pointer items-center gap-1 rounded px-2 py-1 text-xs text-base-content/70 hover:bg-base-300/40">
                     <.icon name="hero-plus" class="h-3.5 w-3.5" /> New project
                   </summary>
-                  <.form for={@project_form} phx-submit="create_project" class="mt-2 space-y-2 px-1">
-                    <.input field={@project_form[:name]} placeholder="Name" required />
-                    <.input field={@project_form[:description]} placeholder="Description (optional)" />
+                  <.form
+                    for={@project_form}
+                    phx-submit="create_project"
+                    class="mt-1.5 space-y-1.5 px-1"
+                  >
+                    <input
+                      type="text"
+                      name={@project_form[:name].name}
+                      id={@project_form[:name].id}
+                      value={@project_form[:name].value}
+                      placeholder="Name"
+                      required
+                      class="input input-bordered input-sm w-full"
+                    />
+                    <input
+                      type="text"
+                      name={@project_form[:description].name}
+                      id={@project_form[:description].id}
+                      value={@project_form[:description].value}
+                      placeholder="Description (optional)"
+                      class="input input-bordered input-sm w-full"
+                    />
                     <button type="submit" class="btn btn-secondary btn-sm w-full">
                       Create project
                     </button>
@@ -1110,7 +1138,7 @@ defmodule ElektrineWeb.KairoLive.Index do
                 id="kairo-note-form"
                 phx-submit="save_note"
                 phx-change="compose_change"
-                class="card-body space-y-3 p-3 sm:p-4"
+                class="card-body space-y-2 p-3 sm:p-4"
               >
                 <div class="flex items-center justify-between">
                   <h2 class="card-title text-base sm:text-lg">
@@ -1132,10 +1160,10 @@ defmodule ElektrineWeb.KairoLive.Index do
                   value={@compose["title"]}
                   placeholder="Title"
                   autocomplete="off"
-                  class="input input-bordered w-full font-medium"
+                  class="input input-bordered input-sm w-full font-medium"
                 />
 
-                <div class="grid gap-2 sm:grid-cols-2">
+                <div class="grid gap-1.5 sm:grid-cols-2">
                   <select name="note[project_id]" class="select select-bordered select-sm">
                     <option value="" selected={@compose["project_id"] in [nil, ""]}>Inbox</option>
                     <option
@@ -1205,7 +1233,7 @@ defmodule ElektrineWeb.KairoLive.Index do
 
                 <label
                   :if={is_nil(@editing_source) && @master_vault}
-                  class="flex cursor-pointer items-center gap-2 text-sm text-base-content/70"
+                  class="flex cursor-pointer items-center gap-1.5 text-sm text-base-content/70"
                 >
                   <input
                     type="checkbox"
@@ -1217,7 +1245,7 @@ defmodule ElektrineWeb.KairoLive.Index do
                 </label>
                 <p class="hidden text-xs text-error" data-kairo-encrypt-error></p>
 
-                <div class="flex justify-end gap-2">
+                <div class="flex justify-end gap-1.5">
                   <button type="button" phx-click="cancel_note" class="btn btn-ghost btn-sm">
                     Cancel
                   </button>

@@ -36,6 +36,7 @@ defmodule ElektrineSocialWeb.Components.User.HoverCard do
   """
   attr :user, :map, default: nil, doc: "Local user struct"
   attr :remote_actor, :map, default: nil, doc: "Remote actor struct"
+  attr :id, :string, default: nil, doc: "Stable DOM id for the hover-card hook"
   attr :class, :string, default: "", doc: "Additional CSS classes for wrapper"
 
   attr :trigger_class, :string,
@@ -93,6 +94,8 @@ defmodule ElektrineSocialWeb.Components.User.HoverCard do
     </div>
     """
   end
+
+  defp generate_hover_id(%{id: id}) when is_binary(id) and id != "", do: id
 
   defp generate_hover_id(assigns) do
     unique = :erlang.unique_integer([:positive])

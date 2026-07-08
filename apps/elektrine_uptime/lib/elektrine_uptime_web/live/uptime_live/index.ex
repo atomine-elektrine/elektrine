@@ -290,6 +290,17 @@ defmodule ElektrineUptimeWeb.UptimeLive.Index do
   defp status_badge_class(%Monitor{last_status: "down"}), do: "badge badge-error badge-sm"
   defp status_badge_class(_), do: "badge badge-outline badge-sm"
 
+  defp status_dot_class(%Monitor{enabled: false}),
+    do: "h-2.5 w-2.5 shrink-0 rounded-full bg-base-content/30"
+
+  defp status_dot_class(%Monitor{last_status: "up"}),
+    do: "h-2.5 w-2.5 shrink-0 rounded-full bg-success"
+
+  defp status_dot_class(%Monitor{last_status: "down"}),
+    do: "h-2.5 w-2.5 shrink-0 rounded-full bg-error"
+
+  defp status_dot_class(_), do: "h-2.5 w-2.5 shrink-0 rounded-full bg-warning"
+
   defp check_status_badge_class("up"), do: "badge badge-success badge-xs"
   defp check_status_badge_class("down"), do: "badge badge-error badge-xs"
   defp check_status_badge_class(_), do: "badge badge-outline badge-xs"
@@ -309,10 +320,10 @@ defmodule ElektrineUptimeWeb.UptimeLive.Index do
 
   defp monitor_link_class(monitor, active) do
     base =
-      "flex items-center justify-between gap-3 border-b border-base-content/10 px-5 py-3 transition hover:bg-base-200/40"
+      "flex items-center justify-between gap-3 px-4 py-3 transition hover:bg-base-200/40"
 
     if active && active.id == monitor.id do
-      [base, "bg-base-200/60"]
+      [base, "bg-base-200/60 border-l-2 border-primary pl-3.5"]
     else
       base
     end

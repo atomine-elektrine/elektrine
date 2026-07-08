@@ -1148,37 +1148,12 @@ defmodule Elektrine.Uploads do
   end
 
   defp attachment_url_presigned(attachment) do
-    cond do
-      get_config(:adapter) == :local ->
-        local_private_attachment_url(attachment)
-
-      String.starts_with?(attachment, "http") ->
-        attachment
-
-      true ->
-        bucket = get_config(:bucket)
-
-        key =
-          if String.contains?(attachment, "/") do
-            attachment
-          else
-            "chat-attachments/#{attachment}"
-          end
-
-        if is_binary(bucket) and bucket != "" do
-          config = ExAws.Config.new(:s3)
-
-          case ExAws.S3.presigned_url(config, :get, bucket, key,
-                 expires_in: 3600,
-                 virtual_host: false,
-                 query_params: [{"response-content-disposition", "attachment"}]
-               ) do
-            {:ok, url} -> url
-            _ -> nil
-          end
-        else
-          nil
-        end
+    if String.starts_with?(attachment, "http") do
+      attachment
+    else
+      attachment
+      |> private_attachment_storage_key()
+      |> local_private_attachment_url()
     end
   end
 
@@ -1275,6 +1250,25 @@ defmodule Elektrine.Uploads do
 
   def private_attachment_local_path(_key), do: {:error, :invalid_attachment_key}
 
+  def private_attachment_content(key) when is_binary(key) do
+    with {:ok, normalized_key} <- normalize_local_delete_key(key),
+         false <- invalid_delete_key?(normalized_key),
+         true <- allowed_private_attachment_prefix?(normalized_key) do
+      case get_config(:adapter) do
+        :local -> read_local_private_attachment(normalized_key)
+        :s3 -> read_s3_private_attachment(normalized_key)
+        _ -> {:error, :unsupported_adapter}
+      end
+    else
+      true -> {:error, :invalid_attachment_key}
+      false -> {:error, :invalid_attachment_key}
+      {:error, reason} -> {:error, reason}
+      _ -> {:error, :invalid_attachment_key}
+    end
+  end
+
+  def private_attachment_content(_key), do: {:error, :invalid_attachment_key}
+
   defp local_private_attachment_url(attachment) do
     with {:ok, key} <- normalize_local_delete_key(attachment),
          false <- invalid_delete_key?(key),
@@ -1285,6 +1279,61 @@ defmodule Elektrine.Uploads do
       _ -> attachment_url_direct(attachment)
     end
   end
+
+  defp private_attachment_storage_key(attachment) when is_binary(attachment) do
+    if String.contains?(attachment, "/") do
+      attachment
+    else
+      "chat-attachments/#{attachment}"
+    end
+  end
+
+  defp read_local_private_attachment(key) do
+    with {:ok, filepath} <- private_attachment_local_path(key),
+         {:ok, body} <- File.read(filepath) do
+      {:ok,
+       %{
+         body: body,
+         content_type: MIME.from_path(filepath),
+         filename: Path.basename(filepath)
+       }}
+    else
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp read_s3_private_attachment(key) do
+    bucket = get_config(:bucket)
+
+    if is_binary(bucket) and bucket != "" do
+      case ExAws.S3.get_object(bucket, key) |> ExAws.request() do
+        {:ok, %{body: body} = response} ->
+          {:ok,
+           %{
+             body: body,
+             content_type: s3_object_content_type(response) || MIME.from_path(key),
+             filename: Path.basename(key)
+           }}
+
+        {:error, reason} ->
+          {:error, reason}
+      end
+    else
+      {:error, :missing_bucket}
+    end
+  end
+
+  defp s3_object_content_type(%{headers: headers}) when is_list(headers) do
+    Enum.find_value(headers, fn
+      {key, value} when is_binary(value) ->
+        if String.downcase(to_string(key)) == "content-type", do: value
+
+      _ ->
+        nil
+    end)
+  end
+
+  defp s3_object_content_type(_response), do: nil
 
   defp crop_avatar_to_square(image_path) do
     output_path = image_path <> "_cropped.jpg"

@@ -125,10 +125,11 @@ defmodule Elektrine.UploadsTest do
     assert File.exists?(Path.join([tmp_dir, "chat-attachments", stored_filename]))
   end
 
-  test "private S3 attachment URLs fail closed when presigning cannot be configured" do
+  test "private S3 attachment URLs use the authenticated app proxy" do
     Application.put_env(:elektrine, :uploads, adapter: :s3)
 
-    assert Uploads.attachment_url("chat-attachments/private.jpg", %{type: "dm"}) == nil
+    assert Uploads.attachment_url("chat-attachments/private.jpg", %{type: "dm"}) =~
+             "/api/private-attachments/"
   end
 
   test "accepts voice messages with allowed MIME type and matching bytes", %{

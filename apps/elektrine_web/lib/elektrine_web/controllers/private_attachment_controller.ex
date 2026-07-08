@@ -7,9 +7,10 @@ defmodule ElektrineWeb.PrivateAttachmentController do
     with {:ok, key} <- Uploads.verify_private_attachment_token(token),
          %{id: user_id} <- conn.assigns[:current_user],
          true <- Uploads.private_attachment_accessible_by_user?(key, user_id),
-         {:ok, filepath} <- Uploads.private_attachment_local_path(key) do
-      filename = sanitize_filename(Path.basename(filepath))
-      content_type = MIME.from_path(filepath)
+         {:ok, attachment} <- Uploads.private_attachment_content(key) do
+      filename = sanitize_filename(Map.get(attachment, :filename))
+      content_type = Map.get(attachment, :content_type, "application/octet-stream")
+      body = Map.fetch!(attachment, :body)
 
       conn =
         conn
@@ -20,9 +21,12 @@ defmodule ElektrineWeb.PrivateAttachmentController do
         conn
         |> put_resp_content_type(content_type)
         |> put_resp_header("content-disposition", ~s(inline; filename="#{filename}"))
-        |> send_file(200, filepath)
+        |> send_resp(200, body)
       else
-        send_download(conn, {:file, filepath}, filename: filename, content_type: content_type)
+        conn
+        |> put_resp_content_type(content_type)
+        |> put_resp_header("content-disposition", ~s(attachment; filename="#{filename}"))
+        |> send_resp(200, body)
       end
     else
       {:error, :not_found} ->

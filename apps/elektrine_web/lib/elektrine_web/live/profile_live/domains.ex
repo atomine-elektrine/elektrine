@@ -322,58 +322,82 @@ defmodule ElektrineWeb.ProfileLive.Domains do
         class="mb-6"
       />
 
-      <div class="space-y-6">
-        <div class="grid gap-4 lg:grid-cols-2">
-          <div class="card panel-card border border-base-300">
-            <div class="card-body p-5">
-              <div class="flex items-start gap-3">
-                <div class="rounded-xl bg-primary/10 p-3 text-primary">
-                  <.icon name="hero-user-circle" class="h-6 w-6" />
-                </div>
-                <div class="min-w-0 flex-1">
-                  <h3 class="font-semibold">Profile Domains</h3>
-                  <p class="mt-1 text-sm text-base-content/65">
-                    Serve your profile directly from a custom root domain and publish a followable ActivityPub alias.
-                  </p>
-                </div>
+      <div class="space-y-5">
+        <section class="card panel-card border border-base-300">
+          <div class="card-body gap-4 p-5">
+            <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div class="min-w-0">
+                <h1 class="text-xl font-semibold tracking-tight">Domains</h1>
+                <p class="mt-1 max-w-2xl text-sm text-base-content/65">
+                  Connect domains to your profile, email, and portable identity. Start with profile
+                  or email; the advanced identity tools can stay collapsed until you need them.
+                </p>
               </div>
-              <div class="mt-4 flex flex-wrap gap-2">
-                <a href="#profile-domains" class="btn btn-primary btn-sm">Manage Profile Domains</a>
-                <.link navigate={~p"/analytics/domains"} class="btn btn-ghost btn-sm">
-                  View Analytics
-                </.link>
-              </div>
+              <.link navigate={~p"/analytics/domains"} class="btn btn-ghost btn-sm">
+                <.icon name="hero-chart-bar" class="h-4 w-4" /> Analytics
+              </.link>
+            </div>
+
+            <div class="grid gap-3 md:grid-cols-3">
+              <a
+                href="#profile-domains"
+                class="rounded-lg border border-primary/20 bg-primary/5 p-3 transition-colors hover:bg-primary/10"
+              >
+                <div class="flex items-center gap-2 text-sm font-semibold text-primary">
+                  <.icon name="hero-user-circle" class="h-4 w-4" /> Profile
+                </div>
+                <p class="mt-1 text-xs leading-5 text-base-content/65">
+                  Serve your profile at a root domain and get a followable ActivityPub alias.
+                </p>
+                <div class="mt-2 text-xs font-medium text-base-content/50">
+                  {length(@custom_domains)} connected
+                </div>
+              </a>
+
+              <a
+                href="#email-domains"
+                class="rounded-lg border border-secondary/20 bg-secondary/5 p-3 transition-colors hover:bg-secondary/10"
+              >
+                <div class="flex items-center gap-2 text-sm font-semibold text-secondary">
+                  <.icon name="hero-envelope" class="h-4 w-4" /> Email
+                </div>
+                <p class="mt-1 text-xs leading-5 text-base-content/65">
+                  Receive mail at <span class="font-mono">{@current_user.username}@domain.com</span>.
+                </p>
+                <div class="mt-2 text-xs font-medium text-base-content/50">
+                  {length(@email_custom_domains)} connected
+                </div>
+              </a>
+
+              <a
+                href="#built-in-profile-url"
+                class="rounded-lg border border-base-300 bg-base-200/40 p-3 transition-colors hover:bg-base-200/70"
+              >
+                <div class="flex items-center gap-2 text-sm font-semibold">
+                  <.icon name="hero-link" class="h-4 w-4" /> Built-in URL
+                </div>
+                <p class="mt-1 break-all font-mono text-xs leading-5 text-base-content/65">
+                  {@default_profile_url || "#{user_handle(@user)}.#{Domains.default_profile_domain()}"}
+                </p>
+                <div class="mt-2 text-xs font-medium text-base-content/50">
+                  Always available
+                </div>
+              </a>
             </div>
           </div>
+        </section>
 
-          <div class="card panel-card border border-base-300">
-            <div class="card-body p-5">
-              <div class="flex items-start gap-3">
-                <div class="rounded-xl bg-secondary/10 p-3 text-secondary">
-                  <.icon name="hero-envelope" class="h-6 w-6" />
-                </div>
-                <div class="min-w-0 flex-1">
-                  <h3 class="font-semibold">Email Domains</h3>
-                  <p class="mt-1 text-sm text-base-content/65">
-                    Bring your own domain for mailbox addresses like <span class="font-mono">{@current_user.username}@your-domain.com</span>.
-                  </p>
-                </div>
-              </div>
-              <div class="mt-4">
-                <a href="#email-domains" class="btn btn-secondary btn-sm">Manage Email Domains</a>
-              </div>
+        <details class="card panel-card border border-base-300">
+          <summary class="flex cursor-pointer items-center justify-between gap-3 px-5 py-4">
+            <div class="min-w-0">
+              <h2 class="font-semibold">Advanced identity tools</h2>
+              <p class="mt-1 text-sm text-base-content/60">
+                OwnRoot, DID endpoints, OIDC subjects, and per-site identities.
+              </p>
             </div>
-          </div>
-        </div>
-
-        <div class="card panel-card">
-          <div class="card-body space-y-4">
-            <.section_header
-              title="OwnRoot"
-              description="A portable web root for profile, sign-in, federation, mail, DID, proofs, and recovery."
-              align="start"
-            />
-
+            <.icon name="hero-chevron-down" class="h-5 w-5 shrink-0 text-base-content/45" />
+          </summary>
+          <div class="card-body space-y-4 border-t border-base-300 pt-4">
             <div class="grid gap-3 lg:grid-cols-3">
               <div class="rounded-2xl border border-base-content/10 bg-base-200/30 px-4 py-3">
                 <div class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
@@ -545,25 +569,27 @@ defmodule ElektrineWeb.ProfileLive.Domains do
               </div>
             </div>
           </div>
-        </div>
+        </details>
 
-        <div class="card panel-card">
+        <div id="built-in-profile-url" class="card panel-card border border-base-300">
           <div class="card-body space-y-4">
             <.section_header
-              title="Default Profile URL"
-              description="Your built-in profile URL stays available even if you add custom domains."
+              title="Built-in Profile URL"
+              description="This URL works even before you connect a custom domain."
               align="start"
             />
 
-            <div class="rounded-2xl border border-base-content/10 bg-base-200/30 px-4 py-3">
-              <div class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
-                Built-in URL
-              </div>
-              <div class="mt-2 font-mono text-sm break-all text-base-content/85">
-                {@default_profile_url || "Built-in subdomain currently handed off to DNS"}
+            <div class="flex flex-col gap-3 rounded-lg border border-base-content/10 bg-base-200/30 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+              <div class="min-w-0">
+                <div class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                  Current URL
+                </div>
+                <div class="mt-2 font-mono text-sm break-all text-base-content/85">
+                  {@default_profile_url || "Built-in subdomain currently handed off to DNS"}
+                </div>
               </div>
 
-              <div class="mt-4 flex flex-wrap items-center gap-3">
+              <div class="flex flex-wrap items-center gap-3">
                 <%= if @built_in_subdomain_mode == "platform" do %>
                   <button
                     type="button"
@@ -574,7 +600,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
                     Use main-domain URL
                   </button>
                   <span class="text-xs text-base-content/60">
-                    Subdomain hosting is enabled for your handle.
+                    Handle subdomain is enabled.
                   </span>
                 <% else %>
                   <button
@@ -586,11 +612,9 @@ defmodule ElektrineWeb.ProfileLive.Domains do
                     Enable handle subdomain
                   </button>
                   <span class="text-xs text-base-content/60">
-                    Elektrine manages DNS for
                     <span class="font-mono">
                       {user_handle(@user)}.{Domains.default_profile_domain()}
                     </span>
-                    automatically.
                   </span>
                 <% end %>
               </div>
@@ -601,20 +625,29 @@ defmodule ElektrineWeb.ProfileLive.Domains do
         <div id="profile-domains" class="card panel-card">
           <div class="card-body space-y-5">
             <.section_header
-              title="Add Profile Domain"
-              description="Use the bare root domain, like example.com. Once verified, that domain will serve your profile directly at /."
+              title="Profile Domains"
+              description="Use a root domain like example.com for your public profile and ActivityPub identity."
               align="start"
             />
 
-            <.form for={%{}} phx-submit="create_profile_domain" class="space-y-3">
-              <label class="label pb-1">
-                <span class="label-text font-medium">Root Domain</span>
-              </label>
-              <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
+            <div class="grid gap-2 text-xs text-base-content/65 sm:grid-cols-3">
+              <div class="rounded-lg bg-base-200/50 px-3 py-2">
+                <span class="font-semibold text-base-content/80">1.</span> Add the root domain.
+              </div>
+              <div class="rounded-lg bg-base-200/50 px-3 py-2">
+                <span class="font-semibold text-base-content/80">2.</span> Copy DNS records.
+              </div>
+              <div class="rounded-lg bg-base-200/50 px-3 py-2">
+                <span class="font-semibold text-base-content/80">3.</span> Click verify.
+              </div>
+            </div>
+
+            <.form for={%{}} phx-submit="create_profile_domain">
+              <div class="grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto]">
                 <input
                   type="text"
                   name="domain"
-                  placeholder="example.com"
+                  placeholder="example.com root domain"
                   class="input input-bordered w-full"
                   required
                 />
@@ -623,7 +656,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
             </.form>
 
             <div class="rounded-2xl border border-info/20 bg-info/5 px-4 py-3 text-sm text-base-content/75">
-              Add the verification TXT record first. After verification, point the domain's apex/root host at the stable routing hostname shown below using your DNS provider's alias/flattening feature or edge proxy. That keeps the domain portable if the underlying hosting IPs change. Optional
+              Start with the TXT verification record. After verification, point the root host at the stable routing hostname shown in the generated DNS records. Optional
               <span class="font-mono">www</span>
               traffic will redirect to the bare domain.
             </div>
@@ -633,9 +666,9 @@ defmodule ElektrineWeb.ProfileLive.Domains do
         <div class="card panel-card">
           <div class="card-body p-0">
             <div class="border-b border-base-content/10 px-5 py-4">
-              <h3 class="text-lg font-semibold">Connected Domains</h3>
+              <h3 class="text-lg font-semibold">Your Profile Domains</h3>
               <p class="text-sm text-base-content/70 mt-1">
-                Verified domains serve your profile at the domain root with no handle path.
+                Pending domains show the records to publish; verified domains are live.
               </p>
             </div>
 
@@ -736,12 +769,24 @@ defmodule ElektrineWeb.ProfileLive.Domains do
                           </div>
                         <% end %>
 
-                        <div class="overflow-hidden rounded-2xl border border-base-content/10">
-                          <div class="border-b border-base-content/10 bg-base-200/35 px-4 py-3">
-                            <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
-                              DNS Records
+                        <details
+                          class="overflow-hidden rounded-2xl border border-base-content/10"
+                          open={custom_domain.status != "verified"}
+                        >
+                          <summary class="flex cursor-pointer items-center justify-between gap-3 bg-base-200/35 px-4 py-3">
+                            <div>
+                              <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                                DNS Setup
+                              </div>
+                              <div class="mt-1 text-xs text-base-content/60">
+                                Copy these records into your DNS provider, then verify.
+                              </div>
                             </div>
-                          </div>
+                            <.icon
+                              name="hero-chevron-down"
+                              class="h-4 w-4 shrink-0 text-base-content/45"
+                            />
+                          </summary>
 
                           <div class="divide-y divide-base-content/10 bg-base-100">
                             <%= for {record, index} <-
@@ -792,7 +837,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
                               </div>
                             <% end %>
                           </div>
-                        </div>
+                        </details>
                       </div>
 
                       <div class="flex w-full flex-col gap-2 xl:w-40 xl:shrink-0">
@@ -836,20 +881,29 @@ defmodule ElektrineWeb.ProfileLive.Domains do
         <div id="email-domains" class="card panel-card">
           <div class="card-body space-y-5">
             <.section_header
-              title="Add Email Domain"
-              description="Use a domain for mailbox addresses like username@your-domain.com."
+              title="Email Domains"
+              description="Use your domain for mailbox addresses like username@your-domain.com."
               align="start"
             />
 
-            <.form for={%{}} phx-submit="create_email_domain" class="space-y-3">
-              <label class="label pb-1">
-                <span class="label-text font-medium">Email Domain</span>
-              </label>
-              <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
+            <div class="grid gap-2 text-xs text-base-content/65 sm:grid-cols-3">
+              <div class="rounded-lg bg-base-200/50 px-3 py-2">
+                <span class="font-semibold text-base-content/80">1.</span> Add the mail domain.
+              </div>
+              <div class="rounded-lg bg-base-200/50 px-3 py-2">
+                <span class="font-semibold text-base-content/80">2.</span> Publish mail DNS.
+              </div>
+              <div class="rounded-lg bg-base-200/50 px-3 py-2">
+                <span class="font-semibold text-base-content/80">3.</span> Verify and sync DKIM.
+              </div>
+            </div>
+
+            <.form for={%{}} phx-submit="create_email_domain">
+              <div class="grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto]">
                 <input
                   type="text"
                   name="domain"
-                  placeholder="mail.example.com"
+                  placeholder="example.com email domain"
                   class="input input-bordered w-full"
                   required
                 />
@@ -858,7 +912,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
             </.form>
 
             <div class="rounded-2xl border border-info/20 bg-info/5 px-4 py-3 text-sm text-base-content/75">
-              Publish the TXT, MX, SPF, DKIM, and DMARC records shown after adding the domain. Once verified, mail to
+              Publish the TXT, MX, SPF, DKIM, and DMARC records after adding the domain. Once verified, mail to
               <span class="font-mono">{@user.username}@your-domain.com</span>
               will route into your mailbox.
             </div>
@@ -868,9 +922,9 @@ defmodule ElektrineWeb.ProfileLive.Domains do
         <div class="card panel-card">
           <div class="card-body p-0">
             <div class="border-b border-base-content/10 px-5 py-4">
-              <h3 class="text-lg font-semibold">Connected Email Domains</h3>
+              <h3 class="text-lg font-semibold">Your Email Domains</h3>
               <p class="text-sm text-base-content/70 mt-1">
-                Verified domains can receive mail for your username at that domain.
+                Pending domains show required mail records; verified domains can receive mail.
               </p>
             </div>
 
@@ -929,12 +983,24 @@ defmodule ElektrineWeb.ProfileLive.Domains do
                           </div>
                         <% end %>
 
-                        <div class="overflow-hidden rounded-2xl border border-base-content/10">
-                          <div class="border-b border-base-content/10 bg-base-200/35 px-4 py-3">
-                            <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
-                              DNS Records
+                        <details
+                          class="overflow-hidden rounded-2xl border border-base-content/10"
+                          open={custom_domain.status != "verified"}
+                        >
+                          <summary class="flex cursor-pointer items-center justify-between gap-3 bg-base-200/35 px-4 py-3">
+                            <div>
+                              <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                                Mail DNS Setup
+                              </div>
+                              <div class="mt-1 text-xs text-base-content/60">
+                                MX receives mail; SPF, DKIM, and DMARC help delivery and trust.
+                              </div>
                             </div>
-                          </div>
+                            <.icon
+                              name="hero-chevron-down"
+                              class="h-4 w-4 shrink-0 text-base-content/45"
+                            />
+                          </summary>
 
                           <div class="divide-y divide-base-content/10 bg-base-100">
                             <%= for {record, index} <-
@@ -991,7 +1057,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
                               </div>
                             <% end %>
                           </div>
-                        </div>
+                        </details>
                       </div>
 
                       <div class="flex w-full flex-col gap-2 xl:w-40 xl:shrink-0">

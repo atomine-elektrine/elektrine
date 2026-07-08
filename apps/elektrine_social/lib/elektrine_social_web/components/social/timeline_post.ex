@@ -146,7 +146,12 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       <div class="flex min-w-0 items-center gap-2 px-4 text-sm leading-none text-base-content/65">
         <.icon name="hero-arrow-path" class="h-4 w-4 shrink-0 text-success" />
         <%= if @booster do %>
-          <.user_hover_card user={@booster} current_user={@current_user} user_follows={@user_follows}>
+          <.user_hover_card
+            id={"#{@id_prefix}-boost-hover-#{@post.id}"}
+            user={@booster}
+            current_user={@current_user}
+            user_follows={@user_follows}
+          >
             <.link
               navigate={"/#{@booster.handle || @booster.username}"}
               class="inline-flex min-w-0 shrink items-center gap-1.5 font-medium leading-none text-success hover:underline"
@@ -327,6 +332,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
                 user_follows={@user_follows}
                 pending_follows={@pending_follows}
                 remote_follow_overrides={@remote_follow_overrides}
+                id_prefix={@id_prefix}
                 on_navigate_profile={@on_navigate_profile}
               />
 
@@ -670,6 +676,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   attr :user_follows, :map, default: %{}
   attr :pending_follows, :map, default: %{}
   attr :remote_follow_overrides, :map, default: %{}
+  attr :id_prefix, :string, default: "post"
   attr :on_navigate_profile, :string, default: "navigate_to_profile"
 
   defp dense_author_meta(assigns) do
@@ -683,6 +690,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         user_follows={@user_follows}
         pending_follows={@pending_follows}
         remote_follow_overrides={@remote_follow_overrides}
+        id_prefix={@id_prefix}
       />
     <% else %>
       <.dense_local_author_meta
@@ -693,6 +701,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         time_format={@time_format}
         user_statuses={@user_statuses}
         user_follows={@user_follows}
+        id_prefix={@id_prefix}
         on_navigate_profile={@on_navigate_profile}
       />
     <% end %>
@@ -705,11 +714,13 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   attr :time_format, :string, default: "12h"
   attr :user_statuses, :map, default: %{}
   attr :user_follows, :map, default: %{}
+  attr :id_prefix, :string, default: "post"
   attr :on_navigate_profile, :string, default: "navigate_to_profile"
 
   defp dense_local_author_meta(assigns) do
     ~H"""
     <.user_hover_card
+      id={"#{@id_prefix}-author-hover-#{@post.id}"}
       user={@post.sender}
       user_statuses={@user_statuses}
       user_follows={@user_follows}
@@ -758,6 +769,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   attr :user_follows, :map, default: %{}
   attr :pending_follows, :map, default: %{}
   attr :remote_follow_overrides, :map, default: %{}
+  attr :id_prefix, :string, default: "post"
 
   defp dense_remote_author_meta(assigns) do
     community_uri = PostUtilities.community_actor_uri(assigns.post)
@@ -769,6 +781,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
     ~H"""
     <.user_hover_card
+      id={"#{@id_prefix}-remote-author-hover-#{@post.id}"}
       remote_actor={@post.remote_actor}
       current_user={@current_user}
       user_follows={@user_follows}
@@ -974,6 +987,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
           pending_follows={@pending_follows}
           remote_follow_overrides={@remote_follow_overrides}
           current_user={@current_user}
+          id_prefix={@id_prefix}
         />
       <% else %>
         <!-- Local post -->
@@ -985,6 +999,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
             user_statuses={@user_statuses}
             user_follows={@user_follows}
             current_user={@current_user}
+            id_prefix={@id_prefix}
             on_navigate_profile={@on_navigate_profile}
           />
         <% end %>
@@ -1010,6 +1025,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   attr :pending_follows, :map, default: %{}
   attr :remote_follow_overrides, :map, default: %{}
   attr :current_user, :map, default: nil
+  attr :id_prefix, :string, default: "post"
 
   defp remote_author_header(assigns) do
     community_uri = PostUtilities.community_actor_uri(assigns.post)
@@ -1021,6 +1037,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
     ~H"""
     <.user_hover_card
+      id={"#{@id_prefix}-remote-header-hover-#{@post.id}"}
       remote_actor={@post.remote_actor}
       current_user={@current_user}
       user_follows={@user_follows}
@@ -1102,11 +1119,13 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   attr :user_statuses, :map, default: %{}
   attr :user_follows, :map, default: %{}
   attr :current_user, :map, default: nil
+  attr :id_prefix, :string, default: "post"
   attr :on_navigate_profile, :string, default: "navigate_to_profile"
 
   defp local_author_header(assigns) do
     ~H"""
     <.user_hover_card
+      id={"#{@id_prefix}-local-header-hover-#{@post.id}"}
       user={@post.sender}
       user_statuses={@user_statuses}
       user_follows={@user_follows}
@@ -1666,7 +1685,11 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
           </div>
           <div class="flex items-center gap-2 mb-2">
             <%= if @post.quoted_message.sender do %>
-              <.user_hover_card user={@post.quoted_message.sender} user_follows={@user_follows}>
+              <.user_hover_card
+                id={"#{@id_prefix}-quoted-avatar-hover-#{@post.id}-#{@post.quoted_message_id}"}
+                user={@post.quoted_message.sender}
+                user_follows={@user_follows}
+              >
                 <.link
                   navigate={"/#{@post.quoted_message.sender.handle || @post.quoted_message.sender.username}"}
                   class="w-6 h-6"
@@ -1674,7 +1697,11 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
                   <.user_avatar user={@post.quoted_message.sender} size="xs" />
                 </.link>
               </.user_hover_card>
-              <.user_hover_card user={@post.quoted_message.sender} user_follows={@user_follows}>
+              <.user_hover_card
+                id={"#{@id_prefix}-quoted-name-hover-#{@post.id}-#{@post.quoted_message_id}"}
+                user={@post.quoted_message.sender}
+                user_follows={@user_follows}
+              >
                 <.link
                   navigate={"/#{@post.quoted_message.sender.handle || @post.quoted_message.sender.username}"}
                   class="font-medium text-sm hover:text-error transition-colors"

@@ -18,6 +18,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   @community_feed_page_size 20
   @overview_page_size 6
   @community_count_refresh_limit 20
+  @community_feed_query_timeout 5_000
   @impl true
   def mount(_params, session, socket) do
     user = socket.assigns[:current_user]
@@ -2407,8 +2408,10 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
         Elektrine.Social.Message
         |> where(
           [m],
-          m.visibility == "public" and is_nil(m.deleted_at) and is_nil(m.reply_to_id) and
-            fragment("?->>'inReplyTo' IS NULL OR ? IS NULL", m.media_metadata, m.media_metadata)
+          m.visibility == "public" and (m.is_draft != true or is_nil(m.is_draft)) and
+            is_nil(m.deleted_at) and is_nil(m.reply_to_id) and
+            (m.approval_status == "approved" or is_nil(m.approval_status)) and
+            fragment("(?->>'inReplyTo') IS NULL", m.media_metadata)
         )
         |> where([m], ^followed_community_filter(scope))
 
@@ -2418,7 +2421,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
       |> order_by([m], desc: m.inserted_at, desc: m.id)
       |> limit(^limit)
       |> preload([:conversation, :remote_actor, :hashtags, :link_preview])
-      |> Repo.all()
+      |> Repo.all(timeout: @community_feed_query_timeout)
     end
   end
 
@@ -2581,6 +2584,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
       |> where(
         [m, c],
         m.visibility == "public" and is_nil(m.deleted_at) and
+          (m.is_draft != true or is_nil(m.is_draft)) and
           (m.approval_status == "approved" or is_nil(m.approval_status)) and
           is_nil(m.reply_to_id) and fragment("(?->>'inReplyTo' IS NULL)", m.media_metadata) and
           (c.type == "community" or
@@ -2601,7 +2605,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
     |> order_by([m, _c], desc: m.inserted_at, desc: m.id)
     |> limit(^limit)
     |> preload([:conversation, :remote_actor, :hashtags, :link_preview])
-    |> Repo.all()
+    |> Repo.all(timeout: @community_feed_query_timeout)
   end
 
   defp maybe_apply_feed_cursor(query, %{inserted_at: inserted_at, id: id})
