@@ -709,7 +709,7 @@ defmodule Elektrine.Profiles do
     |> site_sessions_query()
     |> select([ss], %{
       total_views: fragment("COALESCE(SUM(?), 0)", ss.page_views),
-      sessions: count(ss.id),
+      sessions: count(),
       avg_session_duration_seconds: fragment("COALESCE(AVG(?)::float, 0)", ss.duration_seconds),
       bounces: fragment("COUNT(*) FILTER (WHERE ? = 1)", ss.page_views),
       views_today:
@@ -740,7 +740,7 @@ defmodule Elektrine.Profiles do
   def get_public_site_unique_visitor_count(request_host \\ nil) do
     request_host
     |> site_sessions_query()
-    |> select([ss], count(ss.id))
+    |> select([_ss], count())
     |> Repo.one()
   end
 
@@ -755,7 +755,7 @@ defmodule Elektrine.Profiles do
   def get_public_site_session_count(request_host \\ nil) do
     request_host
     |> site_sessions_query()
-    |> select([ss], count(ss.id))
+    |> select([_ss], count())
     |> Repo.one()
   end
 
@@ -774,7 +774,7 @@ defmodule Elektrine.Profiles do
         request_host
         |> site_sessions_query()
         |> where([ss], ss.page_views == 1)
-        |> select([ss], count(ss.id))
+        |> select([_ss], count())
         |> Repo.one()
 
       bounces / sessions * 100
@@ -817,7 +817,7 @@ defmodule Elektrine.Profiles do
       host: ss.entry_host,
       path: ss.entry_path,
       views: fragment("COALESCE(SUM(?), 0)", ss.page_views),
-      unique_visitors: count(ss.id)
+      unique_visitors: count()
     })
     |> Repo.all()
   end
@@ -830,9 +830,9 @@ defmodule Elektrine.Profiles do
     |> where([ss], ss.started_at >= ^start_datetime)
     |> where([ss], not is_nil(ss.referer))
     |> group_by([ss], ss.referer)
-    |> order_by([ss], desc: count(ss.id))
+    |> order_by([_ss], desc: count())
     |> limit(^limit)
-    |> select([ss], %{referer: ss.referer, count: count(ss.id)})
+    |> select([ss], %{referer: ss.referer, count: count()})
     |> Repo.all()
   end
 
@@ -846,7 +846,7 @@ defmodule Elektrine.Profiles do
     |> select([ss], %{
       host: ss.entry_host,
       views: fragment("COALESCE(SUM(?), 0)", ss.page_views),
-      unique_visitors: count(ss.id),
+      unique_visitors: count(),
       views_today:
         fragment(
           "COALESCE(SUM(?) FILTER (WHERE ? >= ?), 0)",
