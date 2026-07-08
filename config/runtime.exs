@@ -92,6 +92,30 @@ parse_bool_env = fn env_name, default ->
   end
 end
 
+analytics_retention_config = Application.get_env(:elektrine, :analytics_retention, [])
+
+config :elektrine, :analytics_retention,
+  site_retention_days:
+    parse_int_env.(
+      "ANALYTICS_SITE_RETENTION_DAYS",
+      Keyword.get(analytics_retention_config, :site_retention_days, 30)
+    ),
+  profile_retention_days:
+    parse_int_env.(
+      "ANALYTICS_PROFILE_RETENTION_DAYS",
+      Keyword.get(analytics_retention_config, :profile_retention_days, 90)
+    ),
+  batch_size:
+    parse_int_env.(
+      "ANALYTICS_RETENTION_BATCH_SIZE",
+      Keyword.get(analytics_retention_config, :batch_size, 5_000)
+    ),
+  max_batches:
+    parse_int_env.(
+      "ANALYTICS_RETENTION_MAX_BATCHES",
+      Keyword.get(analytics_retention_config, :max_batches, 100)
+    )
+
 parse_logger_level_env = fn env_name, default ->
   case System.get_env(env_name) do
     nil ->

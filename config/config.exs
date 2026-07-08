@@ -39,6 +39,12 @@ config :elektrine,
   # from exact load balancer/reverse proxy CIDRs.
   proxy_protocol_trusted_cidrs: []
 
+config :elektrine, :analytics_retention,
+  site_retention_days: 30,
+  profile_retention_days: 90,
+  batch_size: 5_000,
+  max_batches: 100
+
 config :elektrine, :netbird,
   enabled: false,
   allowed_cidrs: []
@@ -145,6 +151,8 @@ config :elektrine, Oban,
         args: %{"limit" => 100, "max_age_days" => 7}},
        # Prune expired auth/support data and stale failed previews
        {"40 3 * * *", Elektrine.Social.ExpiredDataCleanupWorker},
+       # Prune raw analytics rows after retention windows
+       {"50 3 * * *", Elektrine.Profiles.AnalyticsRetentionWorker},
        # Poll Bluesky notifications for mirrored post replies/mentions
        {"*/2 * * * *", Elektrine.Bluesky.InboundPollWorker},
        # Archive/prune federation event/outbox data daily

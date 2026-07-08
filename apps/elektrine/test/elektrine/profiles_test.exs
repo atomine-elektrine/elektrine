@@ -9,6 +9,7 @@ defmodule Elektrine.ProfilesTest do
   alias Elektrine.ActivityPub.Actor
   alias Elektrine.Profiles
   alias Elektrine.Profiles.Follow
+  alias Elektrine.Profiles.{ProfileSiteVisit, ProfileView, SitePageVisit, SiteSession}
   alias Elektrine.Repo
 
   describe "get_profile_by_handle/1" do
@@ -564,6 +565,44 @@ defmodule Elektrine.ProfilesTest do
   end
 
   describe "site visit analytics" do
+    test "skips known bot user agents for public site analytics" do
+      assert {:ok, :bot} =
+               Profiles.track_site_page_visit(
+                 visitor_id: "bot-visitor",
+                 session_id: "bot-session",
+                 request_host: "example.com",
+                 request_path: "/",
+                 status: 200,
+                 user_agent:
+                   "Mozilla/5.0 AppleWebKit/537.36 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)"
+               )
+
+      assert Repo.aggregate(SitePageVisit, :count) == 0
+      assert Repo.aggregate(SiteSession, :count) == 0
+    end
+
+    test "skips known bot user agents for profile analytics" do
+      user = AccountsFixtures.user_fixture()
+
+      assert {:ok, :bot} =
+               Profiles.track_profile_view(user.id,
+                 viewer_session_id: "bot-profile-session",
+                 user_agent: "Mozilla/5.0 (compatible; AhrefsBot/7.0; +http://ahrefs.com/robot/)"
+               )
+
+      assert {:ok, :bot} =
+               Profiles.track_profile_site_visit(user.id,
+                 visitor_id: "bot-site-visitor",
+                 request_host: "example.com",
+                 request_path: "/",
+                 user_agent:
+                   "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
+               )
+
+      assert Repo.aggregate(ProfileView, :count) == 0
+      assert Repo.aggregate(ProfileSiteVisit, :count) == 0
+    end
+
     test "can scope stats to multiple hosts" do
       user = AccountsFixtures.user_fixture()
 
@@ -594,6 +633,123 @@ defmodule Elektrine.ProfilesTest do
       assert stats.unique_visitors == 2
       assert stats.views_today == 2
       assert stats.views_this_week == 2
+    end
+
+    test "prunes raw analytics rows past configured retention windows" do
+      user = AccountsFixtures.user_fixture()
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+      old_site_datetime = DateTime.add(now, -31, :day)
+      recent_site_datetime = DateTime.add(now, -29, :day)
+      old_profile_datetime = DateTime.add(now, -91, :day)
+      recent_profile_datetime = DateTime.add(now, -89, :day)
+      old_site_timestamp = DateTime.to_naive(old_site_datetime)
+      recent_site_timestamp = DateTime.to_naive(recent_site_datetime)
+      old_profile_timestamp = DateTime.to_naive(old_profile_datetime)
+      recent_profile_timestamp = DateTime.to_naive(recent_profile_datetime)
+
+      Repo.insert_all(SitePageVisit, [
+        %{
+          visitor_id: "old-page-visitor",
+          session_id: "old-page-session",
+          request_host: "example.com",
+          request_path: "/old",
+          status: 200,
+          inserted_at: old_site_timestamp
+        },
+        %{
+          visitor_id: "recent-page-visitor",
+          session_id: "recent-page-session",
+          request_host: "example.com",
+          request_path: "/recent",
+          status: 200,
+          inserted_at: recent_site_timestamp
+        }
+      ])
+
+      Repo.insert_all(SiteSession, [
+        %{
+          session_id: "old-session",
+          visitor_id: "old-session-visitor",
+          entry_host: "example.com",
+          entry_path: "/old",
+          exit_host: "example.com",
+          exit_path: "/old",
+          page_views: 1,
+          started_at: old_site_datetime,
+          last_seen_at: old_site_datetime,
+          duration_seconds: 0,
+          inserted_at: old_site_timestamp,
+          updated_at: old_site_timestamp
+        },
+        %{
+          session_id: "recent-session",
+          visitor_id: "recent-session-visitor",
+          entry_host: "example.com",
+          entry_path: "/recent",
+          exit_host: "example.com",
+          exit_path: "/recent",
+          page_views: 1,
+          started_at: recent_site_datetime,
+          last_seen_at: recent_site_datetime,
+          duration_seconds: 0,
+          inserted_at: recent_site_timestamp,
+          updated_at: recent_site_timestamp
+        }
+      ])
+
+      Repo.insert_all(ProfileSiteVisit, [
+        %{
+          profile_user_id: user.id,
+          visitor_id: "old-profile-site-visitor",
+          request_host: "example.com",
+          request_path: "/old",
+          inserted_at: old_profile_timestamp
+        },
+        %{
+          profile_user_id: user.id,
+          visitor_id: "recent-profile-site-visitor",
+          request_host: "example.com",
+          request_path: "/recent",
+          inserted_at: recent_profile_timestamp
+        }
+      ])
+
+      Repo.insert_all(ProfileView, [
+        %{
+          profile_user_id: user.id,
+          viewer_session_id: "old-profile-view-session",
+          inserted_at: old_profile_timestamp
+        },
+        %{
+          profile_user_id: user.id,
+          viewer_session_id: "recent-profile-view-session",
+          inserted_at: recent_profile_timestamp
+        }
+      ])
+
+      assert %{
+               site_page_visits: 1,
+               site_sessions: 1,
+               profile_site_visits: 1,
+               profile_views: 1
+             } =
+               Profiles.prune_analytics_retention(
+                 site_retention_days: 30,
+                 profile_retention_days: 90,
+                 batch_size: 10,
+                 max_batches: 10,
+                 now: now
+               )
+
+      assert Repo.aggregate(SitePageVisit, :count) == 1
+      assert Repo.aggregate(SiteSession, :count) == 1
+      assert Repo.aggregate(ProfileSiteVisit, :count) == 1
+      assert Repo.aggregate(ProfileView, :count) == 1
+
+      assert Repo.get_by(SitePageVisit, request_path: "/recent")
+      assert Repo.get_by(SiteSession, session_id: "recent-session")
+      assert Repo.get_by(ProfileSiteVisit, request_path: "/recent")
+      assert Repo.get_by(ProfileView, viewer_session_id: "recent-profile-view-session")
     end
   end
 

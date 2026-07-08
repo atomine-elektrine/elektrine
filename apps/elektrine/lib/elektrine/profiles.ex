@@ -21,6 +21,39 @@ defmodule Elektrine.Profiles do
 
   alias Elektrine.Accounts.User
 
+  @analytics_bot_user_agent_fragments [
+    "ahrefsbot",
+    "amazonbot",
+    "applebot",
+    "baiduspider",
+    "barkrowler",
+    "bingbot",
+    "bytespider",
+    "ccbot",
+    "claudebot",
+    "crawler",
+    "dataforseobot",
+    "dotbot",
+    "duckduckbot",
+    "facebookexternalhit",
+    "googlebot",
+    "gptbot",
+    "mj12bot",
+    "meta-externalagent",
+    "perplexitybot",
+    "petalbot",
+    "semrushbot",
+    "serankingbacklinksbot",
+    "sogou",
+    "spider",
+    "yandexbot"
+  ]
+
+  @default_site_analytics_retention_days 30
+  @default_profile_analytics_retention_days 90
+  @default_analytics_retention_batch_size 5_000
+  @default_analytics_retention_max_batches 100
+
   # Custom profile domains
   defdelegate list_user_custom_domains(user_id), to: Elektrine.Profiles.CustomDomains
   defdelegate list_custom_domains_for_recheck(limit), to: Elektrine.Profiles.CustomDomains
@@ -211,67 +244,72 @@ defmodule Elektrine.Profiles do
     user_agent = Keyword.get(opts, :user_agent)
     referer = Keyword.get(opts, :referer)
 
-    # Don't track if viewer is the profile owner
-    if viewer_user_id && viewer_user_id == profile_user_id do
-      {:ok, :own_profile}
-    else
-      # Check if this viewer already viewed within last 24 hours
-      twenty_four_hours_ago = DateTime.utc_now() |> DateTime.add(-24, :hour)
+    cond do
+      analytics_bot_user_agent?(user_agent) ->
+        {:ok, :bot}
 
-      duplicate =
-        cond do
-          viewer_user_id ->
-            # Check by user ID
-            from(pv in ProfileView,
-              where:
-                pv.profile_user_id == ^profile_user_id and
-                  pv.viewer_user_id == ^viewer_user_id and
-                  pv.inserted_at > ^twenty_four_hours_ago,
-              limit: 1
-            )
-            |> Repo.one()
+      # Don't track if viewer is the profile owner
+      viewer_user_id && viewer_user_id == profile_user_id ->
+        {:ok, :own_profile}
 
-          is_binary(viewer_session_id) and viewer_session_id != "" ->
-            # Check by session ID
-            from(pv in ProfileView,
-              where:
-                pv.profile_user_id == ^profile_user_id and
-                  pv.viewer_session_id == ^viewer_session_id and
-                  pv.inserted_at > ^twenty_four_hours_ago,
-              limit: 1
-            )
-            |> Repo.one()
+      true ->
+        # Check if this viewer already viewed within last 24 hours
+        twenty_four_hours_ago = DateTime.utc_now() |> DateTime.add(-24, :hour)
 
-          true ->
-            nil
+        duplicate =
+          cond do
+            viewer_user_id ->
+              # Check by user ID
+              from(pv in ProfileView,
+                where:
+                  pv.profile_user_id == ^profile_user_id and
+                    pv.viewer_user_id == ^viewer_user_id and
+                    pv.inserted_at > ^twenty_four_hours_ago,
+                limit: 1
+              )
+              |> Repo.one()
+
+            is_binary(viewer_session_id) and viewer_session_id != "" ->
+              # Check by session ID
+              from(pv in ProfileView,
+                where:
+                  pv.profile_user_id == ^profile_user_id and
+                    pv.viewer_session_id == ^viewer_session_id and
+                    pv.inserted_at > ^twenty_four_hours_ago,
+                limit: 1
+              )
+              |> Repo.one()
+
+            true ->
+              nil
+          end
+
+        if duplicate do
+          {:ok, :duplicate}
+        else
+          attrs = %{
+            profile_user_id: profile_user_id,
+            viewer_user_id: viewer_user_id,
+            viewer_session_id: viewer_session_id,
+            ip_address: ip_address,
+            user_agent: user_agent,
+            referer: referer
+          }
+
+          case %ProfileView{}
+               |> ProfileView.changeset(attrs)
+               |> Repo.insert() do
+            {:ok, _view} ->
+              # Successfully tracked new view, increment counter
+              from(p in UserProfile, where: p.user_id == ^profile_user_id)
+              |> Repo.update_all(inc: [page_views: 1])
+
+              {:ok, :tracked}
+
+            {:error, changeset} ->
+              {:error, changeset}
+          end
         end
-
-      if duplicate do
-        {:ok, :duplicate}
-      else
-        attrs = %{
-          profile_user_id: profile_user_id,
-          viewer_user_id: viewer_user_id,
-          viewer_session_id: viewer_session_id,
-          ip_address: ip_address,
-          user_agent: user_agent,
-          referer: referer
-        }
-
-        case %ProfileView{}
-             |> ProfileView.changeset(attrs)
-             |> Repo.insert() do
-          {:ok, _view} ->
-            # Successfully tracked new view, increment counter
-            from(p in UserProfile, where: p.user_id == ^profile_user_id)
-            |> Repo.update_all(inc: [page_views: 1])
-
-            {:ok, :tracked}
-
-          {:error, changeset} ->
-            {:error, changeset}
-        end
-      end
     end
   end
 
@@ -445,6 +483,14 @@ defmodule Elektrine.Profiles do
   Tracks a page-level visit for profile domains and static sites.
   """
   def track_profile_site_visit(profile_user_id, opts \\ []) do
+    if analytics_bot_user_agent?(Keyword.get(opts, :user_agent)) do
+      {:ok, :bot}
+    else
+      do_track_profile_site_visit(profile_user_id, opts)
+    end
+  end
+
+  defp do_track_profile_site_visit(profile_user_id, opts) do
     attrs = %{
       profile_user_id: profile_user_id,
       viewer_user_id: Keyword.get(opts, :viewer_user_id),
@@ -604,6 +650,14 @@ defmodule Elektrine.Profiles do
   Tracks a site-wide HTML page visit for public app, profile, and static-site routes.
   """
   def track_site_page_visit(opts \\ []) do
+    if analytics_bot_user_agent?(Keyword.get(opts, :user_agent)) do
+      {:ok, :bot}
+    else
+      do_track_site_page_visit(opts)
+    end
+  end
+
+  defp do_track_site_page_visit(opts) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
     attrs = %{
@@ -805,6 +859,108 @@ defmodule Elektrine.Profiles do
   end
 
   def get_public_site_domain_breakdown(_hosts), do: []
+
+  @doc """
+  Returns true when a user agent belongs to a crawler that should be excluded from raw analytics.
+  """
+  def analytics_bot_user_agent?(user_agent) when is_binary(user_agent) do
+    normalized_user_agent = String.downcase(user_agent)
+
+    Enum.any?(@analytics_bot_user_agent_fragments, fn fragment ->
+      String.contains?(normalized_user_agent, fragment)
+    end)
+  end
+
+  def analytics_bot_user_agent?(_user_agent), do: false
+
+  @doc """
+  Prunes raw analytics rows after their configured retention windows.
+  """
+  def prune_analytics_retention(opts \\ []) do
+    retention_config = Application.get_env(:elektrine, :analytics_retention, [])
+
+    site_retention_days =
+      Keyword.get(opts, :site_retention_days) ||
+        Keyword.get(
+          retention_config,
+          :site_retention_days,
+          @default_site_analytics_retention_days
+        )
+
+    profile_retention_days =
+      Keyword.get(opts, :profile_retention_days) ||
+        Keyword.get(
+          retention_config,
+          :profile_retention_days,
+          @default_profile_analytics_retention_days
+        )
+
+    batch_size =
+      Keyword.get(opts, :batch_size) ||
+        Keyword.get(
+          retention_config,
+          :batch_size,
+          @default_analytics_retention_batch_size
+        )
+
+    max_batches =
+      Keyword.get(opts, :max_batches) ||
+        Keyword.get(
+          retention_config,
+          :max_batches,
+          @default_analytics_retention_max_batches
+        )
+
+    now = Keyword.get(opts, :now, DateTime.utc_now() |> DateTime.truncate(:second))
+    site_cutoff = now |> DateTime.add(-site_retention_days, :day) |> DateTime.to_naive()
+    profile_cutoff = now |> DateTime.add(-profile_retention_days, :day) |> DateTime.to_naive()
+
+    %{
+      site_page_visits:
+        prune_analytics_table(:site_page_visits, site_cutoff, batch_size, max_batches),
+      site_sessions: prune_analytics_table(:site_sessions, site_cutoff, batch_size, max_batches),
+      profile_site_visits:
+        prune_analytics_table(:profile_site_visits, profile_cutoff, batch_size, max_batches),
+      profile_views:
+        prune_analytics_table(:profile_views, profile_cutoff, batch_size, max_batches)
+    }
+  end
+
+  defp prune_analytics_table(_table, _cutoff, batch_size, max_batches)
+       when batch_size < 1 or max_batches < 1,
+       do: 0
+
+  defp prune_analytics_table(table, cutoff, batch_size, max_batches) do
+    {table_name, timestamp_column} =
+      case table do
+        :site_page_visits -> {"site_page_visits", "inserted_at"}
+        :site_sessions -> {"site_sessions", "started_at"}
+        :profile_site_visits -> {"profile_site_visits", "inserted_at"}
+        :profile_views -> {"profile_views", "inserted_at"}
+      end
+
+    sql = """
+    WITH doomed AS (
+      SELECT ctid
+      FROM #{table_name}
+      WHERE #{timestamp_column} < $1
+      LIMIT $2
+    )
+    DELETE FROM #{table_name}
+    WHERE ctid IN (SELECT ctid FROM doomed)
+    """
+
+    Enum.reduce_while(1..max_batches, 0, fn _batch, total_deleted ->
+      %{num_rows: deleted} = Repo.query!(sql, [cutoff, batch_size])
+      new_total = total_deleted + deleted
+
+      if deleted < batch_size do
+        {:halt, new_total}
+      else
+        {:cont, new_total}
+      end
+    end)
+  end
 
   defp upsert_site_session(attrs, now) do
     %SiteSession{}
