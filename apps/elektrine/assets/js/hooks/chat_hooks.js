@@ -1,5 +1,7 @@
 // Chat-specific LiveView hooks
 
+import { submitFormPreservingEvents } from "../utils/form_submission"
+
 export const AutoExpandTextarea = {
   mounted() {
     this.timeouts = []
@@ -128,13 +130,13 @@ export const AutoExpandTextarea = {
           this.lastSentContent = content
           this.lastSentTime = now
 
-          // Disable the submit button temporarily
           const submitBtn = form.querySelector('button[type="submit"]')
+          submitFormPreservingEvents(form, submitBtn?.disabled ? null : submitBtn)
+
+          // Disable the submit button temporarily after LiveView receives the submit.
           if (submitBtn) {
             submitBtn.disabled = true
           }
-
-          form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))
 
           // Reset after submit
           queueTimeout(() => {
@@ -288,7 +290,8 @@ export const SimpleChatInput = {
         e.preventDefault()
         if (this.form && this.el.value.trim()) {
           this.awaitingSubmitClear = true
-          this.form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))
+          const submitter = this.form.querySelector('button[type="submit"]')
+          submitFormPreservingEvents(this.form, submitter?.disabled ? null : submitter)
         }
       }
     }
