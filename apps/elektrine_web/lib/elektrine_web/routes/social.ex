@@ -225,11 +225,13 @@ defmodule ElektrineWeb.Routes.Social do
         live("/communities/:name", ElektrineSocialWeb.DiscussionsLive.Community, :show)
         live("/communities/:name/settings", ElektrineSocialWeb.DiscussionsLive.Settings, :index)
         live("/communities/:name/post/:post_id", ElektrineSocialWeb.DiscussionsLive.Post, :show)
+        live("/communities/:name/p/:post_id", ElektrineSocialWeb.DiscussionsLive.Post, :show)
 
         live("/discussions", ElektrineSocialWeb.DiscussionsLive.Index, :index)
         live("/discussions/:name", ElektrineSocialWeb.DiscussionsLive.Community, :show)
         live("/discussions/:name/settings", ElektrineSocialWeb.DiscussionsLive.Settings, :index)
         live("/discussions/:name/post/:post_id", ElektrineSocialWeb.DiscussionsLive.Post, :show)
+        live("/discussions/:name/p/:post_id", ElektrineSocialWeb.DiscussionsLive.Post, :show)
 
         live("/timeline", ElektrineSocialWeb.TimelineLive.Index, :index)
         live("/timeline/post/:id", ElektrineSocialWeb.TimelineLive.Post, :show)

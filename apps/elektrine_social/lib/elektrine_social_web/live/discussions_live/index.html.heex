@@ -36,17 +36,16 @@
   feed_post_count = length(@filtered_community_posts || [])
 
   spotlight_communities = @filtered_popular_communities || []
-  trending_threads = @filtered_discussions || []
-  recent_threads = @filtered_recent_activity || []
-  federated_threads = @filtered_federated_discussions || []
-  discover_cards = build_discovery_cards(spotlight_communities, discover_public_communities)
+
+  discover_cards =
+    build_discovery_cards(spotlight_communities, discover_public_communities)
+    |> Enum.reject(fn card ->
+      community = Map.get(card, :community)
+      community && MapSet.member?(@joined_community_ids, community.id)
+    end)
+
   visible_discover_cards = Enum.take(discover_cards, @overview_card_limit || 6)
   visible_remote_communities = Enum.take(discover_remote_communities, @overview_card_limit || 6)
-
-  active_thread_cards =
-    build_active_thread_cards(trending_threads, recent_threads, federated_threads)
-
-  visible_active_thread_cards = Enum.take(active_thread_cards, @overview_card_limit || 6)
 
   joinable_trending_communities =
     (@filtered_popular_communities || [])
@@ -56,7 +55,14 @@
   selected_category_label =
     if @selected_category == "all",
       do: "your interests",
-      else: String.capitalize(@selected_category) %>
+      else: String.capitalize(@selected_category)
+
+  view_label =
+    case @current_view do
+      "feed" -> "Community Feed"
+      "my_activity" -> "My Activity"
+      _ -> "Joined Communities"
+    end %>
 
   <div class="sm:hidden mb-4 space-y-3">
     <%= if @current_user do %>
@@ -192,152 +198,84 @@
       "flex-1 min-w-0 max-w-full",
       if(@current_view == "feed", do: "xl:max-w-4xl")
     ]}>
-      <div class="card panel-card overflow-hidden">
-        <div class="p-5 sm:p-6 border-b border-base-300">
-          <div class="flex flex-col gap-4">
-            <%= if @current_view == "communities" do %>
-              <div class="space-y-3">
-                <.form
-                  id="community-search-form"
-                  for={%{}}
-                  phx-change="search_communities"
-                  phx-submit="perform_search"
-                  class="flex flex-col lg:flex-row gap-3"
-                >
-                  <label class="input input-bordered flex items-center gap-2 flex-1 bg-base-100">
-                    <.icon name="hero-magnifying-glass" class="w-4 h-4 opacity-60" />
-                    <input
-                      type="text"
-                      name="query"
-                      value={@search_query}
-                      placeholder={search_placeholder}
-                      phx-debounce="250"
-                      autocomplete="off"
-                    />
-                  </label>
-                  <div class="flex gap-2">
-                    <button type="submit" class="btn btn-secondary">
-                      <.icon name="hero-magnifying-glass" class="w-4 h-4 mr-2" /> Search
-                    </button>
-                    <%= if search_active? do %>
-                      <button
-                        type="button"
-                        phx-click="clear_community_search"
-                        data-search-clear="true"
-                        class="btn border border-base-300 bg-base-200 hover:bg-base-300"
-                      >
-                        Clear
-                      </button>
-                    <% end %>
-                  </div>
-                </.form>
+      <div class="card panel-card overflow-visible">
+        <div class="border-b border-base-300">
+          <div class="flex items-center justify-between gap-3 px-4 py-3">
+            <div class="min-w-0">
+              <h1 class="text-lg font-semibold leading-tight">
+                {view_label}
+              </h1>
+            </div>
+          </div>
 
-                <div class="flex flex-wrap gap-2">
-                  <%= for {scope, label, icon} <- [
+          <%= if @current_view == "communities" do %>
+            <div class="space-y-3 border-t border-base-300 p-3 sm:px-4">
+              <.form
+                id="community-search-form"
+                for={%{}}
+                phx-change="search_communities"
+                phx-submit="perform_search"
+                class="relative"
+              >
+                <label class="input input-bordered input-sm flex w-full items-center gap-2 bg-base-100">
+                  <.icon name="hero-magnifying-glass" class="w-4 h-4 opacity-60" />
+                  <input
+                    type="text"
+                    name="query"
+                    value={@search_query}
+                    placeholder={search_placeholder}
+                    phx-debounce="250"
+                    autocomplete="off"
+                  />
+                </label>
+              </.form>
+
+              <div :if={search_active?} class="flex flex-wrap gap-2">
+                <%= for {scope, label, icon} <- [
                     {"communities", "Communities", "hero-user-group"},
                     {"posts", "Posts", "hero-document-text"},
                     {"people", "People", "hero-user"}
                   ] do %>
-                    <button
-                      type="button"
-                      phx-click="set_search_scope"
-                      phx-value-scope={scope}
-                      class={[
-                        "btn btn-sm rounded-full gap-2 border border-base-300",
-                        if(search_scope == scope,
-                          do: "btn-primary",
-                          else: "btn-ghost"
-                        )
-                      ]}
-                    >
-                      <.icon name={icon} class="w-4 h-4" /> {label}
-                      <span class="badge badge-xs badge-outline">{search_counts[scope]}</span>
-                    </button>
-                  <% end %>
-                </div>
-
-                <%= if !search_active? and @current_user && (@recent_searches != [] or @recent_joins != []) do %>
-                  <div class={[
-                    "grid gap-3",
-                    if(@recent_searches != [] and @recent_joins != [], do: "xl:grid-cols-2")
-                  ]}>
-                    <%= if @recent_searches != [] do %>
-                      <div class="rounded-2xl border border-base-300/70 bg-base-200/35 p-4 space-y-3">
-                        <div>
-                          <h3 class="text-sm font-semibold">Recent Searches</h3>
-                          <p class="text-xs text-base-content/60 mt-1">
-                            Saved from your latest discovery searches.
-                          </p>
-                        </div>
-                        <div class="flex flex-wrap gap-2">
-                          <%= for entry <- @recent_searches do %>
-                            <button
-                              type="button"
-                              phx-click="run_recent_search"
-                              phx-value-query={entry["query"]}
-                              phx-value-scope={entry["scope"]}
-                              class="btn btn-ghost btn-sm rounded-full"
-                            >
-                              {entry["query"]}
-                              <span class="badge badge-xs badge-outline ml-1">
-                                {String.capitalize(entry["scope"] || "communities")}
-                              </span>
-                            </button>
-                          <% end %>
-                        </div>
-                      </div>
-                    <% end %>
-
-                    <%= if @recent_joins != [] do %>
-                      <div class="rounded-2xl border border-base-300/70 bg-base-200/35 p-4 space-y-3">
-                        <div>
-                          <h3 class="text-sm font-semibold">Recent Joins</h3>
-                          <p class="text-xs text-base-content/60 mt-1">
-                            Communities you joined or followed most recently.
-                          </p>
-                        </div>
-                        <div class="grid gap-2.5 lg:grid-cols-2">
-                          <%= for join <- @recent_joins do %>
-                            <% item = join.item %>
-                            <div class="flex items-center justify-between gap-3 rounded-xl border border-base-300/60 bg-base-100/70 px-3 py-2.5 min-w-0">
-                              <div class="min-w-0">
-                                <.link
-                                  href={community_route(item)}
-                                  class="block truncate text-sm font-medium hover:text-secondary transition-colors"
-                                >
-                                  {raw(community_display_name_markup(item))}
-                                </.link>
-                                <p class="text-[11px] text-base-content/55 break-all">
-                                  {community_address(item)}
-                                </p>
-                              </div>
-                              <div class="text-right text-[11px] text-base-content/55 whitespace-nowrap">
-                                <div>
-                                  {if join.kind == :remote, do: "Followed", else: "Joined"}
-                                </div>
-                                <div>{Elektrine.Social.time_ago_in_words(join.joined_at)}</div>
-                              </div>
-                            </div>
-                          <% end %>
-                        </div>
-                      </div>
-                    <% end %>
-                  </div>
+                  <button
+                    type="button"
+                    phx-click="set_search_scope"
+                    phx-value-scope={scope}
+                    class={[
+                      "btn btn-sm rounded-full gap-2 border border-base-300",
+                      if(search_scope == scope,
+                        do: "btn-primary",
+                        else: "btn-ghost"
+                      )
+                    ]}
+                  >
+                    <.icon name={icon} class="w-4 h-4" /> {label}
+                    <span class="badge badge-xs badge-outline">{search_counts[scope]}</span>
+                  </button>
                 <% end %>
-
-                <.pill_switcher
-                  event="filter_by_category"
-                  param="category"
-                  active={@selected_category}
-                  options={
-                    Enum.map(category_pills, fn {value, label} ->
-                      %{value: value, label: label}
-                    end)
-                  }
-                />
               </div>
-            <% end %>
-          </div>
+
+              <details :if={!search_active?} class="group">
+                <summary class="flex cursor-pointer list-none items-center gap-2 rounded px-1 py-1 text-xs font-medium text-base-content/60 hover:text-base-content">
+                  <.icon
+                    name="hero-chevron-right"
+                    class="h-3.5 w-3.5 transition-transform group-open:rotate-90"
+                  /> Category: {selected_category_label}
+                </summary>
+                <div class="mt-2">
+                  <.pill_switcher
+                    event="filter_by_category"
+                    param="category"
+                    active={@selected_category}
+                    options={
+                      Enum.map(category_pills, fn {value, label} ->
+                        %{value: value, label: label}
+                      end)
+                    }
+                  />
+                </div>
+              </details>
+            </div>
+          <% end %>
         </div>
 
         <div class="p-4 sm:p-6">
@@ -477,7 +415,7 @@
                                     )
 
                                   result_href = community_route(actor) %>
-                                  <article class="card border border-base-300 bg-base-200/70 hover:border-info/40 transition-colors">
+                                  <article class="card border border-base-300 bg-base-200/70 hover:border-secondary/40 transition-colors">
                                     <div class="card-body p-4 gap-4">
                                       <div class="flex items-start gap-3">
                                         <%= if avatar_url = safe_external_image_url(actor.avatar_url) do %>
@@ -487,15 +425,15 @@
                                             alt={actor.username}
                                           />
                                         <% else %>
-                                          <div class="w-12 h-12 rounded-lg bg-info/10 text-info flex items-center justify-center flex-shrink-0">
-                                            <.icon name="hero-globe-alt" class="w-6 h-6" />
+                                          <div class="w-12 h-12 rounded-lg bg-secondary/10 text-secondary flex items-center justify-center flex-shrink-0">
+                                            <.icon name="hero-user-group" class="w-6 h-6" />
                                           </div>
                                         <% end %>
                                         <div class="min-w-0 flex-1">
                                           <div class="flex items-center gap-2 flex-wrap">
                                             <.link
                                               href={result_href}
-                                              class="font-semibold truncate hover:text-info transition-colors"
+                                              class="font-semibold truncate hover:text-secondary transition-colors"
                                             >
                                               {raw(
                                                 ElektrineWeb.HtmlHelpers.render_actor_display_name(
@@ -512,7 +450,7 @@
                                           </div>
                                           <.link
                                             href={result_href}
-                                            class="block text-xs text-base-content/50 mt-1 hover:text-info transition-colors"
+                                            class="block text-xs text-base-content/50 mt-1 hover:text-secondary transition-colors"
                                           >
                                             {community_address(actor)}
                                           </.link>
@@ -757,7 +695,7 @@
                             <% end %>
 
                             <%= for community <- @filtered_remote_communities do %>
-                              <article class="card border border-base-300 bg-base-100 hover:border-info/40 transition-colors group">
+                              <article class="card border border-base-300 bg-base-100 hover:border-secondary/40 transition-colors group">
                                 <div class="card-body p-3.5">
                                   <div class="flex items-start gap-2.5">
                                     <%= if avatar_url = safe_external_image_url(Map.get(community, :avatar_url)) do %>
@@ -767,15 +705,15 @@
                                         alt={community.username}
                                       />
                                     <% else %>
-                                      <div class="w-10 h-10 rounded-lg bg-info/10 text-info flex items-center justify-center flex-shrink-0">
-                                        <.icon name="hero-globe-alt" class="w-5 h-5" />
+                                      <div class="w-10 h-10 rounded-lg bg-secondary/10 text-secondary flex items-center justify-center flex-shrink-0">
+                                        <.icon name="hero-user-group" class="w-5 h-5" />
                                       </div>
                                     <% end %>
                                     <div class="min-w-0 flex-1">
                                       <div class="flex items-center gap-1.5 flex-wrap">
                                         <.link
                                           href={community_route(community)}
-                                          class="font-semibold truncate text-sm hover:text-info transition-colors"
+                                          class="font-semibold truncate text-sm hover:text-secondary transition-colors"
                                         >
                                           {raw(
                                             ElektrineWeb.HtmlHelpers.render_actor_display_name(
@@ -792,7 +730,7 @@
                                       </div>
                                       <.link
                                         href={community_route(community)}
-                                        class="block text-[11px] text-base-content/50 mt-0.5 hover:text-info transition-colors"
+                                        class="block text-[11px] text-base-content/50 mt-0.5 hover:text-secondary transition-colors"
                                       >
                                         {community_address(community)}
                                       </.link>
@@ -1043,167 +981,104 @@
                       <% end %>
                     </section>
 
-                    <section class="space-y-3">
+                    <section :if={visible_remote_communities != []} class="space-y-3">
                       <div>
                         <h2 class="text-xl font-semibold">Federated Communities</h2>
                       </div>
 
-                      <%= if visible_remote_communities != [] do %>
-                        <div class="divide-y divide-base-300 overflow-hidden rounded-lg border border-base-300 bg-base-100">
-                          <%= for actor <- visible_remote_communities do %>
-                            <article class="group flex flex-col gap-3 px-3 py-3 transition-colors hover:bg-base-200/35 sm:flex-row sm:items-center sm:px-4">
-                              <.link
-                                href={community_route(actor)}
-                                class="flex min-w-0 flex-1 gap-3"
-                              >
-                                <%= if avatar_url = safe_external_image_url(actor.avatar_url) do %>
-                                  <img
-                                    src={avatar_url}
-                                    class="h-11 w-11 flex-shrink-0 rounded-lg object-cover"
-                                    alt={actor.username}
-                                  />
-                                <% else %>
-                                  <div class="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg bg-info/10 text-info">
-                                    <.icon name="hero-globe-alt" class="h-5 w-5" />
-                                  </div>
-                                <% end %>
-
-                                <div class="min-w-0 flex-1">
-                                  <div class="flex min-w-0 items-center gap-2">
-                                    <h3 class="truncate text-sm font-semibold group-hover:text-info sm:text-base">
-                                      {raw(community_display_name_markup(actor))}
-                                    </h3>
-                                    <span class="badge badge-outline badge-xs shrink-0">
-                                      {community_category_label(actor)}
-                                    </span>
-                                  </div>
-                                  <p class="mt-0.5 truncate text-xs text-base-content/50">
-                                    {community_address(actor)}
-                                  </p>
-                                  <%= if actor.summary do %>
-                                    <p class="mt-1 line-clamp-1 text-sm text-base-content/65">
-                                      {raw(
-                                        PostUtilities.render_content_preview(
-                                          actor.summary,
-                                          actor.domain
-                                        )
-                                      )}
-                                    </p>
-                                  <% end %>
-
-                                  <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-base-content/55">
-                                    <span class="inline-flex items-center gap-1">
-                                      <.icon name="hero-users" class="h-3.5 w-3.5" />
-                                      {format_compact_number(remote_community_followers(actor))} followers
-                                    </span>
-                                    <span class="inline-flex items-center gap-1">
-                                      <.icon name="hero-server-stack" class="h-3.5 w-3.5" />
-                                      {actor.domain}
-                                    </span>
-                                  </div>
-                                </div>
-                              </.link>
-
-                              <div class="flex shrink-0 items-center gap-2 pl-14 sm:pl-0">
-                                <%= if actor_href = safe_external_href(actor.uri) do %>
-                                  <.link
-                                    href={actor_href}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    class="btn btn-ghost btn-sm"
-                                    title="Preview remote community"
-                                  >
-                                    <.icon name="hero-arrow-top-right-on-square" class="h-4 w-4" />
-                                    <span class="hidden md:inline">Preview</span>
-                                  </.link>
-                                <% end %>
-                                <%= if @current_user do %>
-                                  <button
-                                    type="button"
-                                    id={"discover-follow-community-#{actor.id}"}
-                                    phx-click="follow_remote_group"
-                                    phx-value-actor_id={actor.id}
-                                    class="btn btn-secondary btn-sm transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:bg-base-200 phx-click-loading:text-base-content"
-                                  >
-                                    <span class="phx-click-loading:hidden">Follow</span>
-                                    <span class="hidden items-center phx-click-loading:inline-flex">
-                                      <.spinner size="sm" class="mr-1" /> Following...
-                                    </span>
-                                  </button>
-                                <% else %>
-                                  <.link
-                                    href={Elektrine.Paths.login_path()}
-                                    class="btn btn-ghost btn-sm"
-                                  >
-                                    Sign in
-                                  </.link>
-                                <% end %>
-                              </div>
-                            </article>
-                          <% end %>
-                        </div>
-                      <% else %>
-                        <div class="rounded-lg border border-dashed border-base-300 bg-base-200/55 p-6 text-sm text-base-content/60">
-                          No federated communities are cached for this category yet.
-                        </div>
-                      <% end %>
-                    </section>
-
-                    <section class="space-y-3">
-                      <div>
-                        <h2 class="text-xl font-semibold">Active Conversations</h2>
-                      </div>
-
-                      <%= if visible_active_thread_cards != [] do %>
-                        <div class="grid gap-3 xl:grid-cols-2">
-                          <%= for card <- visible_active_thread_cards do %>
-                            <% post = card.post %>
+                      <div class="divide-y divide-base-300 overflow-hidden rounded-lg border border-base-300 bg-base-100">
+                        <%= for actor <- visible_remote_communities do %>
+                          <article class="group flex flex-col gap-3 px-3 py-3 transition-colors hover:bg-base-200/35 sm:flex-row sm:items-center sm:px-4">
                             <.link
-                              href={discussion_route(post)}
-                              class="block rounded-lg border border-base-300 bg-base-100 p-3.5 shadow-sm hover:border-secondary/40 transition-colors"
+                              href={community_route(actor)}
+                              class="flex min-w-0 flex-1 gap-3"
                             >
-                              <div class="mb-2 flex flex-wrap items-center gap-1.5 text-[11px] text-base-content/60 sm:text-xs">
-                                <%= for label <- active_thread_labels(card) do %>
-                                  <span class={[
-                                    "badge badge-sm",
-                                    if(label == "Trending",
-                                      do: "badge-secondary",
-                                      else: "badge-outline"
-                                    )
-                                  ]}>
-                                    {label}
-                                  </span>
-                                <% end %>
-                                <span>{discussion_community_label(post)}</span>
-                              </div>
-                              <h4 class="line-clamp-2 text-sm font-semibold sm:text-base">
-                                {discussion_title(post)}
-                              </h4>
-                              <% preview =
-                                PostUtilities.render_content_preview(
-                                  post.content,
-                                  PostUtilities.get_instance_domain(post),
-                                  140
-                                ) %>
-                              <%= if preview != "" do %>
-                                <p class="mt-1.5 line-clamp-2 text-xs text-base-content/70 sm:text-sm leading-5">
-                                  {raw(preview)}
-                                </p>
+                              <%= if avatar_url = safe_external_image_url(actor.avatar_url) do %>
+                                <img
+                                  src={avatar_url}
+                                  class="h-11 w-11 flex-shrink-0 rounded-lg object-cover"
+                                  alt={actor.username}
+                                />
+                              <% else %>
+                                <div class="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg bg-secondary/10 text-secondary">
+                                  <.icon name="hero-user-group" class="h-5 w-5" />
+                                </div>
                               <% end %>
-                              <div class="mt-2.5 flex items-center justify-between gap-3 text-[11px] text-base-content/60 sm:text-xs">
-                                <span>{active_thread_metric(card)}</span>
-                                <span>
-                                  {Elektrine.Social.time_ago_in_words(post.inserted_at)}
-                                </span>
+
+                              <div class="min-w-0 flex-1">
+                                <div class="flex min-w-0 items-center gap-2">
+                                  <h3 class="truncate text-sm font-semibold group-hover:text-secondary sm:text-base">
+                                    {raw(community_display_name_markup(actor))}
+                                  </h3>
+                                  <span class="badge badge-outline badge-xs shrink-0">
+                                    {community_category_label(actor)}
+                                  </span>
+                                </div>
+                                <p class="mt-0.5 truncate text-xs text-base-content/50">
+                                  {community_address(actor)}
+                                </p>
+                                <%= if actor.summary do %>
+                                  <p class="mt-1 line-clamp-1 text-sm text-base-content/65">
+                                    {raw(
+                                      PostUtilities.render_content_preview(
+                                        actor.summary,
+                                        actor.domain
+                                      )
+                                    )}
+                                  </p>
+                                <% end %>
+
+                                <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-base-content/55">
+                                  <span class="inline-flex items-center gap-1">
+                                    <.icon name="hero-users" class="h-3.5 w-3.5" />
+                                    {format_compact_number(remote_community_followers(actor))} followers
+                                  </span>
+                                  <span class="inline-flex items-center gap-1">
+                                    <.icon name="hero-server-stack" class="h-3.5 w-3.5" />
+                                    {actor.domain}
+                                  </span>
+                                </div>
                               </div>
                             </.link>
-                          <% end %>
-                        </div>
-                      <% else %>
-                        <div class="rounded-lg border border-dashed border-base-300 bg-base-200/55 p-6 text-sm text-base-content/60">
-                          No active threads yet for this view.
-                        </div>
-                      <% end %>
+
+                            <div class="flex shrink-0 items-center gap-2 pl-14 sm:pl-0">
+                              <%= if actor_href = safe_external_href(actor.uri) do %>
+                                <.link
+                                  href={actor_href}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  class="btn btn-ghost btn-sm"
+                                  title="Preview remote community"
+                                >
+                                  <.icon name="hero-arrow-top-right-on-square" class="h-4 w-4" />
+                                  <span class="hidden md:inline">Preview</span>
+                                </.link>
+                              <% end %>
+                              <%= if @current_user do %>
+                                <button
+                                  type="button"
+                                  id={"discover-follow-community-#{actor.id}"}
+                                  phx-click="follow_remote_group"
+                                  phx-value-actor_id={actor.id}
+                                  class="btn btn-secondary btn-sm transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:bg-base-200 phx-click-loading:text-base-content"
+                                >
+                                  <span class="phx-click-loading:hidden">Follow</span>
+                                  <span class="hidden items-center phx-click-loading:inline-flex">
+                                    <.spinner size="sm" class="mr-1" /> Following...
+                                  </span>
+                                </button>
+                              <% else %>
+                                <.link
+                                  href={Elektrine.Paths.login_path()}
+                                  class="btn btn-ghost btn-sm"
+                                >
+                                  Sign in
+                                </.link>
+                              <% end %>
+                            </div>
+                          </article>
+                        <% end %>
+                      </div>
                     </section>
 
                     <div class="py-4 h-24 flex items-center justify-center timeline-load-more-zone">

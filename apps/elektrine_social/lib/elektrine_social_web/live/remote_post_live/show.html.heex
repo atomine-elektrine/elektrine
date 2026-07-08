@@ -10,7 +10,7 @@
     <%= if @is_community_post do %>
       <%= if @community_actor do %>
         <.link
-          navigate={"/remote/!#{@community_actor.username}@#{@community_actor.domain}"}
+          navigate={Elektrine.Paths.remote_community_path(@community_actor)}
           class="btn btn-ghost btn-sm gap-2"
         >
           <.icon name="hero-user-group" class="w-4 h-4" /> !{@community_actor.username}
@@ -698,13 +698,16 @@
                             phx-click="vote_post"
                             phx-value-type="up"
                             class={[
-                              "inline-flex h-7 w-7 items-center justify-center rounded-md border border-transparent p-1 transition-none sm:h-9 sm:w-9 sm:p-2",
+                              "inline-flex h-7 w-7 items-center justify-center rounded-md border border-transparent p-1 transition-none phx-click-loading:pointer-events-none phx-click-loading:cursor-wait sm:h-9 sm:w-9 sm:p-2",
                               if(user_vote == "up",
-                                do: "bg-success/20 text-success hover:bg-success/30",
+                                do: "bg-secondary/20 text-secondary hover:bg-secondary/30",
                                 else:
-                                  "text-base-content/75 hover:bg-success/20 hover:text-success"
+                                  "text-base-content/50 hover:bg-secondary/20 hover:text-secondary"
                               )
                             ]}
+                            aria-label={if user_vote == "up", do: "Remove upvote", else: "Upvote"}
+                            aria-pressed={user_vote == "up"}
+                            type="button"
                           >
                             <.icon
                               name={
@@ -722,7 +725,15 @@
                         <% end %>
                         <span
                           id={score_dom_id}
-                          class="text-sm sm:text-lg font-bold"
+                          class={[
+                            "text-sm sm:text-lg font-bold",
+                            cond do
+                              user_vote == "up" -> "text-secondary"
+                              user_vote == "down" -> "text-error"
+                              true -> ""
+                            end
+                          ]}
+                          aria-label={"Score: #{score}"}
                           phx-hook="AnimatedCount"
                           phx-update="ignore"
                           data-count={score}
@@ -734,12 +745,17 @@
                             phx-click="vote_post"
                             phx-value-type="down"
                             class={[
-                              "inline-flex h-7 w-7 items-center justify-center rounded-md border border-transparent p-1 transition-none sm:h-9 sm:w-9 sm:p-2",
+                              "inline-flex h-7 w-7 items-center justify-center rounded-md border border-transparent p-1 transition-none phx-click-loading:pointer-events-none phx-click-loading:cursor-wait sm:h-9 sm:w-9 sm:p-2",
                               if(user_vote == "down",
                                 do: "bg-error/20 text-error hover:bg-error/30",
-                                else: "text-base-content/75 hover:bg-error/20 hover:text-error"
+                                else: "text-base-content/50 hover:bg-error/20 hover:text-error"
                               )
                             ]}
+                            aria-label={
+                              if user_vote == "down", do: "Remove downvote", else: "Downvote"
+                            }
+                            aria-pressed={user_vote == "down"}
+                            type="button"
                           >
                             <.icon
                               name={
@@ -813,7 +829,9 @@
                               <span class="text-xs opacity-50">in</span>
                               <%= if @community_actor do %>
                                 <.link
-                                  navigate={"/remote/!#{@community_actor.username}@#{@community_actor.domain}"}
+                                  navigate={
+                                    Elektrine.Paths.remote_community_path(@community_actor)
+                                  }
                                   class="text-secondary font-medium text-sm hover:underline"
                                 >
                                   !{@community_actor.username}
@@ -1591,7 +1609,7 @@
                       <!-- Community Header -->
                       <div class="flex items-center gap-3">
                         <.link
-                          navigate={"/remote/!#{@community_actor.username}@#{@community_actor.domain}"}
+                          navigate={Elektrine.Paths.remote_community_path(@community_actor)}
                           class="flex-shrink-0"
                         >
                           <%= if community_avatar_url =
@@ -1609,7 +1627,7 @@
                         </.link>
                         <div class="min-w-0">
                           <.link
-                            navigate={"/remote/!#{@community_actor.username}@#{@community_actor.domain}"}
+                            navigate={Elektrine.Paths.remote_community_path(@community_actor)}
                             class="font-bold hover:underline"
                           >
                             {raw(
@@ -1698,7 +1716,7 @@
                       
 <!-- View Community Link -->
                       <.link
-                        navigate={"/remote/!#{@community_actor.username}@#{@community_actor.domain}"}
+                        navigate={Elektrine.Paths.remote_community_path(@community_actor)}
                         class="btn btn-ghost btn-sm w-full"
                       >
                         <.icon name="hero-arrow-right" class="w-4 h-4" /> View All Posts

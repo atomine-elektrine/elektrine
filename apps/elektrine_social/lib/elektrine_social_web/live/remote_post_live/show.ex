@@ -4270,8 +4270,15 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   # Reddit-style voting for Lemmy comments
-  def handle_event("vote_comment", %{"comment_id" => comment_id, "type" => vote_type}, socket) do
-    Interactions.vote_remote_target(socket, comment_id, vote_type,
+  def handle_event(
+        "vote_comment",
+        %{"comment_id" => comment_id, "type" => vote_type} = params,
+        socket
+      ) do
+    target_id =
+      usable_interaction_id(comment_id) || usable_interaction_id(params["activitypub_id"])
+
+    Interactions.vote_remote_target(socket, target_id, vote_type,
       target_label: "comment",
       on_refresh: &maybe_assign_reply_vote_counts/2
     )
@@ -5734,6 +5741,17 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   defp local_interaction_message_id(_), do: nil
+
+  defp usable_interaction_id(value) when is_binary(value) do
+    case String.trim(value) do
+      "" -> nil
+      "unknown" -> nil
+      trimmed -> trimmed
+    end
+  end
+
+  defp usable_interaction_id(value) when is_integer(value), do: value
+  defp usable_interaction_id(_), do: nil
 
   defp local_interaction_keys(post, message_id) do
     [message_id, reply_surface_ref(post), field_value(post, ["id", :id])]

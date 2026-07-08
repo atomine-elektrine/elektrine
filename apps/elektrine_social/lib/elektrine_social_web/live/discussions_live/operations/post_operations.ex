@@ -6,11 +6,6 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
   import Phoenix.LiveView
   import Phoenix.Component
 
-  # Import verified routes for ~p sigil
-  use Phoenix.VerifiedRoutes,
-    endpoint: ElektrineWeb.Endpoint,
-    router: ElektrineWeb.Router
-
   alias Elektrine.{Messaging, Repo, Social}
   alias Elektrine.Utils.SafeConvert
   alias ElektrineSocialWeb.DiscussionsLive.Operations.SortHelpers
@@ -1212,10 +1207,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
   end
 
   defp generate_discussion_url(community, post) do
-    community_name = community.name
-    # Always use SEO-friendly URL with slug (falls back to just ID if no title)
-    slug = Elektrine.Utils.Slug.discussion_url_slug(post.id, post.title)
-    ~p"/communities/#{community_name}/post/#{slug}"
+    Elektrine.Paths.discussion_post_path(community.name, post.id, post.title)
   end
 
   defp member?(community_id, user_id) do

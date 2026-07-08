@@ -282,13 +282,13 @@ defmodule ElektrineWeb.DiscussionsIndexLiveTest do
     html = render_async(view)
 
     assert has_element?(view, "h2", "Discover Local Communities")
-    assert has_element?(view, "h2", "Active Conversations")
+    refute has_element?(view, "h2", "Active Conversations")
     assert html =~ joined_community.name
     assert html =~ discover_community.name
-    assert has_element?(view, "h4", "Trending thread #{unique}")
+    refute html =~ "Trending thread #{unique}"
   end
 
-  test "overview renders federated active threads when conversation is not loaded", %{conn: conn} do
+  test "joined overview keeps federated active threads out of the communities list", %{conn: conn} do
     user = AccountsFixtures.user_fixture()
     unique = System.unique_integer([:positive])
 
@@ -323,10 +323,8 @@ defmodule ElektrineWeb.DiscussionsIndexLiveTest do
 
     html = render_async(view)
 
-    assert has_element?(view, "h2", "Active Conversations")
-    assert html =~ "Federated thread #{unique}"
-    assert html =~ "!#{remote_actor.username}@#{remote_actor.domain}"
-    assert html =~ "/post/"
+    refute has_element?(view, "h2", "Active Conversations")
+    refute html =~ "Federated thread #{unique}"
   end
 
   test "community search replaces the overview with matching results", %{conn: conn} do
@@ -428,16 +426,13 @@ defmodule ElektrineWeb.DiscussionsIndexLiveTest do
 
     assert html =~ "Scoped thread #{unique}"
 
-    html =
-      view
-      |> element(~s(button[phx-click="clear_community_search"]))
-      |> render_click()
+    html = render_click(view, "clear_community_search")
 
-    assert html =~ "Recent Searches"
-    assert html =~ Integer.to_string(unique)
+    refute html =~ "Search Results"
+    assert html =~ "Category:"
   end
 
-  test "overview renders follow-based suggestions and recent joins", %{conn: conn} do
+  test "overview renders joined communities and follow-based suggestions", %{conn: conn} do
     user = AccountsFixtures.user_fixture()
     owner = AccountsFixtures.user_fixture()
     unique = System.unique_integer([:positive])
@@ -480,7 +475,6 @@ defmodule ElektrineWeb.DiscussionsIndexLiveTest do
     html = render_async(view)
 
     assert html =~ "Because You Follow..."
-    assert html =~ "Recent Joins"
     assert html =~ joined_community.name
     assert html =~ suggested_community.name
   end

@@ -2586,20 +2586,20 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
   defp community_path(%{conversation: %{type: "community", name: name}}, _community_uri)
        when is_binary(name),
-       do: "/communities/#{name}"
+       do: Elektrine.Paths.community_path(name)
 
   defp community_path(
          %{conversation: %{remote_group_actor: %{username: username, domain: domain}}},
          _community_uri
        )
        when is_binary(username) and is_binary(domain),
-       do: "/remote/!#{username}@#{domain}"
+       do: Elektrine.Paths.remote_community_path(username, domain)
 
   defp community_path(_post, community_uri) when is_binary(community_uri) do
     case URI.parse(community_uri) do
       %URI{host: host, path: "/c/" <> community_name}
       when is_binary(host) and community_name != "" ->
-        "/remote/!#{community_name}@#{host}"
+        Elektrine.Paths.remote_community_path(community_name, host)
 
       _ ->
         nil

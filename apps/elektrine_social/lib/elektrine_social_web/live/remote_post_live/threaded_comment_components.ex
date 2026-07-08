@@ -5,6 +5,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.ThreadedCommentComponents do
 
   alias Elektrine.ActivityPub.Helpers, as: APHelpers
   alias Elektrine.Paths
+  alias ElektrineWeb.UrlHelpers
 
   alias ElektrineSocialWeb.RemotePostLive.{
     SurfaceHelpers,
@@ -83,35 +84,41 @@ defmodule ElektrineSocialWeb.RemotePostLive.ThreadedCommentComponents do
               <%= if @current_user do %>
                 <button
                   phx-click="vote_comment"
-                  phx-value-comment_id={reply_view.activitypub_id}
+                  phx-value-comment_id={reply_view.card_post_id}
+                  phx-value-activitypub_id={reply_view.activitypub_id}
                   phx-value-type="up"
                   class={[
-                    "p-0.5 rounded transition-none",
+                    "inline-flex h-6 w-6 items-center justify-center rounded-md border border-transparent p-1 transition-none phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
                     if(user_vote == "up",
-                      do: "text-success",
-                      else: "text-base-content/40 hover:text-success"
+                      do: "bg-secondary/20 text-secondary hover:bg-secondary/30",
+                      else: "text-base-content/50 hover:bg-secondary/20 hover:text-secondary"
                     )
                   ]}
+                  aria-label={if user_vote == "up", do: "Remove upvote", else: "Upvote"}
+                  aria-pressed={user_vote == "up"}
                   type="button"
                 >
                   <.icon
                     name={if user_vote == "up", do: "hero-arrow-up-solid", else: "hero-arrow-up"}
-                    class="w-4 h-4 transition-none"
+                    class="w-3 h-3 sm:w-4 sm:h-4 transition-none"
                   />
                 </button>
               <% else %>
-                <div class="p-0.5 text-base-content/30">
-                  <.icon name="hero-arrow-up" class="w-4 h-4" />
+                <div class="inline-flex h-6 w-6 items-center justify-center rounded-md border border-transparent p-1 opacity-50 cursor-not-allowed">
+                  <.icon name="hero-arrow-up" class="w-3 h-3 sm:w-4 sm:h-4 transition-none" />
                 </div>
               <% end %>
-              <span class={[
-                "text-xs font-medium",
-                cond do
-                  user_vote == "up" -> "text-success"
-                  user_vote == "down" -> "text-error"
-                  true -> "text-base-content/60"
-                end
-              ]}>
+              <span
+                class={[
+                  "text-xs font-bold",
+                  cond do
+                    user_vote == "up" -> "text-secondary"
+                    user_vote == "down" -> "text-error"
+                    true -> ""
+                  end
+                ]}
+                aria-label={"Score: #{reply_like_count}"}
+              >
                 <span
                   id={"#{reply_view.card_dom_id}-vote-count"}
                   phx-hook="AnimatedCount"
@@ -124,27 +131,30 @@ defmodule ElektrineSocialWeb.RemotePostLive.ThreadedCommentComponents do
               <%= if @current_user do %>
                 <button
                   phx-click="vote_comment"
-                  phx-value-comment_id={reply_view.activitypub_id}
+                  phx-value-comment_id={reply_view.card_post_id}
+                  phx-value-activitypub_id={reply_view.activitypub_id}
                   phx-value-type="down"
                   class={[
-                    "p-0.5 rounded transition-none",
+                    "inline-flex h-6 w-6 items-center justify-center rounded-md border border-transparent p-1 transition-none phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
                     if(user_vote == "down",
-                      do: "text-error",
-                      else: "text-base-content/40 hover:text-error"
+                      do: "bg-error/20 text-error hover:bg-error/30",
+                      else: "text-base-content/50 hover:bg-error/20 hover:text-error"
                     )
                   ]}
+                  aria-label={if user_vote == "down", do: "Remove downvote", else: "Downvote"}
+                  aria-pressed={user_vote == "down"}
                   type="button"
                 >
                   <.icon
                     name={
                       if user_vote == "down", do: "hero-arrow-down-solid", else: "hero-arrow-down"
                     }
-                    class="w-4 h-4 transition-none"
+                    class="w-3 h-3 sm:w-4 sm:h-4 transition-none"
                   />
                 </button>
               <% else %>
-                <div class="p-0.5 text-base-content/30">
-                  <.icon name="hero-arrow-down" class="w-4 h-4" />
+                <div class="inline-flex h-6 w-6 items-center justify-center rounded-md border border-transparent p-1 opacity-50 cursor-not-allowed">
+                  <.icon name="hero-arrow-down" class="w-3 h-3 sm:w-4 sm:h-4 transition-none" />
                 </div>
               <% end %>
             </div>
@@ -891,17 +901,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.ThreadedCommentComponents do
     reply
     |> field_value(["attributedTo", "actor"])
     |> normalize_in_reply_to_ref()
-    |> host_from_url()
+    |> UrlHelpers.host_from_url()
   end
-
-  defp host_from_url(url) when is_binary(url) do
-    case URI.parse(url) do
-      %{host: host} when is_binary(host) and host != "" -> host
-      _ -> nil
-    end
-  end
-
-  defp host_from_url(_), do: nil
 
   defp short_mention_domain_hints(author) when is_binary(author) do
     case Regex.run(

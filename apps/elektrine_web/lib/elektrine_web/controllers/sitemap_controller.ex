@@ -84,10 +84,10 @@ defmodule ElektrineWeb.SitemapController do
           |> Elektrine.Repo.all()
 
         Enum.map(recent_discussions, fn post ->
-          slug = Elektrine.Utils.Slug.discussion_url_slug(post.id, post.title)
-
           %{
-            loc: "#{base_url}/discussions/#{post.conversation.name}/p/#{slug}",
+            loc:
+              base_url <>
+                Elektrine.Paths.discussion_post_path(post.conversation.name, post.id, post.title),
             lastmod: format_date(post.updated_at || post.inserted_at),
             changefreq: "weekly",
             priority: "0.6"

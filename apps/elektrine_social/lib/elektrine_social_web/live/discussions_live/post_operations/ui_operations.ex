@@ -7,10 +7,6 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.UIOperations do
   import Phoenix.Component
   import ElektrineWeb.Live.NotificationHelpers
 
-  use Phoenix.VerifiedRoutes,
-    endpoint: ElektrineWeb.Endpoint,
-    router: ElektrineWeb.Router
-
   def handle_event("navigate_to_origin", %{"url" => url}, socket) do
     ElektrineWeb.SafeLiveNavigation.noreply(socket, url)
   end
@@ -24,8 +20,18 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.UIOperations do
   end
 
   def handle_event("copy_discussion_link", %{"message_id" => message_id}, socket) do
+    title =
+      case socket.assigns[:post] do
+        %{id: id, title: title} ->
+          if to_string(id) == to_string(message_id), do: title
+
+        _ ->
+          nil
+      end
+
     post_url =
-      "#{ElektrineWeb.Endpoint.url()}/discussions/#{socket.assigns.community.name}/p/#{message_id}"
+      ElektrineWeb.Endpoint.url() <>
+        Elektrine.Paths.discussion_post_path(socket.assigns.community.name, message_id, title)
 
     {:noreply,
      socket
@@ -35,8 +41,11 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.UIOperations do
 
   def handle_event("copy_link", %{"message_id" => _message_id}, socket) do
     post = socket.assigns.post
-    slug = Elektrine.Utils.Slug.discussion_url_slug(post.id, post.title)
-    url = url(~p"/communities/#{socket.assigns.community.name}/post/#{slug}")
+
+    path =
+      Elektrine.Paths.discussion_post_path(socket.assigns.community.name, post.id, post.title)
+
+    url = ElektrineWeb.Endpoint.url() <> path
 
     {:noreply, push_event(socket, "copy_to_clipboard", %{text: url})}
   end

@@ -8,7 +8,7 @@ defmodule ElektrineSocialWeb.Components.Social.RemotePostShared do
   import ElektrineWeb.CoreComponents
   import ElektrineWeb.HtmlHelpers
 
-  alias Elektrine.Security.SafeExternalURL
+  alias ElektrineWeb.UrlHelpers
 
   attr :quoted_message, :map, required: true
   attr :variant, :atom, default: :detail, values: [:detail, :compact]
@@ -193,7 +193,7 @@ defmodule ElektrineSocialWeb.Components.Social.RemotePostShared do
 
   defp media_entry(attachment) when is_map(attachment) do
     with url when is_binary(url) <- attachment_url(attachment),
-         {:ok, safe_url} <- safe_media_url(url) do
+         {:ok, safe_url} <- UrlHelpers.safe_media_url(url, local_paths: :any, external: :href) do
       media_type = attachment_media_type(attachment)
       attachment_type = attachment_type(attachment)
 
@@ -243,31 +243,8 @@ defmodule ElektrineSocialWeb.Components.Social.RemotePostShared do
   defp attachment_url(_), do: nil
 
   defp safe_optional_media_url(url) do
-    case safe_media_url(url) do
-      {:ok, safe_url} -> safe_url
-      {:error, _reason} -> nil
-    end
+    UrlHelpers.safe_optional_media_url(url, local_paths: :any, external: :href)
   end
-
-  defp safe_media_url(url) when is_binary(url) do
-    trimmed = String.trim(url)
-
-    cond do
-      trimmed == "" ->
-        {:error, :empty_url}
-
-      Regex.match?(~r/[\x00-\x1F\x7F]/, trimmed) ->
-        {:error, :invalid_url}
-
-      String.starts_with?(trimmed, "/") and not String.starts_with?(trimmed, "//") ->
-        {:ok, trimmed}
-
-      true ->
-        SafeExternalURL.normalize_href(trimmed)
-    end
-  end
-
-  defp safe_media_url(_), do: {:error, :invalid_url}
 
   defp attachment_media_type(attachment) when is_map(attachment) do
     attachment["mediaType"] || attachment[:mediaType] || attachment["media_type"] ||

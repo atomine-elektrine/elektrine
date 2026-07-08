@@ -1,6 +1,9 @@
 defmodule ElektrineEmailWeb.SettingsLive.EmailPreferences do
   use ElektrineEmailWeb, :live_view
 
+  import ElektrineEmailWeb.EmailPreferenceHelpers,
+    only: [format_type: 1, type_badge_class: 1]
+
   alias Elektrine.Email
   alias Elektrine.Email.ListTypes
   alias Elektrine.Email.Unsubscribes
@@ -108,13 +111,4 @@ defmodule ElektrineEmailWeb.SettingsLive.EmailPreferences do
      |> assign(:unsubscribe_status, unsubscribe_status)
      |> put_flash(:info, "Resubscribed to all mailing lists")}
   end
-
-  # Helper functions for template
-  defp type_badge_class(:transactional), do: "badge-error"
-  defp type_badge_class(:marketing), do: "badge-primary"
-  defp type_badge_class(:notifications), do: "badge-info"
-
-  defp format_type(:transactional), do: "Transactional"
-  defp format_type(:marketing), do: "Marketing"
-  defp format_type(:notifications), do: "Notifications"
 end

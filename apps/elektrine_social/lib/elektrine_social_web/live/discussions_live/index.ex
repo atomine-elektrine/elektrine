@@ -1108,8 +1108,6 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
         end
 
         community = Enum.find(socket.assigns.communities, &(&1.id == community_id))
-        community_name = community.name
-        slug = Elektrine.Utils.Slug.discussion_url_slug(updated_message.id, updated_message.title)
 
         {:noreply,
          socket
@@ -1121,7 +1119,14 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
          |> assign(:pending_media_attachments, [])
          |> assign(:pending_media_alt_texts, %{})
          |> notify_info("Discussion created!")
-         |> push_navigate(to: ~p"/communities/#{community_name}/post/#{slug}")}
+         |> push_navigate(
+           to:
+             Elektrine.Paths.discussion_post_path(
+               community.name,
+               updated_message.id,
+               updated_message.title
+             )
+         )}
 
       {:error, _} ->
         {:noreply, notify_error(socket, "Failed to create discussion")}
@@ -2741,17 +2746,9 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
         discover_public_communities
       )
 
-    active_cards =
-      build_active_thread_cards(
-        source[:filtered_discussions] || [],
-        source[:filtered_recent_activity] || [],
-        source[:filtered_federated_discussions] || []
-      )
-
     remote_communities = source[:filtered_discover_remote_communities] || []
 
-    limit >= length(discover_cards) && limit >= length(active_cards) &&
-      limit >= length(remote_communities)
+    limit >= length(discover_cards) && limit >= length(remote_communities)
   end
 
   defp get_public_communities(limit) do
@@ -3454,12 +3451,14 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   defp format_compact_number(_), do: "0"
 
   defp community_route(%Elektrine.Social.Conversation{} = community),
-    do: ~p"/communities/#{community.name}"
+    do: Elektrine.Paths.community_path(community.name)
 
-  defp community_route(%Actor{} = actor), do: "/remote/!#{actor.username}@#{actor.domain}"
+  defp community_route(%Actor{} = actor), do: Elektrine.Paths.remote_community_path(actor)
   defp community_route(%{community: community}), do: community_route(community)
   defp community_route(%{remote_actor: actor}), do: community_route(actor)
-  defp community_route(%{name: name}) when is_binary(name), do: ~p"/communities/#{name}"
+
+  defp community_route(%{name: name}) when is_binary(name),
+    do: Elektrine.Paths.community_path(name)
 
   defp community_address(%Elektrine.Social.Conversation{} = community) do
     slug =
@@ -3626,62 +3625,11 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
 
   defp normalize_markup_text(_), do: nil
 
-  defp build_active_thread_cards(trending_threads, recent_threads, federated_threads) do
-    [
-      {:trending, trending_threads},
-      {:recent, recent_threads},
-      {:remote, federated_threads}
-    ]
-    |> Enum.reduce({%{}, []}, fn {kind, posts}, {cards, order} ->
-      Enum.reduce(posts, {cards, order}, fn post, {cards, order} ->
-        key = active_thread_key(post)
-
-        case cards do
-          %{^key => card} ->
-            {Map.put(cards, key, %{card | kinds: Enum.uniq(card.kinds ++ [kind])}), order}
-
-          _ ->
-            {Map.put(cards, key, %{post: post, kinds: [kind]}), order ++ [key]}
-        end
-      end)
-    end)
-    |> then(fn {cards, order} -> Enum.map(order, &Map.fetch!(cards, &1)) end)
-  end
-
-  defp active_thread_key(post), do: post.activitypub_id || {:post, post.id}
-
-  defp active_thread_labels(%{kinds: kinds}) do
-    kinds
-    |> Enum.map(fn
-      :trending -> "Trending"
-      :recent -> "Recent"
-      :remote -> "Remote"
-    end)
-  end
-
-  defp active_thread_metric(%{post: post, kinds: kinds}) do
-    cond do
-      :trending in kinds ->
-        "#{format_compact_number(post.like_count || post.score || 0)} votes"
-
-      :recent in kinds ->
-        "#{post.reply_count || 0} replies"
-
-      true ->
-        "#{post.reply_count || 0} replies"
-    end
-  end
-
   defp discussion_route(post) do
     case local_community_conversation(post) do
       %{name: community_name} ->
-        slug =
-          Elektrine.Utils.Slug.discussion_url_slug(
-            post.id,
-            PostUtilities.plain_text_content(post.title) |> blank_to("discussion")
-          )
-
-        ~p"/communities/#{community_name}/post/#{slug}"
+        title = PostUtilities.plain_text_content(post.title) |> blank_to("discussion")
+        Elektrine.Paths.discussion_post_path(community_name, post.id, title)
 
       _ ->
         Elektrine.Paths.post_path(post.id)

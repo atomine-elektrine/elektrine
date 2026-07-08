@@ -6,6 +6,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.AncestorContextComponents do
   alias Elektrine.AccountIdentifiers
   alias Elektrine.Paths
   alias ElektrineSocialWeb.RemotePostLive.SurfaceHelpers
+  alias ElektrineWeb.UrlHelpers
 
   import ElektrineWeb.HtmlHelpers,
     only: [render_remote_post_content: 2, safe_external_image_url: 1]
@@ -171,10 +172,10 @@ defmodule ElektrineSocialWeb.RemotePostLive.AncestorContextComponents do
         reply_parent_actor.domain
 
       is_map(reply_parent) && is_binary(reply_parent["attributedTo"]) ->
-        host_from_url(reply_parent["attributedTo"])
+        UrlHelpers.host_from_url(reply_parent["attributedTo"])
 
       is_binary(in_reply_to) ->
-        host_from_url(in_reply_to)
+        UrlHelpers.host_from_url(in_reply_to)
 
       true ->
         nil
@@ -188,15 +189,6 @@ defmodule ElektrineSocialWeb.RemotePostLive.AncestorContextComponents do
   end
 
   defp http_url?(_), do: false
-
-  defp host_from_url(url) when is_binary(url) do
-    case URI.parse(url) do
-      %URI{host: host} when is_binary(host) and host != "" -> host
-      _ -> nil
-    end
-  end
-
-  defp host_from_url(_), do: nil
 
   defp normalize_in_reply_to_ref(%{"id" => id}), do: normalize_in_reply_to_ref(id)
   defp normalize_in_reply_to_ref(%{"href" => href}), do: normalize_in_reply_to_ref(href)

@@ -602,17 +602,50 @@ defmodule ElektrineWeb.SearchLive do
           </section>
         </div>
       <% else %>
-        <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_18rem]">
+        <% result_type_counts = result_type_counts(@results) %>
+        <div class={[
+          "grid gap-5",
+          if(@web_search_allowed? and @domain_rules != %{},
+            do: "lg:grid-cols-[minmax(0,1fr)_18rem]",
+            else: "lg:grid-cols-1"
+          )
+        ]}>
           <div class="min-w-0 space-y-4">
-            <section class="panel-card overflow-visible rounded-lg border border-base-300 p-4">
-              <div class="space-y-4">
+            <section class="panel-card overflow-visible rounded-lg border border-base-300">
+              <div class="border-b border-base-300 p-4 sm:p-5">
+                <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-base-content/45">
+                      Paige
+                    </p>
+                    <h1 class="text-xl font-semibold leading-tight text-base-content sm:text-2xl">
+                      Search results
+                    </h1>
+                    <p class="mt-1 break-words text-sm text-base-content/65">
+                      Showing {active_lens_label(@active_lens, @web_search_allowed?)} matches for
+                      <span class="font-semibold text-base-content">“{@query}”</span>
+                    </p>
+                  </div>
+
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span class="badge badge-outline">
+                      {@total_count} result{plural_suffix(@total_count)}
+                    </span>
+                    <span :if={@web_degraded?} class="badge badge-warning badge-outline gap-1">
+                      <.icon name="hero-exclamation-triangle" class="h-3.5 w-3.5" /> Partial web
+                    </span>
+                  </div>
+                </div>
+
                 <.search_form
                   query={@query}
                   command_mode={@command_mode}
                   suggestions={@suggestions}
                   show_suggestions={@show_suggestions}
                 />
+              </div>
 
+              <div class="space-y-4 p-4 sm:p-5">
                 <.pill_switcher
                   event="set_lens"
                   param="lens"
@@ -624,6 +657,19 @@ defmodule ElektrineWeb.SearchLive do
                   :if={web_search_locked?(@active_lens, @web_search_allowed?)}
                   min_trust_level={@web_search_min_trust_level}
                 />
+
+                <%= if result_type_counts != [] do %>
+                  <div class="flex flex-wrap gap-2">
+                    <span
+                      :for={{type, count} <- result_type_counts}
+                      class="inline-flex items-center gap-1.5 rounded-full border border-base-300 bg-base-100 px-3 py-1 text-xs text-base-content/70"
+                    >
+                      <.icon name={result_icon(type)} class="h-3.5 w-3.5 opacity-70" />
+                      <span>{format_result_type(type)}</span>
+                      <span class="font-semibold text-base-content">{count}</span>
+                    </span>
+                  </div>
+                <% end %>
               </div>
             </section>
 
@@ -632,16 +678,12 @@ defmodule ElektrineWeb.SearchLive do
             <%= if not @loading and @searched? do %>
               <%= if @results != [] do %>
                 <div class="w-full space-y-3">
-                  <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[color:var(--surface-panel-border)] pb-2 text-sm text-base-content/65">
-                    <p>
-                      <span class="font-semibold text-base-content">{@total_count}</span>
-                      result{plural_suffix(@total_count)} for
-                      <span class="font-semibold text-base-content">{@query}</span>
-                    </p>
-                    <span :if={@web_degraded?} class="flex items-center gap-1 text-xs text-warning">
-                      <.icon name="hero-exclamation-triangle" class="h-4 w-4" />
-                      Some web sources were unavailable.
-                    </span>
+                  <div
+                    :if={@web_degraded?}
+                    class="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning"
+                  >
+                    <.icon name="hero-exclamation-triangle" class="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>Some web sources were unavailable.</span>
                   </div>
 
                   <.lens_results
@@ -691,31 +733,11 @@ defmodule ElektrineWeb.SearchLive do
             <% end %>
           </div>
 
-          <aside class="space-y-3 lg:sticky lg:top-20 lg:self-start">
+          <aside
+            :if={@web_search_allowed? and @domain_rules != %{}}
+            class="space-y-3 lg:sticky lg:top-20 lg:self-start"
+          >
             <section class="panel-card rounded-lg border border-base-300 p-3">
-              <h2 class="mb-2 text-sm font-semibold">Refine</h2>
-              <div class="grid gap-2">
-                <button class={quick_action_class()} phx-click="set_lens" phx-value-lens="all">
-                  <.icon name="hero-sparkles" class="h-4 w-4" /> All results
-                </button>
-                <button class={quick_action_class()} phx-click="set_lens" phx-value-lens="elektrine">
-                  <.icon name="hero-bolt" class="h-4 w-4" /> Elektrine only
-                </button>
-                <button
-                  :if={@web_search_allowed?}
-                  class={quick_action_class()}
-                  phx-click="set_lens"
-                  phx-value-lens="web"
-                >
-                  <.icon name="hero-globe-alt" class="h-4 w-4" /> Web only
-                </button>
-              </div>
-            </section>
-
-            <section
-              :if={@web_search_allowed? and @domain_rules != %{}}
-              class="panel-card rounded-lg border border-base-300 p-3"
-            >
               <div class="mb-2 flex items-center justify-between">
                 <h2 class="text-sm font-semibold">Domain rules</h2>
                 <span class="badge badge-ghost badge-sm">{map_size(@domain_rules)}</span>
@@ -911,6 +933,19 @@ defmodule ElektrineWeb.SearchLive do
     ]
 
     if web_search_allowed?, do: base_lenses ++ web_lenses, else: base_lenses
+  end
+
+  defp active_lens_label(lens, web_search_allowed?) do
+    lenses(web_search_allowed?)
+    |> Enum.find(%{label: "All"}, &(&1.value == lens))
+    |> Map.fetch!(:label)
+    |> String.downcase()
+  end
+
+  defp result_type_counts(results) do
+    results
+    |> Enum.frequencies_by(&Map.get(&1, :type, "other"))
+    |> Enum.sort_by(fn {type, count} -> {-count, format_result_type(type)} end)
   end
 
   defp paige_intro(true), do: "Elektrine + web"

@@ -729,9 +729,7 @@
                     phx-hook="PostClick"
                   >
                     <.link
-                      navigate={
-                        ~p"/communities/#{@community.name}/post/#{Elektrine.Utils.Slug.discussion_url_slug(post.id, post.title)}"
-                      }
+                      navigate={generate_discussion_url(@community, post)}
                       class="hidden"
                       data-post-nav-link
                       tabindex="-1"
@@ -825,9 +823,7 @@
                             class="-mx-2 rounded-lg px-2 py-1"
                           >
                             <.link
-                              navigate={
-                                ~p"/communities/#{@community.name}/post/#{Elektrine.Utils.Slug.discussion_url_slug(post.id, post.title)}"
-                              }
+                              navigate={generate_discussion_url(@community, post)}
                               class="block"
                             >
                               <h3 class="font-semibold text-base sm:text-lg text-base-content mb-2 break-words leading-tight hover:text-primary">
@@ -1037,7 +1033,7 @@
                   phx-hook="PostClick"
                 >
                   <.link
-                    navigate={"/communities/#{@community.name}/post/#{Elektrine.Utils.Slug.discussion_url_slug(post.id, post.title)}"}
+                    navigate={generate_discussion_url(@community, post)}
                     class="hidden"
                     data-post-nav-link
                     tabindex="-1"
@@ -1375,7 +1371,7 @@
                           class="-mx-2 mb-3 rounded-lg px-2 py-1"
                         >
                           <.link
-                            navigate={"/communities/#{@community.name}/post/#{Elektrine.Utils.Slug.discussion_url_slug(post.id, post.title)}"}
+                            navigate={generate_discussion_url(@community, post)}
                             class="block"
                           >
                             <h3 class="font-semibold text-base sm:text-lg text-base-content mb-2 break-words leading-tight hover:text-primary">

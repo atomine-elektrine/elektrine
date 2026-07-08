@@ -319,6 +319,13 @@ defmodule ElektrineSocialWeb.Components.Social.EmbeddedPost do
        when not is_nil(reply_to_id),
        do: Elektrine.Paths.discussion_message_path(name, reply_to_id, message_id)
 
+  defp get_post_url(%{
+         id: message_id,
+         title: title,
+         conversation: %{type: "community", name: name}
+       }),
+       do: Elektrine.Paths.discussion_post_path(name, message_id, title)
+
   defp get_post_url(%{id: message_id, conversation: %{type: "community", name: name}}),
     do: Elektrine.Paths.discussion_post_path(name, message_id)
 

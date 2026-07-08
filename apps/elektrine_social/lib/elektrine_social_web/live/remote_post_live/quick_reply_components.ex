@@ -7,6 +7,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.QuickReplyComponents do
   alias Elektrine.ActivityPub.Helpers, as: APHelpers
   alias Elektrine.Paths
   alias ElektrineSocialWeb.RemotePostLive.SurfaceHelpers
+  alias ElektrineWeb.UrlHelpers
 
   import ElektrineWeb.HtmlHelpers,
     only: [render_remote_post_content: 3, safe_external_image_url: 1]
@@ -264,17 +265,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.QuickReplyComponents do
   defp host_from_reply_actor_ref(reply) do
     reply
     |> field_value(["attributedTo", "actor"])
-    |> host_from_url()
+    |> UrlHelpers.host_from_url()
   end
-
-  defp host_from_url(url) when is_binary(url) do
-    case URI.parse(url) do
-      %{host: host} when is_binary(host) and host != "" -> host
-      _ -> nil
-    end
-  end
-
-  defp host_from_url(_), do: nil
 
   defp short_mention_domain_hints(author) when is_binary(author) do
     case Regex.run(

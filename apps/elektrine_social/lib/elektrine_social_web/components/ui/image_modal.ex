@@ -10,7 +10,7 @@ defmodule ElektrineSocialWeb.Components.UI.ImageModal do
   import Elektrine.Components.User.UsernameEffects
   import ElektrineWeb.HtmlHelpers
 
-  alias Elektrine.Security.SafeExternalURL
+  alias ElektrineWeb.UrlHelpers
 
   attr :show, :boolean, default: false
   attr :image_url, :string, default: nil
@@ -41,7 +41,7 @@ defmodule ElektrineSocialWeb.Components.UI.ImageModal do
       assigns
       |> assign(:modal_id, modal_id)
       |> assign(:display_like_count, display_like_count)
-      |> assign(:safe_media_url, safe_media_url(assigns.image_url))
+      |> assign(:safe_media_url, UrlHelpers.safe_optional_media_url(assigns.image_url))
 
     ~H"""
     <%= if @show do %>
@@ -325,36 +325,6 @@ defmodule ElektrineSocialWeb.Components.UI.ImageModal do
 
   defp audio_url?(url) when is_binary(url) do
     String.match?(url, ~r/\.(mp3|wav|ogg|m4a|aac|flac)(\?.*)?$/i)
-  end
-
-  defp safe_media_url(url) when is_binary(url) do
-    trimmed = String.trim(url)
-
-    cond do
-      trimmed == "" ->
-        nil
-
-      Regex.match?(~r/[\x00-\x1F\x7F]/, trimmed) ->
-        nil
-
-      String.starts_with?(trimmed, "uploads/") ->
-        "/" <> trimmed
-
-      safe_local_media_path?(trimmed) ->
-        trimmed
-
-      true ->
-        case SafeExternalURL.normalize(trimmed) do
-          {:ok, safe_url} -> safe_url
-          {:error, _reason} -> nil
-        end
-    end
-  end
-
-  defp safe_media_url(_), do: nil
-
-  defp safe_local_media_path?(url) when is_binary(url) do
-    String.starts_with?(url, ["/uploads/", "/api/private-attachments/"])
   end
 
   defp remote_actor_name(remote_actor) do

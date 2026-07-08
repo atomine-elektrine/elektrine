@@ -7,10 +7,6 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.ReplyOperations do
   import Phoenix.LiveView
   import Phoenix.Component
 
-  use Phoenix.VerifiedRoutes,
-    endpoint: ElektrineWeb.Endpoint,
-    router: ElektrineWeb.Router
-
   alias Elektrine.Social
   alias Elektrine.Social.Message
   alias Elektrine.Utils.SafeConvert
@@ -228,10 +224,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.ReplyOperations do
           {:noreply, push_navigate(socket, to: Elektrine.Paths.post_path(message.id))}
 
         "community" ->
-          {:noreply,
-           push_navigate(socket,
-             to: ~p"/communities/#{message.conversation.name}/post/#{message.id}"
-           )}
+          {:noreply, push_navigate(socket, to: Elektrine.Paths.post_path(message))}
 
         _ ->
           {:noreply, push_navigate(socket, to: Elektrine.Paths.chat_path(message.conversation))}

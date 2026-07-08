@@ -51,8 +51,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Community do
     case community do
       %{is_federated_mirror: true, remote_group_actor: remote_actor}
       when not is_nil(remote_actor) ->
-        {:ok,
-         push_navigate(socket, to: "/remote/!#{remote_actor.username}@#{remote_actor.domain}")}
+        {:ok, push_navigate(socket, to: Elektrine.Paths.remote_community_path(remote_actor))}
 
       %{} = community ->
         community_id = community.id
@@ -92,7 +91,9 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Community do
           # Build meta tags for social sharing
           meta_description = build_community_description(community)
           og_image = get_community_image(community)
-          current_url = "#{ElektrineWeb.Endpoint.url()}/discussions/#{community.name}"
+
+          current_url =
+            "#{ElektrineWeb.Endpoint.url()}#{Elektrine.Paths.community_path(community.name)}"
 
           socket =
             socket
@@ -1580,12 +1581,8 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Community do
     end
   end
 
-  # Helper for templates - generates SEO-friendly discussion URL
   defp generate_discussion_url(community, post) do
-    community_name = community.name
-    # Always use SEO-friendly URL with slug (falls back to just ID if no title)
-    slug = Elektrine.Utils.Slug.discussion_url_slug(post.id, post.title)
-    ~p"/communities/#{community_name}/post/#{slug}"
+    Elektrine.Paths.discussion_post_path(community.name, post.id, post.title)
   end
 
   # Build OG description for community

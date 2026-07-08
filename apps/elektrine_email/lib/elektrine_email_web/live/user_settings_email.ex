@@ -5,6 +5,9 @@ defmodule ElektrineEmailWeb.UserSettingsEmail do
 
   use ElektrineEmailWeb, :html
 
+  import ElektrineEmailWeb.EmailPreferenceHelpers,
+    only: [format_type: 1, type_badge_class: 1]
+
   import ElektrineWeb.Live.NotificationHelpers
 
   alias Elektrine.Accounts
@@ -1006,14 +1009,6 @@ defmodule ElektrineEmailWeb.UserSettingsEmail do
   def wkd_hash(username) do
     PGP.wkd_hash(String.downcase(username))
   end
-
-  defp type_badge_class(:transactional), do: "badge-error"
-  defp type_badge_class(:marketing), do: "badge-primary"
-  defp type_badge_class(:notifications), do: "badge-info"
-
-  defp format_type(:transactional), do: "Transactional"
-  defp format_type(:marketing), do: "Marketing"
-  defp format_type(:notifications), do: "Notifications"
 
   defp assign_private_mailbox_state(socket, mailbox) when not is_nil(mailbox) do
     socket

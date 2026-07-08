@@ -38,13 +38,13 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Settings do
         {:ok,
          socket
          |> notify_error("Only the owner can access community settings")
-         |> push_navigate(to: ~p"/discussions/#{name}")}
+         |> push_navigate(to: ~p"/communities/#{name}")}
       end
     else
       {:ok,
        socket
        |> notify_error("Community not found")
-       |> push_navigate(to: ~p"/discussions")}
+       |> push_navigate(to: ~p"/communities")}
     end
   end
 

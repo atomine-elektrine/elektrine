@@ -6,11 +6,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.UiOperations do
   import Phoenix.LiveView
   import Phoenix.Component
 
-  # Import verified routes for ~p sigil
-  use Phoenix.VerifiedRoutes,
-    endpoint: ElektrineWeb.Endpoint,
-    router: ElektrineWeb.Router
-
+  alias Elektrine.Utils.SafeConvert
   alias ElektrineSocialWeb.DiscussionsLive.Operations.SortHelpers
 
   def handle_event("switch_view", %{"view" => view}, socket) do
@@ -98,11 +94,19 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.UiOperations do
   end
 
   def handle_event("copy_link", %{"message_id" => message_id}, socket) do
-    # Generate link to this specific discussion post
-    community_hash = socket.assigns.community.hash || socket.assigns.community.id
+    path =
+      case SafeConvert.parse_id(message_id) do
+        {:ok, message_id} ->
+          post = Enum.find(socket.assigns.discussion_posts || [], &(&1.id == message_id))
 
-    discussion_url =
-      "#{ElektrineWeb.Endpoint.url()}/discussions/#{community_hash}#post-#{message_id}"
+          title = if post, do: post.title, else: nil
+          Elektrine.Paths.discussion_post_path(socket.assigns.community.name, message_id, title)
+
+        {:error, _reason} ->
+          Elektrine.Paths.discussion_path(socket.assigns.community.name)
+      end
+
+    discussion_url = ElektrineWeb.Endpoint.url() <> path
 
     {:noreply,
      socket
@@ -252,8 +256,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.UiOperations do
         push_navigate(socket, to: Elektrine.Paths.post_path(message.id))
 
       "community" ->
-        slug = Elektrine.Utils.Slug.discussion_url_slug(message.id, message.title)
-        push_navigate(socket, to: ~p"/communities/#{message.conversation.name}/post/#{slug}")
+        push_navigate(socket, to: Elektrine.Paths.post_path(message))
 
       _ ->
         push_navigate(socket, to: Elektrine.Paths.chat_path(message.conversation))

@@ -28,6 +28,11 @@ defmodule Elektrine.Paths do
     discussion_post_path(name, id, title)
   end
 
+  def post_path(%{id: id, conversation: %{type: "community", name: name}})
+      when is_integer(id) and is_binary(name) do
+    discussion_post_path(name, id)
+  end
+
   def post_path(%{id: id, conversation: %{type: "chat", hash: hash}})
       when is_integer(id) and is_binary(hash) and hash != "" do
     chat_message_path(hash, id)
@@ -163,12 +168,12 @@ defmodule Elektrine.Paths do
   end
 
   def discussion_post_path(community_name, post_id) when is_binary(community_name) do
-    discussion_path(community_name) <> "/post/#{post_id}"
+    "/communities/#{URI.encode_www_form(String.trim(community_name))}/post/#{post_id}"
   end
 
   def discussion_post_path(community_name, post_id, title) when is_binary(community_name) do
     slug = Elektrine.Utils.Slug.discussion_url_slug(post_id, title)
-    discussion_path(community_name) <> "/p/#{slug}"
+    "/communities/#{URI.encode_www_form(String.trim(community_name))}/post/#{slug}"
   end
 
   def discussion_message_path(community_name, post_id, message_id)
@@ -221,6 +226,15 @@ defmodule Elektrine.Paths do
 
   def community_path(name) when is_binary(name),
     do: "/communities/#{URI.encode_www_form(String.trim(name))}"
+
+  def remote_community_path(%{username: username, domain: domain})
+      when is_binary(username) and is_binary(domain) do
+    remote_community_path(username, domain)
+  end
+
+  def remote_community_path(username, domain) when is_binary(username) and is_binary(domain) do
+    "/remote/!#{URI.encode_www_form(String.trim(username))}@#{URI.encode_www_form(String.trim(domain))}"
+  end
 
   def admin_path, do: "/pripyat"
   def admin_path(:users), do: "/pripyat/users"

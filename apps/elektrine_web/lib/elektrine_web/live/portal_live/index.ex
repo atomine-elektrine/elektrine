@@ -803,7 +803,9 @@ defmodule ElektrineWeb.PortalLive.Index do
 
             if conversation do
               {:noreply,
-               push_navigate(socket, to: ~p"/communities/#{conversation.name}/post/#{post_id}")}
+               push_navigate(socket,
+                 to: Elektrine.Paths.post_path(%{post | conversation: conversation})
+               )}
             else
               {:noreply, socket}
             end

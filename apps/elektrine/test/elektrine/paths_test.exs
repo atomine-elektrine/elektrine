@@ -11,7 +11,7 @@ defmodule Elektrine.PathsTest do
         conversation: %{type: "community", name: "maxfield"}
       }
 
-      assert Elektrine.Paths.post_path(post) == "/discussions/maxfield/p/494-local-post"
+      assert Elektrine.Paths.post_path(post) == "/communities/maxfield/post/494-local-post"
     end
 
     test "routes federated posts to the local remote-post view" do
