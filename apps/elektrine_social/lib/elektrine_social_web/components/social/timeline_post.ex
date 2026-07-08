@@ -279,8 +279,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         id={"#{@id_prefix}-card-#{@post.id}"}
         class={[
           "timeline-post-card timeline-post-card--dense relative z-0 max-w-full overflow-visible rounded-lg border border-base-300/70 px-3 py-3 transition-colors sm:px-4",
-          if(@clickable, do: "cursor-pointer"),
-          if(@is_reply, do: "border-l-2 border-l-base-300")
+          if(@clickable, do: "cursor-pointer")
         ]}
         data-post-id={@post.id}
         data-source={@source}
@@ -653,7 +652,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
             class="h-10 w-10"
             type="button"
           >
-            <.user_avatar user={@post.sender} size="sm" user_statuses={@user_statuses} />
+            <.user_avatar user={@post.sender} size="sm" />
           </button>
         <% else %>
           <.placeholder_avatar size="md" class="h-10 w-10" />
@@ -741,13 +740,13 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       </span>
       <%= if @post.edited_at do %>
         <span
-          class="badge badge-xs badge-ghost flex-shrink-0"
+          class="inline-flex flex-shrink-0 text-base-content/45"
           title={"Edited #{Integrations.social_time_ago(@post.edited_at)}"}
         >
           <.icon name="hero-pencil" class="h-2.5 w-2.5" />
         </span>
       <% end %>
-      <.visibility_badge visibility={@post.visibility} />
+      <.dense_visibility_icon visibility={@post.visibility} />
     </.user_hover_card>
     """
   end
@@ -818,12 +817,12 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
           time_format={@time_format}
         />
       </span>
-      <span class="badge badge-xs badge-outline flex-shrink-0" title="Federated post">
+      <span class="inline-flex flex-shrink-0 text-base-content/45" title="Federated post">
         <.icon name="hero-globe-alt" class="h-2.5 w-2.5" />
       </span>
       <%= if @post.edited_at do %>
         <span
-          class="badge badge-xs badge-ghost flex-shrink-0"
+          class="inline-flex flex-shrink-0 text-base-content/45"
           title={"Edited #{Integrations.social_time_ago(@post.edited_at)}"}
         >
           <.icon name="hero-pencil" class="h-2.5 w-2.5" />
@@ -863,6 +862,32 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         <% end %>
         <span :if={subtitle} class="text-base-content/45">{subtitle}</span>
       </div>
+    <% end %>
+    """
+  end
+
+  attr :visibility, :string, default: "public"
+
+  defp dense_visibility_icon(assigns) do
+    ~H"""
+    <%= case @visibility do %>
+      <% "public" -> %>
+        <span class="inline-flex flex-shrink-0 text-base-content/45" title="Public">
+          <.icon name="hero-globe-alt" class="h-3 w-3" />
+        </span>
+      <% "followers" -> %>
+        <span class="inline-flex flex-shrink-0 text-info/70" title="Followers only">
+          <.icon name="hero-user-group" class="h-3 w-3" />
+        </span>
+      <% "friends" -> %>
+        <span class="inline-flex flex-shrink-0 text-success/70" title="Friends only">
+          <.icon name="hero-heart" class="h-3 w-3" />
+        </span>
+      <% "private" -> %>
+        <span class="inline-flex flex-shrink-0 text-warning/70" title="Private">
+          <.icon name="hero-lock-closed" class="h-3 w-3" />
+        </span>
+      <% _ -> %>
     <% end %>
     """
   end

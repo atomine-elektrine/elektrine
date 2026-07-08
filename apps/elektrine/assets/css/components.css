@@ -208,6 +208,9 @@ html[data-theme="dark"] .btn:focus-visible,
 } .timeline-post-card--dense { border-color: color-mix(in srgb, var(--surface-panel-border) 84%, var(--color-base-content) 6%) !important; border-radius: 0.5rem !important; background-color: color-mix(in srgb, var(--color-base-200) 88%, var(--color-base-100) 12%) !important; backdrop-filter: none; box-shadow: none;
 } .timeline-post-card--dense:hover,
 .timeline-post-card--dense:focus-within { background-color: color-mix(in srgb, var(--color-base-200) 78%, var(--color-base-300) 22%) !important; border-color: color-mix(in srgb, var(--surface-panel-border) 72%, var(--color-primary) 18%) !important;
+} .timeline-post-card--dense.timeline-post-card--reply { border-left-width: 1px !important; border-left-color: color-mix(in srgb, var(--surface-panel-border) 84%, var(--color-base-content) 6%) !important;
+} .timeline-post-card--dense.timeline-post-card--reply:hover,
+.timeline-post-card--dense.timeline-post-card--reply:focus-within { border-left-width: 1px !important; border-left-color: color-mix(in srgb, var(--surface-panel-border) 72%, var(--color-primary) 18%) !important;
 } .timeline-post-card--dense .timeline-post-dense-content .post-content { font-size: 0.9375rem; line-height: 1.35;
 } .timeline-post-card--dense .timeline-post-dense-content h3.post-content { margin-bottom: 0.25rem !important; font-size: 1rem; line-height: 1.3;
 } .timeline-post-card--dense .timeline-post-dense-content :where(.mb-3) { margin-bottom: 0.5rem !important;
@@ -230,21 +233,23 @@ html[data-theme="dark"] .btn:focus-visible,
 .timeline-thread-current-card { box-shadow: 0 10px 28px color-mix(in srgb, var(--color-base-content) 6%, transparent);
 } .timeline-inline-reply-target { position: relative;
 } .timeline-inline-reply-target__card { display: block;
-} .timeline-thread-replies { position: relative; margin-left: 0.75rem; padding-left: 2.25rem; overflow: visible;
-} .timeline-thread-replies__rail { display: block; pointer-events: none; position: absolute; left: 0.95rem; top: -1.1rem; bottom: 0.75rem; width: 3px; border-radius: 9999px; background: linear-gradient(to bottom, color-mix(in srgb, var(--color-primary) 60%, transparent), color-mix(in srgb, var(--color-primary) 24%, transparent)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-base-100) 70%, transparent); z-index: 0;
+} .timeline-thread-replies { position: relative; margin-left: 0.5rem; padding-left: 1.85rem; overflow: visible;
+} .timeline-thread-replies__rail { display: block; pointer-events: none; position: absolute; left: 0.72rem; top: -0.65rem; bottom: 0.65rem; width: 2px; border-radius: 9999px; background: linear-gradient(to bottom, color-mix(in srgb, var(--color-primary) 28%, var(--surface-panel-border) 72%), color-mix(in srgb, var(--color-base-content) 10%, transparent)); box-shadow: none; z-index: 0;
 } .timeline-thread-replies--stub::before { bottom: 0;
 } .timeline-thread-reply-row { position: relative; overflow: visible; z-index: 1;
-} .timeline-thread-reply-node { display: block; pointer-events: none; position: absolute; left: -1.68rem; top: 1.02rem; width: 12px; height: 12px; border-radius: 9999px; background: var(--color-base-100); border: 2px solid color-mix(in srgb, var(--color-primary) 78%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-base-300) 80%, transparent); z-index: 3;
-} .timeline-thread-reply-elbow { display: block; pointer-events: none; position: absolute; left: -1.42rem; top: 1.35rem; width: 1.05rem; height: 2px; border-radius: 9999px; background: color-mix(in srgb, var(--color-primary) 58%, transparent); z-index: 2;
-} .timeline-thread-reply-card { position: relative; z-index: 1; border: 1px solid color-mix(in srgb, var(--color-base-content) 8%, transparent); box-shadow: none;
+} .timeline-thread-reply-node { display: block; pointer-events: none; position: absolute; left: -1.26rem; top: 0.95rem; width: 9px; height: 9px; border-radius: 9999px; background: color-mix(in srgb, var(--color-base-200) 84%, var(--color-base-100) 16%); border: 2px solid color-mix(in srgb, var(--color-primary) 46%, var(--surface-panel-border) 54%); box-shadow: none; z-index: 3;
+} .timeline-thread-reply-elbow { display: block; pointer-events: none; position: absolute; left: -1.05rem; top: 1.2rem; width: 0.8rem; height: 2px; border-radius: 9999px; background: color-mix(in srgb, var(--color-primary) 26%, var(--surface-panel-border) 74%); z-index: 2;
+} .timeline-thread-reply-card { position: relative; z-index: 1; border: 1px solid color-mix(in srgb, var(--surface-panel-border) 82%, var(--color-base-content) 6%) !important; border-radius: 0.5rem !important; background: color-mix(in srgb, var(--color-base-200) 86%, var(--color-base-100) 14%) !important; box-shadow: none;
+} .timeline-thread-reply-card:hover,
+.timeline-thread-reply-card:focus-within { background: color-mix(in srgb, var(--color-base-200) 76%, var(--color-base-300) 24%) !important; border-color: color-mix(in srgb, var(--surface-panel-border) 72%, var(--color-primary) 18%) !important; box-shadow: none;
 } .timeline-thread-comment-card { position: relative; border-color: color-mix(in srgb, var(--surface-panel-border) 82%, var(--color-base-content) 6%) !important; border-radius: 0.5rem !important; background: color-mix(in srgb, var(--color-base-200) 86%, var(--color-base-100) 14%) !important; backdrop-filter: none; box-shadow: none;
 } .timeline-thread-comment-card:hover,
 .timeline-thread-comment-card:focus-within { background: color-mix(in srgb, var(--color-base-200) 76%, var(--color-base-300) 24%) !important; border-color: color-mix(in srgb, var(--surface-panel-border) 72%, var(--color-primary) 18%) !important; box-shadow: none;
 } .timeline-thread-inline-form { margin-left: 0.875rem;
 } .timeline-thread-tree-node { position: relative; overflow: visible;
-} .timeline-thread-tree-node--nested { margin-left: 1rem; padding-left: 1.75rem; overflow: visible; z-index: 1;
-} .timeline-thread-tree-node--nested::before { content: ""; position: absolute; left: 0.75rem; top: -0.35rem; bottom: -0.35rem; width: 3px; border-radius: 9999px; background: color-mix(in srgb, var(--color-primary) 72%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-base-100) 55%, transparent); pointer-events: none; z-index: 1;
-} .timeline-thread-tree-node--nested::after { content: ""; position: absolute; left: 0.75rem; top: 1.35rem; width: 1.05rem; height: 3px; border-radius: 9999px; background: color-mix(in srgb, var(--color-primary) 72%, transparent); pointer-events: none; z-index: 1;
+} .timeline-thread-tree-node--nested { margin-left: 0.85rem; padding-left: 1.45rem; overflow: visible; z-index: 1;
+} .timeline-thread-tree-node--nested::before { content: ""; position: absolute; left: 0.58rem; top: -0.3rem; bottom: -0.3rem; width: 2px; border-radius: 9999px; background: color-mix(in srgb, var(--color-primary) 24%, var(--surface-panel-border) 76%); box-shadow: none; pointer-events: none; z-index: 1;
+} .timeline-thread-tree-node--nested::after { content: ""; position: absolute; left: 0.58rem; top: 1.15rem; width: 0.78rem; height: 2px; border-radius: 9999px; background: color-mix(in srgb, var(--color-primary) 24%, var(--surface-panel-border) 76%); pointer-events: none; z-index: 1;
 } .timeline-thread-tree-card { border: 1px solid color-mix(in srgb, var(--surface-panel-border) 82%, var(--color-base-content) 6%); background: color-mix(in srgb, var(--color-base-200) 86%, var(--color-base-100) 14%);
 } .timeline-thread-reply-row:hover,
 .timeline-thread-reply-row:focus-within,
@@ -256,25 +261,25 @@ html[data-theme="dark"] .btn:focus-visible,
 .timeline-thread-tree-node--nested:focus-within,
 .timeline-thread-tree-card:hover,
 .timeline-thread-tree-card:focus-within { z-index: 320;
-} .timeline-thread-preview-list { position: relative; margin-top: 0.5rem; padding-left: 1.75rem;
-} .timeline-thread-preview-list::before { content: ""; position: absolute; left: 0.75rem; top: 0.3rem; bottom: 0.25rem; width: 2px; border-radius: 9999px; background: linear-gradient(to bottom, color-mix(in srgb, var(--color-base-content) 14%, transparent), color-mix(in srgb, var(--color-base-content) 8%, transparent));
+} .timeline-thread-preview-list { position: relative; margin-top: 0.5rem; padding-left: 1.55rem;
+} .timeline-thread-preview-list::before { content: ""; position: absolute; left: 0.62rem; top: 0.35rem; bottom: 0.3rem; width: 2px; border-radius: 9999px; background: linear-gradient(to bottom, color-mix(in srgb, var(--color-primary) 22%, var(--surface-panel-border) 78%), color-mix(in srgb, var(--color-base-content) 8%, transparent));
 } .timeline-thread-preview-item { position: relative; background: var(--color-base-100);
-} .timeline-thread-preview-item::before { content: ""; position: absolute; left: -1rem; top: 0.9rem; width: 0.75rem; height: 2px; border-radius: 9999px; background: color-mix(in srgb, var(--color-base-content) 12%, transparent);
+} .timeline-thread-preview-item::before { content: ""; position: absolute; left: -0.82rem; top: 0.9rem; width: 0.58rem; height: 2px; border-radius: 9999px; background: color-mix(in srgb, var(--color-primary) 18%, var(--surface-panel-border) 82%);
 } .timeline-thread-preview-list--flush { padding-left: 0;
 } .timeline-thread-preview-list--flush::before { display: none;
 } .timeline-thread-preview-item--flush::before { display: none;
 } @media (max-width: 640px) {
-  .timeline-thread-replies { margin-left: 0.25rem; padding-left: 1.3rem;
-  } .timeline-thread-replies__rail { left: 0.35rem; top: -0.75rem; width: 2px;
-  } .timeline-thread-reply-node { left: -0.95rem; top: 0.95rem; width: 10px; height: 10px;
-  } .timeline-thread-reply-elbow { left: -0.72rem; top: 1.21rem; width: 0.45rem;
+  .timeline-thread-replies { margin-left: 0.2rem; padding-left: 1.15rem;
+  } .timeline-thread-replies__rail { left: 0.34rem; top: -0.65rem; width: 2px;
+  } .timeline-thread-reply-node { left: -0.88rem; top: 0.95rem; width: 8px; height: 8px;
+  } .timeline-thread-reply-elbow { left: -0.68rem; top: 1.17rem; width: 0.45rem;
   } .timeline-thread-inline-form { margin-left: 0.25rem;
-  } .timeline-thread-tree-node--nested { margin-left: 0.5rem; padding-left: 1rem;
-  } .timeline-thread-tree-node--nested::before { left: 0.4rem; width: 2px;
-  } .timeline-thread-tree-node--nested::after { left: 0.4rem; top: 1.2rem; width: 0.6rem; height: 2px;
-  } .timeline-thread-preview-list { padding-left: 1.1rem;
-  } .timeline-thread-preview-list::before { left: 0.4rem;
-  } .timeline-thread-preview-item::before { left: -0.65rem; width: 0.45rem;
+  } .timeline-thread-tree-node--nested { margin-left: 0.4rem; padding-left: 0.9rem;
+  } .timeline-thread-tree-node--nested::before { left: 0.34rem; width: 2px;
+  } .timeline-thread-tree-node--nested::after { left: 0.34rem; top: 1.12rem; width: 0.5rem; height: 2px;
+  } .timeline-thread-preview-list { padding-left: 1rem;
+  } .timeline-thread-preview-list::before { left: 0.34rem;
+  } .timeline-thread-preview-item::before { left: -0.58rem; width: 0.4rem;
   }
 } /* -------------------------------------------------------------------------- MODALS -------------------------------------------------------------------------- */ .modal,
 .modal.modal-open { background: var(--theme-modal-backdrop);

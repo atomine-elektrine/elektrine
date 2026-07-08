@@ -56,7 +56,7 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
 
     container_class =
       case assigns.variant do
-        :thread -> "timeline-thread-reply-card bg-base-100/90 rounded-2xl px-3 py-3"
+        :thread -> "timeline-thread-reply-card rounded-lg px-3 py-3"
         _ -> "bg-base-50 rounded-lg p-3"
       end
 
@@ -76,7 +76,7 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
       <div
         class={[
           @container_class,
-          @reply_click && "cursor-pointer transition-colors hover:bg-base-200/70"
+          @reply_click && "cursor-pointer transition-colors"
         ]}
         phx-click={@reply_click && @reply_click.event}
         phx-value-id={@reply_click && @reply_click.id}

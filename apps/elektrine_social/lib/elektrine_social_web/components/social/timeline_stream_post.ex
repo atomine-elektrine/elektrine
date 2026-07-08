@@ -186,8 +186,8 @@ defmodule ElektrineSocialWeb.Components.Social.TimelineStreamPost do
                         end %>
                       <div
                         class={[
-                          "timeline-thread-preview-item timeline-thread-preview-item--flush text-left text-sm rounded-lg px-2 py-1.5 transition-colors",
-                          reply_click && "cursor-pointer hover:bg-base-200/70"
+                          "timeline-thread-preview-item timeline-thread-comment-card timeline-thread-preview-item--flush text-left text-sm rounded-lg px-3 py-2 transition-colors",
+                          reply_click && "cursor-pointer"
                         ]}
                         phx-click={reply_click && reply_click.event}
                         phx-value-id={reply_click && reply_click.id}
