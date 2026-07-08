@@ -191,6 +191,37 @@ defmodule ElektrineWeb.DiscussionsIndexLiveTest do
     assert has_element?(view, ~s(button[phx-value-view="feed"]))
   end
 
+  test "new users with no community follows see an empty feed without public fallback", %{
+    conn: conn
+  } do
+    user = AccountsFixtures.user_fixture()
+    owner = AccountsFixtures.user_fixture()
+    unique = System.unique_integer([:positive])
+    title = "Public fallback thread #{unique}"
+
+    community =
+      SocialFixtures.community_conversation_fixture(owner, %{
+        name: "PublicFallback#{unique}",
+        is_public: true
+      })
+
+    SocialFixtures.discussion_post_fixture(%{
+      user: owner,
+      community: community,
+      title: title
+    })
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/communities")
+
+    html = render_async(view)
+
+    assert html =~ "Your community feed is empty"
+    refute html =~ title
+  end
+
   test "overview surfaces joined, discovery, and active thread sections", %{conn: conn} do
     user = AccountsFixtures.user_fixture()
     owner = AccountsFixtures.user_fixture()

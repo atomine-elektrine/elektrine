@@ -119,17 +119,29 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   @impl true
   def handle_params(params, _uri, socket) do
     view = params["view"] || default_communities_view(socket.assigns[:current_user])
+    previous_view = socket.assigns[:current_view]
 
     show_create_community =
       params["composer"] == "community" and not is_nil(socket.assigns.current_user)
 
-    {:noreply,
-     socket
-     |> assign(:current_view, view)
-     |> assign(
-       :show_create_community,
-       show_create_community || socket.assigns.show_create_community
-     )}
+    socket =
+      socket
+      |> assign(:current_view, view)
+      |> assign(
+        :show_create_community,
+        show_create_community || socket.assigns.show_create_community
+      )
+
+    socket =
+      if connected?(socket) and previous_view != view and
+           socket.assigns[:loading_communities] == false do
+        send(self(), :load_communities_data)
+        assign(socket, :loading_communities, true)
+      else
+        socket
+      end
+
+    {:noreply, socket}
   end
 
   @impl true
@@ -1437,6 +1449,10 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
 
   defp build_communities_data(assigns) do
     user = assigns[:current_user]
+    current_view = assigns[:current_view] || default_communities_view(user)
+    load_overview? = current_view == "communities"
+    load_feed? = current_view == "feed"
+    load_my_activity? = current_view == "my_activity"
 
     results = %{
       communities:
@@ -1452,19 +1468,31 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
           []
         ),
       public_communities:
-        load_with_fallback(:public_communities, fn -> get_public_communities(24) end, []),
+        if load_overview? do
+          load_with_fallback(:public_communities, fn -> get_public_communities(24) end, [])
+        else
+          assigns[:public_communities] || []
+        end,
       trending_discussions:
-        load_with_fallback(
-          :trending_discussions,
-          fn -> Social.get_trending_discussions(limit: 24) end,
-          []
-        ),
+        if load_overview? do
+          load_with_fallback(
+            :trending_discussions,
+            fn -> Social.get_trending_discussions(limit: 24) end,
+            []
+          )
+        else
+          assigns[:trending_discussions] || []
+        end,
       federated_discussions:
-        load_with_fallback(
-          :federated_discussions,
-          fn -> get_federated_discussions(limit: 24) end,
-          []
-        ),
+        if load_overview? do
+          load_with_fallback(
+            :federated_discussions,
+            fn -> get_federated_discussions(limit: 24) end,
+            []
+          )
+        else
+          assigns[:federated_discussions] || []
+        end,
       followed_remote_communities:
         load_with_fallback(
           :followed_remote_communities,
@@ -1478,47 +1506,70 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
           []
         ),
       discover_remote_communities:
-        load_with_fallback(
-          :discover_remote_communities,
-          fn -> get_discover_remote_communities(user && user.id, limit: 24) end,
-          []
-        ),
+        if load_overview? do
+          load_with_fallback(
+            :discover_remote_communities,
+            fn -> get_discover_remote_communities(user && user.id, limit: 24) end,
+            []
+          )
+        else
+          assigns[:discover_remote_communities] || []
+        end,
       followed_community_feed_page:
-        load_with_fallback(
-          :followed_community_feed_page,
-          fn -> load_community_feed_page(user, [], limit: @community_feed_page_size) end,
-          %{posts: [], public_fallback_ids: MapSet.new()}
-        ),
+        if load_feed? do
+          load_with_fallback(
+            :followed_community_feed_page,
+            fn -> load_community_feed_page(user, [], limit: @community_feed_page_size) end,
+            %{posts: [], public_fallback_ids: MapSet.new()}
+          )
+        else
+          %{
+            posts: assigns[:followed_community_posts] || [],
+            public_fallback_ids: assigns[:public_fallback_post_ids] || MapSet.new()
+          }
+        end,
       recent_activity:
-        load_with_fallback(
-          :recent_activity,
-          fn ->
-            if user do
-              Social.get_recent_community_activity(user.id, limit: 24)
-            else
-              []
-            end
-          end,
-          []
-        ),
+        if load_overview? do
+          load_with_fallback(
+            :recent_activity,
+            fn ->
+              if user do
+                Social.get_recent_community_activity(user.id, limit: 24)
+              else
+                []
+              end
+            end,
+            []
+          )
+        else
+          assigns[:recent_activity] || []
+        end,
       popular_communities:
-        load_with_fallback(
-          :popular_communities,
-          fn -> Social.get_popular_communities_this_week(limit: 24) end,
-          []
-        ),
+        if load_overview? or load_feed? do
+          load_with_fallback(
+            :popular_communities,
+            fn -> Social.get_popular_communities_this_week(limit: 24) end,
+            []
+          )
+        else
+          assigns[:popular_communities] || []
+        end,
       my_community_posts:
-        load_with_fallback(
-          :my_community_posts,
-          fn ->
-            if user do
-              Social.get_user_community_posts(user.id, limit: 50)
-            else
-              []
-            end
-          end,
-          []
-        )
+        if load_my_activity? do
+          load_with_fallback(
+            :my_community_posts,
+            fn ->
+              if user do
+                Social.get_user_community_posts(user.id, limit: 50)
+              else
+                []
+              end
+            end,
+            []
+          )
+        else
+          assigns[:my_community_posts] || []
+        end
     }
 
     communities = results.communities
@@ -1538,46 +1589,58 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
     my_community_posts = results.my_community_posts
 
     {cached_lemmy_counts, post_replies} =
-      load_with_fallback(
-        :lemmy_cache,
-        fn ->
-          if followed_community_posts != [] do
-            activitypub_ids =
-              followed_community_posts
-              |> Enum.map(& &1.activitypub_id)
-              |> Enum.filter(&LemmyApi.community_post_url?/1)
+      if load_feed? do
+        load_with_fallback(
+          :lemmy_cache,
+          fn ->
+            if followed_community_posts != [] do
+              activitypub_ids =
+                followed_community_posts
+                |> Enum.map(& &1.activitypub_id)
+                |> Enum.filter(&LemmyApi.community_post_url?/1)
 
-            {counts, comments} = LemmyCache.get_cached_data(activitypub_ids)
-            LemmyCache.schedule_refresh(activitypub_ids)
+              {counts, comments} = LemmyCache.get_cached_data(activitypub_ids)
+              LemmyCache.schedule_refresh(activitypub_ids)
 
-            if map_size(comments) < length(activitypub_ids) do
-              Process.send_after(self(), :refresh_lemmy_cache, 5000)
+              if map_size(comments) < length(activitypub_ids) do
+                Process.send_after(self(), :refresh_lemmy_cache, 5000)
+              end
+
+              Process.send_after(self(), :refresh_lemmy_cache, 60_000)
+              {counts, comments}
+            else
+              {%{}, %{}}
             end
-
-            Process.send_after(self(), :refresh_lemmy_cache, 60_000)
-            {counts, comments}
-          else
-            {%{}, %{}}
-          end
-        end,
-        {%{}, %{}}
-      )
+          end,
+          {%{}, %{}}
+        )
+      else
+        {assigns[:lemmy_counts] || %{}, assigns[:post_replies] || %{}}
+      end
 
     lemmy_counts = merge_seeded_lemmy_counts(followed_community_posts, cached_lemmy_counts)
 
     post_interactions =
-      load_with_fallback(
-        :post_interactions,
-        fn -> load_post_interactions(followed_community_posts, user) end,
-        %{}
-      )
+      if load_feed? do
+        load_with_fallback(
+          :post_interactions,
+          fn -> load_post_interactions(followed_community_posts, user) end,
+          %{}
+        )
+      else
+        assigns[:post_interactions] || %{}
+      end
 
     post_reactions =
-      load_with_fallback(
-        :post_reactions,
-        fn -> get_post_reactions(followed_community_posts) end,
-        %{}
-      )
+      if load_feed? do
+        load_with_fallback(
+          :post_reactions,
+          fn -> get_post_reactions(followed_community_posts) end,
+          %{}
+        )
+      else
+        assigns[:post_reactions] || %{}
+      end
 
     joined_community_ids =
       if user do
@@ -1589,29 +1652,33 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
     followed_remote_actor_ids = MapSet.new(followed_remote_communities, & &1.id)
 
     recent_searches =
-      if user do
+      if not is_nil(user) and load_overview? do
         get_recent_discovery_searches(user.id)
       else
-        []
+        assigns[:recent_searches] || []
       end
 
     recent_joins =
-      if user do
+      if not is_nil(user) and load_overview? do
         get_recent_joins(user.id)
       else
-        []
+        assigns[:recent_joins] || []
       end
 
     because_you_follow =
-      build_follow_based_suggestions(
-        communities,
-        followed_remote_communities,
-        public_communities,
-        discover_remote_communities,
-        joined_community_ids,
-        followed_remote_actor_ids,
-        assigns.selected_category
-      )
+      if load_overview? do
+        build_follow_based_suggestions(
+          communities,
+          followed_remote_communities,
+          public_communities,
+          discover_remote_communities,
+          joined_community_ids,
+          followed_remote_actor_ids,
+          assigns.selected_category
+        )
+      else
+        assigns[:because_you_follow] || []
+      end
 
     filtered_followed_posts =
       followed_community_posts
@@ -2331,7 +2398,31 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   defp get_followed_community_posts(user_id, opts) do
     limit = Keyword.get(opts, :limit, 20)
     before_post = Keyword.get(opts, :before_post)
+    scope = Keyword.get_lazy(opts, :scope, fn -> get_followed_community_scope(user_id) end)
 
+    if followed_community_scope_empty?(scope) do
+      []
+    else
+      query =
+        Elektrine.Social.Message
+        |> where(
+          [m],
+          m.visibility == "public" and is_nil(m.deleted_at) and is_nil(m.reply_to_id) and
+            fragment("?->>'inReplyTo' IS NULL OR ? IS NULL", m.media_metadata, m.media_metadata)
+        )
+        |> where([m], ^followed_community_filter(scope))
+
+      query = maybe_apply_feed_cursor(query, before_post)
+
+      query
+      |> order_by([m], desc: m.inserted_at, desc: m.id)
+      |> limit(^limit)
+      |> preload([:conversation, :remote_actor, :hashtags, :link_preview])
+      |> Repo.all()
+    end
+  end
+
+  defp get_followed_community_scope(user_id) do
     joined_community_ids =
       from(cm in Elektrine.Social.ConversationMember,
         join: c in Elektrine.Social.Conversation,
@@ -2383,56 +2474,46 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
       |> Enum.reject(&is_nil/1)
       |> Enum.uniq()
 
-    if Enum.empty?(joined_community_ids) and Enum.empty?(followed_actor_ids) and
-         Enum.empty?(followed_uris) do
-      []
-    else
-      community_filter = dynamic([_m], false)
+    %{
+      joined_community_ids: joined_community_ids,
+      followed_actor_ids: followed_actor_ids,
+      followed_uris: followed_uris
+    }
+  end
 
-      community_filter =
-        if Enum.empty?(joined_community_ids) do
-          community_filter
-        else
-          dynamic([m], ^community_filter or m.conversation_id in ^joined_community_ids)
-        end
+  defp followed_community_scope_empty?(scope) do
+    Enum.empty?(scope.joined_community_ids) and Enum.empty?(scope.followed_actor_ids) and
+      Enum.empty?(scope.followed_uris)
+  end
 
-      community_filter =
-        if Enum.empty?(followed_actor_ids) do
-          community_filter
-        else
-          dynamic(
-            [m],
-            ^community_filter or m.remote_actor_id in ^followed_actor_ids
-          )
-        end
+  defp followed_community_filter(scope) do
+    community_filter = dynamic([_m], false)
 
-      community_filter =
-        if Enum.empty?(followed_uris) do
-          community_filter
-        else
-          dynamic(
-            [m],
-            ^community_filter or
-              fragment("?->>'community_actor_uri' = ANY(?)", m.media_metadata, ^followed_uris)
-          )
-        end
+    community_filter =
+      if Enum.empty?(scope.joined_community_ids) do
+        community_filter
+      else
+        dynamic([m], ^community_filter or m.conversation_id in ^scope.joined_community_ids)
+      end
 
-      query =
-        Elektrine.Social.Message
-        |> where(
+    community_filter =
+      if Enum.empty?(scope.followed_actor_ids) do
+        community_filter
+      else
+        dynamic(
           [m],
-          m.visibility == "public" and is_nil(m.deleted_at) and is_nil(m.reply_to_id) and
-            fragment("?->>'inReplyTo' IS NULL OR ? IS NULL", m.media_metadata, m.media_metadata)
+          ^community_filter or m.remote_actor_id in ^scope.followed_actor_ids
         )
-        |> where([m], ^community_filter)
+      end
 
-      query = maybe_apply_feed_cursor(query, before_post)
-
-      query
-      |> order_by([m], desc: m.inserted_at, desc: m.id)
-      |> limit(^limit)
-      |> preload([:conversation, :remote_actor, :hashtags, :link_preview])
-      |> Repo.all()
+    if Enum.empty?(scope.followed_uris) do
+      community_filter
+    else
+      dynamic(
+        [m],
+        ^community_filter or
+          fragment("?->>'community_actor_uri' = ANY(?)", m.media_metadata, ^scope.followed_uris)
+      )
     end
   end
 
@@ -2444,41 +2525,48 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   defp load_community_feed_page(user, existing_posts, opts) do
     limit = Keyword.get(opts, :limit, @community_feed_page_size)
     before_post = Keyword.get(opts, :before_post)
+    scope = get_followed_community_scope(user.id)
 
     followed_posts =
       get_followed_community_posts(user.id,
         limit: limit,
-        before_post: before_post
+        before_post: before_post,
+        scope: scope
       )
 
     remaining = limit - length(followed_posts)
 
-    if remaining <= 0 do
-      %{posts: followed_posts, public_fallback_ids: MapSet.new()}
-    else
-      exclude_ids =
-        existing_posts
-        |> Enum.map(& &1.id)
-        |> Kernel.++(Enum.map(followed_posts, & &1.id))
+    cond do
+      followed_community_scope_empty?(scope) ->
+        %{posts: followed_posts, public_fallback_ids: MapSet.new()}
 
-      public_before_post =
-        if followed_posts == [] do
-          nil
-        else
-          before_post
-        end
+      remaining <= 0 ->
+        %{posts: followed_posts, public_fallback_ids: MapSet.new()}
 
-      public_posts =
-        get_public_community_feed_posts(
-          limit: remaining,
-          before_post: public_before_post,
-          exclude_ids: exclude_ids
-        )
+      true ->
+        exclude_ids =
+          existing_posts
+          |> Enum.map(& &1.id)
+          |> Kernel.++(Enum.map(followed_posts, & &1.id))
 
-      %{
-        posts: followed_posts ++ public_posts,
-        public_fallback_ids: MapSet.new(Enum.map(public_posts, & &1.id))
-      }
+        public_before_post =
+          if followed_posts == [] do
+            nil
+          else
+            before_post
+          end
+
+        public_posts =
+          get_public_community_feed_posts(
+            limit: remaining,
+            before_post: public_before_post,
+            exclude_ids: exclude_ids
+          )
+
+        %{
+          posts: followed_posts ++ public_posts,
+          public_fallback_ids: MapSet.new(Enum.map(public_posts, & &1.id))
+        }
     end
   end
 
@@ -2713,18 +2801,48 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
     import Ecto.Query
     limit = Keyword.get(opts, :limit, 10)
 
-    from(m in Elektrine.Social.Message,
-      join: a in Elektrine.ActivityPub.Actor,
-      on: a.id == m.remote_actor_id,
-      where:
-        m.federated == true and m.visibility == "public" and is_nil(m.deleted_at) and
-          is_nil(m.reply_to_id) and a.actor_type == "Group",
-      order_by: [desc: m.inserted_at],
-      limit: ^limit,
-      preload: [remote_actor: [], hashtags: [], link_preview: []]
-    )
-    |> exclude_blocked_instances()
-    |> Elektrine.Repo.all()
+    ids =
+      Ecto.Adapters.SQL.query!(
+        Repo,
+        """
+        SELECT m.id
+        FROM activitypub_actors AS a
+        JOIN LATERAL (
+          SELECT m.id, m.inserted_at
+          FROM social_messages AS m
+          WHERE m.remote_actor_id = a.id
+            AND m.federated = TRUE
+            AND m.visibility = 'public'
+            AND m.deleted_at IS NULL
+            AND m.reply_to_id IS NULL
+          ORDER BY m.inserted_at DESC
+          LIMIT $1
+        ) AS m ON TRUE
+        WHERE a.actor_type = 'Group'
+        ORDER BY m.inserted_at DESC
+        LIMIT $1
+        """,
+        [limit]
+      )
+      |> Map.fetch!(:rows)
+      |> List.flatten()
+
+    if ids == [] do
+      []
+    else
+      by_id =
+        from(m in Elektrine.Social.Message,
+          where: m.id in ^ids,
+          preload: [remote_actor: [], hashtags: [], link_preview: []]
+        )
+        |> exclude_blocked_instances()
+        |> Elektrine.Repo.all()
+        |> Map.new(&{&1.id, &1})
+
+      ids
+      |> Enum.map(&Map.get(by_id, &1))
+      |> Enum.reject(&is_nil/1)
+    end
   end
 
   defp exclude_blocked_instances(query) do
