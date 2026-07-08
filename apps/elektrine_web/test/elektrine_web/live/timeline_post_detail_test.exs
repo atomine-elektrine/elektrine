@@ -346,6 +346,65 @@ defmodule ElektrineSocialWeb.TimelinePostDetailTest do
       assert length(String.split(html, "(you)")) - 1 == 1
     end
 
+    test "refresh keeps local reply action counts and states", %{conn: conn} do
+      author = AccountsFixtures.user_fixture()
+      viewer = AccountsFixtures.user_fixture()
+
+      {:ok, post} =
+        Social.create_timeline_post(author.id, "Parent local post", visibility: "public")
+
+      {:ok, reply} =
+        Social.create_timeline_post(author.id, "Local reply with actions",
+          visibility: "public",
+          reply_to_id: post.id
+        )
+
+      {:ok, _child_reply} =
+        Social.create_timeline_post(author.id, "Nested reply",
+          visibility: "public",
+          reply_to_id: reply.id
+        )
+
+      {:ok, _like} = Social.like_post(viewer.id, reply.id)
+      {:ok, _boost} = Social.boost_post(viewer.id, reply.id)
+
+      Repo.update_all(
+        from(m in Message, where: m.id == ^reply.id),
+        set: [like_count: 1, share_count: 1, reply_count: 1]
+      )
+
+      {:ok, view, _initial_html} =
+        conn
+        |> log_in_user(viewer)
+        |> live(~p"/remote/post/#{post.id}")
+
+      html = render(view)
+
+      assert html =~ ~s(id="reply-card-#{reply.id}-like-count")
+      assert html =~ ~s(id="reply-card-#{reply.id}-boost-count")
+      assert html =~ ~s(id="reply-card-#{reply.id}-reply-count")
+      assert html =~ ~s(id="remote-post-detail-actions-#{post.id}-comment-count")
+      assert html =~ ~s(data-count="2")
+      assert html =~ ~s(phx-click="unlike_post")
+      assert html =~ ~s(phx-click="unboost_post")
+      assert html =~ "Nested reply"
+      assert html =~ ~s(data-count="1")
+
+      _ =
+        render_hook(view, "react_to_post", %{
+          "message_id" => Integer.to_string(reply.id),
+          "emoji" => "🔥"
+        })
+
+      assert Repo.get_by(Elektrine.Social.MessageReaction,
+               message_id: reply.id,
+               user_id: viewer.id,
+               emoji: "🔥"
+             )
+
+      assert render(view) =~ "🔥"
+    end
+
     test "uses HTML profile routes for local usernames on post detail", %{conn: conn} do
       author = AccountsFixtures.user_fixture()
 

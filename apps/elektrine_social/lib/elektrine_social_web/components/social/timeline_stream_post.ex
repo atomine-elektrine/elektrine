@@ -289,6 +289,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelineStreamPost do
                   remote_follow_overrides={@remote_follow_overrides}
                   user_likes={@user_likes}
                   user_boosts={@user_boosts}
+                  post_reactions={@post_reactions}
                   timezone={@timezone}
                   time_format={@time_format}
                   variant={:thread}

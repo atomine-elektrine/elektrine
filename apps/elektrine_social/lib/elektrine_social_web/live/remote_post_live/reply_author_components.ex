@@ -31,6 +31,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.ReplyAuthorComponents do
       |> assign(:avatar_class, reply_author_avatar_class(assigns.layout))
       |> assign(:icon_class, reply_author_icon_class(assigns.layout))
       |> assign(:hover_class, reply_author_hover_class(assigns.layout))
+      |> assign(:trigger_class, reply_author_trigger_class(assigns.layout))
 
     ~H"""
     <%= cond do %>
@@ -40,6 +41,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.ReplyAuthorComponents do
           current_user={@current_user}
           user_follows={@user_follows}
           class={@hover_class}
+          trigger_class={@trigger_class}
         >
           <.link
             navigate={@local_profile_path}
@@ -98,6 +100,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.ReplyAuthorComponents do
           pending_follows={@pending_follows}
           remote_follow_overrides={@remote_follow_overrides}
           class={@hover_class}
+          trigger_class={@trigger_class}
         >
           <.link
             navigate={@profile_path}
@@ -234,10 +237,16 @@ defmodule ElektrineSocialWeb.RemotePostLive.ReplyAuthorComponents do
   end
 
   defp reply_author_hover_class(:stacked),
-    do: "pointer-events-auto relative z-20 flex min-w-0 flex-1 items-start gap-2"
+    do: "pointer-events-auto relative z-20 flex min-w-0 flex-1 items-start gap-3"
 
   defp reply_author_hover_class(_),
-    do: "pointer-events-auto relative z-20 inline-flex min-w-0 items-center gap-2"
+    do: "pointer-events-auto relative z-20 inline-flex min-w-0 items-center gap-2.5"
+
+  defp reply_author_trigger_class(:stacked),
+    do: "inline-flex max-w-full min-w-0 flex-1 items-start gap-3"
+
+  defp reply_author_trigger_class(_),
+    do: "inline-flex max-w-full min-w-0 items-center gap-2.5"
 
   defp reply_author_avatar_class(:stacked), do: "w-8 h-8"
   defp reply_author_avatar_class(_), do: "w-6 h-6"

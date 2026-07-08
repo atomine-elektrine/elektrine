@@ -524,16 +524,33 @@ defmodule ElektrineSocialWeb.RemotePostLive.SurfaceHelpers do
 
   defp local_message_id_for_reply(replies, comment_id) when is_list(replies) do
     Enum.find_value(replies, fn reply ->
-      if is_map(reply) && reply["id"] == comment_id do
-        case reply["_local_message_id"] do
-          id when is_integer(id) -> id
-          _ -> nil
+      if is_map(reply) do
+        local_message_id = thread_reply_local_message_id(reply)
+
+        cond do
+          reply["id"] == comment_id ->
+            local_message_id
+
+          local_message_id_matches_url?(local_message_id, comment_id) ->
+            local_message_id
+
+          true ->
+            nil
         end
       end
     end)
   end
 
   defp local_message_id_for_reply(_, _), do: nil
+
+  defp local_message_id_matches_url?(message_id, comment_id)
+       when is_integer(message_id) and is_binary(comment_id) do
+    String.ends_with?(comment_id, "/posts/#{message_id}") ||
+      String.ends_with?(comment_id, "/messages/#{message_id}") ||
+      String.ends_with?(comment_id, "/statuses/#{message_id}")
+  end
+
+  defp local_message_id_matches_url?(_, _), do: false
 
   defp local_message_id_for_ancestor(ancestors, comment_id) when is_list(ancestors) do
     Enum.find_value(ancestors, fn ancestor ->

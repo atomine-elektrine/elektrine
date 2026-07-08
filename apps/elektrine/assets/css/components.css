@@ -202,7 +202,7 @@ html[data-theme="dark"] .btn:focus-visible,
 .timeline-post-card { position: relative; overflow: visible !important; z-index: 1; isolation: isolate; contain: none; transform: none !important;
 } .timeline-post-card:hover,
 .timeline-post-card:focus-within,
-.timeline-post-card:has(.timeline-reaction-dropdown[open]) { z-index: 220;
+.timeline-post-card:has(.timeline-reaction-dropdown[open]) { z-index: 430 !important;
 } .timeline-post-card > .card-body,
 .timeline-post-card .timeline-post-card-body { overflow: visible;
 } .timeline-post-card--dense { border-color: color-mix(in srgb, var(--surface-panel-border) 84%, var(--color-base-content) 6%) !important; border-radius: 0.5rem !important; background-color: color-mix(in srgb, var(--color-base-200) 88%, var(--color-base-100) 12%) !important; backdrop-filter: none; box-shadow: none;
@@ -225,20 +225,21 @@ html[data-theme="dark"] .btn:focus-visible,
 } .timeline-post-dropdown-menu :where(li > a, li > button, li > details > summary) { min-width: 0; white-space: normal; overflow-wrap: anywhere; word-break: break-word; line-height: 1.25;
 } .timeline-post-dropdown-menu :where(svg, .ui-icon) { flex-shrink: 0;
 } .timeline-reaction-dropdown { position: relative; z-index: 90; overflow: visible;
-} .timeline-reaction-dropdown[open] { z-index: 320;
+} .timeline-reaction-dropdown[open] { z-index: 430 !important;
 } .timeline-reaction-dropdown .dropdown-content { width: max-content; max-width: calc(100vw - 1rem); overflow: visible;
+} .timeline-reaction-dropdown[open] .dropdown-content { z-index: 430 !important;
 } .thread-context-card[role="button"] { cursor: pointer;
 } .thread-context-card[role="button"]:focus-visible { outline: 2px solid color-mix(in srgb, var(--color-primary) 55%, transparent); outline-offset: -2px;
 }
 .timeline-thread-current-card { box-shadow: 0 10px 28px color-mix(in srgb, var(--color-base-content) 6%, transparent);
 } .timeline-inline-reply-target { position: relative;
 } .timeline-inline-reply-target__card { display: block;
-} .timeline-thread-replies { position: relative; margin-left: 0.5rem; padding-left: 1.85rem; overflow: visible;
-} .timeline-thread-replies__rail { display: block; pointer-events: none; position: absolute; left: 0.72rem; top: -0.65rem; bottom: 0.65rem; width: 2px; border-radius: 9999px; background: linear-gradient(to bottom, color-mix(in srgb, var(--color-primary) 28%, var(--surface-panel-border) 72%), color-mix(in srgb, var(--color-base-content) 10%, transparent)); box-shadow: none; z-index: 0;
+} .timeline-thread-replies { position: relative; margin-left: 0.65rem; padding-left: 2.05rem; overflow: visible;
+} .timeline-thread-replies__rail { display: block; pointer-events: none; position: absolute; left: 0.78rem; top: -0.65rem; bottom: 0.65rem; width: 2px; border-radius: 9999px; background: linear-gradient(to bottom, color-mix(in srgb, var(--color-primary) 34%, var(--surface-panel-border) 66%), color-mix(in srgb, var(--color-base-content) 12%, transparent)); box-shadow: none; z-index: 0;
 } .timeline-thread-replies--stub::before { bottom: 0;
 } .timeline-thread-reply-row { position: relative; overflow: visible; z-index: 1;
-} .timeline-thread-reply-node { display: block; pointer-events: none; position: absolute; left: -1.26rem; top: 0.95rem; width: 9px; height: 9px; border-radius: 9999px; background: color-mix(in srgb, var(--color-base-200) 84%, var(--color-base-100) 16%); border: 2px solid color-mix(in srgb, var(--color-primary) 46%, var(--surface-panel-border) 54%); box-shadow: none; z-index: 3;
-} .timeline-thread-reply-elbow { display: block; pointer-events: none; position: absolute; left: -1.05rem; top: 1.2rem; width: 0.8rem; height: 2px; border-radius: 9999px; background: color-mix(in srgb, var(--color-primary) 26%, var(--surface-panel-border) 74%); z-index: 2;
+} .timeline-thread-reply-node { display: block; pointer-events: none; position: absolute; left: -1.34rem; top: 0.95rem; width: 10px; height: 10px; border-radius: 9999px; background: color-mix(in srgb, var(--color-base-200) 84%, var(--color-base-100) 16%); border: 2px solid color-mix(in srgb, var(--color-primary) 50%, var(--surface-panel-border) 50%); box-shadow: none; z-index: 3;
+} .timeline-thread-reply-elbow { display: block; pointer-events: none; position: absolute; left: -1.08rem; top: 1.22rem; width: 0.88rem; height: 2px; border-radius: 9999px; background: color-mix(in srgb, var(--color-primary) 32%, var(--surface-panel-border) 68%); z-index: 2;
 } .timeline-thread-reply-card { position: relative; z-index: 1; border: 1px solid color-mix(in srgb, var(--surface-panel-border) 82%, var(--color-base-content) 6%) !important; border-radius: 0.5rem !important; background: color-mix(in srgb, var(--color-base-200) 86%, var(--color-base-100) 14%) !important; box-shadow: none;
 } .timeline-thread-reply-card:hover,
 .timeline-thread-reply-card:focus-within { background: color-mix(in srgb, var(--color-base-200) 76%, var(--color-base-300) 24%) !important; border-color: color-mix(in srgb, var(--surface-panel-border) 72%, var(--color-primary) 18%) !important; box-shadow: none;
@@ -247,9 +248,9 @@ html[data-theme="dark"] .btn:focus-visible,
 .timeline-thread-comment-card:focus-within { background: color-mix(in srgb, var(--color-base-200) 76%, var(--color-base-300) 24%) !important; border-color: color-mix(in srgb, var(--surface-panel-border) 72%, var(--color-primary) 18%) !important; box-shadow: none;
 } .timeline-thread-inline-form { margin-left: 0.875rem;
 } .timeline-thread-tree-node { position: relative; overflow: visible;
-} .timeline-thread-tree-node--nested { margin-left: 0.85rem; padding-left: 1.45rem; overflow: visible; z-index: 1;
-} .timeline-thread-tree-node--nested::before { content: ""; position: absolute; left: 0.58rem; top: -0.3rem; bottom: -0.3rem; width: 2px; border-radius: 9999px; background: color-mix(in srgb, var(--color-primary) 24%, var(--surface-panel-border) 76%); box-shadow: none; pointer-events: none; z-index: 1;
-} .timeline-thread-tree-node--nested::after { content: ""; position: absolute; left: 0.58rem; top: 1.15rem; width: 0.78rem; height: 2px; border-radius: 9999px; background: color-mix(in srgb, var(--color-primary) 24%, var(--surface-panel-border) 76%); pointer-events: none; z-index: 1;
+} .timeline-thread-tree-node--nested { margin-left: 1.05rem; padding-left: 1.7rem; overflow: visible; z-index: 1;
+} .timeline-thread-tree-node--nested::before { content: ""; position: absolute; left: 0.62rem; top: -0.3rem; bottom: -0.3rem; width: 2px; border-radius: 9999px; background: color-mix(in srgb, var(--color-primary) 32%, var(--surface-panel-border) 68%); box-shadow: none; pointer-events: none; z-index: 1;
+} .timeline-thread-tree-node--nested::after { content: ""; position: absolute; left: 0.62rem; top: 1.15rem; width: 0.95rem; height: 2px; border-radius: 9999px; background: color-mix(in srgb, var(--color-primary) 32%, var(--surface-panel-border) 68%); pointer-events: none; z-index: 1;
 } .timeline-thread-tree-card { border: 1px solid color-mix(in srgb, var(--surface-panel-border) 82%, var(--color-base-content) 6%); background: color-mix(in srgb, var(--color-base-200) 86%, var(--color-base-100) 14%);
 } .timeline-thread-reply-row:hover,
 .timeline-thread-reply-row:focus-within,
@@ -261,6 +262,14 @@ html[data-theme="dark"] .btn:focus-visible,
 .timeline-thread-tree-node--nested:focus-within,
 .timeline-thread-tree-card:hover,
 .timeline-thread-tree-card:focus-within { z-index: 320;
+} .timeline-post-card:has([data-reaction-picker-root][open]),
+.timeline-thread-tree-node:has([data-reaction-picker-root][open]),
+.timeline-thread-reply-row:has([data-reaction-picker-root][open]),
+.timeline-thread-reply-card:has([data-reaction-picker-root][open]),
+.timeline-thread-comment-card:has([data-reaction-picker-root][open]),
+.timeline-thread-tree-card:has([data-reaction-picker-root][open]),
+.timeline-thread-preview-item:has([data-reaction-picker-root][open]),
+.thread-context-card:has([data-reaction-picker-root][open]) { z-index: 430 !important;
 } .timeline-thread-preview-list { position: relative; margin-top: 0.5rem; padding-left: 1.55rem;
 } .timeline-thread-preview-list::before { content: ""; position: absolute; left: 0.62rem; top: 0.35rem; bottom: 0.3rem; width: 2px; border-radius: 9999px; background: linear-gradient(to bottom, color-mix(in srgb, var(--color-primary) 22%, var(--surface-panel-border) 78%), color-mix(in srgb, var(--color-base-content) 8%, transparent));
 } .timeline-thread-preview-item { position: relative; background: var(--color-base-100);

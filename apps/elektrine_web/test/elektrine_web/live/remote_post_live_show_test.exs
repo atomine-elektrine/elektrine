@@ -1153,6 +1153,116 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
     assert Repo.get!(Message, root_message.id).reply_count == 2
   end
 
+  test "cached threaded replies render persisted boost counts after reload" do
+    unique = System.unique_integer([:positive])
+    current_user = AccountsFixtures.user_fixture(%{username: "replyboost#{unique}"})
+
+    remote_actor =
+      %Actor{}
+      |> Actor.changeset(%{
+        uri: "https://remote.example/users/replyboost#{unique}",
+        username: "replyboost#{unique}",
+        domain: "remote.example",
+        inbox_url: "https://remote.example/users/replyboost#{unique}/inbox",
+        public_key: "test-public-key-replyboost-#{unique}"
+      })
+      |> Repo.insert!()
+
+    {:ok, root_message} =
+      Messaging.create_federated_message(%{
+        content: "root",
+        title: "Root post",
+        visibility: "public",
+        activitypub_id: "https://remote.example/posts/replyboost-#{unique}",
+        activitypub_url: "https://remote.example/posts/replyboost-#{unique}",
+        federated: true,
+        remote_actor_id: remote_actor.id
+      })
+
+    {:ok, reply} =
+      Messaging.create_federated_message(%{
+        content: "boosted reply",
+        visibility: "public",
+        activitypub_id: "https://remote.example/comments/replyboost-#{unique}-1",
+        activitypub_url: "https://remote.example/comments/replyboost-#{unique}-1",
+        federated: true,
+        remote_actor_id: remote_actor.id,
+        reply_to_id: root_message.id
+      })
+
+    reply
+    |> Ecto.Changeset.change(share_count: 1)
+    |> Repo.update!()
+
+    %Elektrine.Social.PostBoost{}
+    |> Elektrine.Social.PostBoost.changeset(%{
+      user_id: current_user.id,
+      message_id: reply.id
+    })
+    |> Repo.insert!()
+
+    root_message = Repo.preload(root_message, remote_actor: [])
+
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        local_message: root_message,
+        post: %{"id" => root_message.activitypub_id},
+        replies: [],
+        comment_sort: "hot",
+        current_user: current_user,
+        post_interactions: %{},
+        post_reactions: %{},
+        user_follows: %{},
+        pending_follows: %{},
+        remote_follow_overrides: %{},
+        lemmy_comment_counts: %{},
+        community_actor: nil,
+        is_community_post: false
+      }
+    }
+
+    assert {:noreply, updated_socket} =
+             Show.handle_info({:load_replies_for_cached, root_message}, socket)
+
+    html =
+      updated_socket.assigns
+      |> Show.render_threaded_comments(updated_socket.assigns.threaded_replies)
+      |> rendered_to_string()
+
+    assert html =~ ~s(id="reply-card-#{reply.id}-boost-count")
+    assert html =~ ~s(data-count="1")
+    assert html =~ ~s(phx-click="unboost_post")
+
+    refreshed_socket =
+      Phoenix.Component.assign(updated_socket, :reply_counts_load_ref, 123)
+
+    assert {:noreply, refreshed_socket} =
+             Show.handle_info(
+               {:reply_counts_loaded, 123,
+                %{
+                  reply.activitypub_id => %{
+                    favourites_count: 4,
+                    reblogs_count: 2,
+                    replies_count: 3
+                  }
+                }},
+               refreshed_socket
+             )
+
+    refreshed_html =
+      refreshed_socket.assigns
+      |> Show.render_threaded_comments(refreshed_socket.assigns.threaded_replies)
+      |> rendered_to_string()
+
+    assert refreshed_html =~ ~s(id="reply-card-#{reply.id}-like-count")
+    assert refreshed_html =~ ~s(id="reply-card-#{reply.id}-boost-count")
+    assert refreshed_html =~ ~s(id="reply-card-#{reply.id}-reply-count")
+    assert refreshed_html =~ ~s(data-count="4")
+    assert refreshed_html =~ ~s(data-count="2")
+    assert refreshed_html =~ ~s(data-count="3")
+  end
+
   test "replies_loaded re-resolves stale local message before persisting reply count" do
     unique = System.unique_integer([:positive])
 

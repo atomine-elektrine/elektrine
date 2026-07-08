@@ -19,8 +19,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.Interactions do
              actor_uri: remote_actor_uri(socket)
            ) do
         {:ok, message} ->
-          key = PostInteractions.interaction_key(message_id, message)
-          current_state = Map.get(socket.assigns.post_interactions, key, default_state())
+          current_state =
+            interaction_state_for(socket.assigns.post_interactions, message_id, message)
 
           if Map.get(current_state, :liked, false) do
             {:noreply, socket}
@@ -30,7 +30,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.Interactions do
                 post_interactions =
                   update_post_interactions(
                     socket.assigns.post_interactions,
-                    key,
+                    message_id,
+                    message,
                     fn current_state ->
                       %{
                         liked: true,
@@ -72,8 +73,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.Interactions do
              actor_uri: remote_actor_uri(socket)
            ) do
         {:ok, message} ->
-          key = PostInteractions.interaction_key(post_id, message)
-          current_state = Map.get(socket.assigns.post_interactions, key, default_state())
+          current_state =
+            interaction_state_for(socket.assigns.post_interactions, post_id, message)
 
           if Map.get(current_state, :liked, false) do
             {:noreply, socket}
@@ -83,7 +84,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.Interactions do
                 post_interactions =
                   update_post_interactions(
                     socket.assigns.post_interactions,
-                    key,
+                    post_id,
+                    message,
                     fn current_state ->
                       %{
                         liked: true,
@@ -123,8 +125,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.Interactions do
              actor_uri: remote_actor_uri(socket)
            ) do
         {:ok, message} ->
-          key = PostInteractions.interaction_key(message_id, message)
-          current_state = Map.get(socket.assigns.post_interactions, key, default_state())
+          current_state =
+            interaction_state_for(socket.assigns.post_interactions, message_id, message)
 
           if Map.get(current_state, :liked, false) do
             case Social.unlike_post(socket.assigns.current_user.id, message.id) do
@@ -132,7 +134,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.Interactions do
                 post_interactions =
                   update_post_interactions(
                     socket.assigns.post_interactions,
-                    key,
+                    message_id,
+                    message,
                     fn current_state ->
                       %{
                         liked: false,
@@ -175,8 +178,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.Interactions do
              actor_uri: remote_actor_uri(socket)
            ) do
         {:ok, message} ->
-          key = PostInteractions.interaction_key(post_id, message)
-          current_state = Map.get(socket.assigns.post_interactions, key, default_state())
+          current_state =
+            interaction_state_for(socket.assigns.post_interactions, post_id, message)
 
           if Map.get(current_state, :liked, false) do
             case Social.unlike_post(socket.assigns.current_user.id, message.id) do
@@ -184,7 +187,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.Interactions do
                 post_interactions =
                   update_post_interactions(
                     socket.assigns.post_interactions,
-                    key,
+                    post_id,
+                    message,
                     fn current_state ->
                       %{
                         liked: false,
@@ -227,43 +231,50 @@ defmodule ElektrineSocialWeb.RemotePostLive.Interactions do
              actor_uri: remote_actor_uri(socket)
            ) do
         {:ok, message} ->
-          case Social.boost_post(socket.assigns.current_user.id, message.id) do
-            {:ok, _boost} ->
-              key = PostInteractions.interaction_key(message_id, message)
+          current_state =
+            interaction_state_for(socket.assigns.post_interactions, message_id, message)
 
-              post_interactions =
-                update_post_interactions(
-                  socket.assigns.post_interactions,
-                  key,
-                  fn current_state ->
-                    %{
-                      liked: Map.get(current_state, :liked, false),
-                      boosted: true,
-                      like_delta: Map.get(current_state, :like_delta, 0),
-                      boost_delta: 0
-                    }
-                  end
-                )
+          if Map.get(current_state, :boosted, false) do
+            {:noreply, socket}
+          else
+            case Social.boost_post(socket.assigns.current_user.id, message.id) do
+              {:ok, _boost} ->
+                post_interactions =
+                  update_post_interactions(
+                    socket.assigns.post_interactions,
+                    message_id,
+                    message,
+                    fn current_state ->
+                      %{
+                        liked: Map.get(current_state, :liked, false),
+                        boosted: true,
+                        like_delta: Map.get(current_state, :like_delta, 0),
+                        boost_delta: 0
+                      }
+                    end
+                  )
 
-              fresh_message = Repo.get(Message, message.id)
+                fresh_message = Repo.get(Message, message.id)
 
-              updated_socket =
-                socket
-                |> Phoenix.Component.assign(:post_interactions, post_interactions)
-                |> maybe_run_refresh(opts, fresh_message)
-                |> Phoenix.LiveView.put_flash(
-                  :info,
-                  remote_delivery_label(message, "Post boosted to your timeline!")
-                )
+                updated_socket =
+                  socket
+                  |> Phoenix.Component.assign(:post_interactions, post_interactions)
+                  |> maybe_run_boost_delta(opts, message.id, 1)
+                  |> maybe_run_refresh(opts, fresh_message)
+                  |> Phoenix.LiveView.put_flash(
+                    :info,
+                    remote_delivery_label(message, "Post boosted to your timeline!")
+                  )
 
-              {:noreply, updated_socket}
+                {:noreply, updated_socket}
 
-            {:error, :already_boosted} ->
-              {:noreply,
-               Phoenix.LiveView.put_flash(socket, :info, "You've already boosted this post")}
+              {:error, :already_boosted} ->
+                {:noreply,
+                 Phoenix.LiveView.put_flash(socket, :info, "You've already boosted this post")}
 
-            {:error, _} ->
-              {:noreply, Phoenix.LiveView.put_flash(socket, :error, "Failed to boost post")}
+              {:error, _} ->
+                {:noreply, Phoenix.LiveView.put_flash(socket, :error, "Failed to boost post")}
+            end
           end
 
         {:error, _} ->
@@ -281,43 +292,50 @@ defmodule ElektrineSocialWeb.RemotePostLive.Interactions do
              actor_uri: remote_actor_uri(socket)
            ) do
         {:ok, message} ->
-          case Social.boost_post(socket.assigns.current_user.id, message.id) do
-            {:ok, _boost} ->
-              key = PostInteractions.interaction_key(post_id, message)
+          current_state =
+            interaction_state_for(socket.assigns.post_interactions, post_id, message)
 
-              post_interactions =
-                update_post_interactions(
-                  socket.assigns.post_interactions,
-                  key,
-                  fn current_state ->
-                    %{
-                      liked: Map.get(current_state, :liked, false),
-                      boosted: true,
-                      like_delta: Map.get(current_state, :like_delta, 0),
-                      boost_delta: 0
-                    }
-                  end
-                )
+          if Map.get(current_state, :boosted, false) do
+            {:noreply, socket}
+          else
+            case Social.boost_post(socket.assigns.current_user.id, message.id) do
+              {:ok, _boost} ->
+                post_interactions =
+                  update_post_interactions(
+                    socket.assigns.post_interactions,
+                    post_id,
+                    message,
+                    fn current_state ->
+                      %{
+                        liked: Map.get(current_state, :liked, false),
+                        boosted: true,
+                        like_delta: Map.get(current_state, :like_delta, 0),
+                        boost_delta: 0
+                      }
+                    end
+                  )
 
-              fresh_message = Repo.get(Message, message.id)
+                fresh_message = Repo.get(Message, message.id)
 
-              updated_socket =
-                socket
-                |> Phoenix.Component.assign(:post_interactions, post_interactions)
-                |> maybe_run_refresh(opts, fresh_message)
-                |> Phoenix.LiveView.put_flash(
-                  :info,
-                  remote_delivery_label(message, "Post boosted to your timeline!")
-                )
+                updated_socket =
+                  socket
+                  |> Phoenix.Component.assign(:post_interactions, post_interactions)
+                  |> maybe_run_boost_delta(opts, message.id, 1)
+                  |> maybe_run_refresh(opts, fresh_message)
+                  |> Phoenix.LiveView.put_flash(
+                    :info,
+                    remote_delivery_label(message, "Post boosted to your timeline!")
+                  )
 
-              {:noreply, updated_socket}
+                {:noreply, updated_socket}
 
-            {:error, :already_boosted} ->
-              {:noreply,
-               Phoenix.LiveView.put_flash(socket, :info, "You've already boosted this post")}
+              {:error, :already_boosted} ->
+                {:noreply,
+                 Phoenix.LiveView.put_flash(socket, :info, "You've already boosted this post")}
 
-            {:error, _} ->
-              {:noreply, Phoenix.LiveView.put_flash(socket, :error, "Failed to boost post")}
+              {:error, _} ->
+                {:noreply, Phoenix.LiveView.put_flash(socket, :error, "Failed to boost post")}
+            end
           end
 
         {:error, _} ->
@@ -334,35 +352,42 @@ defmodule ElektrineSocialWeb.RemotePostLive.Interactions do
              actor_uri: remote_actor_uri(socket)
            ) do
         {:ok, message} ->
-          case Social.unboost_post(socket.assigns.current_user.id, message.id) do
-            {:ok, _} ->
-              key = PostInteractions.interaction_key(message_id, message)
+          current_state =
+            interaction_state_for(socket.assigns.post_interactions, message_id, message)
 
-              post_interactions =
-                update_post_interactions(
-                  socket.assigns.post_interactions,
-                  key,
-                  fn current_state ->
-                    %{
-                      liked: Map.get(current_state, :liked, false),
-                      boosted: false,
-                      like_delta: Map.get(current_state, :like_delta, 0),
-                      boost_delta: 0
-                    }
-                  end
-                )
+          if Map.get(current_state, :boosted, false) do
+            case Social.unboost_post(socket.assigns.current_user.id, message.id) do
+              {:ok, _} ->
+                post_interactions =
+                  update_post_interactions(
+                    socket.assigns.post_interactions,
+                    message_id,
+                    message,
+                    fn current_state ->
+                      %{
+                        liked: Map.get(current_state, :liked, false),
+                        boosted: false,
+                        like_delta: Map.get(current_state, :like_delta, 0),
+                        boost_delta: 0
+                      }
+                    end
+                  )
 
-              fresh_message = Repo.get(Message, message.id)
+                fresh_message = Repo.get(Message, message.id)
 
-              updated_socket =
-                socket
-                |> Phoenix.Component.assign(:post_interactions, post_interactions)
-                |> maybe_run_refresh(opts, fresh_message)
+                updated_socket =
+                  socket
+                  |> Phoenix.Component.assign(:post_interactions, post_interactions)
+                  |> maybe_run_boost_delta(opts, message.id, -1)
+                  |> maybe_run_refresh(opts, fresh_message)
 
-              {:noreply, updated_socket}
+                {:noreply, updated_socket}
 
-            {:error, _} ->
-              {:noreply, socket}
+              {:error, _} ->
+                {:noreply, socket}
+            end
+          else
+            {:noreply, socket}
           end
 
         {:error, _} ->
@@ -379,35 +404,42 @@ defmodule ElektrineSocialWeb.RemotePostLive.Interactions do
              actor_uri: remote_actor_uri(socket)
            ) do
         {:ok, message} ->
-          case Social.unboost_post(socket.assigns.current_user.id, message.id) do
-            {:ok, _} ->
-              key = PostInteractions.interaction_key(post_id, message)
+          current_state =
+            interaction_state_for(socket.assigns.post_interactions, post_id, message)
 
-              post_interactions =
-                update_post_interactions(
-                  socket.assigns.post_interactions,
-                  key,
-                  fn current_state ->
-                    %{
-                      liked: Map.get(current_state, :liked, false),
-                      boosted: false,
-                      like_delta: Map.get(current_state, :like_delta, 0),
-                      boost_delta: 0
-                    }
-                  end
-                )
+          if Map.get(current_state, :boosted, false) do
+            case Social.unboost_post(socket.assigns.current_user.id, message.id) do
+              {:ok, _} ->
+                post_interactions =
+                  update_post_interactions(
+                    socket.assigns.post_interactions,
+                    post_id,
+                    message,
+                    fn current_state ->
+                      %{
+                        liked: Map.get(current_state, :liked, false),
+                        boosted: false,
+                        like_delta: Map.get(current_state, :like_delta, 0),
+                        boost_delta: 0
+                      }
+                    end
+                  )
 
-              fresh_message = Repo.get(Message, message.id)
+                fresh_message = Repo.get(Message, message.id)
 
-              updated_socket =
-                socket
-                |> Phoenix.Component.assign(:post_interactions, post_interactions)
-                |> maybe_run_refresh(opts, fresh_message)
+                updated_socket =
+                  socket
+                  |> Phoenix.Component.assign(:post_interactions, post_interactions)
+                  |> maybe_run_boost_delta(opts, message.id, -1)
+                  |> maybe_run_refresh(opts, fresh_message)
 
-              {:noreply, updated_socket}
+                {:noreply, updated_socket}
 
-            {:error, _} ->
-              {:noreply, socket}
+              {:error, _} ->
+                {:noreply, socket}
+            end
+          else
+            {:noreply, socket}
           end
 
         {:error, _} ->
@@ -587,6 +619,27 @@ defmodule ElektrineSocialWeb.RemotePostLive.Interactions do
     end
   end
 
+  defp maybe_run_boost_delta(socket, opts, post_id, delta) do
+    case Keyword.get(opts, :on_boost_delta) do
+      fun when is_function(fun, 3) -> fun.(socket, post_id, delta)
+      _ -> socket
+    end
+  end
+
+  defp interaction_state_for(post_interactions, raw_id, %Message{} = message)
+       when is_map(post_interactions) do
+    [raw_id, message.id, message.activitypub_id]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.map(&PostInteractions.normalize_key/1)
+    |> Enum.find_value(fn key -> Map.get(post_interactions, key) end)
+    |> case do
+      nil -> default_state()
+      state -> state
+    end
+  end
+
+  defp interaction_state_for(_, _, _), do: default_state()
+
   defp put_saved_state(user_saves, raw_id, message, saved?) when is_map(user_saves) do
     [raw_id, message.id, message.activitypub_id]
     |> Enum.reject(&is_nil/1)
@@ -604,9 +657,22 @@ defmodule ElektrineSocialWeb.RemotePostLive.Interactions do
     |> Enum.any?(&Map.get(user_saves, &1, false))
   end
 
-  defp update_post_interactions(post_interactions, key, updater) when is_function(updater, 1) do
-    current_state = Map.get(post_interactions, key, default_state())
-    Map.put(post_interactions, key, updater.(current_state))
+  defp update_post_interactions(post_interactions, raw_id, %Message{} = message, updater)
+       when is_function(updater, 1) do
+    current_state = interaction_state_for(post_interactions, raw_id, message)
+    updated_state = updater.(current_state)
+
+    interaction_keys(raw_id, message)
+    |> Enum.reduce(post_interactions, fn key, acc ->
+      Map.put(acc, key, updated_state)
+    end)
+  end
+
+  defp interaction_keys(raw_id, %Message{} = message) do
+    [raw_id, message.id, message.activitypub_id]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.map(&PostInteractions.normalize_key/1)
+    |> Enum.uniq()
   end
 
   defp default_state, do: PostInteractions.default_interaction_state()
@@ -623,9 +689,10 @@ defmodule ElektrineSocialWeb.RemotePostLive.Interactions do
       case Reactions.remove_reaction(message.id, user_id, emoji) do
         {:ok, _} ->
           updated_reactions =
-            PostInteractions.update_post_reactions(
+            update_reactions_for_message(
               socket.assigns.post_reactions,
               reaction_key,
+              message,
               %{emoji: emoji, user_id: user_id},
               :remove
             )
@@ -641,9 +708,10 @@ defmodule ElektrineSocialWeb.RemotePostLive.Interactions do
           reaction = Repo.preload(reaction, [:user, :remote_actor])
 
           updated_reactions =
-            PostInteractions.update_post_reactions(
+            update_reactions_for_message(
               socket.assigns.post_reactions,
               reaction_key,
+              message,
               reaction,
               :add
             )
@@ -658,6 +726,22 @@ defmodule ElektrineSocialWeb.RemotePostLive.Interactions do
           {:noreply, socket}
       end
     end
+  end
+
+  defp update_reactions_for_message(
+         post_reactions,
+         raw_key,
+         %Message{} = message,
+         reaction,
+         action
+       ) do
+    [raw_key, message.id, message.activitypub_id, message.activitypub_url]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.map(&PostInteractions.normalize_key/1)
+    |> Enum.uniq()
+    |> Enum.reduce(post_reactions, fn key, acc ->
+      PostInteractions.update_post_reactions(acc, key, reaction, action)
+    end)
   end
 
   defp calculate_vote_delta_change(old_vote, new_vote) do

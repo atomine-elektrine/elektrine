@@ -232,6 +232,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       |> assign(:remote_post_load_ref, nil)
       |> assign(:platform_counts_load_ref, nil)
       |> assign(:platform_counts_refresh_ref, nil)
+      |> assign(:reply_counts_load_ref, nil)
+      |> assign(:reply_counts_refresh_ref, nil)
       |> assign(:community_lookup_ref, nil)
       |> assign(
         :current_url,
@@ -2091,41 +2093,18 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
           "_local_message" => message
         }
 
-        # Convert replies to ActivityPub-like format
+        # Convert all visible local descendants to ActivityPub-like format for threaded rendering.
+        local_reply_messages =
+          case collect_local_reply_descendants(message.id) do
+            [] -> message.replies || []
+            replies -> replies
+          end
+          |> Enum.filter(&AccessPolicy.can_view_local_post?(&1, socket.assigns[:current_user]))
+
         local_replies =
-          message.replies
-          |> Enum.map(fn reply ->
-            {actor_uri, local_user, is_local_reply} =
-              cond do
-                reply.sender && Elektrine.Strings.present?(reply.sender.username) ->
-                  {"#{base_url}/users/#{reply.sender.username}", reply.sender, true}
-
-                reply.remote_actor && Elektrine.Strings.present?(reply.remote_actor.uri) ->
-                  {reply.remote_actor.uri, nil, false}
-
-                reply.remote_actor && Elektrine.Strings.present?(reply.remote_actor.domain) &&
-                    Elektrine.Strings.present?(reply.remote_actor.username) ->
-                  {"https://#{reply.remote_actor.domain}/users/#{reply.remote_actor.username}",
-                   nil, false}
-
-                true ->
-                  {nil, nil, false}
-              end
-
-            %{
-              "id" => reply.activitypub_id || "#{base_url}/posts/#{reply.id}",
-              "type" => "Note",
-              "content" => reply.content,
-              "published" => NaiveDateTime.to_iso8601(reply.inserted_at) <> "Z",
-              "attributedTo" => actor_uri,
-              "inReplyToAuthor" => local_message_in_reply_to_author(reply),
-              "inReplyTo" =>
-                Map.get(reply, :parent_activitypub_id) || "#{base_url}/posts/#{message.id}",
-              "_local" => is_local_reply,
-              "_local_user" => local_user,
-              "_local_message_id" => reply.id
-            }
-          end)
+          local_reply_messages
+          |> cached_reply_maps(post_object["id"])
+          |> then(&prepare_replies_for_render(socket, &1))
 
         page_title =
           message.title ||
@@ -2160,12 +2139,18 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
         {post_interactions, user_saves} =
           if socket.assigns[:current_user] do
-            load_local_detail_user_state(
-              socket.assigns.current_user.id,
-              message,
-              socket.assigns.post_interactions,
-              socket.assigns.user_saves
-            )
+            {post_interactions, user_saves} =
+              load_local_detail_user_state(
+                socket.assigns.current_user.id,
+                message,
+                socket.assigns.post_interactions,
+                socket.assigns.user_saves
+              )
+
+            reply_interactions =
+              load_post_interactions(local_replies, socket.assigns.current_user.id)
+
+            {Map.merge(post_interactions, reply_interactions), user_saves}
           else
             {socket.assigns.post_interactions, socket.assigns.user_saves}
           end
@@ -2194,6 +2179,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
           |> assign(:post_reactions, post_reactions)
           |> assign_reply_parent_fallback(post_object, message)
           |> ensure_submitted_link_preview(post_object, message, nil)
+          |> sync_post_reply_counts(local_replies)
+          |> maybe_queue_reply_counts_load()
           |> maybe_track_trust_detail_view(message, "post_detail")
 
         send(self(), {:load_reply_parent, post_object})
@@ -2572,6 +2559,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
      |> assign(:replies_loading, is_binary(post_id) && local_replies == [])
      |> assign(:reply_sync_checked, false)
      |> sync_post_reply_counts(local_replies)
+     |> maybe_queue_reply_counts_load()
      |> assign(:is_community_post, socket.assigns.is_community_post || is_community_post)}
   end
 
@@ -2889,7 +2877,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
      |> assign(:pending_initial_comment_reveal, reveal_after_comment_counts?)
      |> assign(:reply_sync_checked, true)
      |> assign(:post_interactions, post_interactions)
-     |> assign(:post_reactions, post_reactions)}
+     |> assign(:post_reactions, post_reactions)
+     |> maybe_queue_reply_counts_load()}
   end
 
   def handle_info({:load_platform_counts, post_id}, socket) do
@@ -2985,6 +2974,75 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
        socket
        |> assign(:platform_counts_refresh_ref, nil)
        |> apply_platform_counts_result(result)}
+    end
+  end
+
+  def handle_info(:load_reply_counts, socket) do
+    reply_count_posts = reply_count_lookup_posts(socket.assigns[:replies] || [])
+
+    if reply_count_posts == [] do
+      {:noreply, socket}
+    else
+      load_ref = System.unique_integer([:positive, :monotonic])
+      parent = self()
+
+      Task.start(fn ->
+        started_at = System.monotonic_time(:millisecond)
+        counts = Elektrine.ActivityPub.MastodonApi.fetch_statuses_counts(reply_count_posts)
+
+        log_remote_post_timing("load_reply_counts", started_at,
+          reply_count: length(reply_count_posts),
+          loaded_count: map_size(counts)
+        )
+
+        send(parent, {:reply_counts_loaded, load_ref, counts})
+      end)
+
+      {:noreply, assign(socket, :reply_counts_load_ref, load_ref)}
+    end
+  end
+
+  def handle_info(:refresh_reply_counts, socket) do
+    reply_count_posts = reply_count_lookup_posts(socket.assigns[:replies] || [])
+
+    if reply_count_posts == [] do
+      {:noreply, socket}
+    else
+      refresh_ref = System.unique_integer([:positive, :monotonic])
+      parent = self()
+
+      Task.start(fn ->
+        counts = Elektrine.ActivityPub.MastodonApi.fetch_statuses_counts(reply_count_posts)
+        send(parent, {:reply_counts_refreshed, refresh_ref, counts})
+      end)
+
+      {:noreply, assign(socket, :reply_counts_refresh_ref, refresh_ref)}
+    end
+  end
+
+  def handle_info({:reply_counts_loaded, load_ref, counts}, socket) do
+    if socket.assigns[:reply_counts_load_ref] != load_ref do
+      {:noreply, socket}
+    else
+      Process.send_after(self(), :refresh_reply_counts, 60_000)
+
+      {:noreply,
+       socket
+       |> assign(:reply_counts_load_ref, nil)
+       |> apply_reply_platform_counts(counts)}
+    end
+  end
+
+  def handle_info({:reply_counts_refreshed, refresh_ref, counts}, socket) do
+    if socket.assigns[:reply_counts_refresh_ref] != refresh_ref do
+      {:noreply, socket}
+    else
+      Process.send_after(self(), :refresh_reply_counts, 30_000)
+
+      {:noreply,
+       socket
+       |> assign(:reply_counts_refresh_ref, nil)
+       |> apply_reply_platform_counts(counts)}
     end
   end
 
@@ -3319,11 +3377,11 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   defp assign_reply_surface_from_db(socket, post_id, preloaded_replies) do
     local_replies =
       cond do
-        is_list(preloaded_replies) and preloaded_replies != [] ->
-          preloaded_replies
-
         (message_replies = local_replies_from_local_message(socket.assigns[:local_message])) != [] ->
           message_replies
+
+        is_list(preloaded_replies) and preloaded_replies != [] ->
+          preloaded_replies
 
         is_binary(post_id) ->
           SurfaceHelpers.merge_local_replies([], post_id)
@@ -3521,7 +3579,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   defp sync_post_reply_counts(socket, local_replies) when is_list(local_replies) do
-    reply_count = length(local_replies)
+    reply_count = loaded_reply_count(local_replies)
 
     local_message =
       resolve_local_message_for_post(socket.assigns[:local_message], socket.assigns[:post])
@@ -3600,6 +3658,18 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   defp apply_local_reply_count_to_post(post, _reply_count), do: post
+
+  defp loaded_reply_count(replies) when is_list(replies) do
+    Enum.reduce(replies, 0, fn
+      %{children: children} = _node, acc when is_list(children) ->
+        acc + 1 + loaded_reply_count(children)
+
+      _reply, acc ->
+        acc + 1
+    end)
+  end
+
+  defp loaded_reply_count(_), do: 0
 
   defp maybe_schedule_remote_poll_refresh(
          %{id: message_id, federated: true, post_type: "poll"} = message
@@ -3740,13 +3810,17 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                 # Build optimistic reply in AP format for immediate display
                 base_url = ElektrineWeb.Endpoint.url()
 
+                parent_reply_ref =
+                  message.activitypub_id || message.activitypub_url ||
+                    "#{base_url}/posts/#{message.id}"
+
                 new_reply_ap = %{
                   "id" => reply.activitypub_id || "#{base_url}/messages/#{reply.id}",
                   "type" => "Note",
                   "attributedTo" => "#{base_url}/users/#{user.username}",
                   "content" => content,
                   "published" => NaiveDateTime.to_iso8601(reply.inserted_at) <> "Z",
-                  "inReplyTo" => comment_id,
+                  "inReplyTo" => parent_reply_ref,
                   "likes" => %{"totalItems" => 0},
                   "shares" => %{"totalItems" => 0},
                   "_local" => true,
@@ -4055,13 +4129,17 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       end
     else
       Interactions.boost_message(socket, message_id,
-        on_refresh: &maybe_assign_displayed_local_message/2
+        on_refresh: &maybe_assign_displayed_local_message/2,
+        on_boost_delta: &maybe_adjust_boost_surface_count/3
       )
     end
   end
 
   def handle_event("boost_post", %{"post_id" => post_id}, socket) do
-    Interactions.boost_post(socket, post_id, on_refresh: &maybe_assign_displayed_local_message/2)
+    Interactions.boost_post(socket, post_id,
+      on_refresh: &maybe_assign_displayed_local_message/2,
+      on_boost_delta: &maybe_adjust_boost_surface_count/3
+    )
   end
 
   def handle_event("unboost_post", %{"message_id" => message_id}, socket) do
@@ -4079,14 +4157,16 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       end
     else
       Interactions.unboost_message(socket, message_id,
-        on_refresh: &maybe_assign_displayed_local_message/2
+        on_refresh: &maybe_assign_displayed_local_message/2,
+        on_boost_delta: &maybe_adjust_boost_surface_count/3
       )
     end
   end
 
   def handle_event("unboost_post", %{"post_id" => post_id}, socket) do
     Interactions.unboost_post(socket, post_id,
-      on_refresh: &maybe_assign_displayed_local_message/2
+      on_refresh: &maybe_assign_displayed_local_message/2,
+      on_boost_delta: &maybe_adjust_boost_surface_count/3
     )
   end
 
@@ -4664,6 +4744,148 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
   defp maybe_apply_lemmy_comment_counts(socket, _), do: socket
 
+  defp maybe_queue_reply_counts_load(socket) do
+    if reply_count_lookup_posts(socket.assigns[:replies] || []) == [] do
+      socket
+    else
+      send(self(), :load_reply_counts)
+      socket
+    end
+  end
+
+  defp reply_count_lookup_posts(replies) when is_list(replies) do
+    replies
+    |> Enum.map(&reply_count_lookup_post/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq_by(fn post ->
+      {Map.get(post, :activitypub_id), Map.get(post, :activitypub_url)}
+    end)
+  end
+
+  defp reply_count_lookup_posts(_), do: []
+
+  defp reply_count_lookup_post(%{} = reply) do
+    activitypub_id =
+      first_platform_count_ref([
+        reply_surface_ref(reply),
+        field_value(reply, ["activitypub_id", :activitypub_id])
+      ])
+
+    activitypub_url =
+      first_platform_count_ref([
+        field_value(reply, ["url", :url]),
+        field_value(reply, ["activitypub_url", :activitypub_url])
+      ])
+
+    if activitypub_id || activitypub_url do
+      %{activitypub_id: activitypub_id, activitypub_url: activitypub_url}
+    end
+  end
+
+  defp reply_count_lookup_post(_), do: nil
+
+  defp apply_reply_platform_counts(socket, counts_by_reply)
+       when is_map(counts_by_reply) and counts_by_reply != %{} do
+    replies =
+      socket.assigns[:replies]
+      |> Kernel.||([])
+      |> Enum.map(&apply_reply_platform_count(&1, counts_by_reply))
+
+    replies = prepare_replies_for_render(socket, replies)
+
+    {threaded_replies, thread_reply_actors} =
+      build_threaded_replies_with_actor_cache(
+        replies,
+        field_value(socket.assigns[:post], ["id", :id]),
+        socket.assigns.comment_sort
+      )
+
+    socket
+    |> assign(:replies, replies)
+    |> assign(
+      :quick_reply_recent_replies,
+      SurfaceHelpers.recent_replies_for_preview(
+        replies,
+        field_value(socket.assigns[:post], ["id", :id])
+      )
+    )
+    |> assign(:threaded_replies, threaded_replies)
+    |> assign(:thread_reply_actors, thread_reply_actors)
+  end
+
+  defp apply_reply_platform_counts(socket, _), do: socket
+
+  defp apply_reply_platform_count(%{} = reply, counts_by_reply) do
+    case reply_platform_counts(reply, counts_by_reply) do
+      %{} = mastodon_counts ->
+        counts = reply_counts_from_mastodon(mastodon_counts)
+        maybe_sync_reply_platform_counts(reply, counts, mastodon_counts)
+
+        reply
+        |> maybe_put_collection_count("likes", Map.get(counts, :like_count))
+        |> maybe_put_collection_count("shares", Map.get(counts, :share_count))
+        |> maybe_put_collection_count("replies", Map.get(counts, :reply_count))
+        |> maybe_put_reply_count("_local_like_count", Map.get(counts, :like_count))
+        |> maybe_put_reply_count("_local_share_count", Map.get(counts, :share_count))
+        |> maybe_put_reply_count("_local_reply_count", Map.get(counts, :reply_count))
+
+      _ ->
+        reply
+    end
+  end
+
+  defp apply_reply_platform_count(reply, _counts_by_reply), do: reply
+
+  defp reply_platform_counts(reply, counts_by_reply) do
+    reply
+    |> reply_count_keys()
+    |> Enum.find_value(&Map.get(counts_by_reply, &1))
+  end
+
+  defp reply_count_keys(reply) do
+    [
+      reply_surface_ref(reply),
+      field_value(reply, ["url", :url]),
+      field_value(reply, ["activitypub_url", :activitypub_url])
+    ]
+    |> Enum.map(&normalize_in_reply_to_ref/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+  end
+
+  defp reply_counts_from_mastodon(counts) when is_map(counts) do
+    %{
+      like_count: nonnegative_integer(Map.get(counts, :favourites_count)),
+      reply_count: nonnegative_integer(Map.get(counts, :replies_count)),
+      share_count: nonnegative_integer(Map.get(counts, :reblogs_count)),
+      quote_count: nonnegative_integer(Map.get(counts, :quotes_count))
+    }
+  end
+
+  defp maybe_sync_reply_platform_counts(reply, counts, mastodon_counts) do
+    with message_id when is_integer(message_id) <- reply_local_message_id(reply),
+         %Elektrine.Social.Message{} = message <-
+           Elektrine.Repo.get(Elektrine.Social.Message, message_id) do
+      metadata = platform_metadata_from_result(mastodon_counts, nil, nil)
+      sync_local_message_platform_counts(message, counts, metadata)
+    end
+  end
+
+  defp maybe_put_collection_count(reply, _field, nil), do: reply
+
+  defp maybe_put_collection_count(reply, field, count) when is_integer(count) do
+    Map.put(reply, field, %{"totalItems" => max(count, 0)})
+  end
+
+  defp maybe_put_reply_count(reply, _field, nil), do: reply
+
+  defp maybe_put_reply_count(reply, field, count) when is_integer(count) do
+    Map.put(reply, field, max(count, 0))
+  end
+
+  defp nonnegative_integer(value) when is_integer(value), do: max(value, 0)
+  defp nonnegative_integer(_), do: nil
+
   defp finalize_initial_comment_reveal(socket) do
     socket = assign(socket, :awaiting_initial_comment_counts, false)
 
@@ -4679,11 +4901,92 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
   defp prepare_replies_for_render(socket, replies) when is_list(replies) do
     replies
+    |> hydrate_replies_with_local_counts()
     |> enrich_replies_with_lemmy_counts(socket.assigns[:lemmy_comment_counts] || %{})
     |> enrich_replies_with_link_previews(reply_content_domain(socket))
   end
 
   defp prepare_replies_for_render(_, replies), do: replies
+
+  defp hydrate_replies_with_local_counts(replies) when is_list(replies) do
+    import Ecto.Query
+
+    local_message_ids =
+      replies
+      |> Enum.map(&reply_local_message_id/1)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+
+    if local_message_ids == [] do
+      replies
+    else
+      messages =
+        Elektrine.Social.Message
+        |> where([message], message.id in ^local_message_ids)
+        |> Elektrine.Repo.all()
+
+      messages_by_id = Map.new(messages, &{&1.id, &1})
+      local_message_id_set = MapSet.new(local_message_ids)
+
+      child_counts_by_parent_id =
+        Enum.reduce(messages, %{}, fn
+          %{reply_to_id: parent_id}, acc when is_integer(parent_id) ->
+            if MapSet.member?(local_message_id_set, parent_id) do
+              Map.update(acc, parent_id, 1, &(&1 + 1))
+            else
+              acc
+            end
+
+          _, acc ->
+            acc
+        end)
+
+      Enum.map(
+        replies,
+        &hydrate_reply_with_local_counts(&1, messages_by_id, child_counts_by_parent_id)
+      )
+    end
+  end
+
+  defp hydrate_reply_with_local_counts(%{} = reply, messages_by_id, child_counts_by_parent_id) do
+    case Map.get(messages_by_id, reply_local_message_id(reply)) do
+      %Elektrine.Social.Message{} = message ->
+        reply_count =
+          max(message.reply_count || 0, Map.get(child_counts_by_parent_id, message.id, 0))
+
+        reply
+        |> Map.put("likes", %{"totalItems" => message.like_count || 0})
+        |> Map.put("shares", %{"totalItems" => message.share_count || 0})
+        |> Map.put("replies", %{"totalItems" => reply_count})
+        |> Map.put("_local_like_count", SurfaceHelpers.local_vote_display_count(message))
+        |> Map.put("_local_share_count", message.share_count || 0)
+        |> Map.put("_local_reply_count", reply_count)
+
+      _ ->
+        reply
+    end
+  end
+
+  defp hydrate_reply_with_local_counts(reply, _messages_by_id, _child_counts_by_parent_id),
+    do: reply
+
+  defp reply_local_message_id(reply) when is_map(reply) do
+    case field_value(reply, ["_local_message_id", :_local_message_id]) do
+      message_id when is_integer(message_id) ->
+        message_id
+
+      message_id when is_binary(message_id) ->
+        case Integer.parse(String.trim(message_id)) do
+          {parsed, ""} -> parsed
+          _ -> nil
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  defp reply_local_message_id(_), do: nil
 
   defp reply_surface_ref(reply) when is_map(reply) do
     reply["id"] || reply[:id] || reply["_local_activitypub_id"] || reply[:_local_activitypub_id]
@@ -4809,32 +5112,6 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       _ -> nil
     end
   end
-
-  defp local_message_in_reply_to_author(message) when is_map(message) do
-    metadata = local_message_metadata(message)
-
-    metadata["inReplyToAuthor"] || metadata["in_reply_to_author"] ||
-      message_reply_author_from_parent(message)
-  end
-
-  defp message_reply_author_from_parent(%{reply_to: reply_to}) when is_map(reply_to) do
-    case reply_to do
-      %{remote_actor: %{username: username, domain: domain}}
-      when is_binary(username) and username != "" and is_binary(domain) and domain != "" ->
-        "@#{username}@#{domain}"
-
-      %{sender: %{handle: handle}} when is_binary(handle) and handle != "" ->
-        "@#{handle}@#{Elektrine.ActivityPub.instance_domain()}"
-
-      %{sender: %{username: username}} when is_binary(username) and username != "" ->
-        "@#{username}@#{Elektrine.ActivityPub.instance_domain()}"
-
-      _ ->
-        nil
-    end
-  end
-
-  defp message_reply_author_from_parent(_), do: nil
 
   defp initial_community_stats(%{actor_type: "Group", metadata: metadata}) do
     metadata = metadata || %{}
@@ -5090,6 +5367,18 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     end
   end
 
+  defp maybe_adjust_boost_surface_count(socket, message_id, delta) do
+    case Integer.parse(to_string(message_id)) do
+      {message_id_int, _} ->
+        socket
+        |> update_reply_surface_message_count(message_id_int, "_local_share_count", delta)
+        |> maybe_adjust_top_level_local_message_boost_count(message_id_int, delta)
+
+      _ ->
+        socket
+    end
+  end
+
   defp maybe_adjust_top_level_local_message_like_count(socket, message_id, delta) do
     local_message = socket.assigns[:local_message]
 
@@ -5097,6 +5386,21 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       current_count = local_message.like_count || 0
 
       assign(socket, :local_message, %{local_message | like_count: max(current_count + delta, 0)})
+    else
+      socket
+    end
+  end
+
+  defp maybe_adjust_top_level_local_message_boost_count(socket, message_id, delta) do
+    local_message = socket.assigns[:local_message]
+
+    if is_map(local_message) && local_message.id == message_id do
+      current_count = local_message.share_count || 0
+
+      assign(socket, :local_message, %{
+        local_message
+        | share_count: max(current_count + delta, 0)
+      })
     else
       socket
     end
@@ -5351,8 +5655,92 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   defp get_status_count(meta), do: APHelpers.get_status_count(meta)
   defp format_join_date(date), do: APHelpers.format_join_date(date)
 
-  defp load_post_interactions(posts, user_id),
-    do: APHelpers.load_post_interactions(posts, user_id)
+  defp load_post_interactions(posts, user_id) when is_list(posts) do
+    posts
+    |> APHelpers.load_post_interactions(user_id)
+    |> Map.merge(load_local_post_interactions(posts, user_id))
+  end
+
+  defp load_post_interactions(_, _), do: %{}
+
+  defp load_local_post_interactions(posts, user_id) when is_list(posts) do
+    import Ecto.Query
+
+    message_ids =
+      posts
+      |> Enum.map(&local_interaction_message_id/1)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+
+    if message_ids == [] do
+      %{}
+    else
+      liked_ids =
+        Elektrine.Social.PostLike
+        |> where([like], like.user_id == ^user_id and like.message_id in ^message_ids)
+        |> select([like], like.message_id)
+        |> Elektrine.Repo.all()
+        |> MapSet.new()
+
+      boosted_ids =
+        Elektrine.Social.PostBoost
+        |> where([boost], boost.user_id == ^user_id and boost.message_id in ^message_ids)
+        |> select([boost], boost.message_id)
+        |> Elektrine.Repo.all()
+        |> MapSet.new()
+
+      votes_by_id =
+        Elektrine.Social.MessageVote
+        |> where([vote], vote.user_id == ^user_id and vote.message_id in ^message_ids)
+        |> select([vote], {vote.message_id, vote.vote_type})
+        |> Elektrine.Repo.all()
+        |> Map.new()
+
+      posts
+      |> Enum.flat_map(fn post ->
+        case local_interaction_message_id(post) do
+          message_id when is_integer(message_id) ->
+            state = %{
+              liked: MapSet.member?(liked_ids, message_id),
+              boosted: MapSet.member?(boosted_ids, message_id),
+              like_delta: 0,
+              boost_delta: 0,
+              vote: Map.get(votes_by_id, message_id),
+              vote_delta: 0
+            }
+
+            post
+            |> local_interaction_keys(message_id)
+            |> Enum.map(&{&1, state})
+
+          _ ->
+            []
+        end
+      end)
+      |> Map.new()
+    end
+  end
+
+  defp load_local_post_interactions(_, _), do: %{}
+
+  defp local_interaction_message_id(%Elektrine.Social.Message{id: id}) when is_integer(id), do: id
+
+  defp local_interaction_message_id(%{} = post) do
+    reply_local_message_id(post) ||
+      case field_value(post, [:id, "id"]) do
+        id when is_integer(id) -> id
+        _ -> nil
+      end
+  end
+
+  defp local_interaction_message_id(_), do: nil
+
+  defp local_interaction_keys(post, message_id) do
+    [message_id, reply_surface_ref(post), field_value(post, ["id", :id])]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.map(&PostInteractions.normalize_key/1)
+    |> Enum.uniq()
+  end
 
   defp get_or_store_remote_post(activitypub_id, actor_uri) do
     APHelpers.get_or_store_remote_post(activitypub_id, actor_uri)

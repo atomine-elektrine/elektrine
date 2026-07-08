@@ -173,14 +173,14 @@ defmodule ElektrineSocialWeb.RemotePostLive.ThreadedCommentComponents do
                 </.link>
                 <.link
                   navigate={Paths.post_path(reply_click.id || reply_click.post_id)}
-                  class="absolute inset-0 z-0 rounded-lg"
+                  class="pointer-events-none absolute inset-0 z-0 rounded-lg"
                   aria-label="Open reply"
                 >
                   <span class="sr-only">Open reply</span>
                 </.link>
               <% end %>
               <!-- Comment Header -->
-              <div class="relative z-10 pointer-events-none flex flex-wrap items-center gap-x-2 gap-y-1 text-xs mb-1 min-w-0">
+              <div class="relative z-10 pointer-events-none flex flex-wrap items-center gap-x-3 gap-y-1 text-xs mb-1 min-w-0">
                 <.reply_author_summary
                   layout={:inline}
                   local_user={if(is_local_reply, do: local_user)}
@@ -317,6 +317,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.ThreadedCommentComponents do
                     reactions={reply_reaction.reactions}
                     current_user={@current_user}
                     size={:xs}
+                    portal={false}
                   />
                 </div>
               <% end %>
@@ -374,14 +375,14 @@ defmodule ElektrineSocialWeb.RemotePostLive.ThreadedCommentComponents do
               </.link>
               <.link
                 navigate={Paths.post_path(reply_click.id || reply_click.post_id)}
-                class="absolute inset-0 z-0 rounded-lg"
+                class="pointer-events-none absolute inset-0 z-0 rounded-lg"
                 aria-label="Open reply"
               >
                 <span class="sr-only">Open reply</span>
               </.link>
             <% end %>
             <!-- Comment Header -->
-            <div class="relative z-10 pointer-events-none flex items-start gap-2 mb-2 min-w-0">
+            <div class="relative z-10 pointer-events-none flex items-start gap-3 mb-2 min-w-0">
               <.reply_author_summary
                 layout={:stacked}
                 local_user={if(is_local_reply, do: local_user)}
@@ -605,6 +606,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.ThreadedCommentComponents do
                   reactions={reply_reaction.reactions}
                   current_user={@current_user}
                   size={:xs}
+                  portal={false}
                 />
               </div>
             <% end %>
@@ -703,7 +705,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.ThreadedCommentComponents do
       vote: Map.get(reply_state, :vote, nil),
       like_count: reply_like_count(reply, lemmy_data, lemmy_comment_count, score_delta),
       boost_count: reply_boost_count(reply, boost_delta),
-      child_count: reply_child_count(lemmy_data, lemmy_comment_count, children),
+      child_count: reply_child_count(reply, lemmy_data, lemmy_comment_count, children),
       reaction:
         SurfaceHelpers.thread_reply_reaction_surface(
           reply,
@@ -777,11 +779,22 @@ defmodule ElektrineSocialWeb.RemotePostLive.ThreadedCommentComponents do
     end
   end
 
-  defp reply_child_count(lemmy_data, lemmy_comment_count, children) do
+  defp reply_child_count(reply, lemmy_data, lemmy_comment_count, children) do
     cond do
-      map_get_value(lemmy_data, "child_count") -> map_get_value(lemmy_data, "child_count")
-      lemmy_comment_count -> map_get_value(lemmy_comment_count, "child_count") || length(children)
-      true -> length(children)
+      map_get_value(lemmy_data, "child_count") ->
+        map_get_value(lemmy_data, "child_count")
+
+      lemmy_comment_count ->
+        map_get_value(lemmy_comment_count, "child_count") || length(children)
+
+      is_integer(map_get_value(reply, "_local_reply_count")) ->
+        max(map_get_value(reply, "_local_reply_count"), length(children))
+
+      get_collection_total_items(map_get_value(reply, "replies")) > 0 ->
+        max(get_collection_total_items(map_get_value(reply, "replies")), length(children))
+
+      true ->
+        length(children)
     end
   end
 

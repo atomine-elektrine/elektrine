@@ -252,6 +252,17 @@ export const PostClick = {
       if (
         eventPathContainsSelector(
           e,
+          "[data-portal-dropdown-root], [data-portal-dropdown-trigger], [data-portal-dropdown-menu], [data-reaction-picker-root]",
+        ) ||
+        target.closest(
+          "[data-portal-dropdown-root], [data-portal-dropdown-trigger], [data-portal-dropdown-menu], [data-reaction-picker-root]",
+        )
+      )
+        return;
+
+      if (
+        eventPathContainsSelector(
+          e,
           "a, button, input, textarea, select, option, label, form, .dropdown, details",
         ) ||
         target.closest(

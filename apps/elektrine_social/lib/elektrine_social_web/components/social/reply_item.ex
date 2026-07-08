@@ -14,7 +14,9 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
   import ElektrineWeb.HtmlHelpers
   import Elektrine.Components.User.Avatar
   import Elektrine.Components.User.UsernameEffects
+  import ElektrineSocialWeb.Components.Social.PostReactions, only: [post_reactions: 1]
   import ElektrineSocialWeb.Components.User.HoverCard
+  alias Elektrine.Paths
   alias ElektrineWeb.Platform.Integrations
 
   @doc """
@@ -43,6 +45,7 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
   attr :remote_follow_overrides, :map, default: %{}
   attr :user_likes, :map, default: %{}
   attr :user_boosts, :map, default: %{}
+  attr :post_reactions, :map, default: %{}
   attr :timezone, :string, default: "UTC"
   attr :time_format, :string, default: "12h"
   attr :show_actions, :boolean, default: true
@@ -74,14 +77,29 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
     ~H"""
     <%= if @display_reply do %>
       <div
+        id={reply_card_dom_id(@reply_click)}
         class={[
+          "relative",
           @container_class,
           @reply_click && "cursor-pointer transition-colors"
         ]}
-        phx-click={@reply_click && @reply_click.event}
-        phx-value-id={@reply_click && @reply_click.id}
-        phx-value-post_id={@reply_click && @reply_click.post_id}
+        data-post-id={@reply_click && (@reply_click.id || @reply_click.post_id)}
+        data-source="timeline_reply"
+        data-track-dwell="false"
+        phx-hook={@reply_click && "PostClick"}
       >
+        <%= if @reply_click do %>
+          <.link
+            navigate={Paths.post_path(@reply_click.id || @reply_click.post_id)}
+            class="hidden"
+            data-post-nav-link
+            tabindex="-1"
+            aria-hidden="true"
+          >
+            Open reply
+          </.link>
+        <% end %>
+
         <%= if @deleted? do %>
           <div class="flex items-center gap-2 text-sm italic text-base-content/55">
             <.icon name="hero-no-symbol" class="h-4 w-4" />
@@ -234,6 +252,7 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
               current_user={@current_user}
               user_likes={@user_likes}
               user_boosts={@user_boosts}
+              post_reactions={@post_reactions}
               on_reply_click={@on_reply_click}
             />
           <% end %>
@@ -250,6 +269,7 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
   attr :current_user, :map, required: true
   attr :user_likes, :map, default: %{}
   attr :user_boosts, :map, default: %{}
+  attr :post_reactions, :map, default: %{}
   attr :on_reply_click, :string, default: "show_reply_to_reply_form"
 
   defp reply_actions(assigns) do
@@ -259,6 +279,10 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
       assigns
       |> assign(:interaction_id, interaction_id)
       |> assign(:reply_target_id, interaction_id || assigns.normalized.ap_id)
+      |> assign(
+        :reaction_surface,
+        reply_reaction_surface(assigns.post_reactions, assigns.normalized, interaction_id)
+      )
 
     ~H"""
     <div class="flex flex-wrap items-center gap-2">
@@ -364,6 +388,16 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
             <.icon name="hero-arrow-top-right-on-square" class="w-3 h-3" />
           </a>
         <% end %>
+      <% end %>
+
+      <%= if @reaction_surface.target_id do %>
+        <.post_reactions
+          post_id={@reaction_surface.target_id}
+          value_name={@reaction_surface.value_name}
+          reactions={@reaction_surface.reactions}
+          current_user={@current_user}
+          size={:xs}
+        />
       <% end %>
     </div>
     """
@@ -507,6 +541,57 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
   end
 
   defp reply_click_target(_, _), do: nil
+
+  defp reply_card_dom_id(%{id: id}) when not is_nil(id),
+    do: "timeline-reply-card-#{URI.encode_www_form(to_string(id))}"
+
+  defp reply_card_dom_id(%{post_id: post_id}) when not is_nil(post_id),
+    do: "timeline-reply-card-#{URI.encode_www_form(to_string(post_id))}"
+
+  defp reply_card_dom_id(_), do: nil
+
+  defp reply_reaction_surface(post_reactions, normalized, interaction_id)
+       when is_map(post_reactions) and is_map(normalized) do
+    keys =
+      [interaction_id, normalized.ap_id]
+      |> Enum.reject(&is_nil/1)
+      |> Enum.flat_map(fn
+        id when is_integer(id) -> [id, Integer.to_string(id)]
+        id -> [id]
+      end)
+      |> Enum.uniq()
+
+    cond do
+      is_integer(interaction_id) ->
+        %{
+          target_id: interaction_id,
+          value_name: "message_id",
+          reactions: reactions_for_keys(post_reactions, keys)
+        }
+
+      is_binary(normalized.ap_id) and normalized.ap_id != "" ->
+        %{
+          target_id: normalized.ap_id,
+          value_name: "post_id",
+          reactions: reactions_for_keys(post_reactions, keys)
+        }
+
+      true ->
+        %{target_id: nil, value_name: "post_id", reactions: []}
+    end
+  end
+
+  defp reply_reaction_surface(_, _, _),
+    do: %{target_id: nil, value_name: "post_id", reactions: []}
+
+  defp reactions_for_keys(post_reactions, keys) do
+    Enum.find_value(keys, [], fn key ->
+      case Map.get(post_reactions, key) || Map.get(post_reactions, to_string(key)) do
+        reactions when is_list(reactions) -> reactions
+        _ -> nil
+      end
+    end)
+  end
 
   defp reply_like_display_count(normalized) when is_map(normalized) do
     cond do

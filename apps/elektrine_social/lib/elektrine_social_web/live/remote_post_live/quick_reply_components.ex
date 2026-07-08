@@ -26,7 +26,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.QuickReplyComponents do
           <% reply_click = reply_view.click %>
           <div
             class={[
-              "timeline-thread-preview-item timeline-thread-comment-card relative timeline-thread-preview-item--flush text-left text-sm rounded-lg border border-base-300/70 px-3 py-2 transition-all duration-150",
+              "timeline-thread-preview-item relative timeline-thread-comment-card timeline-thread-preview-item--flush text-left text-sm rounded-lg border border-base-300/70 px-3 py-2 transition-all duration-150",
               reply_click &&
                 "cursor-pointer hover:border-base-content/20"
             ]}

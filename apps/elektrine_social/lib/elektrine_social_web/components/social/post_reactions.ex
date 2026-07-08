@@ -23,6 +23,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostReactions do
   attr :actor_uri, :string, default: nil
   attr :show_existing, :boolean, default: true
   attr :show_picker, :boolean, default: true
+  attr :portal, :boolean, default: false
   attr :emojis, :list, default: @default_emojis
 
   def post_reactions(assigns) do
@@ -102,7 +103,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostReactions do
           </button>
         <% end %>
 
-        <%= if @current_user && @show_picker do %>
+        <%= if @current_user && @show_picker && @portal do %>
           <div
             class="dropdown dropdown-end ml-0.5"
             data-reaction-picker-root
@@ -142,6 +143,43 @@ defmodule ElektrineSocialWeb.Components.Social.PostReactions do
               </div>
             </div>
           </div>
+        <% end %>
+
+        <%= if @current_user && @show_picker && !@portal do %>
+          <details
+            class="dropdown dropdown-end relative z-[330] ml-0.5 open:z-[430]"
+            data-reaction-picker-root
+          >
+            <summary
+              class={[
+                @picker_btn_class,
+                "cursor-pointer list-none [&::-webkit-details-marker]:hidden"
+              ]}
+              title="Add reaction"
+              aria-haspopup="menu"
+            >
+              <.icon name="hero-face-smile" class={@picker_icon_class} />
+            </summary>
+            <div
+              tabindex="-1"
+              class="dropdown-content z-[430] menu rounded-box border border-base-300 bg-base-100 p-2 shadow-lg"
+              role="menu"
+            >
+              <div class="flex gap-1.5">
+                <%= for emoji <- @emojis do %>
+                  <button
+                    phx-click={@on_react}
+                    {@reaction_value_attrs}
+                    phx-value-emoji={emoji}
+                    class="btn btn-ghost btn-sm text-lg"
+                    type="button"
+                  >
+                    {emoji}
+                  </button>
+                <% end %>
+              </div>
+            </div>
+          </details>
         <% end %>
       </div>
     <% end %>
