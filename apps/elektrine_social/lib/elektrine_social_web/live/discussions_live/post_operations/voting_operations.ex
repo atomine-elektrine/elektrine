@@ -17,43 +17,12 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.VotingOperations do
 
       case parse_positive_int(message_id) do
         {:ok, message_id} ->
-          # Get current vote state for optimistic update
-          user_votes = Map.get(socket.assigns, :user_votes, %{})
-          current_vote = Map.get(user_votes, message_id)
+          current_vote = Map.get(socket.assigns[:user_votes] || %{}, message_id)
+          updated_socket = optimistic_vote_update(socket, message_id, vote_type, current_vote)
 
-          # Calculate new vote state
-          new_vote =
-            if current_vote == vote_type, do: nil, else: vote_type
+          Social.vote_on_message(user_id, message_id, vote_type)
 
-          # Update user_votes optimistically
-          updated_user_votes =
-            if new_vote do
-              Map.put(user_votes, message_id, new_vote)
-            else
-              Map.delete(user_votes, message_id)
-            end
-
-          case Social.vote_on_message(user_id, message_id, vote_type) do
-            {:ok, _} ->
-              socket = assign(socket, :user_votes, updated_user_votes)
-
-              if message_id == socket.assigns.post.id do
-                updated_post = Messages.get_discussion_post!(message_id)
-                {:noreply, assign(socket, :post, updated_post)}
-              else
-                {:ok, _post, updated_replies} =
-                  get_post_with_replies_expanded(
-                    socket.assigns.post.id,
-                    socket.assigns.community.id,
-                    socket.assigns.expanded_threads
-                  )
-
-                {:noreply, assign(socket, :replies, updated_replies)}
-              end
-
-            {:error, _} ->
-              {:noreply, notify_error(socket, "Failed to vote")}
-          end
+          {:noreply, updated_socket}
 
         :error ->
           {:noreply, notify_error(socket, "Failed to vote")}
@@ -248,63 +217,104 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.VotingOperations do
     Map.put(current_reactions, message_id, updated)
   end
 
-  # Helper function
-  defp get_post_with_replies_expanded(post_id, community_id, expanded_threads) do
-    import Ecto.Query
-    alias Elektrine.Repo
-    alias Elektrine.Social.Message
+  defp optimistic_vote_update(socket, message_id, vote_type, current_vote) do
+    {upvote_delta, downvote_delta, new_vote} =
+      case {current_vote, vote_type} do
+        {nil, "up"} -> {1, 0, "up"}
+        {nil, "down"} -> {0, 1, "down"}
+        {"up", "up"} -> {-1, 0, nil}
+        {"down", "down"} -> {0, -1, nil}
+        {"up", "down"} -> {-1, 1, "down"}
+        {"down", "up"} -> {1, -1, "up"}
+        _ -> {0, 0, current_vote}
+      end
 
-    post =
-      from(m in Message,
-        where: m.id == ^post_id and m.conversation_id == ^community_id,
-        preload: ^Messages.discussion_post_preloads()
-      )
-      |> Repo.one()
+    user_votes = socket.assigns[:user_votes] || %{}
 
-    case post do
-      nil ->
-        {:error, :not_found}
+    updated_user_votes =
+      if new_vote do
+        Map.put(user_votes, message_id, new_vote)
+      else
+        Map.delete(user_votes, message_id)
+      end
 
-      post ->
-        post = Message.decrypt_content(post)
-        replies = get_threaded_replies_with_expansion(post_id, community_id, 0, expanded_threads)
-        {:ok, post, replies}
+    socket
+    |> assign(:user_votes, updated_user_votes)
+    |> update_post_vote_counts(message_id, upvote_delta, downvote_delta)
+    |> update_reply_vote_counts(message_id, upvote_delta, downvote_delta)
+  end
+
+  defp update_post_vote_counts(socket, message_id, upvote_delta, downvote_delta) do
+    if socket.assigns.post.id == message_id do
+      assign(socket, :post, apply_vote_delta(socket.assigns.post, upvote_delta, downvote_delta))
+    else
+      socket
     end
   end
 
-  defp get_threaded_replies_with_expansion(parent_id, community_id, depth, expanded_threads) do
-    import Ecto.Query
-    alias Elektrine.Repo
-    alias Elektrine.Social.Message
-
-    direct_replies =
-      from(m in Message,
-        where:
-          m.reply_to_id == ^parent_id and
-            m.conversation_id == ^community_id and
-            is_nil(m.deleted_at) and
-            (m.approval_status == "approved" or is_nil(m.approval_status)),
-        order_by: [desc: m.score, asc: m.inserted_at],
-        preload: [
-          sender: [:profile],
-          flair: [],
-          shared_message: [sender: [:profile], conversation: []]
-        ]
+  defp update_reply_vote_counts(socket, message_id, upvote_delta, downvote_delta) do
+    assign(
+      socket,
+      :replies,
+      update_threaded_reply_vote_counts(
+        socket.assigns[:replies] || [],
+        message_id,
+        upvote_delta,
+        downvote_delta
       )
-      |> Repo.all()
-      |> Enum.map(&Message.decrypt_content/1)
+    )
+  end
 
-    Enum.map(direct_replies, fn reply ->
-      should_expand = depth < 2 || MapSet.member?(expanded_threads, reply.id)
+  defp update_threaded_reply_vote_counts(
+         threaded_replies,
+         message_id,
+         upvote_delta,
+         downvote_delta
+       )
+       when is_list(threaded_replies) do
+    Enum.map(threaded_replies, fn
+      %{reply: reply, children: children} = node ->
+        updated_reply =
+          if reply.id == message_id do
+            apply_vote_delta(reply, upvote_delta, downvote_delta)
+          else
+            reply
+          end
 
-      nested_replies =
-        if should_expand && depth < 10 do
-          get_threaded_replies_with_expansion(reply.id, community_id, depth + 1, expanded_threads)
-        else
-          []
-        end
+        %{
+          node
+          | reply: updated_reply,
+            children:
+              update_threaded_reply_vote_counts(
+                children,
+                message_id,
+                upvote_delta,
+                downvote_delta
+              )
+        }
 
-      %{reply: reply, children: nested_replies, depth: depth, has_children: should_expand}
+      other ->
+        other
     end)
+  end
+
+  defp update_threaded_reply_vote_counts(
+         threaded_replies,
+         _message_id,
+         _upvote_delta,
+         _downvote_delta
+       ),
+       do: threaded_replies
+
+  defp apply_vote_delta(message, upvote_delta, downvote_delta) do
+    new_upvotes = (message.upvotes || 0) + upvote_delta
+    new_downvotes = (message.downvotes || 0) + downvote_delta
+
+    %{
+      message
+      | upvotes: new_upvotes,
+        downvotes: new_downvotes,
+        score: new_upvotes - new_downvotes
+    }
   end
 end

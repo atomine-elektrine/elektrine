@@ -728,6 +728,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
   * `:on_vote` - Event name for vote action (default: "vote")
   * `:value_name` - The phx-value attribute name: "post_id" or "message_id" (default: "message_id")
   * `:size` - Size variant: :sm, :md, :lg (default: :md)
+  * `:show_zero_score` - Whether to show a zero score between arrows (default: false)
   """
   attr :post_id, :any, required: true
   attr :current_user, :map, default: nil
@@ -737,6 +738,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
   attr :on_vote, :string, default: "vote"
   attr :value_name, :string, default: "message_id"
   attr :size, :atom, default: :md
+  attr :show_zero_score, :boolean, default: false
 
   def vote_buttons(assigns) do
     {btn_class, icon_class, score_class} =
@@ -763,7 +765,11 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
       |> assign(:btn_class, btn_class)
       |> assign(:icon_class, icon_class)
       |> assign(:score_class, score_class)
-      |> assign(:show_score, assigns.score != 0 || assigns.is_upvoted || assigns.is_downvoted)
+      |> assign(
+        :show_score,
+        assigns.show_zero_score || assigns.score != 0 || assigns.is_upvoted ||
+          assigns.is_downvoted
+      )
 
     ~H"""
     <div

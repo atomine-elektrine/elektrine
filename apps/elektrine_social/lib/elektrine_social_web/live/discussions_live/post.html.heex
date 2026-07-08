@@ -48,8 +48,8 @@
     <!-- Main Content -->
     <div class="flex-1 min-w-0 max-w-full">
       <!-- Main Post -->
-      <div class="card panel-card mb-4 sm:mb-6">
-        <div class="card-body p-4 sm:p-6">
+      <div class="timeline-post-card timeline-thread-current-card panel-card mb-4 rounded-lg border border-base-300 p-4 sm:mb-6 sm:p-5">
+        <div>
           <div class="flex gap-2 sm:gap-4">
             <!-- Voting Column -->
             <.vote_buttons
@@ -59,6 +59,7 @@
               is_downvoted={Map.get(@user_votes, @post.id) == "down"}
               score={(@post.upvotes || 0) - (@post.downvotes || 0)}
               size={:md}
+              show_zero_score={true}
             />
             
 <!-- Post Content -->
@@ -457,42 +458,6 @@
               <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pt-4 border-t border-base-200">
                 <div class="flex items-center gap-1 sm:gap-2 flex-wrap">
                   <%= if @current_user do %>
-                    <!-- Like Button -->
-                    <button
-                      phx-click="like_post"
-                      phx-value-post_id={@post.id}
-                      class={[
-                        "btn btn-ghost btn-xs sm:btn-sm transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80",
-                        @liked_by_user && "text-red-500 phx-click-loading:text-base-content/70",
-                        !@liked_by_user && "phx-click-loading:text-red-500"
-                      ]}
-                    >
-                      <span class="inline-flex items-center gap-1 phx-click-loading:hidden">
-                        <.icon
-                          name={if @liked_by_user, do: "hero-heart-solid", else: "hero-heart"}
-                          class={[
-                            "w-4 h-4 sm:w-5 sm:h-5",
-                            @liked_by_user && "text-red-500"
-                          ]}
-                        />
-                        <span>{@post.like_count || 0}</span>
-                      </span>
-                      <span class="hidden items-center gap-1 phx-click-loading:inline-flex">
-                        <.icon
-                          name={if @liked_by_user, do: "hero-heart", else: "hero-heart-solid"}
-                          class={[
-                            "w-4 h-4 sm:w-5 sm:h-5",
-                            !@liked_by_user && "text-red-500"
-                          ]}
-                        />
-                        <span>
-                          {if @liked_by_user,
-                            do: max((@post.like_count || 0) - 1, 0),
-                            else: (@post.like_count || 0) + 1}
-                        </span>
-                      </span>
-                    </button>
-
                     <%= if !Map.get(@post, :locked_at) do %>
                       <button
                         phx-click="toggle_reply_form"
@@ -530,15 +495,14 @@
                   <% end %>
                 </div>
 
-                <div class="hidden sm:flex text-xs sm:text-sm opacity-70 items-center gap-2">
-                  <span class="flex items-center gap-1">
-                    <.icon name="hero-chat-bubble-left" class="w-3 h-3" />
+                <div class="flex text-xs sm:text-sm text-base-content/60 items-center gap-3">
+                  <span class="inline-flex items-center gap-1">
+                    <.icon name="hero-chat-bubble-left" class="w-3.5 h-3.5" />
                     {length(@replies)}
                   </span>
-                  <span>·</span>
-                  <span class="flex items-center gap-1">
-                    <.icon name="hero-arrow-up" class="w-3 h-3" />
-                    {@post.upvotes || 0}
+                  <span class="inline-flex items-center gap-1">
+                    <.icon name="hero-arrow-up" class="w-3.5 h-3.5" />
+                    {(@post.upvotes || 0) - (@post.downvotes || 0)}
                   </span>
                 </div>
               </div>
@@ -617,19 +581,28 @@
       
 <!-- Threaded Replies -->
       <%= if length(@replies) > 0 do %>
-        <div class="space-y-4">
-          <h3 class="text-lg font-semibold">{count_total_replies(@replies)} Comments</h3>
-          {render_threaded_replies(@replies, assigns)}
+        <div class="space-y-3">
+          <div class="flex items-center justify-between gap-3">
+            <h3 class="text-base font-semibold">{count_total_replies(@replies)} Comments</h3>
+            <.link href={~p"/communities/#{@community.name}"} class="btn btn-ghost btn-xs">
+              <.icon name="hero-arrow-left" class="h-3.5 w-3.5" />
+              <span class="hidden sm:inline">Community</span>
+            </.link>
+          </div>
+          <div class="timeline-thread-replies space-y-2">
+            <span class="timeline-thread-replies__rail" aria-hidden="true"></span>
+            {render_threaded_replies(@replies, assigns)}
+          </div>
         </div>
       <% else %>
-        <div class="text-center py-8">
-          <.icon name="hero-chat-bubble-left" class="w-12 h-12 mx-auto mb-4 opacity-40" />
-          <p class="opacity-70">No replies yet</p>
-          <p class="text-sm opacity-50">
+        <div class="rounded-lg border border-dashed border-base-300 bg-base-200/45 py-10 text-center">
+          <.icon name="hero-chat-bubble-left" class="w-10 h-10 mx-auto mb-3 opacity-35" />
+          <p class="font-medium text-base-content/70">No comments yet</p>
+          <p class="mt-1 text-sm text-base-content/50">
             <%= if @current_user do %>
-              Be the first to reply to this discussion
+              Be the first to comment.
             <% else %>
-              Sign in to be the first to reply
+              Sign in to comment.
             <% end %>
           </p>
         </div>
@@ -637,34 +610,47 @@
     </div>
     
 <!-- Right Sidebar - Community Info (Hidden on mobile, shown on large screens) -->
-    <div class="hidden lg:flex w-80 flex-shrink-0 card panel-card p-4 flex-col">
-      <h3 class="font-semibold mb-2">About {@community.name}</h3>
-      <code class="text-xs opacity-70 bg-base-200 px-2 py-1 rounded mb-3">
-        !{@community_slug}@{Elektrine.ActivityPub.instance_domain()}
-      </code>
-
-      <div class="space-y-3">
-        <p class="text-sm">{@community.description}</p>
-
-        <div class="stats stats-vertical shadow">
-          <div class="stat">
-            <div class="stat-title">Members</div>
-            <div class="stat-value text-lg">{@community.member_count}</div>
+    <aside class="hidden w-80 flex-shrink-0 lg:block">
+      <div class="panel-card rounded-lg border border-base-300 p-4">
+        <div class="mb-3 flex items-center gap-3">
+          <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-secondary/10 text-secondary">
+            <.icon name="hero-user-group" class="h-5 w-5" />
+          </div>
+          <div class="min-w-0">
+            <h3 class="truncate font-semibold">{@community.name}</h3>
+            <code class="block truncate text-xs text-base-content/55">
+              !{@community_slug}@{Elektrine.ActivityPub.instance_domain()}
+            </code>
           </div>
         </div>
 
-        <div class="flex gap-2">
-          <.link href={~p"/communities/#{@community.name}"} class="btn btn-ghost btn-sm">
-            <.icon name="hero-arrow-left" class="w-4 h-4 mr-1" /> Back to Community
-          </.link>
-        </div>
+        <%= if String.trim(@community.description || "") != "" do %>
+          <p class="mb-4 text-sm leading-relaxed text-base-content/70">
+            {@community.description}
+          </p>
+        <% end %>
+
+        <dl class="grid grid-cols-2 gap-2 text-sm">
+          <div class="rounded-md bg-base-200/60 p-2">
+            <dt class="text-[11px] uppercase tracking-wide text-base-content/55">Members</dt>
+            <dd class="mt-0.5 font-semibold">{@community.member_count}</dd>
+          </div>
+          <div class="rounded-md bg-base-200/60 p-2">
+            <dt class="text-[11px] uppercase tracking-wide text-base-content/55">Comments</dt>
+            <dd class="mt-0.5 font-semibold">{count_total_replies(@replies)}</dd>
+          </div>
+        </dl>
+
+        <.link href={~p"/communities/#{@community.name}"} class="btn btn-ghost btn-sm mt-4 w-full">
+          <.icon name="hero-arrow-left" class="w-4 h-4 mr-1" /> Back to Community
+        </.link>
       </div>
       
 <!-- Related Posts -->
       <%= if @related_posts && length(@related_posts) > 0 do %>
-        <div class="mt-6 pt-6 border-t border-base-300">
-          <h3 class="font-semibold mb-4">Related Posts</h3>
-          <div class="space-y-3">
+        <div class="panel-card mt-4 rounded-lg border border-base-300 p-4">
+          <h3 class="mb-3 text-sm font-semibold">Related Posts</h3>
+          <div class="space-y-2">
             <%= for related_post <- @related_posts do %>
               <.link
                 href={
@@ -676,7 +662,7 @@
                 }
                 class="block group"
               >
-                <div class="p-3 bg-base-200 border border-base-200 rounded-lg hover:border-primary/50 hover:shadow-sm transition-shadow">
+                <div class="rounded-lg border border-base-300 bg-base-100 p-3 transition-colors hover:bg-base-200/45">
                   <% related_title =
                     ElektrineSocialWeb.Components.Social.PostUtilities.plain_text_content(
                       related_post.title
@@ -689,10 +675,10 @@
                       ),
                       50
                     ) %>
-                  <h4 class="font-medium text-sm group-hover:text-primary line-clamp-2">
+                  <h4 class="line-clamp-2 text-sm font-medium group-hover:text-secondary">
                     {if related_title != "", do: related_title, else: raw(related_preview)}
                   </h4>
-                  <div class="flex items-center gap-2 mt-2 text-xs opacity-70">
+                  <div class="mt-2 flex items-center gap-2 text-xs text-base-content/55">
                     <span>
                       <.username_with_effects
                         user={related_post.sender}
@@ -716,7 +702,7 @@
           </div>
         </div>
       <% end %>
-    </div>
+    </aside>
   </div>
   
 <!-- Report Modal -->

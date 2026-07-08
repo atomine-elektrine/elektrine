@@ -386,12 +386,20 @@
                                 <%= if result.type == :local do %>
                                   <% community = result.community
                                   joined? = MapSet.member?(@joined_community_ids, community.id) %>
-                                  <article class="card border border-base-300 bg-base-200/70 hover:border-secondary/40 transition-colors">
+                                  <article class="card border border-base-300 bg-base-100 hover:border-secondary/40 transition-colors">
                                     <div class="card-body p-4 gap-4">
                                       <div class="flex items-start gap-3">
-                                        <div class="w-12 h-12 rounded-lg bg-secondary/10 text-secondary flex items-center justify-center font-semibold text-lg flex-shrink-0">
-                                          {String.first(community.name) |> String.upcase()}
-                                        </div>
+                                        <%= if avatar_url = safe_external_image_url(Map.get(community, :avatar_url)) do %>
+                                          <img
+                                            src={avatar_url}
+                                            class="w-12 h-12 rounded-lg object-cover flex-shrink-0"
+                                            alt={community.name}
+                                          />
+                                        <% else %>
+                                          <div class="w-12 h-12 rounded-lg bg-secondary/10 text-secondary flex items-center justify-center flex-shrink-0">
+                                            <.icon name="hero-user-group" class="w-6 h-6" />
+                                          </div>
+                                        <% end %>
                                         <div class="min-w-0 flex-1">
                                           <div class="flex items-center gap-2 flex-wrap">
                                             <.link
@@ -677,12 +685,20 @@
                         <%= if joined_count > 0 do %>
                           <div class="grid gap-3 xl:grid-cols-2">
                             <%= for community <- @filtered_communities do %>
-                              <article class="card border border-base-300 bg-base-200/70 hover:border-secondary/40 transition-colors group">
+                              <article class="card border border-base-300 bg-base-100 hover:border-secondary/40 transition-colors group">
                                 <div class="card-body p-3.5">
                                   <div class="flex items-start gap-2.5">
-                                    <div class="w-10 h-10 rounded-lg bg-secondary/10 text-secondary flex items-center justify-center font-semibold text-base flex-shrink-0">
-                                      {String.first(community.name) |> String.upcase()}
-                                    </div>
+                                    <%= if avatar_url = safe_external_image_url(Map.get(community, :avatar_url)) do %>
+                                      <img
+                                        src={avatar_url}
+                                        class="w-10 h-10 rounded-lg object-cover flex-shrink-0"
+                                        alt={community.name}
+                                      />
+                                    <% else %>
+                                      <div class="w-10 h-10 rounded-lg bg-secondary/10 text-secondary flex items-center justify-center flex-shrink-0">
+                                        <.icon name="hero-user-group" class="w-5 h-5" />
+                                      </div>
+                                    <% end %>
                                     <div class="min-w-0 flex-1">
                                       <div class="flex items-center gap-1.5 flex-wrap">
                                         <.link
@@ -741,10 +757,10 @@
                             <% end %>
 
                             <%= for community <- @filtered_remote_communities do %>
-                              <article class="card border border-base-300 bg-base-200/70 hover:border-info/40 transition-colors group">
+                              <article class="card border border-base-300 bg-base-100 hover:border-info/40 transition-colors group">
                                 <div class="card-body p-3.5">
                                   <div class="flex items-start gap-2.5">
-                                    <%= if avatar_url = safe_external_image_url(community.avatar_url) do %>
+                                    <%= if avatar_url = safe_external_image_url(Map.get(community, :avatar_url)) do %>
                                       <img
                                         src={avatar_url}
                                         class="w-10 h-10 rounded-lg object-cover flex-shrink-0"
@@ -937,44 +953,63 @@
                       </div>
 
                       <%= if visible_discover_cards != [] do %>
-                        <div class="grid gap-3 xl:grid-cols-2">
+                        <div class="divide-y divide-base-300 overflow-hidden rounded-lg border border-base-300 bg-base-100">
                           <%= for card <- visible_discover_cards do %>
                             <% community = card.community
                             joined? = MapSet.member?(@joined_community_ids, community.id) %>
-                            <article class="rounded-lg border border-base-300 bg-base-100 p-3.5 shadow-sm">
-                              <div class="mb-2 flex flex-wrap items-center gap-1.5">
-                                <%= for tag <- discovery_card_tags(card) do %>
-                                  <span class="badge badge-secondary badge-sm">{tag}</span>
-                                <% end %>
-                                <span class="badge badge-outline badge-sm">
-                                  {community_category_label(community)}
-                                </span>
-                              </div>
-
+                            <article class="group flex flex-col gap-3 px-3 py-3 transition-colors hover:bg-base-200/35 sm:flex-row sm:items-center sm:px-4">
                               <.link
                                 href={community_route(community)}
-                                class="block hover:text-secondary transition-colors"
+                                class="flex min-w-0 flex-1 gap-3"
                               >
-                                <h3 class="text-sm font-semibold leading-snug break-words text-base-content sm:text-base">
-                                  {raw(community_display_name_markup(community))}
-                                </h3>
-                                <p class="mt-0.5 text-[11px] text-base-content/50 break-all">
-                                  {community_address(community)}
-                                </p>
-                                <%= if community.description do %>
-                                  <p class="mt-1.5 text-xs text-base-content/70 line-clamp-2 leading-5 sm:text-sm">
-                                    {community.description}
-                                  </p>
+                                <%= if avatar_url = safe_external_image_url(Map.get(community, :avatar_url)) do %>
+                                  <img
+                                    src={avatar_url}
+                                    class="h-11 w-11 flex-shrink-0 rounded-lg object-cover"
+                                    alt={community.name}
+                                  />
+                                <% else %>
+                                  <div class="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg bg-secondary/10 text-secondary">
+                                    <.icon name="hero-user-group" class="h-5 w-5" />
+                                  </div>
                                 <% end %>
+
+                                <div class="min-w-0 flex-1">
+                                  <div class="flex min-w-0 items-center gap-2">
+                                    <h3 class="truncate text-sm font-semibold group-hover:text-secondary sm:text-base">
+                                      {raw(community_display_name_markup(community))}
+                                    </h3>
+                                    <span class="badge badge-outline badge-xs shrink-0">
+                                      {community_category_label(community)}
+                                    </span>
+                                    <span class="badge badge-outline badge-xs shrink-0">
+                                      Local
+                                    </span>
+                                  </div>
+                                  <p class="mt-0.5 truncate text-xs text-base-content/50">
+                                    {community_address(community)}
+                                  </p>
+                                  <%= if community.description do %>
+                                    <p class="mt-1 line-clamp-1 text-sm text-base-content/65">
+                                      {community.description}
+                                    </p>
+                                  <% end %>
+
+                                  <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-base-content/55">
+                                    <%= for tag <- discovery_card_tags(card) do %>
+                                      <span class="inline-flex items-center gap-1">
+                                        <.icon name="hero-sparkles" class="h-3.5 w-3.5" />
+                                        {tag}
+                                      </span>
+                                    <% end %>
+                                    <%= for item <- discovery_card_meta_markup(card) do %>
+                                      <span>{raw(item)}</span>
+                                    <% end %>
+                                  </div>
+                                </div>
                               </.link>
 
-                              <div class="mt-2.5 flex flex-wrap gap-x-3 gap-y-1.5 text-[11px] text-base-content/60 sm:text-xs">
-                                <%= for item <- discovery_card_meta_markup(card) do %>
-                                  <span>{raw(item)}</span>
-                                <% end %>
-                              </div>
-
-                              <div class="mt-3 flex items-center justify-end">
+                              <div class="flex shrink-0 items-center gap-2 pl-14 sm:pl-0">
                                 <%= if joined? do %>
                                   <span class="badge badge-secondary badge-sm">Joined</span>
                                 <% else %>
@@ -984,14 +1019,14 @@
                                       id={"discover-join-community-#{community.id}"}
                                       phx-click="join_community"
                                       phx-value-community_id={community.id}
-                                      class="btn btn-secondary btn-xs"
+                                      class="btn btn-secondary btn-sm"
                                     >
                                       Join
                                     </button>
                                   <% else %>
                                     <.link
                                       href={Elektrine.Paths.login_path()}
-                                      class="btn btn-ghost btn-xs"
+                                      class="btn btn-ghost btn-sm"
                                     >
                                       Sign in
                                     </.link>
@@ -1014,97 +1049,95 @@
                       </div>
 
                       <%= if visible_remote_communities != [] do %>
-                        <div class="grid gap-3 xl:grid-cols-2">
+                        <div class="divide-y divide-base-300 overflow-hidden rounded-lg border border-base-300 bg-base-100">
                           <%= for actor <- visible_remote_communities do %>
-                            <article class="card border border-base-300 bg-base-100 hover:border-info/40 transition-colors">
-                              <div class="card-body p-4 gap-4">
-                                <.link href={community_route(actor)} class="block">
-                                  <div class="flex items-start gap-3">
-                                    <%= if avatar_url = safe_external_image_url(actor.avatar_url) do %>
-                                      <img
-                                        src={avatar_url}
-                                        class="w-12 h-12 rounded-lg object-cover flex-shrink-0"
-                                        alt={actor.username}
-                                      />
-                                    <% else %>
-                                      <div class="w-12 h-12 rounded-lg bg-info/10 text-info flex items-center justify-center flex-shrink-0">
-                                        <.icon name="hero-globe-alt" class="w-6 h-6" />
-                                      </div>
-                                    <% end %>
-                                    <div class="min-w-0 flex-1">
-                                      <div class="flex items-center gap-2 flex-wrap">
-                                        <h3 class="font-semibold truncate">
-                                          {raw(community_display_name_markup(actor))}
-                                        </h3>
-                                        <span class="badge badge-outline badge-sm">
-                                          {community_category_label(actor)}
-                                        </span>
-                                        <span class="badge badge-outline badge-sm">Remote</span>
-                                      </div>
-                                      <p class="text-xs text-base-content/50 mt-1">
-                                        {community_address(actor)}
-                                      </p>
-                                      <%= if actor.summary do %>
-                                        <p class="text-sm text-base-content/70 mt-2 line-clamp-2">
-                                          {raw(
-                                            PostUtilities.render_content_preview(
-                                              actor.summary,
-                                              actor.domain
-                                            )
-                                          )}
-                                        </p>
-                                      <% end %>
-                                    </div>
+                            <article class="group flex flex-col gap-3 px-3 py-3 transition-colors hover:bg-base-200/35 sm:flex-row sm:items-center sm:px-4">
+                              <.link
+                                href={community_route(actor)}
+                                class="flex min-w-0 flex-1 gap-3"
+                              >
+                                <%= if avatar_url = safe_external_image_url(actor.avatar_url) do %>
+                                  <img
+                                    src={avatar_url}
+                                    class="h-11 w-11 flex-shrink-0 rounded-lg object-cover"
+                                    alt={actor.username}
+                                  />
+                                <% else %>
+                                  <div class="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg bg-info/10 text-info">
+                                    <.icon name="hero-globe-alt" class="h-5 w-5" />
                                   </div>
-                                </.link>
-                                <div class="flex items-center justify-between gap-3">
-                                  <div class="flex flex-wrap gap-3 text-xs text-base-content/60">
-                                    <span class="flex items-center gap-1">
-                                      <.icon name="hero-globe-alt" class="w-3.5 h-3.5" />
-                                      Federated community
+                                <% end %>
+
+                                <div class="min-w-0 flex-1">
+                                  <div class="flex min-w-0 items-center gap-2">
+                                    <h3 class="truncate text-sm font-semibold group-hover:text-info sm:text-base">
+                                      {raw(community_display_name_markup(actor))}
+                                    </h3>
+                                    <span class="badge badge-outline badge-xs shrink-0">
+                                      {community_category_label(actor)}
                                     </span>
-                                    <span class="flex items-center gap-1">
-                                      <.icon name="hero-users" class="w-3.5 h-3.5" />
+                                  </div>
+                                  <p class="mt-0.5 truncate text-xs text-base-content/50">
+                                    {community_address(actor)}
+                                  </p>
+                                  <%= if actor.summary do %>
+                                    <p class="mt-1 line-clamp-1 text-sm text-base-content/65">
+                                      {raw(
+                                        PostUtilities.render_content_preview(
+                                          actor.summary,
+                                          actor.domain
+                                        )
+                                      )}
+                                    </p>
+                                  <% end %>
+
+                                  <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-base-content/55">
+                                    <span class="inline-flex items-center gap-1">
+                                      <.icon name="hero-users" class="h-3.5 w-3.5" />
                                       {format_compact_number(remote_community_followers(actor))} followers
                                     </span>
-                                    <%= if creator = community_creator_markup(actor) do %>
-                                      <span class="truncate">{raw(creator)}</span>
-                                    <% end %>
-                                  </div>
-                                  <div class="flex items-center gap-2">
-                                    <%= if actor_href = safe_external_href(actor.uri) do %>
-                                      <.link
-                                        href={actor_href}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        class="btn btn-ghost btn-sm"
-                                      >
-                                        Preview
-                                      </.link>
-                                    <% end %>
-                                    <%= if @current_user do %>
-                                      <button
-                                        type="button"
-                                        id={"discover-follow-community-#{actor.id}"}
-                                        phx-click="follow_remote_group"
-                                        phx-value-actor_id={actor.id}
-                                        class="btn btn-secondary btn-sm transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:bg-base-200 phx-click-loading:text-base-content"
-                                      >
-                                        <span class="phx-click-loading:hidden">Follow</span>
-                                        <span class="hidden items-center phx-click-loading:inline-flex">
-                                          <.spinner size="sm" class="mr-1" /> Following...
-                                        </span>
-                                      </button>
-                                    <% else %>
-                                      <.link
-                                        href={Elektrine.Paths.login_path()}
-                                        class="btn btn-ghost btn-sm"
-                                      >
-                                        Sign in
-                                      </.link>
-                                    <% end %>
+                                    <span class="inline-flex items-center gap-1">
+                                      <.icon name="hero-server-stack" class="h-3.5 w-3.5" />
+                                      {actor.domain}
+                                    </span>
                                   </div>
                                 </div>
+                              </.link>
+
+                              <div class="flex shrink-0 items-center gap-2 pl-14 sm:pl-0">
+                                <%= if actor_href = safe_external_href(actor.uri) do %>
+                                  <.link
+                                    href={actor_href}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    class="btn btn-ghost btn-sm"
+                                    title="Preview remote community"
+                                  >
+                                    <.icon name="hero-arrow-top-right-on-square" class="h-4 w-4" />
+                                    <span class="hidden md:inline">Preview</span>
+                                  </.link>
+                                <% end %>
+                                <%= if @current_user do %>
+                                  <button
+                                    type="button"
+                                    id={"discover-follow-community-#{actor.id}"}
+                                    phx-click="follow_remote_group"
+                                    phx-value-actor_id={actor.id}
+                                    class="btn btn-secondary btn-sm transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:bg-base-200 phx-click-loading:text-base-content"
+                                  >
+                                    <span class="phx-click-loading:hidden">Follow</span>
+                                    <span class="hidden items-center phx-click-loading:inline-flex">
+                                      <.spinner size="sm" class="mr-1" /> Following...
+                                    </span>
+                                  </button>
+                                <% else %>
+                                  <.link
+                                    href={Elektrine.Paths.login_path()}
+                                    class="btn btn-ghost btn-sm"
+                                  >
+                                    Sign in
+                                  </.link>
+                                <% end %>
                               </div>
                             </article>
                           <% end %>
@@ -1653,10 +1686,13 @@
 
   <%= if @show_create_community do %>
     <div class="modal modal-open">
-      <div class="modal-box modal-surface max-w-3xl">
-        <div class="flex items-start justify-between gap-4 mb-4">
+      <div class="modal-box modal-surface max-w-2xl">
+        <div class="mb-5 flex items-start justify-between gap-4">
           <div>
-            <h3 class="font-bold text-2xl">Create Community</h3>
+            <h3 class="text-xl font-semibold tracking-tight">Create Community</h3>
+            <p class="mt-1 text-sm text-base-content/60">
+              Start a local discussion space with a short name, category, and description.
+            </p>
           </div>
           <button
             type="button"
@@ -1667,247 +1703,247 @@
           </button>
         </div>
 
-        <.form for={%{}} phx-submit="create_community" class="space-y-4">
-          <div class="grid gap-4 md:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-            <div class="space-y-4 rounded-2xl border border-base-300/60 bg-base-200/45 p-4">
-              <div>
-                <label class="label">
-                  <span class="label-text">Community Name</span>
-                  <span class="label-text-alt text-xs opacity-70">Letters and numbers only</span>
-                </label>
-                <input
-                  type="text"
-                  name="name"
-                  placeholder="e.g., ElixirDevelopers"
-                  class="input input-bordered w-full"
-                  value={@new_community_name}
-                  pattern="[a-zA-Z0-9]{2,30}"
-                  title="2-30 characters, letters and numbers only (no spaces)"
-                  required
-                />
-                <label class="label">
-                  <span class="label-text-alt text-xs">
-                    No spaces or special characters allowed
-                  </span>
-                </label>
-              </div>
-
-              <div>
-                <label class="label">
-                  <span class="label-text">Description</span>
-                </label>
-                <textarea
-                  name="description"
-                  placeholder="What is this community about?"
-                  class="textarea textarea-bordered w-full resize-y overflow-y-auto leading-tight"
-                  style="min-height: 7rem; max-height: 16rem;"
-                  rows="4"
-                  phx-hook="AutoExpandTextarea"
-                  phx-update="ignore"
-                  id="community-description-textarea"
-                ><%= @new_community_description %></textarea>
-              </div>
+        <.form for={%{}} phx-submit="create_community" class="space-y-5">
+          <div class="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(12rem,16rem)]">
+            <div class="min-w-0">
+              <label class="label">
+                <span class="label-text">Community Name</span>
+              </label>
+              <input
+                type="text"
+                name="name"
+                placeholder="e.g., ElixirDevelopers"
+                class="input input-bordered w-full"
+                value={@new_community_name}
+                pattern="[a-zA-Z0-9]{2,30}"
+                title="2-30 characters, letters and numbers only (no spaces)"
+                required
+              />
+              <p class="mt-1 text-xs leading-5 text-base-content/55">
+                2-30 letters or numbers. No spaces or special characters.
+              </p>
             </div>
 
-            <div class="rounded-2xl border border-base-300/60 bg-base-200/45 p-4">
+            <div class="min-w-0">
               <label class="label">
                 <span class="label-text">Category</span>
               </label>
-              <div class="select select-bordered w-full h-80">
-                <select name="category">
-                  <optgroup label="Technology & Science">
-                    <option value="tech" selected={@new_community_category == "tech"}>
-                      Technology
-                    </option>
-                    <option
-                      value="programming"
-                      selected={@new_community_category == "programming"}
-                    >
-                      Programming
-                    </option>
-                    <option value="science" selected={@new_community_category == "science"}>
-                      Science
-                    </option>
-                    <option value="space" selected={@new_community_category == "space"}>
-                      Space & Astronomy
-                    </option>
-                    <option value="crypto" selected={@new_community_category == "crypto"}>
-                      Cryptocurrency
-                    </option>
-                  </optgroup>
-                  <optgroup label="Entertainment">
-                    <option value="gaming" selected={@new_community_category == "gaming"}>
-                      Gaming
-                    </option>
-                    <option value="movies" selected={@new_community_category == "movies"}>
-                      Movies
-                    </option>
-                    <option value="tv" selected={@new_community_category == "tv"}>
-                      TV Shows
-                    </option>
-                    <option value="anime" selected={@new_community_category == "anime"}>
-                      Anime & Manga
-                    </option>
-                    <option value="comics" selected={@new_community_category == "comics"}>
-                      Comics
-                    </option>
-                    <option value="music" selected={@new_community_category == "music"}>
-                      Music
-                    </option>
-                    <option value="books" selected={@new_community_category == "books"}>
-                      Books & Literature
-                    </option>
-                    <option value="comedy" selected={@new_community_category == "comedy"}>
-                      Comedy
-                    </option>
-                    <option value="memes" selected={@new_community_category == "memes"}>
-                      Memes
-                    </option>
-                  </optgroup>
-                  <optgroup label="Creative">
-                    <option value="art" selected={@new_community_category == "art"}>
-                      Art & Illustration
-                    </option>
-                    <option value="design" selected={@new_community_category == "design"}>
-                      Design
-                    </option>
-                    <option
-                      value="photography"
-                      selected={@new_community_category == "photography"}
-                    >
-                      Photography
-                    </option>
-                    <option value="writing" selected={@new_community_category == "writing"}>
-                      Writing
-                    </option>
-                    <option value="diy" selected={@new_community_category == "diy"}>
-                      DIY & How-To
-                    </option>
-                    <option value="crafts" selected={@new_community_category == "crafts"}>
-                      Crafts
-                    </option>
-                    <option value="fashion" selected={@new_community_category == "fashion"}>
-                      Fashion & Style
-                    </option>
-                  </optgroup>
-                  <optgroup label="Lifestyle">
-                    <option value="food" selected={@new_community_category == "food"}>
-                      Food & Cooking
-                    </option>
-                    <option value="fitness" selected={@new_community_category == "fitness"}>
-                      Fitness & Exercise
-                    </option>
-                    <option value="health" selected={@new_community_category == "health"}>
-                      Health & Wellness
-                    </option>
-                    <option value="travel" selected={@new_community_category == "travel"}>
-                      Travel
-                    </option>
-                    <option value="pets" selected={@new_community_category == "pets"}>
-                      Pets & Animals
-                    </option>
-                    <option value="nature" selected={@new_community_category == "nature"}>
-                      Nature & Outdoors
-                    </option>
-                    <option value="automotive" selected={@new_community_category == "automotive"}>
-                      Cars & Automotive
-                    </option>
-                    <option value="sports" selected={@new_community_category == "sports"}>
-                      Sports
-                    </option>
-                  </optgroup>
-                  <optgroup label="Learning">
-                    <option value="education" selected={@new_community_category == "education"}>
-                      Education
-                    </option>
-                    <option value="history" selected={@new_community_category == "history"}>
-                      History
-                    </option>
-                    <option value="philosophy" selected={@new_community_category == "philosophy"}>
-                      Philosophy
-                    </option>
-                    <option value="psychology" selected={@new_community_category == "psychology"}>
-                      Psychology
-                    </option>
-                    <option value="medicine" selected={@new_community_category == "medicine"}>
-                      Medicine
-                    </option>
-                    <option value="law" selected={@new_community_category == "law"}>
-                      Law & Legal
-                    </option>
-                  </optgroup>
-                  <optgroup label="Business & Finance">
-                    <option value="business" selected={@new_community_category == "business"}>
-                      Business
-                    </option>
-                    <option value="finance" selected={@new_community_category == "finance"}>
-                      Finance & Investment
-                    </option>
-                    <option value="stocks" selected={@new_community_category == "stocks"}>
-                      Stocks & Trading
-                    </option>
-                    <option value="realestate" selected={@new_community_category == "realestate"}>
-                      Real Estate
-                    </option>
-                    <option value="marketing" selected={@new_community_category == "marketing"}>
-                      Marketing
-                    </option>
-                    <option value="career" selected={@new_community_category == "career"}>
-                      Career & Jobs
-                    </option>
-                  </optgroup>
-                  <optgroup label="Society">
-                    <option value="news" selected={@new_community_category == "news"}>
-                      News & Current Events
-                    </option>
-                    <option value="politics" selected={@new_community_category == "politics"}>
-                      Politics
-                    </option>
-                    <option
-                      value="environment"
-                      selected={@new_community_category == "environment"}
-                    >
-                      Environment
-                    </option>
-                    <option value="energy" selected={@new_community_category == "energy"}>
-                      Energy & Sustainability
-                    </option>
-                    <option
-                      value="relationships"
-                      selected={@new_community_category == "relationships"}
-                    >
-                      Relationships
-                    </option>
-                    <option value="parenting" selected={@new_community_category == "parenting"}>
-                      Parenting & Family
-                    </option>
-                    <option value="religion" selected={@new_community_category == "religion"}>
-                      Religion
-                    </option>
-                    <option
-                      value="spirituality"
-                      selected={@new_community_category == "spirituality"}
-                    >
-                      Spirituality
-                    </option>
-                    <option value="conspiracy" selected={@new_community_category == "conspiracy"}>
-                      Conspiracy Theories
-                    </option>
-                    <option value="paranormal" selected={@new_community_category == "paranormal"}>
-                      Paranormal
-                    </option>
-                  </optgroup>
-                  <optgroup label="Other">
-                    <option value="general" selected={@new_community_category == "general"}>
-                      General Discussion
-                    </option>
-                  </optgroup>
-                </select>
-              </div>
+              <select name="category" class="select select-bordered w-full">
+                <optgroup label="Technology & Science">
+                  <option value="tech" selected={@new_community_category == "tech"}>
+                    Technology
+                  </option>
+                  <option
+                    value="programming"
+                    selected={@new_community_category == "programming"}
+                  >
+                    Programming
+                  </option>
+                  <option value="science" selected={@new_community_category == "science"}>
+                    Science
+                  </option>
+                  <option value="space" selected={@new_community_category == "space"}>
+                    Space & Astronomy
+                  </option>
+                  <option value="crypto" selected={@new_community_category == "crypto"}>
+                    Cryptocurrency
+                  </option>
+                </optgroup>
+                <optgroup label="Entertainment">
+                  <option value="gaming" selected={@new_community_category == "gaming"}>
+                    Gaming
+                  </option>
+                  <option value="movies" selected={@new_community_category == "movies"}>
+                    Movies
+                  </option>
+                  <option value="tv" selected={@new_community_category == "tv"}>
+                    TV Shows
+                  </option>
+                  <option value="anime" selected={@new_community_category == "anime"}>
+                    Anime & Manga
+                  </option>
+                  <option value="comics" selected={@new_community_category == "comics"}>
+                    Comics
+                  </option>
+                  <option value="music" selected={@new_community_category == "music"}>
+                    Music
+                  </option>
+                  <option value="books" selected={@new_community_category == "books"}>
+                    Books & Literature
+                  </option>
+                  <option value="comedy" selected={@new_community_category == "comedy"}>
+                    Comedy
+                  </option>
+                  <option value="memes" selected={@new_community_category == "memes"}>
+                    Memes
+                  </option>
+                </optgroup>
+                <optgroup label="Creative">
+                  <option value="art" selected={@new_community_category == "art"}>
+                    Art & Illustration
+                  </option>
+                  <option value="design" selected={@new_community_category == "design"}>
+                    Design
+                  </option>
+                  <option
+                    value="photography"
+                    selected={@new_community_category == "photography"}
+                  >
+                    Photography
+                  </option>
+                  <option value="writing" selected={@new_community_category == "writing"}>
+                    Writing
+                  </option>
+                  <option value="diy" selected={@new_community_category == "diy"}>
+                    DIY & How-To
+                  </option>
+                  <option value="crafts" selected={@new_community_category == "crafts"}>
+                    Crafts
+                  </option>
+                  <option value="fashion" selected={@new_community_category == "fashion"}>
+                    Fashion & Style
+                  </option>
+                </optgroup>
+                <optgroup label="Lifestyle">
+                  <option value="food" selected={@new_community_category == "food"}>
+                    Food & Cooking
+                  </option>
+                  <option value="fitness" selected={@new_community_category == "fitness"}>
+                    Fitness & Exercise
+                  </option>
+                  <option value="health" selected={@new_community_category == "health"}>
+                    Health & Wellness
+                  </option>
+                  <option value="travel" selected={@new_community_category == "travel"}>
+                    Travel
+                  </option>
+                  <option value="pets" selected={@new_community_category == "pets"}>
+                    Pets & Animals
+                  </option>
+                  <option value="nature" selected={@new_community_category == "nature"}>
+                    Nature & Outdoors
+                  </option>
+                  <option value="automotive" selected={@new_community_category == "automotive"}>
+                    Cars & Automotive
+                  </option>
+                  <option value="sports" selected={@new_community_category == "sports"}>
+                    Sports
+                  </option>
+                </optgroup>
+                <optgroup label="Learning">
+                  <option value="education" selected={@new_community_category == "education"}>
+                    Education
+                  </option>
+                  <option value="history" selected={@new_community_category == "history"}>
+                    History
+                  </option>
+                  <option value="philosophy" selected={@new_community_category == "philosophy"}>
+                    Philosophy
+                  </option>
+                  <option value="psychology" selected={@new_community_category == "psychology"}>
+                    Psychology
+                  </option>
+                  <option value="medicine" selected={@new_community_category == "medicine"}>
+                    Medicine
+                  </option>
+                  <option value="law" selected={@new_community_category == "law"}>
+                    Law & Legal
+                  </option>
+                </optgroup>
+                <optgroup label="Business & Finance">
+                  <option value="business" selected={@new_community_category == "business"}>
+                    Business
+                  </option>
+                  <option value="finance" selected={@new_community_category == "finance"}>
+                    Finance & Investment
+                  </option>
+                  <option value="stocks" selected={@new_community_category == "stocks"}>
+                    Stocks & Trading
+                  </option>
+                  <option value="realestate" selected={@new_community_category == "realestate"}>
+                    Real Estate
+                  </option>
+                  <option value="marketing" selected={@new_community_category == "marketing"}>
+                    Marketing
+                  </option>
+                  <option value="career" selected={@new_community_category == "career"}>
+                    Career & Jobs
+                  </option>
+                </optgroup>
+                <optgroup label="Society">
+                  <option value="news" selected={@new_community_category == "news"}>
+                    News & Current Events
+                  </option>
+                  <option value="politics" selected={@new_community_category == "politics"}>
+                    Politics
+                  </option>
+                  <option
+                    value="environment"
+                    selected={@new_community_category == "environment"}
+                  >
+                    Environment
+                  </option>
+                  <option value="energy" selected={@new_community_category == "energy"}>
+                    Energy & Sustainability
+                  </option>
+                  <option
+                    value="relationships"
+                    selected={@new_community_category == "relationships"}
+                  >
+                    Relationships
+                  </option>
+                  <option value="parenting" selected={@new_community_category == "parenting"}>
+                    Parenting & Family
+                  </option>
+                  <option value="religion" selected={@new_community_category == "religion"}>
+                    Religion
+                  </option>
+                  <option
+                    value="spirituality"
+                    selected={@new_community_category == "spirituality"}
+                  >
+                    Spirituality
+                  </option>
+                  <option value="conspiracy" selected={@new_community_category == "conspiracy"}>
+                    Conspiracy Theories
+                  </option>
+                  <option value="paranormal" selected={@new_community_category == "paranormal"}>
+                    Paranormal
+                  </option>
+                </optgroup>
+                <optgroup label="Other">
+                  <option value="general" selected={@new_community_category == "general"}>
+                    General Discussion
+                  </option>
+                </optgroup>
+              </select>
             </div>
           </div>
 
-          <div class="modal-action">
+          <div>
+            <label class="label">
+              <span class="label-text">Description</span>
+            </label>
+            <textarea
+              name="description"
+              placeholder="What is this community about?"
+              class="textarea textarea-bordered w-full resize-y overflow-y-auto leading-tight"
+              style="min-height: 7rem; max-height: 16rem;"
+              rows="4"
+              phx-hook="AutoExpandTextarea"
+              phx-update="ignore"
+              id="community-description-textarea"
+            ><%= @new_community_description %></textarea>
+            <p class="mt-1 text-xs leading-5 text-base-content/55">
+              Shown on the community page.
+            </p>
+          </div>
+
+          <div class="break-words rounded-lg border border-base-300 bg-base-200/35 px-3 py-2 text-xs leading-5 text-base-content/60">
+            The URL will use the community name exactly, without spaces or special characters.
+          </div>
+
+          <div class="modal-action mt-0">
             <button
               type="button"
               phx-click="toggle_create_community"

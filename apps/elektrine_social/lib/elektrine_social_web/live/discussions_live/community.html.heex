@@ -34,226 +34,217 @@
   <.e_nav active_tab="discussions" current_user={@current_user} />
   
 <!-- Community Header -->
-  <div class="card panel-card mb-6">
-    <div class="card-body p-4 sm:p-6">
-      <% community_rules = String.trim(@community.community_rules || "") %>
-      <% remote_mirror? =
-        @community.is_federated_mirror && is_integer(@community.remote_group_actor_id) %>
-      <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-4">
-        <div class="flex items-center gap-3 flex-1">
-          <div class="w-12 h-12 sm:w-16 sm:h-16 bg-error/10 rounded-lg flex items-center justify-center flex-shrink-0">
-            <.icon name="hero-users" class="w-6 h-6 sm:w-8 sm:h-8 text-error" />
-          </div>
-          <div class="flex-1 min-w-0">
-            <div class="text-xs font-semibold uppercase tracking-wide text-base-content/60 mb-1">
-              Community Timeline
-            </div>
-            <h1 class="text-xl sm:text-2xl font-bold">{@community.name}</h1>
-            <div class="flex items-center gap-2 mt-1">
-              <code class="text-sm opacity-70 bg-base-200 px-2 py-0.5 rounded">
-                !{@community_slug}@{Elektrine.ActivityPub.instance_domain()}
-              </code>
-            </div>
-            <p class="text-sm sm:text-base text-base-content/70 mt-2 line-clamp-3">
-              {@community.description}
-            </p>
-          </div>
+  <% community_rules = String.trim(@community.community_rules || "") %>
+  <% community_description = String.trim(@community.description || "") %>
+  <% remote_mirror? =
+    @community.is_federated_mirror && is_integer(@community.remote_group_actor_id) %>
+  <section class="panel-card mb-4 rounded-lg border border-base-300 p-4 sm:p-5">
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div class="flex min-w-0 gap-3 sm:gap-4">
+        <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-secondary/10 text-secondary sm:h-16 sm:w-16">
+          <.icon name="hero-users" class="h-7 w-7 sm:h-8 sm:w-8" />
         </div>
-        <div class="flex gap-2 w-full sm:w-auto">
-          <.link href={~p"/communities"} class="btn btn-ghost btn-xs sm:btn-sm">
-            <.icon name="hero-arrow-left" class="w-3 h-3 sm:w-4 sm:h-4 sm:mr-2" />
-            <span class="hidden sm:inline">Back</span>
-          </.link>
-          <%= if @is_owner do %>
-            <.link
-              href={~p"/communities/#{@community.name}/settings"}
-              class="btn btn-ghost btn-xs sm:btn-sm"
-            >
-              <.icon name="hero-cog-6-tooth" class="w-3 h-3 sm:w-4 sm:h-4 sm:mr-2" />
-              <span class="hidden sm:inline">Settings</span>
-            </.link>
-          <% end %>
-          <%= if @current_user do %>
-            <%= if !@is_member do %>
-              <button phx-click="join_community" class="btn btn-secondary btn-xs sm:btn-sm">
-                <.icon
-                  name={if remote_mirror?, do: "hero-globe-alt", else: "hero-user-plus"}
-                  class="w-3 h-3 sm:w-4 sm:h-4 sm:mr-2"
-                />
-                <span class="hidden sm:inline">
-                  {if remote_mirror?, do: "Follow", else: "Join"}
-                </span>
-              </button>
-            <% else %>
-              <%= if !@is_owner do %>
-                <button
-                  phx-click="leave_community"
-                  class="btn btn-ghost btn-secondary btn-xs sm:btn-sm"
-                >
-                  <.icon
-                    name={
-                      if remote_mirror?,
-                        do: "hero-minus-circle",
-                        else: "hero-arrow-right-on-rectangle"
-                    }
-                    class="w-3 h-3 sm:w-4 sm:h-4 sm:mr-2"
-                  />
-                  <span class="hidden sm:inline">
-                    {if remote_mirror?, do: "Unfollow", else: "Leave"}
-                  </span>
-                </button>
-              <% end %>
+        <div class="min-w-0">
+          <div class="flex flex-wrap items-center gap-2">
+            <h1 class="text-2xl font-semibold leading-tight sm:text-3xl">{@community.name}</h1>
+            <span class="badge badge-outline badge-sm">
+              {String.capitalize(@community.community_category || "general")}
+            </span>
+            <%= if remote_mirror? do %>
+              <span class="badge badge-info badge-sm">Remote mirror</span>
             <% end %>
-            <%= if @is_member do %>
-              <button
-                phx-click="toggle_new_post"
-                class="btn btn-secondary btn-xs sm:btn-sm flex-1 sm:flex-initial"
-              >
-                <.icon name="hero-plus" class="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" /> New Post
-              </button>
-            <% end %>
-          <% else %>
-            <.link
-              href={Elektrine.Paths.login_path()}
-              class="btn btn-secondary btn-xs sm:btn-sm flex-1 sm:flex-initial"
-            >
-              <.icon name="hero-lock-closed" class="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-              Sign in to Post
-            </.link>
-          <% end %>
+          </div>
+          <code class="mt-1 inline-flex max-w-full break-all rounded bg-base-200 px-2 py-0.5 text-xs text-base-content/70 sm:text-sm">
+            !{@community_slug}@{Elektrine.ActivityPub.instance_domain()}
+          </code>
+          <p class="mt-2 max-w-3xl text-sm leading-relaxed text-base-content/70 sm:text-base">
+            {if community_description == "",
+              do: "General discussion for community members.",
+              else: community_description}
+          </p>
         </div>
       </div>
 
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <div class="rounded-xl border border-base-300 bg-base-200/70 p-3">
-          <div class="text-xs font-semibold uppercase tracking-wide text-base-content/60">
-            Purpose
-          </div>
-          <div class="text-sm mt-1 line-clamp-2">
-            {if String.trim(@community.description || "") == "",
-              do: "General discussion for community members.",
-              else: String.trim(@community.description)}
-          </div>
+      <div class="flex w-full flex-wrap gap-2 sm:w-auto lg:justify-end">
+        <.link href={~p"/communities"} class="btn btn-ghost btn-sm">
+          <.icon name="hero-arrow-left" class="h-4 w-4 sm:mr-1" />
+          <span class="hidden sm:inline">Back</span>
+        </.link>
+        <%= if @is_owner do %>
+          <.link href={~p"/communities/#{@community.name}/settings"} class="btn btn-ghost btn-sm">
+            <.icon name="hero-cog-6-tooth" class="h-4 w-4 sm:mr-1" />
+            <span class="hidden sm:inline">Settings</span>
+          </.link>
+        <% end %>
+        <%= if @current_user do %>
+          <%= if !@is_member do %>
+            <button phx-click="join_community" class="btn btn-secondary btn-sm">
+              <.icon
+                name={if remote_mirror?, do: "hero-globe-alt", else: "hero-user-plus"}
+                class="h-4 w-4 sm:mr-1"
+              />
+              <span>{if remote_mirror?, do: "Follow", else: "Join"}</span>
+            </button>
+          <% else %>
+            <%= if !@is_owner do %>
+              <button phx-click="leave_community" class="btn btn-ghost btn-secondary btn-sm">
+                <.icon
+                  name={
+                    if remote_mirror?,
+                      do: "hero-minus-circle",
+                      else: "hero-arrow-right-on-rectangle"
+                  }
+                  class="h-4 w-4 sm:mr-1"
+                />
+                <span class="hidden sm:inline">
+                  {if remote_mirror?, do: "Unfollow", else: "Leave"}
+                </span>
+              </button>
+            <% end %>
+          <% end %>
+          <%= if @is_member do %>
+            <button
+              phx-click="toggle_new_post"
+              class="btn btn-secondary btn-sm flex-1 sm:flex-initial"
+            >
+              <.icon name="hero-plus" class="h-4 w-4 mr-1" /> New Post
+            </button>
+          <% end %>
+        <% else %>
+          <.link
+            href={Elektrine.Paths.login_path()}
+            class="btn btn-secondary btn-sm flex-1 sm:flex-initial"
+          >
+            <.icon name="hero-lock-closed" class="h-4 w-4 mr-1" /> Sign in to Post
+          </.link>
+        <% end %>
+      </div>
+    </div>
+
+    <div class="mt-4 grid gap-2 border-t border-base-300 pt-4 sm:grid-cols-4">
+      <div class="rounded-md bg-base-200/60 px-3 py-2">
+        <div class="text-[11px] font-semibold uppercase tracking-wide text-base-content/55">
+          Members
         </div>
-        <div class="rounded-xl border border-base-300 bg-base-200/70 p-3">
-          <div class="text-xs font-semibold uppercase tracking-wide text-base-content/60">
-            Rules
-          </div>
-          <div class="text-sm mt-1 line-clamp-2">
-            {if community_rules == "",
-              do: "No rules published yet.",
-              else: community_rules}
-          </div>
+        <div class="mt-0.5 text-sm font-medium">{@community.member_count}</div>
+      </div>
+      <div class="rounded-md bg-base-200/60 px-3 py-2">
+        <div class="text-[11px] font-semibold uppercase tracking-wide text-base-content/55">
+          Posts
         </div>
-        <div class="rounded-xl border border-base-300 bg-base-200/70 p-3">
-          <div class="text-xs font-semibold uppercase tracking-wide text-base-content/60">
-            Members
-          </div>
-          <div class="text-sm mt-1">
-            {@community.member_count} members
-            <span class="ml-2 badge badge-outline badge-xs sm:badge-sm">
-              {String.capitalize(@community.community_category || "general")}
-            </span>
-          </div>
+        <div class="mt-0.5 text-sm font-medium">{length(@discussion_posts)}</div>
+      </div>
+      <div class="rounded-md bg-base-200/60 px-3 py-2">
+        <div class="text-[11px] font-semibold uppercase tracking-wide text-base-content/55">
+          Cadence
         </div>
-        <div class="rounded-xl border border-base-300 bg-base-200/70 p-3">
-          <div class="text-xs font-semibold uppercase tracking-wide text-base-content/60">
-            Posting Cadence
-          </div>
-          <div class="text-sm mt-1">{@posting_cadence}</div>
+        <div class="mt-0.5 text-sm font-medium">{@posting_cadence}</div>
+      </div>
+      <div class="rounded-md bg-base-200/60 px-3 py-2">
+        <div class="text-[11px] font-semibold uppercase tracking-wide text-base-content/55">
+          Rules
+        </div>
+        <div class="mt-0.5 text-sm font-medium">
+          {if community_rules == "", do: "Default", else: "Configured"}
         </div>
       </div>
     </div>
-  </div>
+  </section>
   
 <!-- View Tabs -->
-  <div class="mb-4 flex flex-wrap gap-2" role="tablist" aria-label="Community sections">
-    <button
-      phx-click="switch_view"
-      phx-value-view="posts"
-      class={[
-        "btn btn-sm min-h-10 flex-1 rounded-full border border-base-300 px-4",
-        if(@current_view == "posts", do: "btn-primary", else: "btn-ghost")
-      ]}
-      role="tab"
-      aria-selected={@current_view == "posts"}
-    >
-      <.icon name="hero-chat-bubble-bottom-center-text" class="w-4 h-4 mr-2" /> Posts
-    </button>
-    <button
-      phx-click="switch_view"
-      phx-value-view="members"
-      class={[
-        "btn btn-sm min-h-10 flex-1 rounded-full border border-base-300 px-4",
-        if(@current_view == "members", do: "btn-primary", else: "btn-ghost")
-      ]}
-      role="tab"
-      aria-selected={@current_view == "members"}
-    >
-      <.icon name="hero-users" class="w-4 h-4 mr-2" /> Members ({length(@members)})
-    </button>
-    <%= if @is_moderator || (@current_user && @current_user.is_admin) do %>
+  <div
+    class="mb-5 overflow-x-auto rounded-lg border border-base-300 bg-base-100 p-1"
+    role="tablist"
+    aria-label="Community sections"
+  >
+    <div class="flex min-w-max gap-1">
       <button
         phx-click="switch_view"
-        phx-value-view="flairs"
+        phx-value-view="posts"
         class={[
-          "btn btn-sm min-h-10 flex-1 rounded-full border border-base-300 px-4",
-          if(@current_view == "flairs", do: "btn-primary", else: "btn-ghost")
+          "btn btn-sm min-h-9 shrink-0 rounded-md border border-transparent px-3",
+          if(@current_view == "posts", do: "btn-primary", else: "btn-ghost")
         ]}
         role="tab"
-        aria-selected={@current_view == "flairs"}
+        aria-selected={@current_view == "posts"}
       >
-        <.icon name="hero-tag" class="w-4 h-4 mr-2" /> Flairs
+        <.icon name="hero-chat-bubble-bottom-center-text" class="w-4 h-4 mr-2" /> Posts
       </button>
       <button
         phx-click="switch_view"
-        phx-value-view="queue"
+        phx-value-view="members"
         class={[
-          "btn btn-sm min-h-10 flex-1 rounded-full border border-base-300 px-4",
-          if(@current_view == "queue", do: "btn-primary", else: "btn-ghost")
+          "btn btn-sm min-h-9 shrink-0 rounded-md border border-transparent px-3",
+          if(@current_view == "members", do: "btn-primary", else: "btn-ghost")
         ]}
         role="tab"
-        aria-selected={@current_view == "queue"}
+        aria-selected={@current_view == "members"}
       >
-        <.icon name="hero-queue-list" class="w-4 h-4 mr-2" /> Queue ({length(@pending_posts)})
+        <.icon name="hero-users" class="w-4 h-4 mr-2" /> Members ({length(@members)})
       </button>
-      <button
-        phx-click="switch_view"
-        phx-value-view="bans"
-        class={[
-          "btn btn-sm min-h-10 flex-1 rounded-full border border-base-300 px-4",
-          if(@current_view == "bans", do: "btn-primary", else: "btn-ghost")
-        ]}
-        role="tab"
-        aria-selected={@current_view == "bans"}
-      >
-        <.icon name="hero-no-symbol" class="w-4 h-4 mr-2" /> Bans ({length(@banned_users)})
-      </button>
-      <button
-        phx-click="switch_view"
-        phx-value-view="log"
-        class={[
-          "btn btn-sm min-h-10 flex-1 rounded-full border border-base-300 px-4",
-          if(@current_view == "log", do: "btn-primary", else: "btn-ghost")
-        ]}
-        role="tab"
-        aria-selected={@current_view == "log"}
-      >
-        <.icon name="hero-clipboard-document-list" class="w-4 h-4 mr-2" /> Log
-      </button>
-      <button
-        phx-click="switch_view"
-        phx-value-view="automod"
-        class={[
-          "btn btn-sm min-h-10 flex-1 rounded-full border border-base-300 px-4",
-          if(@current_view == "automod", do: "btn-primary", else: "btn-ghost")
-        ]}
-        role="tab"
-        aria-selected={@current_view == "automod"}
-      >
-        <.icon name="hero-shield-check" class="w-4 h-4 mr-2" /> Auto-Mod
-      </button>
-    <% end %>
+      <%= if @is_moderator || (@current_user && @current_user.is_admin) do %>
+        <button
+          phx-click="switch_view"
+          phx-value-view="flairs"
+          class={[
+            "btn btn-sm min-h-9 shrink-0 rounded-md border border-transparent px-3",
+            if(@current_view == "flairs", do: "btn-primary", else: "btn-ghost")
+          ]}
+          role="tab"
+          aria-selected={@current_view == "flairs"}
+        >
+          <.icon name="hero-tag" class="w-4 h-4 mr-2" /> Flairs
+        </button>
+        <button
+          phx-click="switch_view"
+          phx-value-view="queue"
+          class={[
+            "btn btn-sm min-h-9 shrink-0 rounded-md border border-transparent px-3",
+            if(@current_view == "queue", do: "btn-primary", else: "btn-ghost")
+          ]}
+          role="tab"
+          aria-selected={@current_view == "queue"}
+        >
+          <.icon name="hero-queue-list" class="w-4 h-4 mr-2" /> Queue ({length(@pending_posts)})
+        </button>
+        <button
+          phx-click="switch_view"
+          phx-value-view="bans"
+          class={[
+            "btn btn-sm min-h-9 shrink-0 rounded-md border border-transparent px-3",
+            if(@current_view == "bans", do: "btn-primary", else: "btn-ghost")
+          ]}
+          role="tab"
+          aria-selected={@current_view == "bans"}
+        >
+          <.icon name="hero-no-symbol" class="w-4 h-4 mr-2" /> Bans ({length(@banned_users)})
+        </button>
+        <button
+          phx-click="switch_view"
+          phx-value-view="log"
+          class={[
+            "btn btn-sm min-h-9 shrink-0 rounded-md border border-transparent px-3",
+            if(@current_view == "log", do: "btn-primary", else: "btn-ghost")
+          ]}
+          role="tab"
+          aria-selected={@current_view == "log"}
+        >
+          <.icon name="hero-clipboard-document-list" class="w-4 h-4 mr-2" /> Log
+        </button>
+        <button
+          phx-click="switch_view"
+          phx-value-view="automod"
+          class={[
+            "btn btn-sm min-h-9 shrink-0 rounded-md border border-transparent px-3",
+            if(@current_view == "automod", do: "btn-primary", else: "btn-ghost")
+          ]}
+          role="tab"
+          aria-selected={@current_view == "automod"}
+        >
+          <.icon name="hero-shield-check" class="w-4 h-4 mr-2" /> Auto-Mod
+        </button>
+      <% end %>
+    </div>
   </div>
 
   <div class="flex flex-col lg:flex-row gap-0 lg:gap-2 xl:gap-6">
@@ -631,12 +622,12 @@
           </div>
         <% else %>
           <!-- Sort Options -->
-          <div class="mb-4 rounded-xl border border-base-300 bg-base-100/70 p-2 sm:p-3">
-            <div class="text-xs font-semibold uppercase tracking-wide text-base-content/60 mb-2">
-              Browse by intent
+          <div class="mb-4 flex flex-col gap-2 rounded-lg border border-base-300 bg-base-100 p-2 sm:flex-row sm:items-center sm:justify-between">
+            <div class="px-2 text-xs font-semibold uppercase tracking-wide text-base-content/55">
+              Sort
             </div>
             <div
-              class="grid grid-cols-2 sm:grid-cols-5 gap-2"
+              class="flex flex-wrap gap-1"
               role="tablist"
               aria-label="Sort posts"
             >
@@ -644,7 +635,7 @@
                 phx-click="set_sort"
                 phx-value-sort="hot"
                 class={[
-                  "btn btn-sm min-h-10 rounded-full border border-base-300",
+                  "btn btn-sm min-h-9 rounded-md border border-transparent px-3",
                   if(@sort_by == "hot", do: "btn-primary", else: "btn-ghost")
                 ]}
                 role="tab"
@@ -656,7 +647,7 @@
                 phx-click="set_sort"
                 phx-value-sort="new"
                 class={[
-                  "btn btn-sm min-h-10 rounded-full border border-base-300",
+                  "btn btn-sm min-h-9 rounded-md border border-transparent px-3",
                   if(@sort_by == "new", do: "btn-primary", else: "btn-ghost")
                 ]}
                 role="tab"
@@ -668,7 +659,7 @@
                 phx-click="set_sort"
                 phx-value-sort="top"
                 class={[
-                  "btn btn-sm min-h-10 rounded-full border border-base-300",
+                  "btn btn-sm min-h-9 rounded-md border border-transparent px-3",
                   if(@sort_by in ["top", "likes"], do: "btn-primary", else: "btn-ghost")
                 ]}
                 role="tab"
@@ -680,7 +671,7 @@
                 phx-click="set_sort"
                 phx-value-sort="oldest"
                 class={[
-                  "btn btn-sm min-h-10 rounded-full border border-base-300",
+                  "btn btn-sm min-h-9 rounded-md border border-transparent px-3",
                   if(@sort_by == "oldest", do: "btn-primary", else: "btn-ghost")
                 ]}
                 role="tab"
@@ -692,7 +683,7 @@
                 phx-click="set_sort"
                 phx-value-sort="unanswered"
                 class={[
-                  "btn btn-sm min-h-10 rounded-full border border-base-300",
+                  "btn btn-sm min-h-9 rounded-md border border-transparent px-3",
                   if(@sort_by == "unanswered", do: "btn-primary", else: "btn-ghost")
                 ]}
                 role="tab"
@@ -730,7 +721,7 @@
               </h3>
               <div class="space-y-4">
                 <%= for post <- @pinned_posts do %>
-                  <div class="card bg-base-200 border border-base-200 shadow-sm group relative">
+                  <div class="card group relative border border-base-300 bg-base-100 shadow-sm transition-colors hover:bg-base-200/35">
                     <div class="absolute top-2 right-2 flex flex-col items-end gap-1">
                       <div class="badge badge-error badge-sm gap-1">
                         <.icon name="hero-map-pin-solid" class="w-3 h-3" /> Pinned
@@ -1036,7 +1027,7 @@
           <%= if @discussion_posts && length(@discussion_posts) > 0 do %>
             <div class="space-y-4">
               <%= for post <- @discussion_posts do %>
-                <div class="card bg-base-200 border border-base-200 shadow-sm group">
+                <div class="card group border border-base-300 bg-base-100 shadow-sm transition-colors hover:bg-base-200/35">
                   <div class="card-body p-4">
                     <div class="flex gap-4">
                       <!-- Voting Column -->
@@ -2139,52 +2130,53 @@
     </div>
     
 <!-- Right Sidebar - Community Info (Shows on top on mobile, right side on desktop) -->
-    <div class="w-full lg:w-80 flex-shrink-0 card panel-card p-4 order-1 lg:order-2">
-      <h3 class="font-semibold mb-2">Community Info</h3>
-      <code class="text-xs opacity-70 bg-base-200 px-2 py-1 rounded mb-4 block">
-        !{@community_slug}@{Elektrine.ActivityPub.instance_domain()}
-      </code>
-
-      <div class="space-y-3">
-        <div>
-          <h4 class="font-medium text-sm mb-1">Description</h4>
-          <p class="text-sm opacity-70">{@community.description || "No description available"}</p>
-        </div>
-
-        <div class="flex justify-between text-sm">
-          <span class="opacity-70">Members</span>
-          <span class="font-medium">{@community.member_count}</span>
-        </div>
-
-        <div class="flex justify-between text-sm">
-          <span class="opacity-70">Posts</span>
-          <span class="font-medium">{length(@discussion_posts)}</span>
-        </div>
-
-        <div class="flex justify-between text-sm">
-          <span class="opacity-70">Category</span>
-          <span class="badge badge-outline badge-xs">
+    <aside class="order-1 w-full flex-shrink-0 lg:order-2 lg:w-80">
+      <div class="panel-card rounded-lg border border-base-300 p-4">
+        <div class="mb-3 flex items-center justify-between gap-3">
+          <h3 class="font-semibold">About</h3>
+          <span class="badge badge-outline badge-sm">
             {String.capitalize(@community.community_category || "general")}
           </span>
         </div>
-      </div>
 
-      <div class="mt-6 pt-4 border-t border-base-200">
-        <h4 class="font-semibold mb-2 text-sm">Community Rules</h4>
-        <div class="text-xs opacity-70">
-          <%= if @community.community_rules && @community.community_rules != "" do %>
-            <div class="whitespace-pre-line">{@community.community_rules}</div>
-          <% else %>
-            <div class="space-y-1">
-              <div>• Be respectful and constructive</div>
-              <div>• Stay on topic</div>
-              <div>• No spam or self-promotion</div>
-              <div>• Use upvotes for quality content</div>
-            </div>
-          <% end %>
+        <code class="block break-all rounded bg-base-200 px-2 py-1 text-xs text-base-content/70">
+          !{@community_slug}@{Elektrine.ActivityPub.instance_domain()}
+        </code>
+
+        <dl class="mt-4 grid grid-cols-3 gap-2 text-sm">
+          <div class="rounded-md bg-base-200/60 p-2">
+            <dt class="text-[11px] uppercase tracking-wide text-base-content/55">Members</dt>
+            <dd class="mt-0.5 font-semibold">{@community.member_count}</dd>
+          </div>
+          <div class="rounded-md bg-base-200/60 p-2">
+            <dt class="text-[11px] uppercase tracking-wide text-base-content/55">Posts</dt>
+            <dd class="mt-0.5 font-semibold">{length(@discussion_posts)}</dd>
+          </div>
+          <div class="rounded-md bg-base-200/60 p-2">
+            <dt class="text-[11px] uppercase tracking-wide text-base-content/55">Cadence</dt>
+            <dd class="mt-0.5 truncate font-semibold" title={@posting_cadence}>
+              {@posting_cadence}
+            </dd>
+          </div>
+        </dl>
+
+        <div class="mt-4 border-t border-base-300 pt-4">
+          <h4 class="mb-2 text-sm font-semibold">Rules</h4>
+          <div class="text-sm leading-relaxed text-base-content/70">
+            <%= if community_rules != "" do %>
+              <div class="whitespace-pre-line break-words">{community_rules}</div>
+            <% else %>
+              <ul class="space-y-1">
+                <li>Be respectful and constructive</li>
+                <li>Stay on topic</li>
+                <li>No spam or self-promotion</li>
+                <li>Use votes for quality content</li>
+              </ul>
+            <% end %>
+          </div>
         </div>
       </div>
-    </div>
+    </aside>
   </div>
 
   <.community_modals {assigns} />

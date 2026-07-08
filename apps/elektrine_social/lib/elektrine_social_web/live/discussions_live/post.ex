@@ -512,12 +512,12 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
       <img
         src="#{avatar_url}"
         alt="#{escaped_username} avatar"
-        class="w-6 h-6 rounded-lg object-cover"
+        class="w-6 h-6 rounded-full object-cover"
       />
       """
     else
       """
-      <div class="w-6 h-6 bg-gradient-to-br from-primary to-secondary text-primary-content flex items-center justify-center rounded-lg shadow-lg">
+      <div class="w-6 h-6 bg-secondary/10 text-secondary flex items-center justify-center rounded-full">
         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
         </svg>
@@ -591,33 +591,18 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
          %{reply: reply, children: children, depth: depth} = threaded_reply,
          assigns
        ) do
-    # Use minimal indentation and cap it early (like Reddit)
-    indent_class =
-      case depth do
-        0 -> ""
-        1 -> "ml-2 sm:ml-4"
-        2 -> "ml-4 sm:ml-8"
-        # Don't indent further than 2 levels
-        _ -> "ml-4 sm:ml-8"
-      end
+    tree_depth = min(depth, 4)
 
-    border_color =
-      case depth do
-        0 -> "border-l-error"
-        1 -> "border-l-secondary"
-        2 -> "border-l-accent"
-        3 -> "border-l-info"
-        _ -> "border-l-base-300"
-      end
+    node_class =
+      [
+        "timeline-thread-tree-node",
+        if(depth == 0, do: "timeline-thread-reply-row", else: nil),
+        if(depth > 0, do: "timeline-thread-tree-node--nested", else: nil)
+      ]
+      |> Enum.reject(&is_nil/1)
+      |> Enum.join(" ")
 
-    line_color =
-      case depth do
-        0 -> "bg-error"
-        1 -> "bg-secondary"
-        2 -> "bg-accent"
-        3 -> "bg-info"
-        _ -> "bg-base-300"
-      end
+    node_style = if depth > 0, do: ~s( style="--thread-depth: #{tree_depth};"), else: ""
 
     children_html =
       if children != [] do
@@ -736,69 +721,66 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
     profile_path = ~p"/#{escaped_username}"
 
     """
-    <div class="#{indent_class} relative min-w-0">
-      #{if depth > 0 do
+    <div class="#{node_class}"#{node_style}>
+      #{if depth == 0 do
       """
-      <div class="absolute left-0 top-0 bottom-0 w-px #{line_color} opacity-30"></div>
+      <span class="timeline-thread-reply-node" aria-hidden="true"></span>
+      <span class="timeline-thread-reply-elbow" aria-hidden="true"></span>
       """
     else
       ""
     end}
-      <div class="card bg-base-50 border border-base-200 shadow-sm border-l-4 #{border_color}">
-        <div class="card-body p-3 sm:p-4">
-          <div class="flex gap-2 sm:gap-3 min-w-0">
-            <!-- Reply Voting -->
-            <div class="flex flex-col items-center gap-1">
-              #{voting_html}
-            </div>
+      <div class="flex gap-2 mb-2 min-w-0">
+        <!-- Reply Voting -->
+        <div class="flex flex-col items-center gap-0.5 flex-shrink-0 pt-1">
+          #{voting_html}
+        </div>
 
-            <!-- Reply Content -->
-            <div class="flex-1 min-w-0">
-              <!-- Reply Header -->
-              <div class="flex items-start gap-2 mb-2 min-w-0">
-                <a href="#{profile_path}" class="w-6 h-6">
-                  #{render_user_avatar(reply.sender)}
-                </a>
-                <div class="flex items-center gap-1 flex-wrap min-w-0">
-                  <a href="#{profile_path}" class="inline-flex items-center font-medium text-sm hover:underline break-words">
-                    #{escaped_username}
-                  </a>
-                  #{flair_html}
-                  #{if reply.sender_id == Map.get(assigns, :post).sender_id do
+        <!-- Reply Content -->
+        <div class="timeline-thread-comment-card timeline-post-card timeline-post-card--dense relative flex-1 min-w-0 rounded-lg border border-base-300/70 px-3 py-2 transition-colors duration-150">
+          <!-- Reply Header -->
+          <div class="relative z-10 flex items-start gap-2 mb-2 min-w-0">
+            <a href="#{profile_path}" class="w-6 h-6 shrink-0">
+              #{render_user_avatar(reply.sender)}
+            </a>
+            <div class="flex flex-wrap items-center gap-1 min-w-0">
+              <a href="#{profile_path}" class="inline-flex items-center font-medium text-sm hover:underline break-words">
+                #{escaped_username}
+              </a>
+              #{flair_html}
+              #{if reply.sender_id == Map.get(assigns, :post).sender_id do
       """
       <span class="badge badge-xs badge-info">OP</span>
       """
     else
       ""
     end}
-                </div>
-                <span class="text-xs opacity-70 shrink-0">
-                  · #{format_relative_time(reply.inserted_at)}
-                </span>
-              </div>
+            </div>
+            <span class="text-xs opacity-60 shrink-0">
+              · #{format_relative_time(reply.inserted_at)}
+            </span>
+          </div>
 
-              <!-- Reply Content -->
-              <div class="mb-3">
-                <div class="text-sm break-words leading-normal">
-                  #{format_content_with_paragraphs(escaped_content_with_links)}
-                </div>
-              </div>
+          <!-- Reply Content -->
+          <div class="relative z-10 mb-2 text-sm break-words leading-relaxed">
+            #{format_content_with_paragraphs(escaped_content_with_links)}
+          </div>
 
-              <!-- Reply Actions -->
-              <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs opacity-70">
-                #{if Map.get(assigns, :current_user) do
+          <!-- Reply Actions -->
+          <div class="relative z-10 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-base-content/60">
+            #{if Map.get(assigns, :current_user) do
       """
       <button
         phx-click="show_nested_reply_form"
         phx-value-message_id="#{reply.id}"
-        class="hover:underline hover:text-error"
+        class="hover:text-secondary"
       >
         Reply
       </button>
       <button
         phx-click="copy_link"
         phx-value-message_id="#{reply.id}"
-        class="hover:underline hover:text-error"
+        class="hover:text-secondary"
       >
         Share
       </button>
@@ -808,7 +790,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
           href="#{Phoenix.HTML.html_escape(reply.activitypub_id) |> Phoenix.HTML.safe_to_string()}"
           target="_blank"
           rel="noopener noreferrer"
-          class="hover:underline hover:text-error inline-flex items-center gap-1"
+          class="hover:text-secondary inline-flex items-center gap-1"
           title="Open on remote instance"
         >
           <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -906,7 +888,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
           href="#{Phoenix.HTML.html_escape(reply.activitypub_id) |> Phoenix.HTML.safe_to_string()}"
           target="_blank"
           rel="noopener noreferrer"
-          class="hover:underline hover:text-error inline-flex items-center gap-1"
+          class="hover:text-secondary inline-flex items-center gap-1"
           title="Open on remote instance"
         >
           <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -920,8 +902,6 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
       end}
       """
     end}
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -929,11 +909,11 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
       <!-- Continue Thread Link -->
       #{if depth >= 2 && Map.get(threaded_reply, :has_more_children) do
       """
-      <div class="#{indent_class} mt-2">
+      <div class="mt-2 pl-8">
         <button
           phx-click="load_more_replies"
           phx-value-parent_id="#{reply.id}"
-          class="load-more-button text-sm inline-flex items-center gap-1 btn btn-xs"
+          class="load-more-button inline-flex items-center gap-1 btn btn-xs btn-ghost"
         >
           <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path>
@@ -949,9 +929,8 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
       <!-- Nested Reply Form -->
       #{if Map.get(assigns, :current_user) && Map.get(assigns, :nested_reply_to) == reply.id do
       """
-      <div class="mt-4 #{indent_class}">
-        <div class="card bg-base-200 border border-base-200 shadow-sm">
-          <div class="card-body p-4">
+      <div class="timeline-thread-inline-form mt-2">
+        <div class="timeline-thread-comment-card timeline-post-card timeline-post-card--dense rounded-lg border border-base-300/70 p-3">
             <div class="flex items-start gap-3 mb-3">
               <div class="w-6 h-6">
                 #{render_user_avatar(Map.get(assigns, :current_user))}
@@ -969,7 +948,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
               <textarea
                 name="content"
                 placeholder="Write your reply..."
-                class="textarea textarea-bordered w-full mb-3"
+                class="textarea textarea-bordered w-full mb-3 resize-y overflow-y-auto leading-tight"
                 rows="3"
                 required
               >#{assigns[:nested_reply_content] || ""}</textarea>
@@ -986,7 +965,6 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
                 </button>
               </div>
             </form>
-          </div>
         </div>
       </div>
       """
