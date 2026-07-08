@@ -1857,6 +1857,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         is_gallery_post={@is_gallery_post}
         on_image_click={@on_image_click}
         id_prefix={@id_prefix}
+        source={@source}
       />
       
     <!-- Media attachments -->
@@ -1865,6 +1866,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         is_gallery_post={@is_gallery_post}
         on_image_click={@on_image_click}
         id_prefix={@id_prefix}
+        source={@source}
       />
       
     <!-- Link Preview -->
@@ -2170,12 +2172,12 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
                   do:
                     if(@like_only_mode,
                       do: "bg-error/20 text-error hover:bg-error/30",
-                      else: "bg-success/20 text-success hover:bg-success/30"
+                      else: "bg-secondary/20 text-secondary hover:bg-secondary/30"
                     ),
                   else:
                     if(@like_only_mode,
-                      do: "text-base-content/75 hover:bg-error/20 hover:text-error",
-                      else: "text-base-content/75 hover:bg-success/20 hover:text-success"
+                      do: "text-base-content/50 hover:bg-error/20 hover:text-error",
+                      else: "text-base-content/50 hover:bg-secondary/20 hover:text-secondary"
                     )
                 )
               ]}
@@ -2204,7 +2206,16 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
               />
             </div>
           <% end %>
-          <span aria-label={"Score: #{@score}"}>
+          <span
+            class={[
+              cond do
+                @is_liked and !@like_only_mode -> "text-secondary"
+                @is_downvoted -> "text-error"
+                true -> ""
+              end
+            ]}
+            aria-label={"Score: #{@score}"}
+          >
             <span
               id={"#{@unique_id}-score-count"}
               class="text-sm sm:text-lg font-bold"
@@ -2224,7 +2235,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
                 "inline-flex h-7 w-7 items-center justify-center rounded-md border border-transparent p-1 transition-none sm:h-9 sm:w-9 sm:p-2 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
                 if(@is_downvoted,
                   do: "bg-error/20 text-error hover:bg-error/30",
-                  else: "text-base-content/75 hover:bg-error/20 hover:text-error"
+                  else: "text-base-content/50 hover:bg-error/20 hover:text-error"
                 )
               ]}
               aria-label={if @is_downvoted, do: "Remove downvote", else: "Downvote"}

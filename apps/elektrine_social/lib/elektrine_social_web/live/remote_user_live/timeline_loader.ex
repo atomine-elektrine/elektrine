@@ -430,7 +430,7 @@ defmodule ElektrineSocialWeb.RemoteUserLive.TimelineLoader do
     # For Person actors, query by remote_actor_id
     if remote_actor.actor_type == "Group" do
       # For Lemmy communities: posts are "Page" type, comments are "Note" type
-      # Filter to only show Page type (or null for older posts without type stored)
+      # Filter to only show Page type (or null for legacy posts without type stored)
       # Also filter out Lemmy comment URLs which contain "/comment/"
       Repo.all(
         from(m in Elektrine.Social.Message,

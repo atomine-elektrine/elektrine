@@ -35,6 +35,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePostMedia do
   attr :is_gallery_post, :boolean, default: false
   attr :on_image_click, :string, default: "open_image_modal"
   attr :id_prefix, :string, default: "post"
+  attr :source, :string, default: "timeline"
 
   def content_images(assigns) do
     image_urls = Elektrine.Social.Message.extract_image_urls(assigns.post.content)
@@ -44,8 +45,9 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePostMedia do
       |> assign(:image_urls, image_urls)
       |> assign(
         :content_image_frame_style,
-        media_frame_style(nil, nil, @default_image_aspect_ratio)
+        media_frame_style(nil, nil, @default_image_aspect_ratio, assigns.source)
       )
+      |> assign(:media_frame_class, media_frame_class(assigns.source))
 
     ~H"""
     <%= if @image_urls != [] do %>
@@ -59,7 +61,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePostMedia do
             phx-value-images={Jason.encode!(@image_urls)}
             phx-value-index={idx}
             phx-value-post_id={@post.id}
-            class="block w-full overflow-hidden rounded-lg bg-base-200/55"
+            class={@media_frame_class}
             style={@content_image_frame_style}
           >
             <img
@@ -83,9 +85,10 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePostMedia do
   attr :is_gallery_post, :boolean, default: false
   attr :on_image_click, :string, default: "open_image_modal"
   attr :id_prefix, :string, default: "post"
+  attr :source, :string, default: "timeline"
 
   def media_attachments(assigns) do
-    media_entries = build_media_entries(assigns.post)
+    media_entries = build_media_entries(assigns.post, assigns.source)
     full_media_urls = Enum.map(media_entries, & &1.full_url)
     sensitive? = sensitive_post?(assigns.post)
 
@@ -94,6 +97,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePostMedia do
       |> assign(:media_entries, media_entries)
       |> assign(:full_media_urls, full_media_urls)
       |> assign(:sensitive?, sensitive?)
+      |> assign(:media_frame_class, media_frame_class(assigns.source))
 
     ~H"""
     <%= if @media_entries != [] do %>
@@ -108,7 +112,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePostMedia do
           <%= cond do %>
             <% media_entry.is_video -> %>
               <div
-                class="w-full overflow-hidden rounded-lg bg-base-200/55"
+                class={@media_frame_class}
                 style={media_entry.frame_style}
               >
                 <video
@@ -133,7 +137,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePostMedia do
                 phx-value-images={Jason.encode!(@full_media_urls)}
                 phx-value-index={media_entry.index}
                 phx-value-post_id={@post.id}
-                class="block w-full overflow-hidden rounded-lg bg-base-200/55"
+                class={@media_frame_class}
                 style={media_entry.frame_style}
               >
                 <img
@@ -241,7 +245,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePostMedia do
     end
   end
 
-  defp build_media_entries(post) do
+  defp build_media_entries(post, source) do
     metadata = media_metadata(post)
     alt_texts = media_alt_texts(metadata)
     attachments = attachment_metadata(metadata)
@@ -265,7 +269,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePostMedia do
                 Map.get(alt_texts, to_string(index)) ||
                   attachment_alt_text(Enum.at(attachments, index)) ||
                   "Posted media",
-              frame_style: media_frame_style(width, height, fallback_ratio),
+              frame_style: media_frame_style(width, height, fallback_ratio, source),
               full_url: full_url,
               height: height,
               index: index,
@@ -395,7 +399,12 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePostMedia do
 
   defp legacy_media_dimension(_metadata, _key, _index), do: nil
 
-  defp media_frame_style(width, height, fallback_ratio) do
+  defp media_frame_class("portal"),
+    do: "block w-full max-w-md mx-auto overflow-hidden rounded-lg bg-base-200/55"
+
+  defp media_frame_class(_source), do: "block w-full overflow-hidden rounded-lg bg-base-200/55"
+
+  defp media_frame_style(width, height, fallback_ratio, source) do
     {aspect_width, aspect_height} =
       case {positive_integer(width), positive_integer(height)} do
         {nil, nil} -> fallback_ratio
@@ -404,8 +413,11 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePostMedia do
         {valid_width, valid_height} -> {valid_width, valid_height}
       end
 
-    "aspect-ratio: #{aspect_width} / #{aspect_height};"
+    "aspect-ratio: #{aspect_width} / #{aspect_height};#{media_frame_max_height(source)}"
   end
+
+  defp media_frame_max_height("portal"), do: " max-height: 18rem;"
+  defp media_frame_max_height(_source), do: ""
 
   defp positive_integer(value) when is_integer(value) and value > 0, do: value
   defp positive_integer(_value), do: nil
