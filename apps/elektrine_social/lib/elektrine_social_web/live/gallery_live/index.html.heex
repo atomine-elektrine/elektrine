@@ -81,12 +81,7 @@
                 <div class="grid grid-cols-2 gap-3 text-sm">
                   <%= for label <- ["Uploads", "Likes", "Views", "Saved"] do %>
                     <div class="rounded-lg border border-base-300 px-3 py-3">
-                      <div
-                        class="text-lg font-semibold text-transparent select-none"
-                        aria-hidden="true"
-                      >
-                        &nbsp;
-                      </div>
+                      <div class="skeleton mb-1 h-7 w-12" aria-hidden="true"></div>
                       <div class="text-xs uppercase tracking-wide text-base-content/60">
                         {label}
                       </div>

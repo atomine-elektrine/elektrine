@@ -48,8 +48,8 @@
             <p class="text-xs uppercase tracking-wide text-base-content/60">Unread groups</p>
             <p class="mt-1 text-2xl font-semibold tabular-nums">
               <%= if @loading_notifications do %>
-                <span class="inline-block min-w-8 text-transparent select-none" aria-hidden="true">
-                  &nbsp;
+                <span class="inline-block min-w-8 text-base-content/45" aria-busy="true">
+                  --
                 </span>
               <% else %>
                 {@notification_stats.waiting_groups}
@@ -60,8 +60,8 @@
             <p class="text-xs uppercase tracking-wide text-base-content/60">Visible</p>
             <p class="mt-1 text-2xl font-semibold tabular-nums">
               <%= if @loading_notifications do %>
-                <span class="inline-block min-w-8 text-transparent select-none" aria-hidden="true">
-                  &nbsp;
+                <span class="inline-block min-w-8 text-base-content/45" aria-busy="true">
+                  --
                 </span>
               <% else %>
                 {length(@filtered_notifications)}
@@ -135,10 +135,10 @@
                 <span class="opacity-70">
                   <%= if @loading_notifications do %>
                     <span
-                      class="inline-block min-w-[4ch] text-transparent select-none"
-                      aria-hidden="true"
+                      class="inline-block min-w-[4ch] text-base-content/45"
+                      aria-busy="true"
                     >
-                      (88)
+                      (--)
                     </span>
                   <% else %>
                     ({notification_state_count(filter, @notification_stats)})
@@ -160,10 +160,10 @@
               <span class="opacity-70">
                 <%= if @loading_notifications do %>
                   <span
-                    class="inline-block min-w-[4ch] text-transparent select-none"
-                    aria-hidden="true"
+                    class="inline-block min-w-[4ch] text-base-content/45"
+                    aria-busy="true"
                   >
-                    (88)
+                    (--)
                   </span>
                 <% else %>
                   ({Map.get(@notification_stats.source_counts || %{}, source, 0)})

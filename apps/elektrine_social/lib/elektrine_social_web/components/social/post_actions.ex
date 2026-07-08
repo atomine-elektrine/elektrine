@@ -935,10 +935,10 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
     <%= if @loading && !@count_known? do %>
       <span
         id={@id}
-        class={[@class, "inline-block min-w-[2ch] text-transparent select-none"]}
-        aria-hidden="true"
+        class={[@class, "inline-block min-w-[2ch] text-base-content/45"]}
+        aria-busy="true"
       >
-        &nbsp;
+        --
       </span>
     <% else %>
       <span

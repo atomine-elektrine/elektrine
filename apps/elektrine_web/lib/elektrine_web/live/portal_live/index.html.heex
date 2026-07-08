@@ -63,17 +63,18 @@
           ]}>
             <.icon name={stat.icon} class="h-4 w-4" />
           </span>
-          <div class="min-w-0" data-dashboard-loading={to_string(@loading_dashboard)}>
-            <%= if @loading_dashboard do %>
-              <p
-                class="min-w-8 text-lg font-semibold leading-none tabular-nums text-transparent select-none"
-                aria-hidden="true"
-              >
-                &nbsp;
-              </p>
-            <% else %>
-              <p class="text-lg font-semibold leading-none tabular-nums">{stat.count}</p>
-            <% end %>
+          <div
+            class="min-w-0"
+            data-dashboard-loading={to_string(@loading_dashboard)}
+            aria-busy={@loading_dashboard}
+          >
+            <p class={[
+              "text-lg font-semibold leading-none tabular-nums",
+              if(@loading_dashboard, do: "text-base-content/70", else: "text-base-content")
+            ]}>
+              {stat.count}
+              <span :if={@loading_dashboard} class="sr-only">Updating</span>
+            </p>
             <p class="mt-1 truncate text-xs text-base-content/60">{stat.label}</p>
           </div>
         </div>
