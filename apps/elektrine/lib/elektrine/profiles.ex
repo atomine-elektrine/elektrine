@@ -53,6 +53,7 @@ defmodule Elektrine.Profiles do
   @default_profile_analytics_retention_days 90
   @default_analytics_retention_batch_size 5_000
   @default_analytics_retention_max_batches 100
+  @public_site_rollup_days 30
 
   # Custom profile domains
   defdelegate list_user_custom_domains(user_id), to: Elektrine.Profiles.CustomDomains
@@ -689,7 +690,13 @@ defmodule Elektrine.Profiles do
     today_start = DateTime.new!(Date.utc_today(), ~T[00:00:00])
     week_ago = DateTime.utc_now() |> DateTime.add(-7, :day)
 
-    stats = get_public_site_session_view_stats(request_host, today_start, week_ago)
+    stats =
+      if public_site_rollups_available?(public_site_rollup_start_date(), Date.utc_today()) do
+        get_public_site_rollup_view_stats(request_host, today_start, week_ago)
+      else
+        get_public_site_session_view_stats(request_host, today_start, week_ago)
+      end
+
     sessions = stats.sessions || 0
     bounces = stats.bounces || 0
 
@@ -789,51 +796,67 @@ defmodule Elektrine.Profiles do
     start_datetime = DateTime.new!(start_date, ~T[00:00:00])
 
     actual_views =
-      request_host
-      |> site_sessions_query()
-      |> where([ss], ss.started_at >= ^start_datetime)
-      |> group_by([ss], fragment("DATE(?)", ss.started_at))
-      |> select([ss], %{
-        date: fragment("DATE(?)", ss.started_at),
-        count: fragment("COALESCE(SUM(?), 0)", ss.page_views)
-      })
-      |> Repo.all()
-      |> Map.new(fn %{date: date, count: count} -> {date, count} end)
+      if public_site_rollups_available?(start_date, end_date) do
+        get_public_site_rollup_daily_view_counts(start_date, end_date, request_host)
+      else
+        request_host
+        |> site_sessions_query()
+        |> where([ss], ss.started_at >= ^start_datetime)
+        |> group_by([ss], fragment("DATE(?)", ss.started_at))
+        |> select([ss], %{
+          date: fragment("DATE(?)", ss.started_at),
+          count: fragment("COALESCE(SUM(?), 0)", ss.page_views)
+        })
+        |> Repo.all()
+        |> Map.new(fn %{date: date, count: count} -> {date, count} end)
+      end
 
     Date.range(start_date, end_date)
     |> Enum.map(fn date -> %{date: date, count: Map.get(actual_views, date, 0)} end)
   end
 
   def get_public_site_top_pages(request_host \\ nil, limit \\ 10) do
-    start_datetime = DateTime.utc_now() |> DateTime.add(-30, :day)
+    start_date = public_site_rollup_start_date()
+    start_datetime = DateTime.new!(start_date, ~T[00:00:00])
+    end_date = Date.utc_today()
 
-    request_host
-    |> site_sessions_query()
-    |> where([ss], ss.started_at >= ^start_datetime)
-    |> group_by([ss], [ss.entry_host, ss.entry_path])
-    |> order_by([ss], desc: fragment("COALESCE(SUM(?), 0)", ss.page_views))
-    |> limit(^limit)
-    |> select([ss], %{
-      host: ss.entry_host,
-      path: ss.entry_path,
-      views: fragment("COALESCE(SUM(?), 0)", ss.page_views),
-      unique_visitors: count()
-    })
-    |> Repo.all()
+    if public_site_rollups_available?(start_date, end_date) do
+      get_public_site_rollup_top_pages(request_host, start_date, end_date, limit)
+    else
+      request_host
+      |> site_sessions_query()
+      |> where([ss], ss.started_at >= ^start_datetime)
+      |> group_by([ss], [ss.entry_host, ss.entry_path])
+      |> order_by([ss], desc: fragment("COALESCE(SUM(?), 0)", ss.page_views))
+      |> limit(^limit)
+      |> select([ss], %{
+        host: ss.entry_host,
+        path: ss.entry_path,
+        views: fragment("COALESCE(SUM(?), 0)", ss.page_views),
+        unique_visitors: count()
+      })
+      |> Repo.all()
+    end
   end
 
   def get_public_site_top_referrers(request_host \\ nil, limit \\ 10) do
-    start_datetime = DateTime.utc_now() |> DateTime.add(-30, :day)
+    start_date = public_site_rollup_start_date()
+    start_datetime = DateTime.new!(start_date, ~T[00:00:00])
+    end_date = Date.utc_today()
 
-    request_host
-    |> site_sessions_query()
-    |> where([ss], ss.started_at >= ^start_datetime)
-    |> where([ss], not is_nil(ss.referer))
-    |> group_by([ss], ss.referer)
-    |> order_by([_ss], desc: count())
-    |> limit(^limit)
-    |> select([ss], %{referer: ss.referer, count: count()})
-    |> Repo.all()
+    if public_site_rollups_available?(start_date, end_date) do
+      get_public_site_rollup_top_referrers(request_host, start_date, end_date, limit)
+    else
+      request_host
+      |> site_sessions_query()
+      |> where([ss], ss.started_at >= ^start_datetime)
+      |> where([ss], not is_nil(ss.referer))
+      |> group_by([ss], ss.referer)
+      |> order_by([_ss], desc: count())
+      |> limit(^limit)
+      |> select([ss], %{referer: ss.referer, count: count()})
+      |> Repo.all()
+    end
   end
 
   def get_public_site_domain_breakdown([]), do: []
@@ -841,24 +864,354 @@ defmodule Elektrine.Profiles do
   def get_public_site_domain_breakdown(hosts) when is_list(hosts) do
     today_start = DateTime.new!(Date.utc_today(), ~T[00:00:00])
 
-    site_sessions_query(hosts)
-    |> group_by([ss], ss.entry_host)
-    |> select([ss], %{
-      host: ss.entry_host,
-      views: fragment("COALESCE(SUM(?), 0)", ss.page_views),
-      unique_visitors: count(),
-      views_today:
-        fragment(
-          "COALESCE(SUM(?) FILTER (WHERE ? >= ?), 0)",
-          ss.page_views,
-          ss.started_at,
-          ^today_start
-        )
-    })
-    |> Repo.all()
+    if public_site_rollups_available?(public_site_rollup_start_date(), Date.utc_today()) do
+      get_public_site_rollup_domain_breakdown(hosts, today_start)
+    else
+      site_sessions_query(hosts)
+      |> group_by([ss], ss.entry_host)
+      |> select([ss], %{
+        host: ss.entry_host,
+        views: fragment("COALESCE(SUM(?), 0)", ss.page_views),
+        unique_visitors: count(),
+        views_today:
+          fragment(
+            "COALESCE(SUM(?) FILTER (WHERE ? >= ?), 0)",
+            ss.page_views,
+            ss.started_at,
+            ^today_start
+          )
+      })
+      |> Repo.all()
+    end
   end
 
   def get_public_site_domain_breakdown(_hosts), do: []
+
+  @doc """
+  Refreshes public site analytics rollups from raw site sessions.
+  """
+  def refresh_public_site_analytics_rollups(opts \\ []) do
+    days = Keyword.get(opts, :days, @public_site_rollup_days)
+    end_date = Keyword.get(opts, :end_date, Date.utc_today())
+    start_date = Date.add(end_date, -days + 1)
+
+    {:ok, counts} =
+      Repo.transaction(fn ->
+        delete_public_site_rollups(start_date, end_date)
+
+        %{
+          daily: insert_public_site_daily_rollups(start_date, end_date),
+          pages: insert_public_site_page_rollups(start_date, end_date),
+          referrers: insert_public_site_referrer_rollups(start_date, end_date),
+          dates: mark_public_site_rollup_dates(start_date, end_date)
+        }
+      end)
+
+    counts
+  end
+
+  defp public_site_rollup_start_date,
+    do: Date.utc_today() |> Date.add(-@public_site_rollup_days + 1)
+
+  defp public_site_rollups_available?(start_date, end_date) do
+    expected_dates = Date.diff(end_date, start_date) + 1
+
+    %{rows: [[available_dates]]} =
+      Repo.query!(
+        """
+        SELECT COUNT(*)
+        FROM site_analytics_rollup_dates
+        WHERE date BETWEEN $1 AND $2
+        """,
+        [start_date, end_date]
+      )
+
+    available_dates == expected_dates
+  rescue
+    Postgrex.Error -> false
+  end
+
+  defp get_public_site_rollup_view_stats(request_host, today_start, week_ago) do
+    today = DateTime.to_date(today_start)
+    week_start = DateTime.to_date(week_ago)
+    start_date = public_site_rollup_start_date()
+    end_date = Date.utc_today()
+
+    case rollup_host_filter(request_host) do
+      :none ->
+        empty_public_site_rollup_stats()
+
+      {all_hosts?, hosts} ->
+        %{
+          rows: [[total_views, sessions, duration_seconds, bounces, views_today, views_this_week]]
+        } =
+          Repo.query!(
+            """
+            SELECT
+              COALESCE(SUM(views), 0)::bigint,
+              COALESCE(SUM(sessions), 0)::bigint,
+              COALESCE(SUM(duration_seconds), 0)::bigint,
+              COALESCE(SUM(bounces), 0)::bigint,
+              COALESCE(SUM(views) FILTER (WHERE date >= $5), 0)::bigint,
+              COALESCE(SUM(views) FILTER (WHERE date >= $6), 0)::bigint
+            FROM site_analytics_daily_rollups
+            WHERE date BETWEEN $1 AND $2
+              AND ($3 OR host = ANY($4::text[]))
+            """,
+            [start_date, end_date, all_hosts?, hosts, today, week_start]
+          )
+
+        %{
+          total_views: total_views,
+          sessions: sessions,
+          avg_session_duration_seconds:
+            if(sessions > 0, do: duration_seconds / sessions, else: 0.0),
+          bounces: bounces,
+          views_today: views_today,
+          views_this_week: views_this_week
+        }
+    end
+  end
+
+  defp empty_public_site_rollup_stats do
+    %{
+      total_views: 0,
+      sessions: 0,
+      avg_session_duration_seconds: 0.0,
+      bounces: 0,
+      views_today: 0,
+      views_this_week: 0
+    }
+  end
+
+  defp get_public_site_rollup_daily_view_counts(start_date, end_date, request_host) do
+    case rollup_host_filter(request_host) do
+      :none ->
+        %{}
+
+      {all_hosts?, hosts} ->
+        %{rows: rows} =
+          Repo.query!(
+            """
+            SELECT date, COALESCE(SUM(views), 0)::bigint
+            FROM site_analytics_daily_rollups
+            WHERE date BETWEEN $1 AND $2
+              AND ($3 OR host = ANY($4::text[]))
+            GROUP BY date
+            """,
+            [start_date, end_date, all_hosts?, hosts]
+          )
+
+        Map.new(rows, fn [date, count] -> {date, count} end)
+    end
+  end
+
+  defp get_public_site_rollup_top_pages(request_host, start_date, end_date, limit) do
+    case rollup_host_filter(request_host) do
+      :none ->
+        []
+
+      {all_hosts?, hosts} ->
+        %{rows: rows} =
+          Repo.query!(
+            """
+            SELECT host, path, COALESCE(SUM(views), 0)::bigint, COALESCE(SUM(sessions), 0)::bigint
+            FROM site_analytics_page_rollups
+            WHERE date BETWEEN $1 AND $2
+              AND ($3 OR host = ANY($4::text[]))
+            GROUP BY host, path
+            ORDER BY COALESCE(SUM(views), 0) DESC
+            LIMIT $5
+            """,
+            [start_date, end_date, all_hosts?, hosts, limit]
+          )
+
+        Enum.map(rows, fn [host, path, views, sessions] ->
+          %{host: host, path: path, views: views, unique_visitors: sessions}
+        end)
+    end
+  end
+
+  defp get_public_site_rollup_top_referrers(request_host, start_date, end_date, limit) do
+    case rollup_host_filter(request_host) do
+      :none ->
+        []
+
+      {all_hosts?, hosts} ->
+        %{rows: rows} =
+          Repo.query!(
+            """
+            SELECT referrer, COALESCE(SUM(sessions), 0)::bigint
+            FROM site_analytics_referrer_rollups
+            WHERE date BETWEEN $1 AND $2
+              AND ($3 OR host = ANY($4::text[]))
+            GROUP BY referrer
+            ORDER BY COALESCE(SUM(sessions), 0) DESC
+            LIMIT $5
+            """,
+            [start_date, end_date, all_hosts?, hosts, limit]
+          )
+
+        Enum.map(rows, fn [referer, count] -> %{referer: referer, count: count} end)
+    end
+  end
+
+  defp get_public_site_rollup_domain_breakdown(hosts, today_start) do
+    today = DateTime.to_date(today_start)
+    start_date = public_site_rollup_start_date()
+    end_date = Date.utc_today()
+
+    case rollup_host_filter(hosts) do
+      :none ->
+        []
+
+      {all_hosts?, normalized_hosts} ->
+        %{rows: rows} =
+          Repo.query!(
+            """
+            SELECT
+              host,
+              COALESCE(SUM(views), 0)::bigint,
+              COALESCE(SUM(sessions), 0)::bigint,
+              COALESCE(SUM(views) FILTER (WHERE date >= $5), 0)::bigint
+            FROM site_analytics_daily_rollups
+            WHERE date BETWEEN $1 AND $2
+              AND ($3 OR host = ANY($4::text[]))
+            GROUP BY host
+            """,
+            [start_date, end_date, all_hosts?, normalized_hosts, today]
+          )
+
+        Enum.map(rows, fn [host, views, unique_visitors, views_today] ->
+          %{host: host, views: views, unique_visitors: unique_visitors, views_today: views_today}
+        end)
+    end
+  end
+
+  defp rollup_host_filter(hosts) when is_list(hosts) do
+    case normalize_request_hosts(hosts) do
+      [] -> :none
+      normalized_hosts -> {false, normalized_hosts}
+    end
+  end
+
+  defp rollup_host_filter(host) do
+    case normalize_request_hosts(host) do
+      [] -> {true, [""]}
+      normalized_hosts -> {false, normalized_hosts}
+    end
+  end
+
+  defp delete_public_site_rollups(start_date, end_date) do
+    Enum.each(
+      [
+        "site_analytics_daily_rollups",
+        "site_analytics_page_rollups",
+        "site_analytics_referrer_rollups",
+        "site_analytics_rollup_dates"
+      ],
+      fn table ->
+        Repo.query!("DELETE FROM #{table} WHERE date BETWEEN $1 AND $2", [start_date, end_date])
+      end
+    )
+  end
+
+  defp insert_public_site_daily_rollups(start_date, end_date) do
+    %{num_rows: inserted} =
+      Repo.query!(
+        """
+        INSERT INTO site_analytics_daily_rollups (
+          host, date, views, sessions, bounces, duration_seconds, inserted_at, updated_at
+        )
+        SELECT
+          entry_host,
+          started_at::date,
+          COALESCE(SUM(page_views), 0)::bigint,
+          COUNT(*)::bigint,
+          COUNT(*) FILTER (WHERE page_views = 1)::bigint,
+          COALESCE(SUM(duration_seconds), 0)::bigint,
+          timezone('UTC', now())::timestamp(0),
+          timezone('UTC', now())::timestamp(0)
+        FROM site_sessions
+        WHERE entry_host IS NOT NULL
+          AND started_at >= $1::date
+          AND started_at < ($2::date + interval '1 day')
+        GROUP BY entry_host, started_at::date
+        """,
+        [start_date, end_date]
+      )
+
+    inserted
+  end
+
+  defp insert_public_site_page_rollups(start_date, end_date) do
+    %{num_rows: inserted} =
+      Repo.query!(
+        """
+        INSERT INTO site_analytics_page_rollups (
+          host, path, date, views, sessions, inserted_at, updated_at
+        )
+        SELECT
+          entry_host,
+          entry_path,
+          started_at::date,
+          COALESCE(SUM(page_views), 0)::bigint,
+          COUNT(*)::bigint,
+          timezone('UTC', now())::timestamp(0),
+          timezone('UTC', now())::timestamp(0)
+        FROM site_sessions
+        WHERE entry_host IS NOT NULL
+          AND entry_path IS NOT NULL
+          AND started_at >= $1::date
+          AND started_at < ($2::date + interval '1 day')
+        GROUP BY entry_host, entry_path, started_at::date
+        """,
+        [start_date, end_date]
+      )
+
+    inserted
+  end
+
+  defp insert_public_site_referrer_rollups(start_date, end_date) do
+    %{num_rows: inserted} =
+      Repo.query!(
+        """
+        INSERT INTO site_analytics_referrer_rollups (
+          host, referrer, date, sessions, inserted_at, updated_at
+        )
+        SELECT
+          entry_host,
+          referer,
+          started_at::date,
+          COUNT(*)::bigint,
+          timezone('UTC', now())::timestamp(0),
+          timezone('UTC', now())::timestamp(0)
+        FROM site_sessions
+        WHERE entry_host IS NOT NULL
+          AND referer IS NOT NULL
+          AND started_at >= $1::date
+          AND started_at < ($2::date + interval '1 day')
+        GROUP BY entry_host, referer, started_at::date
+        """,
+        [start_date, end_date]
+      )
+
+    inserted
+  end
+
+  defp mark_public_site_rollup_dates(start_date, end_date) do
+    %{num_rows: inserted} =
+      Repo.query!(
+        """
+        INSERT INTO site_analytics_rollup_dates (date, refreshed_at)
+        SELECT date::date, timezone('UTC', now())::timestamp(0)
+        FROM generate_series($1::date, $2::date, interval '1 day') AS date
+        """,
+        [start_date, end_date]
+      )
+
+    inserted
+  end
 
   @doc """
   Returns true when a user agent belongs to a crawler that should be excluded from raw analytics.

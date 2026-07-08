@@ -3,7 +3,7 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
 
   require Logger
 
-  alias Elektrine.{DNS, Domains, Profiles}
+  alias Elektrine.{AppCache, DNS, Domains, Profiles}
 
   # The analytics panel runs ~13 independent aggregate queries. Running them
   # concurrently turns the load time from the sum of every query into the slowest
@@ -219,7 +219,14 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
   defp domain_analytics_data(domains, active_domain) do
     domain_hosts = Enum.map(domains, & &1.host)
     active_site_scope = active_site_scope(active_domain, domain_hosts)
+    cache_key = domain_analytics_cache_key(domains, active_domain, active_site_scope)
 
+    AppCache.get_domain_analytics(cache_key, fn ->
+      build_domain_analytics_data(domains, active_domain, domain_hosts, active_site_scope)
+    end)
+  end
+
+  defp build_domain_analytics_data(domains, active_domain, domain_hosts, active_site_scope) do
     defaults = %{
       stats: empty_public_site_stats(),
       domain_breakdown_rows: [],
@@ -282,6 +289,21 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
       max_dns_daily_queries: max_daily_views(dns_daily_queries)
     }
   end
+
+  defp domain_analytics_cache_key(domains, active_domain, active_site_scope) do
+    {
+      domain_load_key(active_domain),
+      normalize_cache_scope(active_site_scope),
+      domains
+      |> Enum.map(fn domain ->
+        {domain.host, domain.kind, domain.dns_zone_id, domain.dns_zone_status}
+      end)
+      |> Enum.sort()
+    }
+  end
+
+  defp normalize_cache_scope(scope) when is_list(scope), do: Enum.sort(scope)
+  defp normalize_cache_scope(scope), do: scope
 
   # Runs each {key, thunk} concurrently and merges the results over `defaults`.
   # A query that times out or raises keeps its default instead of failing the

@@ -36,6 +36,8 @@ defmodule Elektrine.AppCache do
   @portal_dashboard_ttl :timer.minutes(10)
   # Last-known numeric stats per surface, shown instantly while a fresh load runs
   @user_stats_ttl :timer.minutes(10)
+  # Domain analytics are expensive aggregate queries; keep them fresh but reusable.
+  @domain_analytics_ttl :timer.seconds(60)
   # First page of global (non-personalized) feeds; short TTL to stay fresh
   @global_feed_ttl :timer.minutes(2)
   import Cachex.Spec
@@ -120,6 +122,14 @@ defmodule Elektrine.AppCache do
   """
   def cache_user_stats(scope, subject_id, stats) when is_atom(scope) and is_map(stats) do
     put_with_telemetry({:user_stats, scope, subject_id}, stats, expire: @user_stats_ttl)
+  end
+
+  @doc """
+  Caches the assembled domain analytics payload for a short period.
+  """
+  def get_domain_analytics(scope, fetch_fn) do
+    key = {:domain_analytics, scope}
+    fetch_value(key, @domain_analytics_ttl, fetch_fn)
   end
 
   @doc """

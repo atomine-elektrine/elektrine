@@ -153,6 +153,10 @@ config :elektrine, Oban,
        {"40 3 * * *", Elektrine.Social.ExpiredDataCleanupWorker},
        # Prune raw analytics rows after retention windows
        {"50 3 * * *", Elektrine.Profiles.AnalyticsRetentionWorker},
+       # Keep public site analytics rollups fresh for fast domain analytics pages
+       {"*/5 * * * *", Elektrine.Profiles.PublicSiteAnalyticsRollupWorker, args: %{"days" => 2}},
+       # Rebuild the visible public site analytics rollup window nightly
+       {"10 4 * * *", Elektrine.Profiles.PublicSiteAnalyticsRollupWorker, args: %{"days" => 30}},
        # Poll Bluesky notifications for mirrored post replies/mentions
        {"*/2 * * * *", Elektrine.Bluesky.InboundPollWorker},
        # Archive/prune federation event/outbox data daily

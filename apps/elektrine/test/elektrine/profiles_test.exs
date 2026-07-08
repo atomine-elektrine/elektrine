@@ -751,6 +751,85 @@ defmodule Elektrine.ProfilesTest do
       assert Repo.get_by(ProfileSiteVisit, request_path: "/recent")
       assert Repo.get_by(ProfileView, viewer_session_id: "recent-profile-view-session")
     end
+
+    test "serves public site analytics from refreshed rollups" do
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+      today_timestamp = DateTime.to_naive(now)
+      yesterday = DateTime.add(now, -1, :day)
+      yesterday_timestamp = DateTime.to_naive(yesterday)
+
+      Repo.insert_all(SiteSession, [
+        %{
+          session_id: unique_session_id("rollup-home"),
+          visitor_id: "rollup-home-visitor",
+          referer: "https://referrer.example",
+          entry_host: "example.com",
+          entry_path: "/",
+          exit_host: "example.com",
+          exit_path: "/",
+          page_views: 3,
+          started_at: now,
+          last_seen_at: now,
+          duration_seconds: 20,
+          inserted_at: today_timestamp,
+          updated_at: today_timestamp
+        },
+        %{
+          session_id: unique_session_id("rollup-about"),
+          visitor_id: "rollup-about-visitor",
+          entry_host: "example.com",
+          entry_path: "/about",
+          exit_host: "example.com",
+          exit_path: "/about",
+          page_views: 1,
+          started_at: yesterday,
+          last_seen_at: yesterday,
+          duration_seconds: 10,
+          inserted_at: yesterday_timestamp,
+          updated_at: yesterday_timestamp
+        },
+        %{
+          session_id: unique_session_id("rollup-other-host"),
+          visitor_id: "rollup-other-host-visitor",
+          entry_host: "other.example",
+          entry_path: "/",
+          exit_host: "other.example",
+          exit_path: "/",
+          page_views: 5,
+          started_at: now,
+          last_seen_at: now,
+          duration_seconds: 30,
+          inserted_at: today_timestamp,
+          updated_at: today_timestamp
+        }
+      ])
+
+      assert %{daily: 3, pages: 3, referrers: 1, dates: 30} =
+               Profiles.refresh_public_site_analytics_rollups(days: 30)
+
+      Repo.delete_all(SiteSession)
+
+      stats = Profiles.get_public_site_view_stats("example.com")
+      assert stats.total_views == 4
+      assert stats.sessions == 2
+      assert stats.unique_visitors == 2
+      assert stats.views_today == 3
+      assert stats.views_this_week == 4
+      assert stats.avg_session_duration_seconds == 15.0
+      assert stats.bounce_rate == 50.0
+
+      assert [%{host: "example.com", path: "/", views: 3, unique_visitors: 1} | _] =
+               Profiles.get_public_site_top_pages("example.com", 10)
+
+      assert [%{referer: "https://referrer.example", count: 1}] =
+               Profiles.get_public_site_top_referrers("example.com", 10)
+
+      assert [%{host: "example.com", views: 4, unique_visitors: 2, views_today: 3}] =
+               Profiles.get_public_site_domain_breakdown(["example.com"])
+
+      daily_views = Profiles.get_public_site_daily_view_counts(2, "example.com")
+      assert Enum.map(daily_views, & &1.count) == [1, 3]
+    end
   end
 
   defp remote_actor_fixture(label, overrides \\ %{}) do
