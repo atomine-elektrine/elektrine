@@ -193,7 +193,7 @@ export const ChatE2EE = {
   updateInputMode() {
     const form = this.messageForm()
     const textarea = this.messageInput()
-    const encryptedMode = this.e2eeEnabled()
+    const encryptedMode = this.e2eeReady()
 
     if (!form || !textarea) return
 
@@ -239,12 +239,7 @@ export const ChatE2EE = {
     }
 
     if (!this.e2eeCapable()) {
-      if (this.e2eeEnabled()) {
-        submitButton.disabled = true
-      } else if (this.serverE2EEReady()) {
-        submitButton.disabled = !textarea.value.trim() && !hasUploads
-      }
-
+      submitButton.disabled = !textarea.value.trim() && !hasUploads
       return
     }
 
@@ -729,7 +724,7 @@ export const ChatE2EE = {
     const form = event.target
     const textarea = this.messageInput()
 
-    if (!form || textarea?.closest('form') !== form || !this.e2eeEnabled()) {
+    if (!form || textarea?.closest('form') !== form || !this.e2eeReady()) {
       return
     }
 
@@ -778,7 +773,27 @@ export const ChatE2EE = {
       const encryptedMessage = await this.encryptMessage(content)
       this.cacheSentPlaintext(encryptedMessage.payload.encrypted_payload, content)
 
+      let sendSettled = false
+      const sendTimeout = setTimeout(() => {
+        if (sendSettled) return
+
+        sendSettled = true
+        this.forgetSentPlaintext(encryptedMessage.payload.encrypted_payload)
+        const message = 'Encrypted chat send timed out. Check your connection and try again.'
+        this.setE2EEStatusMessage(message)
+        this.notifyE2EE(message, 'error')
+
+        if (submitButton) {
+          submitButton.disabled = false
+        }
+      }, 15000)
+
       this.pushEvent('send_client_encrypted_message', encryptedMessage.payload, reply => {
+        if (sendSettled) return
+
+        sendSettled = true
+        clearTimeout(sendTimeout)
+
         if (reply?.ok) {
           if (encryptedMessage.devicesHash) {
             this.markPackagesSent(encryptedMessage.keyUid, encryptedMessage.devicesHash)
