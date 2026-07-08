@@ -397,7 +397,7 @@ defmodule ElektrineSocialWeb.TimelinePostDetailTest do
       html = render(view)
 
       assert html =~ "timeline-post-card"
-      assert html =~ "timeline-post-card-body"
+      assert html =~ "timeline-post-card--dense"
     end
 
     test "renders local federated posts without a remote actor", %{conn: conn} do

@@ -26,11 +26,10 @@ defmodule ElektrineSocialWeb.RemotePostLive.QuickReplyComponents do
           <% reply_click = reply_view.click %>
           <div
             class={[
-              "timeline-thread-preview-item relative timeline-thread-preview-item--flush text-left text-sm rounded-lg border border-base-300 bg-base-100/80 px-2 py-2 shadow-sm transition-all duration-150",
+              "timeline-thread-preview-item timeline-thread-comment-card relative timeline-thread-preview-item--flush text-left text-sm rounded-lg border border-base-300/70 px-3 py-2 transition-all duration-150",
               reply_click &&
-                "cursor-pointer hover:border-base-content/20 hover:bg-base-200/80 hover:shadow-md"
+                "cursor-pointer hover:border-base-content/20"
             ]}
-            style="background-color: var(--color-base-100);"
             id={reply_view.dom_id}
             phx-hook={reply_click && "PostClick"}
             data-click-event={reply_click && reply_click.event}
@@ -133,7 +132,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.QuickReplyComponents do
   def standard_timeline_detail_reply_box(assigns) do
     ~H"""
     <%= if @show_reply_form && @current_user && is_nil(@replying_to_comment_id) do %>
-      <div class="card panel-card rounded-lg p-4 mb-6">
+      <div class="timeline-thread-comment-card rounded-lg border border-base-300/70 bg-base-100 p-3 mb-4">
         <div class="space-y-3">
           <.quick_reply_recent_replies_preview
             :if={@show_recent_replies_preview}

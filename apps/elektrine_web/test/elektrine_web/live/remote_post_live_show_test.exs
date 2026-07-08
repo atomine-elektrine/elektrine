@@ -120,6 +120,7 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
     assert html =~ "Alice"
     assert html =~ "custom-emoji"
     assert html =~ "blobcat.png"
+    assert html =~ "timeline-thread-comment-card"
     assert html =~ ~s(data-track-dwell="false")
   end
 

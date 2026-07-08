@@ -7,14 +7,14 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
   The component supports different layout variants via the `:layout` attribute:
 
-  - `:timeline` (default) - Standard social media post layout with full content
+  - `:dense` (default) - Stream layout with tighter spacing
+  - `:timeline` - Standard social media post layout with full content
   - `:lemmy` - Reddit/Lemmy style with vote column on left, thumbnail, and compact meta
-  - `:dense` - Stream layout with tighter spacing
   - `:compact` - Minimal layout for dense feeds
 
   ## Usage
 
-      <.timeline_post post={post} current_user={@current_user} layout={:timeline} />
+      <.timeline_post post={post} current_user={@current_user} layout={:dense} />
       <.timeline_post post={post} current_user={@current_user} layout={:lemmy} />
   """
   use Phoenix.Component
@@ -58,7 +58,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   * `:on_navigate_profile` - Event for navigating to profile
   * `:on_image_click` - Event for opening image modal
   * `:clickable` - Whether clicking the card should open the post (default: true)
-  * `:layout` - Layout variant: :timeline (default), :dense, :lemmy, or :compact
+  * `:layout` - Layout variant: :dense (default), :timeline, :lemmy, or :compact
   * `:user_downvotes` - Map of post_id => boolean for downvote status (Lemmy layout)
   * `:post_interactions` - Map of post_id => interaction state for optimistic updates
   * `:reactions` - List of reactions on the post (Lemmy layout)
@@ -71,7 +71,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   attr :current_user, :map, default: nil
   attr :timezone, :string, default: "UTC"
   attr :time_format, :string, default: "12h"
-  attr :layout, :atom, default: :timeline
+  attr :layout, :atom, default: :dense
   attr :user_likes, :map, default: %{}
   attr :user_boosts, :map, default: %{}
   attr :user_downvotes, :map, default: %{}
@@ -125,7 +125,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
     end
   end
 
-  # Standard timeline layout (default)
+  # Standard timeline layout
   defp render_timeline_layout(assigns) do
     if pure_boost_post?(assigns.post) do
       render_boost_wrapper_layout(assigns)
@@ -278,7 +278,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       <div
         id={"#{@id_prefix}-card-#{@post.id}"}
         class={[
-          "timeline-post-card timeline-post-card--dense relative z-0 max-w-full overflow-visible border-b border-base-300/70 bg-base-100 px-3 py-3 transition-colors hover:bg-base-200/35 sm:px-4",
+          "timeline-post-card timeline-post-card--dense relative z-0 max-w-full overflow-visible rounded-lg border border-base-300/70 px-3 py-3 transition-colors sm:px-4",
           if(@clickable, do: "cursor-pointer"),
           if(@is_reply, do: "border-l-2 border-l-base-300")
         ]}

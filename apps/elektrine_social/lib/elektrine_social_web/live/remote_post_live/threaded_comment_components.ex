@@ -153,14 +153,13 @@ defmodule ElektrineSocialWeb.RemotePostLive.ThreadedCommentComponents do
             <div
               id={reply_view.card_dom_id}
               class={[
-                "card panel-card timeline-post-card relative flex-1 min-w-0 rounded-lg border border-base-300 shadow-sm px-2 py-1.5 transition-colors duration-150",
-                reply_click && "cursor-pointer hover:shadow-md"
+                "timeline-thread-comment-card timeline-post-card timeline-post-card--dense relative flex-1 min-w-0 rounded-lg border border-base-300/70 px-3 py-2 transition-colors duration-150",
+                reply_click && "cursor-pointer hover:bg-base-200/35"
               ]}
               data-post-id={reply_view.card_post_id}
               data-source="remote_post_reply"
               data-track-dwell="false"
               phx-hook={reply_click && "PostClick"}
-              style="background: var(--color-base-300); box-shadow: 0 2px 12px color-mix(in srgb, var(--color-base-content) 8%, transparent);"
             >
               <%= if reply_click do %>
                 <.link
@@ -355,14 +354,13 @@ defmodule ElektrineSocialWeb.RemotePostLive.ThreadedCommentComponents do
           <div
             id={reply_view.card_dom_id}
             class={[
-              "timeline-thread-tree-card card panel-card timeline-post-card relative rounded-xl p-3 mb-2 border border-base-300 shadow-sm transition-colors duration-150",
-              reply_click && "cursor-pointer hover:shadow-md"
+              "timeline-thread-tree-card timeline-thread-comment-card timeline-post-card timeline-post-card--dense relative rounded-lg p-3 mb-2 border border-base-300/70 transition-colors duration-150",
+              reply_click && "cursor-pointer hover:bg-base-200/35"
             ]}
             data-post-id={reply_view.card_post_id}
             data-source="remote_post_reply"
             data-track-dwell="false"
             phx-hook={reply_click && "PostClick"}
-            style="background: var(--color-base-300); box-shadow: 0 4px 16px color-mix(in srgb, var(--color-base-content) 10%, transparent);"
           >
             <%= if reply_click do %>
               <.link
@@ -376,7 +374,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.ThreadedCommentComponents do
               </.link>
               <.link
                 navigate={Paths.post_path(reply_click.id || reply_click.post_id)}
-                class="absolute inset-0 z-0 rounded-xl"
+                class="absolute inset-0 z-0 rounded-lg"
                 aria-label="Open reply"
               >
                 <span class="sr-only">Open reply</span>

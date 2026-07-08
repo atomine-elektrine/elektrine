@@ -58,7 +58,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.DetailComponents do
     <.timeline_post
       post={@message}
       current_user={@current_user}
-      layout={if @is_community_post, do: :lemmy, else: :timeline}
+      layout={if @is_community_post, do: :lemmy, else: :dense}
       interaction_mode={if @is_community_post, do: :vote, else: :like_only}
       remote_poll_vote={@remote_poll_vote}
       lemmy_counts={@lemmy_counts || %{}}
