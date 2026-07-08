@@ -9,6 +9,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
   - `:timeline` (default) - Standard social media post layout with full content
   - `:lemmy` - Reddit/Lemmy style with vote column on left, thumbnail, and compact meta
+  - `:dense` - Stream layout with tighter spacing
   - `:compact` - Minimal layout for dense feeds
 
   ## Usage
@@ -57,7 +58,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   * `:on_navigate_profile` - Event for navigating to profile
   * `:on_image_click` - Event for opening image modal
   * `:clickable` - Whether clicking the card should open the post (default: true)
-  * `:layout` - Layout variant: :timeline (default), :lemmy, or :compact
+  * `:layout` - Layout variant: :timeline (default), :dense, :lemmy, or :compact
   * `:user_downvotes` - Map of post_id => boolean for downvote status (Lemmy layout)
   * `:post_interactions` - Map of post_id => interaction state for optimistic updates
   * `:reactions` - List of reactions on the post (Lemmy layout)
@@ -117,6 +118,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   def timeline_post(assigns) do
     # Dispatch based on layout variant
     case assigns.layout do
+      :dense -> render_dense_timeline_layout(assigns)
       :lemmy -> render_lemmy_layout(assigns)
       :compact -> TimelinePostCompact.render_compact_layout(assigns)
       _ -> render_timeline_layout(assigns)
@@ -132,11 +134,12 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
     end
   end
 
-  defp render_boost_wrapper_layout(assigns) do
+  defp render_boost_wrapper_layout(assigns, nested_layout \\ :timeline) do
     assigns =
       assigns
       |> assign(:boosted_post, assigns.post.shared_message)
       |> assign(:booster, Map.get(assigns.post, :sender))
+      |> assign(:boosted_layout, nested_layout)
 
     ~H"""
     <div id={"#{@id_prefix}-entry-#{@post.id}"} class="space-y-2">
@@ -163,7 +166,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
       <.timeline_post
         post={@boosted_post}
-        layout={:timeline}
+        layout={@boosted_layout}
         current_user={@current_user}
         timezone={@timezone}
         time_format={@time_format}
@@ -206,6 +209,202 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         counts_loading={@counts_loading}
       />
     </div>
+    """
+  end
+
+  defp render_dense_timeline_layout(assigns) do
+    if pure_boost_post?(assigns.post) do
+      render_boost_wrapper_layout(assigns, :dense)
+    else
+      render_dense_standard_timeline_layout(assigns)
+    end
+  end
+
+  defp render_dense_standard_timeline_layout(assigns) do
+    post = assigns.post
+    is_reply = PostUtilities.reply?(post)
+    is_gallery_post = PostUtilities.gallery_post?(post)
+
+    reply_ancestors =
+      if is_reply do
+        TimelinePostAncestors.resolve_for_post(
+          post,
+          assigns.source,
+          assigns.resolve_reply_refs
+        )
+      else
+        []
+      end
+
+    {base_like_count, display_comment_count} =
+      PostUtilities.get_display_counts(post, assigns.lemmy_counts, assigns.post_replies)
+
+    post_state = current_post_interaction_state(assigns.post_interactions, post)
+    display_like_count = max(base_like_count + Map.get(post_state, :like_delta, 0), 0)
+
+    display_boost_count =
+      max(PostUtilities.display_share_count(post) + Map.get(post_state, :boost_delta, 0), 0)
+
+    is_liked = Map.get(post_state, :liked, current_post_flag(assigns.user_likes, post))
+    is_boosted = Map.get(post_state, :boosted, current_post_flag(assigns.user_boosts, post))
+
+    is_saved =
+      if is_nil(assigns.saved_override),
+        do: current_post_flag(assigns.user_saves, post),
+        else: assigns.saved_override
+
+    card_post_path = TimelinePostCard.card_post_path(post, assigns.source)
+
+    assigns =
+      assigns
+      |> assign_new(:remote_poll_vote, fn -> nil end)
+      |> assign(:is_reply, is_reply)
+      |> assign(:is_gallery_post, is_gallery_post)
+      |> assign(:direct_reply_target, List.last(reply_ancestors))
+      |> assign(:display_like_count, display_like_count)
+      |> assign(:display_boost_count, display_boost_count)
+      |> assign(:display_comment_count, display_comment_count)
+      |> assign(:is_liked, is_liked)
+      |> assign(:is_boosted, is_boosted)
+      |> assign(:is_saved, is_saved)
+      |> assign(:card_post_path, card_post_path)
+      |> assign(:card_post_external?, TimelinePostCard.external_url?(card_post_path))
+
+    ~H"""
+    <article
+      id={"#{@id_prefix}-entry-#{@post.id}"}
+      class="relative"
+    >
+      <div
+        id={"#{@id_prefix}-card-#{@post.id}"}
+        class={[
+          "timeline-post-card timeline-post-card--dense relative z-0 max-w-full overflow-visible border-b border-base-300/70 bg-base-100 px-3 py-3 transition-colors hover:bg-base-200/35 sm:px-4",
+          if(@clickable, do: "cursor-pointer"),
+          if(@is_reply, do: "border-l-2 border-l-base-300")
+        ]}
+        data-post-id={@post.id}
+        data-source={@source}
+        phx-hook={if @clickable, do: "PostClick", else: nil}
+      >
+        <%= if @clickable do %>
+          <%= if @card_post_external? do %>
+            <.link
+              href={@card_post_path}
+              class="hidden"
+              data-post-nav-link
+              tabindex="-1"
+              aria-hidden="true"
+            >
+              Open post
+            </.link>
+          <% else %>
+            <.link
+              navigate={@card_post_path}
+              class="hidden"
+              data-post-nav-link
+              tabindex="-1"
+              aria-hidden="true"
+            >
+              Open post
+            </.link>
+          <% end %>
+        <% end %>
+
+        <div class="flex min-w-0 items-start gap-3">
+          <.dense_author_avatar
+            post={@post}
+            user_statuses={@user_statuses}
+            on_navigate_profile={@on_navigate_profile}
+          />
+
+          <div class="min-w-0 flex-1">
+            <div class="relative min-w-0 pr-9">
+              <.dense_author_meta
+                post={@post}
+                current_user={@current_user}
+                timezone={@timezone}
+                time_format={@time_format}
+                user_statuses={@user_statuses}
+                user_follows={@user_follows}
+                pending_follows={@pending_follows}
+                remote_follow_overrides={@remote_follow_overrides}
+                on_navigate_profile={@on_navigate_profile}
+              />
+
+              <%= if @current_user && @show_post_dropdown do %>
+                <div class="absolute right-0 top-[-0.35rem] z-[320]">
+                  <.post_dropdown
+                    post={@post}
+                    current_user={@current_user}
+                    show_admin_actions={@show_admin_actions}
+                    id_prefix={@id_prefix}
+                  />
+                </div>
+              <% end %>
+            </div>
+
+            <.boost_indicator post={@post} />
+            <.dense_reply_target :if={@is_reply} target={@direct_reply_target} />
+
+            <div class="timeline-post-dense-content mt-1 min-w-0">
+              <.post_content
+                post={@post}
+                current_user={@current_user}
+                is_gallery_post={@is_gallery_post}
+                on_image_click={@on_image_click}
+                remote_poll_vote={@remote_poll_vote}
+                id_prefix={@id_prefix}
+                source={@source}
+              />
+            </div>
+
+            <div class="timeline-post-dense-footer mt-1">
+              <.post_footer
+                post={@post}
+                current_user={@current_user}
+                user_likes={@user_likes}
+                user_boosts={@user_boosts}
+                user_saves={@user_saves}
+                user_follows={@user_follows}
+                pending_follows={@pending_follows}
+                remote_follow_overrides={@remote_follow_overrides}
+                display_like_count={@display_like_count}
+                display_boost_count={@display_boost_count}
+                display_comment_count={@display_comment_count}
+                show_follow_button={@show_follow_button}
+                show_view_button={false}
+                id_prefix={@id_prefix}
+                is_liked={@is_liked}
+                is_boosted={@is_boosted}
+                is_saved={@is_saved}
+                on_comment={@on_comment}
+                show_quote_button={@show_quote_button}
+                show_save_button={@show_save_button}
+                reactions={@reactions}
+                on_react={@on_react}
+                action_post_id={@action_post_id}
+                action_value_name={@action_value_name}
+                save_action_post_id={@save_action_post_id}
+                save_action_value_name={@save_action_value_name}
+                counts_loading={@counts_loading}
+              />
+            </div>
+
+            <div :if={@reactions != []} class="mt-1">
+              <.post_reactions
+                post_id={@action_post_id || @post.id}
+                value_name={@action_value_name}
+                reactions={@reactions}
+                current_user={@current_user}
+                on_react={@on_react}
+                size={:xs}
+                show_picker={false}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
     """
   end
 
@@ -421,6 +620,251 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       is_map(shared_message) &&
       Ecto.assoc_loaded?(shared_message) &&
       !Elektrine.Strings.present?(Map.get(post, :content))
+  end
+
+  attr :post, :map, required: true
+  attr :user_statuses, :map, default: %{}
+  attr :on_navigate_profile, :string, default: "navigate_to_profile"
+
+  defp dense_author_avatar(assigns) do
+    ~H"""
+    <div class="h-10 w-10 flex-shrink-0 overflow-visible">
+      <%= if @post.federated && Ecto.assoc_loaded?(@post.remote_actor) && @post.remote_actor do %>
+        <.link
+          navigate={"/remote/#{@post.remote_actor.username}@#{@post.remote_actor.domain}"}
+          class="block h-10 w-10 rounded-full"
+        >
+          <%= if avatar_url = PostUtilities.safe_image_url(@post.remote_actor.avatar_url) do %>
+            <img
+              src={avatar_url}
+              alt={@post.remote_actor.username}
+              class="h-10 w-10 rounded-full object-cover"
+            />
+          <% else %>
+            <.placeholder_avatar size="md" class="h-10 w-10" />
+          <% end %>
+        </.link>
+      <% else %>
+        <%= if @post.sender do %>
+          <button
+            phx-click={@on_navigate_profile}
+            phx-value-handle={@post.sender.handle || @post.sender.username}
+            phx-value-user_id={@post.sender.id}
+            class="h-10 w-10"
+            type="button"
+          >
+            <.user_avatar user={@post.sender} size="sm" user_statuses={@user_statuses} />
+          </button>
+        <% else %>
+          <.placeholder_avatar size="md" class="h-10 w-10" />
+        <% end %>
+      <% end %>
+    </div>
+    """
+  end
+
+  attr :post, :map, required: true
+  attr :current_user, :map, default: nil
+  attr :timezone, :string, default: "UTC"
+  attr :time_format, :string, default: "12h"
+  attr :user_statuses, :map, default: %{}
+  attr :user_follows, :map, default: %{}
+  attr :pending_follows, :map, default: %{}
+  attr :remote_follow_overrides, :map, default: %{}
+  attr :on_navigate_profile, :string, default: "navigate_to_profile"
+
+  defp dense_author_meta(assigns) do
+    ~H"""
+    <%= if @post.federated && Ecto.assoc_loaded?(@post.remote_actor) && @post.remote_actor do %>
+      <.dense_remote_author_meta
+        post={@post}
+        current_user={@current_user}
+        timezone={@timezone}
+        time_format={@time_format}
+        user_follows={@user_follows}
+        pending_follows={@pending_follows}
+        remote_follow_overrides={@remote_follow_overrides}
+      />
+    <% else %>
+      <.dense_local_author_meta
+        :if={@post.sender}
+        post={@post}
+        current_user={@current_user}
+        timezone={@timezone}
+        time_format={@time_format}
+        user_statuses={@user_statuses}
+        user_follows={@user_follows}
+        on_navigate_profile={@on_navigate_profile}
+      />
+    <% end %>
+    """
+  end
+
+  attr :post, :map, required: true
+  attr :current_user, :map, default: nil
+  attr :timezone, :string, default: "UTC"
+  attr :time_format, :string, default: "12h"
+  attr :user_statuses, :map, default: %{}
+  attr :user_follows, :map, default: %{}
+  attr :on_navigate_profile, :string, default: "navigate_to_profile"
+
+  defp dense_local_author_meta(assigns) do
+    ~H"""
+    <.user_hover_card
+      user={@post.sender}
+      user_statuses={@user_statuses}
+      user_follows={@user_follows}
+      current_user={@current_user}
+      class="!block min-w-0"
+      trigger_class="inline-flex max-w-full min-w-0 items-center gap-1.5 align-baseline"
+    >
+      <button
+        phx-click={@on_navigate_profile}
+        phx-value-handle={@post.sender.handle || @post.sender.username}
+        phx-value-user_id={@post.sender.id}
+        class="min-w-0 truncate text-left text-[15px] font-semibold leading-5 hover:text-error"
+        type="button"
+      >
+        <.username_with_effects user={@post.sender} display_name={true} verified_size="xs" />
+      </button>
+      <span class="min-w-0 truncate text-sm leading-5 text-base-content/55">
+        @{@post.sender.handle || @post.sender.username}@{Elektrine.Domains.default_user_handle_domain()}
+      </span>
+      <span class="flex-shrink-0 text-sm leading-5 text-base-content/45">·</span>
+      <span class="flex-shrink-0 text-sm leading-5 text-base-content/55">
+        <.local_time
+          datetime={@post.inserted_at}
+          format="relative"
+          timezone={@timezone}
+          time_format={@time_format}
+        />
+      </span>
+      <%= if @post.edited_at do %>
+        <span
+          class="badge badge-xs badge-ghost flex-shrink-0"
+          title={"Edited #{Integrations.social_time_ago(@post.edited_at)}"}
+        >
+          <.icon name="hero-pencil" class="h-2.5 w-2.5" />
+        </span>
+      <% end %>
+      <.visibility_badge visibility={@post.visibility} />
+    </.user_hover_card>
+    """
+  end
+
+  attr :post, :map, required: true
+  attr :current_user, :map, default: nil
+  attr :timezone, :string, default: "UTC"
+  attr :time_format, :string, default: "12h"
+  attr :user_follows, :map, default: %{}
+  attr :pending_follows, :map, default: %{}
+  attr :remote_follow_overrides, :map, default: %{}
+
+  defp dense_remote_author_meta(assigns) do
+    community_uri = PostUtilities.community_actor_uri(assigns.post)
+
+    assigns =
+      assigns
+      |> assign(:community_uri, community_uri)
+      |> assign(:community_path, community_path(assigns.post, community_uri))
+
+    ~H"""
+    <.user_hover_card
+      remote_actor={@post.remote_actor}
+      current_user={@current_user}
+      user_follows={@user_follows}
+      pending_follows={@pending_follows}
+      remote_follow_overrides={@remote_follow_overrides}
+      class="!block min-w-0"
+      trigger_class="inline-flex max-w-full min-w-0 items-center gap-1.5 align-baseline"
+    >
+      <.link
+        navigate={"/remote/#{@post.remote_actor.username}@#{@post.remote_actor.domain}"}
+        class="min-w-0 truncate text-[15px] font-semibold leading-5 hover:text-primary"
+      >
+        {raw(
+          render_display_name_with_emojis(
+            @post.remote_actor.display_name || @post.remote_actor.username,
+            @post.remote_actor.domain
+          )
+        )}
+      </.link>
+      <span class="min-w-0 truncate text-sm leading-5 text-base-content/55">
+        @{@post.remote_actor.username}@{@post.remote_actor.domain}
+      </span>
+      <%= if @community_uri do %>
+        <span class="hidden flex-shrink-0 text-sm leading-5 text-base-content/45 sm:inline">
+          in
+        </span>
+        <%= if @community_path do %>
+          <.link
+            navigate={@community_path}
+            class="hidden min-w-0 truncate text-sm leading-5 text-base-content/60 hover:text-primary sm:inline"
+          >
+            {extract_community_name(@community_uri)}
+          </.link>
+        <% else %>
+          <span class="hidden min-w-0 truncate text-sm leading-5 text-base-content/60 sm:inline">
+            {extract_community_name(@community_uri)}
+          </span>
+        <% end %>
+      <% end %>
+      <span class="flex-shrink-0 text-sm leading-5 text-base-content/45">·</span>
+      <span class="flex-shrink-0 text-sm leading-5 text-base-content/55">
+        <.local_time
+          datetime={@post.inserted_at}
+          format="relative"
+          timezone={@timezone}
+          time_format={@time_format}
+        />
+      </span>
+      <span class="badge badge-xs badge-outline flex-shrink-0" title="Federated post">
+        <.icon name="hero-globe-alt" class="h-2.5 w-2.5" />
+      </span>
+      <%= if @post.edited_at do %>
+        <span
+          class="badge badge-xs badge-ghost flex-shrink-0"
+          title={"Edited #{Integrations.social_time_ago(@post.edited_at)}"}
+        >
+          <.icon name="hero-pencil" class="h-2.5 w-2.5" />
+        </span>
+      <% end %>
+    </.user_hover_card>
+    """
+  end
+
+  attr :target, :map, default: nil
+
+  defp dense_reply_target(assigns) do
+    ~H"""
+    <%= if is_map(@target) do %>
+      <% clickable = TimelinePostAncestors.clickable?(@target)
+      subtitle = TimelinePostAncestors.author_subtitle(@target) %>
+      <div class="mb-1 mt-0.5 text-xs leading-5 text-base-content/55">
+        <span>Replying to</span>
+        <%= if clickable do %>
+          <button
+            type="button"
+            class={[
+              "font-medium hover:underline",
+              TimelinePostAncestors.author_class(@target.author_info.type)
+            ]}
+            {TimelinePostAncestors.click_attrs(@target)}
+          >
+            {@target.author_info.name}
+          </button>
+        <% else %>
+          <span class={[
+            "font-medium",
+            TimelinePostAncestors.author_class(@target.author_info.type)
+          ]}>
+            {@target.author_info.name}
+          </span>
+        <% end %>
+        <span :if={subtitle} class="text-base-content/45">{subtitle}</span>
+      </div>
+    <% end %>
+    """
   end
 
   # Boost indicator component

@@ -85,7 +85,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelineStreamPost do
       <% else %>
         <.timeline_post
           post={@post}
-          layout={:timeline}
+          layout={:dense}
           current_user={@current_user}
           timezone={@timezone}
           time_format={@time_format}
