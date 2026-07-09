@@ -77,6 +77,59 @@ defmodule Elektrine.VPN.ShadowsocksAdapterTest do
     end
   end
 
+  describe "parse_manager_stat/1" do
+    test "parses a libev stat datagram into port => bytes" do
+      assert {:ok, %{8388 => 1234}} =
+               ShadowsocksAdapter.parse_manager_stat(~s(stat: {"8388": 1234}))
+    end
+
+    test "strips trailing NUL padding and surrounding whitespace" do
+      assert {:ok, %{8389 => 42}} =
+               ShadowsocksAdapter.parse_manager_stat("  stat: {\"8389\": 42}" <> <<0, 0>>)
+    end
+
+    test "parses multiple ports in one datagram" do
+      assert {:ok, %{8388 => 10, 8389 => 20}} =
+               ShadowsocksAdapter.parse_manager_stat(~s(stat: {"8388": 10, "8389": 20}))
+    end
+
+    test "drops entries with non-integer values or non-numeric ports" do
+      assert {:ok, %{8388 => 5}} =
+               ShadowsocksAdapter.parse_manager_stat(~s(stat: {"8388": 5, "8389": "x", "bad": 9}))
+    end
+
+    test "returns :error for non-stat or malformed input" do
+      assert :error = ShadowsocksAdapter.parse_manager_stat("ping")
+      assert :error = ShadowsocksAdapter.parse_manager_stat("stat: not json")
+      assert :error = ShadowsocksAdapter.parse_manager_stat(~s(stat: [1, 2, 3]))
+      assert :error = ShadowsocksAdapter.parse_manager_stat(123)
+    end
+  end
+
+  describe "stats_entries/2" do
+    test "maps ports to client public keys, carrying total as bytes_received" do
+      port_clients = %{8388 => "client-a", 8389 => "client-b"}
+
+      entries =
+        ShadowsocksAdapter.stats_entries(%{8388 => 100, 8389 => 250}, port_clients)
+        |> Enum.sort_by(& &1["public_key"])
+
+      assert entries == [
+               %{"public_key" => "client-a", "bytes_sent" => 0, "bytes_received" => 100},
+               %{"public_key" => "client-b", "bytes_sent" => 0, "bytes_received" => 250}
+             ]
+    end
+
+    test "drops totals for ports with no known client" do
+      assert [%{"public_key" => "client-a", "bytes_received" => 100}] =
+               ShadowsocksAdapter.stats_entries(%{8388 => 100, 9999 => 5}, %{8388 => "client-a"})
+    end
+
+    test "returns an empty list when nothing maps" do
+      assert [] = ShadowsocksAdapter.stats_entries(%{9999 => 5}, %{8388 => "client-a"})
+    end
+  end
+
   defp tmp_config_path do
     path =
       Path.join([

@@ -43,12 +43,13 @@ defmodule Elektrine.VPN.ShadowsocksAdapter do
   def start_servers(snapshot, opts \\ []) do
     config_path = Keyword.get(opts, :config_path, config_path())
     config_dir = config_dir(config_path)
+    manager_socket = Keyword.get(opts, :manager_socket)
 
     with {:ok, executable} <- resolve_executable(Keyword.get(opts, :executable, executable())) do
       snapshot.clients
       |> Enum.reject(&is_nil(&1.port))
       |> Enum.reduce_while({:ok, %{}}, fn client, {:ok, ports} ->
-        case start_server(executable, client_config_path(config_dir, client.port)) do
+        case start_server(executable, client_config_path(config_dir, client.port), manager_socket) do
           {:ok, port} ->
             {:cont, {:ok, Map.put(ports, client.port, port)}}
 
@@ -77,6 +78,73 @@ defmodule Elektrine.VPN.ShadowsocksAdapter do
   def executable, do: System.get_env("SHADOWSOCKS_SERVER_BIN") || "ss-server"
   def config_path, do: System.get_env("VPN_SELFHOST_SS_CONFIG_PATH") || @default_config_path
   def listen_host, do: System.get_env("VPN_SELFHOST_SS_LISTEN_HOST") || "0.0.0.0"
+
+  @doc """
+  Filesystem path of the ss-server manager (stat) socket. Each `ss-server` is
+  launched with `--manager-address` pointing here; shadowsocks-libev then pushes
+  `stat:` datagrams with per-port cumulative byte totals used for quota accounting.
+  """
+  def manager_socket_path(opts \\ []) do
+    Keyword.get(opts, :manager_socket) ||
+      System.get_env("VPN_SELFHOST_SS_MANAGER_SOCKET") ||
+      Path.join(config_dir(config_path()), "manager.sock")
+  end
+
+  @doc """
+  Parses a shadowsocks-libev manager `stat:` datagram into a map of
+  `server_port => cumulative_bytes`. Returns `:error` for anything else.
+
+  The wire format is the literal ASCII `stat: {"<port>": <bytes>}`, sometimes
+  padded with trailing NUL bytes, so we strip NULs and whitespace before decoding.
+  """
+  def parse_manager_stat(data) when is_binary(data) do
+    trimmed = data |> String.replace(<<0>>, "") |> String.trim()
+
+    case trimmed do
+      "stat:" <> json ->
+        decode_stat_payload(json)
+
+      _ ->
+        :error
+    end
+  end
+
+  def parse_manager_stat(_data), do: :error
+
+  defp decode_stat_payload(json) do
+    case Jason.decode(String.trim(json)) do
+      {:ok, map} when is_map(map) ->
+        {:ok,
+         Enum.reduce(map, %{}, fn
+           {port_str, bytes}, acc when is_integer(bytes) ->
+             case Integer.parse(to_string(port_str)) do
+               {port, ""} -> Map.put(acc, port, bytes)
+               _ -> acc
+             end
+
+           _entry, acc ->
+             acc
+         end)}
+
+      _ ->
+        :error
+    end
+  end
+
+  @doc """
+  Turns `{port => bytes}` totals plus a `port => client_id` map into peer-stat
+  entries for `Elektrine.VPN.report_peer_stats/2`. ss-server reports a single
+  combined total per port, so it is carried as `bytes_received` (with
+  `bytes_sent` 0); the quota logic only uses the sum.
+  """
+  def stats_entries(port_totals, port_clients) do
+    Enum.flat_map(port_totals, fn {port, bytes} ->
+      case Map.get(port_clients, port) do
+        nil -> []
+        client_id -> [%{"public_key" => client_id, "bytes_sent" => 0, "bytes_received" => bytes}]
+      end
+    end)
+  end
 
   def resolve_executable(executable) when is_binary(executable) do
     executable = String.trim(executable)
@@ -130,17 +198,22 @@ defmodule Elektrine.VPN.ShadowsocksAdapter do
     end)
   end
 
-  defp start_server(executable, config_path) do
+  defp start_server(executable, config_path, manager_socket) do
     {:ok,
      Port.open({:spawn_executable, executable}, [
        :binary,
        :exit_status,
        :stderr_to_stdout,
-       args: ["-c", config_path, "-u"]
+       args: server_args(config_path, manager_socket)
      ])}
   rescue
     e in ErlangError -> {:error, {:command_failed, Exception.message(e)}}
   end
+
+  defp server_args(config_path, nil), do: ["-c", config_path, "-u"]
+
+  defp server_args(config_path, manager_socket),
+    do: ["-c", config_path, "-u", "--manager-address", to_string(manager_socket)]
 
   defp config_dir(config_path), do: Path.rootname(config_path)
 
