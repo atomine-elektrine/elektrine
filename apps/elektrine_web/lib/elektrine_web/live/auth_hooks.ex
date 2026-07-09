@@ -421,7 +421,15 @@ defmodule ElektrineWeb.Live.AuthHooks do
   end
 
   defp maybe_attach_active_user_event_guard(%{assigns: %{current_user: %{id: _}}} = socket) do
-    attach_hook(socket, :enforce_active_user_events, :handle_event, &enforce_active_user_event/3)
+    # mount_current_user/2 can run more than once when a LiveView stacks multiple
+    # on_mount hooks; guard against attaching the same hook twice (which raises).
+    if socket.assigns[:active_user_event_guard_attached] do
+      socket
+    else
+      socket
+      |> attach_hook(:enforce_active_user_events, :handle_event, &enforce_active_user_event/3)
+      |> assign(:active_user_event_guard_attached, true)
+    end
   end
 
   defp maybe_attach_active_user_event_guard(socket), do: socket
