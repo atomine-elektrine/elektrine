@@ -356,12 +356,14 @@ defmodule Elektrine.Email.CustomDomains do
   end
 
   def delete_custom_domain(%CustomDomain{} = custom_domain) do
-    case DKIM.delete_custom_domain(custom_domain) do
-      :ok ->
-        :ok
+    unless Elektrine.Domains.local_email_domain?(custom_domain.domain) do
+      case DKIM.delete_custom_domain(custom_domain) do
+        :ok ->
+          :ok
 
-      {:error, reason} ->
-        Logger.warning("Failed to remove DKIM material for #{custom_domain.domain}: #{reason}")
+        {:error, reason} ->
+          Logger.warning("Failed to remove DKIM material for #{custom_domain.domain}: #{reason}")
+      end
     end
 
     Multi.new()

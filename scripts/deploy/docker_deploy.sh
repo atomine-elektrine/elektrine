@@ -26,6 +26,8 @@ CADDY_RENDERED_CONFIG_PATH="${CADDY_RENDERED_CONFIG_PATH:-$GENERATED_DIR/generat
 
 # shellcheck source=scripts/lib/module_selection.sh
 source "$ROOT_DIR/scripts/lib/module_selection.sh"
+# shellcheck source=scripts/lib/deploy_simplify.sh
+source "$ROOT_DIR/scripts/lib/deploy_simplify.sh"
 
 usage() {
   cat <<'EOF'
@@ -140,6 +142,8 @@ if [[ -f "$ENV_FILE" ]]; then
   source "$ENV_FILE"
   set +a
 fi
+
+apply_simplified_deploy_env
 
 export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-docker}"
 
@@ -339,11 +343,7 @@ validate_media_storage_config() {
 }
 
 validate_caddy_admin_cidrs() {
-  if [[ "${NETBIRD_ALLOWED_CIDRS:-}" == *"0.0.0.0/0"* || "${NETBIRD_ALLOWED_CIDRS:-}" == *"::/0"* ]]; then
-    echo "Error: NETBIRD_ALLOWED_CIDRS must not include 0.0.0.0/0 or ::/0 when Caddy is enabled." >&2
-    echo "Hint: set exact VPN/private CIDRs, or leave it unset to deny public admin host access by default." >&2
-    return 1
-  fi
+  validate_netbird_allowed_cidrs
 
   if [[ "${CADDY_TRUSTED_PROXY_CIDRS:-}" == *"0.0.0.0/0"* || "${CADDY_TRUSTED_PROXY_CIDRS:-}" == *"::/0"* ]]; then
     echo "Error: CADDY_TRUSTED_PROXY_CIDRS must not include 0.0.0.0/0 or ::/0." >&2

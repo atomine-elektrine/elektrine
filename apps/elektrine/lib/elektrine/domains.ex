@@ -7,7 +7,7 @@ defmodule Elektrine.Domains do
   alias Elektrine.RuntimeEnv
 
   @default_primary_domain "example.com"
-  @official_email_domains ["elektrine.com", "elektrine.net", "elektrine.org"]
+  @official_email_domains ["elektrine.com", "elektrine.net", "elektrine.org", "maidcorps.net"]
 
   @doc """
   Primary email domain (usually the main app domain).

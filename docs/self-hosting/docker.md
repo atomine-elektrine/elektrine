@@ -84,12 +84,29 @@ The wrapper creates a small `.env.production` for the normal web stack:
 feature-specific overrides and keep `.env.production` limited to values this
 host actually uses.
 
+Keep one canonical env file. The recommended path is the repo root
+`.env.production`. Do not maintain a second divergent `deploy/docker/.env`;
+`doctor.sh` flags that legacy file because it commonly causes the rendered
+Compose config and deploy scripts to disagree.
+
 Minimal first-run values are usually:
 
 - `PRIMARY_DOMAIN`
 - `DB_PASSWORD`
 - `ELEKTRINE_MASTER_SECRET`
 - `ACME_EMAIL` if you want automatic HTTPS via Caddy
+
+Prefer the high-level deploy controls for new installs:
+
+```env
+DEPLOYMENT_PRESET=simple-web
+ADMIN_ACCESS=public
+TLS_MODE=caddy-auto
+PUBLIC_DNS_BIND_IP=
+```
+
+See `deploy-runbook.md` before enabling NetBird-only admin access, authoritative
+DNS, or wildcard TLS.
 
 ## Presets
 

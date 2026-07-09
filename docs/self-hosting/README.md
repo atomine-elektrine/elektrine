@@ -4,7 +4,7 @@ Start with the small Docker self-hosting path, then enable only the pieces you
 need.
 
 ```bash
-scripts/deploy/self_host.sh init --domain example.com --email admin@example.com
+scripts/deploy/self_host.sh init --domain example.com --email admin@example.com --preset simple-web
 scripts/deploy/self_host.sh doctor
 scripts/deploy/self_host.sh up
 ```
@@ -23,6 +23,19 @@ scripts/deploy/self_host.sh up
 The generated `.env.production` stays small. Preset-specific settings are
 appended only when you enable that feature.
 
+For production configuration, start with four high-level choices instead of raw
+Caddy/DNS internals:
+
+```env
+DEPLOYMENT_PRESET=simple-web
+ADMIN_ACCESS=public
+TLS_MODE=caddy-auto
+PUBLIC_DNS_BIND_IP=
+```
+
+See `deploy-runbook.md` for the preset matrix, NetBird admin allowlists, DNS
+binds, and TLS modes.
+
 ## Profiles
 
 - `core`: app and Postgres only
@@ -34,6 +47,7 @@ appended only when you enable that feature.
 ## Guides
 
 - `docker.md`
+- `deploy-runbook.md`
 - `core.md`
 - `caddy.md`
 - `mail.md`

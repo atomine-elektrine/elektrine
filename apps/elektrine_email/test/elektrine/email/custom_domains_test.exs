@@ -193,6 +193,39 @@ defmodule Elektrine.Email.CustomDomainsTest do
     assert request.body == ""
   end
 
+  test "delete_custom_domain keeps DKIM material for system email domains" do
+    user = user_fixture(%{username: "systemdeletesync"})
+
+    Application.put_env(
+      :elektrine,
+      :email,
+      Keyword.merge(Application.get_env(:elektrine, :email, []),
+        domain: "system-delete.test",
+        supported_domains: ["system-delete.test"],
+        receive_only_domains: []
+      )
+    )
+
+    custom_domain =
+      %CustomDomain{}
+      |> Ecto.Changeset.change(%{
+        domain: "system-delete.test",
+        verification_token: "token",
+        dkim_selector: "default",
+        dkim_public_key: "public",
+        dkim_private_key: "private",
+        status: "pending",
+        user_id: user.id
+      })
+      |> Repo.insert!()
+
+    MockHarakaHTTPClient.clear_requests()
+
+    assert {:ok, _deleted_domain} = Email.delete_custom_domain(custom_domain)
+
+    assert MockHarakaHTTPClient.requests() == []
+  end
+
   test "verify_custom_domain marks a domain verified when the TXT record matches" do
     user = user_fixture(%{username: "domainowner"})
 

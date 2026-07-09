@@ -11,7 +11,7 @@ source "$ROOT_DIR/scripts/lib/module_selection.sh"
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/deploy/self_host.sh init --domain example.com --email admin@example.com [--force]
+  scripts/deploy/self_host.sh init --domain example.com --email admin@example.com [--preset simple-web] [--force]
   scripts/deploy/self_host.sh enable PRESET
   scripts/deploy/self_host.sh presets
   scripts/deploy/self_host.sh doctor
@@ -20,7 +20,8 @@ Usage:
   scripts/deploy/self_host.sh logs [service]
   scripts/deploy/self_host.sh status
 
-Presets: mail dns wildcard-tls s3 vpn tor turn bluesky
+Deployment presets: simple-web, web-mail, web-mail-dns, full-stack
+Add-on presets: mail dns wildcard-tls s3 vpn tor turn bluesky
 
 Set ELEKTRINE_ENV_FILE=/path/to/.env.production to operate on a non-default env file.
 EOF
@@ -243,6 +244,10 @@ enable_preset() {
     read -r -a profile_array <<< "$profiles_to_add"
     next_profiles="$(merge_profiles "${DOCKER_PROFILES:-caddy}" "${profile_array[@]}")"
     set_env_value DOCKER_PROFILES "$next_profiles"
+  fi
+
+  if [[ "$preset" == "wildcard-tls" ]]; then
+    set_env_value TLS_MODE letsencrypt-dns
   fi
 
   append_preset_block "$preset"

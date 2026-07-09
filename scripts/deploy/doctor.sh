@@ -13,6 +13,8 @@ ACTIVE_DOCKER_PROFILES=""
 
 # shellcheck source=scripts/lib/module_selection.sh
 source "$ROOT_DIR/scripts/lib/module_selection.sh"
+# shellcheck source=scripts/lib/deploy_simplify.sh
+source "$ROOT_DIR/scripts/lib/deploy_simplify.sh"
 
 usage() {
   cat <<'EOF'
@@ -270,6 +272,7 @@ validate_env_file() {
   local env_file="$1"
   local line=""
   local line_no=0
+  local key=""
 
   while IFS= read -r line || [[ -n "$line" ]]; do
     line_no=$((line_no + 1))
@@ -282,6 +285,13 @@ validate_env_file() {
       check_error "unsafe shell syntax in env file at $env_file:$line_no"
       return 1
     fi
+
+    key="${line%%=*}"
+    if [[ -n "${seen_env_keys[$key]:-}" ]]; then
+      check_error "duplicate env key $key at $env_file:$line_no; first seen at line ${seen_env_keys[$key]}"
+    else
+      seen_env_keys[$key]="$line_no"
+    fi
   done < "$env_file"
 }
 
@@ -291,12 +301,15 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 1
 fi
 
+declare -A seen_env_keys=()
 validate_env_file "$ENV_FILE"
 
 set -a
 # shellcheck disable=SC1090
 source "$ENV_FILE"
 set +a
+
+apply_simplified_deploy_env
 
 export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-docker}"
 
@@ -311,6 +324,8 @@ check_old_generated_files
 check_root_owned_generated_files
 check_stale_deploy_worktrees
 check_compose_project_name
+doctor_check_legacy_deploy_env_file
+doctor_check_simplified_deploy_env
 
 for required in PRIMARY_DOMAIN DB_PASSWORD ELEKTRINE_MASTER_SECRET; do
   if present "${!required:-}"; then

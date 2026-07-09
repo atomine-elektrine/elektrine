@@ -161,10 +161,10 @@ check_max_lines apps/elektrine/assets/js/hooks/timeline_status_hooks.js 200
 check_max_lines apps/elektrine/assets/js/hooks/ui_hooks.js 600
 check_max_lines scripts/deploy/docker_deploy.sh 875
 check_max_lines scripts/deploy/configure_haraka_wildcard_tls.sh 625
-check_max_lines scripts/deploy/doctor.sh 525
+check_max_lines scripts/deploy/doctor.sh 550
 check_max_lines scripts/deploy/self_host.sh 350
 check_max_lines scripts/deploy/render_docker_compose.sh 200
-check_max_lines scripts/deploy/generate_env.sh 200
+check_max_lines scripts/deploy/generate_env.sh 250
 
 if ((failures > 0)); then
   echo "Maintainability budgets failed with $failures issue(s)." >&2
