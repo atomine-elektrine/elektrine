@@ -16,7 +16,7 @@ defmodule Elektrine.VPN.SelfHostedShadowsocksServer do
   end
 
   @impl true
-  def init(_opts), do: {:ok, %{port: nil}}
+  def init(_opts), do: {:ok, %{ports: %{}}}
 
   @impl true
   def handle_call({:apply_snapshot, snapshot}, _from, state) do
@@ -24,8 +24,8 @@ defmodule Elektrine.VPN.SelfHostedShadowsocksServer do
     :ok = ShadowsocksAdapter.write_config(snapshot)
 
     state =
-      if changed or is_nil(state.port) do
-        restart_server(state)
+      if changed or map_size(state.ports) == 0 do
+        restart_servers(snapshot, state)
       else
         state
       end
@@ -45,23 +45,29 @@ defmodule Elektrine.VPN.SelfHostedShadowsocksServer do
   end
 
   @impl true
-  def handle_info({port, {:exit_status, status}}, %{port: port} = state) do
-    Logger.error("Self-hosted Shadowsocks exited with status #{status}")
-    {:noreply, %{state | port: nil}}
+  def handle_info({port, {:exit_status, status}}, state) do
+    case Enum.find(state.ports, fn {_server_port, os_port} -> os_port == port end) do
+      {server_port, _os_port} ->
+        Logger.error("Self-hosted Shadowsocks port #{server_port} exited with status #{status}")
+        {:noreply, %{state | ports: Map.delete(state.ports, server_port)}}
+
+      nil ->
+        {:noreply, state}
+    end
   end
 
   def handle_info(_message, state), do: {:noreply, state}
 
-  defp restart_server(state) do
-    if state.port, do: Port.close(state.port)
+  defp restart_servers(snapshot, state) do
+    ShadowsocksAdapter.close_ports(Map.values(state.ports))
 
-    case ShadowsocksAdapter.start_server() do
-      {:ok, port} ->
-        %{state | port: port}
+    case ShadowsocksAdapter.start_servers(snapshot) do
+      {:ok, ports} ->
+        %{state | ports: ports}
 
       {:error, reason} ->
         Logger.error("Self-hosted Shadowsocks failed to start: #{inspect(reason)}")
-        %{state | port: nil}
+        %{state | ports: %{}}
     end
   end
 end
