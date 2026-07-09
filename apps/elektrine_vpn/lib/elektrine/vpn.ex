@@ -664,10 +664,7 @@ defmodule Elektrine.VPN do
           public_ip: public_ip,
           endpoint_host: env_value(env, "VPN_SELFHOST_ENDPOINT_HOST"),
           public_key: self_host_public_key(protocol, public_key),
-          endpoint_port:
-            env_value(env, "VPN_SELFHOST_ENDPOINT_PORT") ||
-              env_value(env, protocol_listen_port_env(protocol)) ||
-              default_endpoint_port(protocol),
+          endpoint_port: self_host_endpoint_port(env, protocol),
           client_mtu: env_value(env, "VPN_SELFHOST_CLIENT_MTU") || 1280,
           internal_ip_range:
             env_value(env, "VPN_SELFHOST_INTERNAL_IP_RANGE") ||
@@ -848,6 +845,18 @@ defmodule Elektrine.VPN do
   defp protocol_listen_port_env("shadowsocks"), do: "VPN_SELFHOST_SS_LISTEN_PORT"
   defp protocol_listen_port_env(_protocol), do: "VPN_SELFHOST_LISTEN_PORT"
 
+  defp self_host_endpoint_port(env, "shadowsocks" = protocol) do
+    env_value(env, protocol_listen_port_env(protocol)) ||
+      env_value(env, "VPN_SELFHOST_ENDPOINT_PORT") ||
+      default_endpoint_port(protocol)
+  end
+
+  defp self_host_endpoint_port(env, protocol) do
+    env_value(env, "VPN_SELFHOST_ENDPOINT_PORT") ||
+      env_value(env, protocol_listen_port_env(protocol)) ||
+      default_endpoint_port(protocol)
+  end
+
   defp build_user_config_attrs(user_id, %Server{} = server, capability) do
     case server_protocol(server) do
       "shadowsocks" -> build_shadowsocks_user_config_attrs(user_id, server, capability)
@@ -967,15 +976,20 @@ defmodule Elektrine.VPN do
   defp shadowsocks_port_range_start(%Server{} = server) do
     metadata = ensure_map(server.metadata)
 
-    Map.get(metadata, "port_range_start") || Map.get(metadata, :port_range_start) ||
+    to_integer_or_default(
+      Map.get(metadata, "port_range_start") || Map.get(metadata, :port_range_start),
       server.endpoint_port
+    )
   end
 
   defp shadowsocks_port_range_end(%Server{} = server) do
     metadata = ensure_map(server.metadata)
+    start_port = shadowsocks_port_range_start(server)
 
-    Map.get(metadata, "port_range_end") || Map.get(metadata, :port_range_end) ||
-      shadowsocks_port_range_start(server) + @default_shadowsocks_port_range_size - 1
+    to_integer_or_default(
+      Map.get(metadata, "port_range_end") || Map.get(metadata, :port_range_end),
+      start_port + @default_shadowsocks_port_range_size - 1
+    )
   end
 
   defp allocate_shadowsocks_port(%Server{} = server) do
