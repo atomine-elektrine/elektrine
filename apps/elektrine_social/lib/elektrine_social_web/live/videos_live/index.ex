@@ -651,12 +651,82 @@ defmodule ElektrineSocialWeb.VideosLive.Index do
   defp video_thumbnail_url(post) do
     metadata = Map.get(post, :media_metadata) || %{}
 
-    metadata_value(metadata, ["thumbnail_url", :thumbnail_url]) ||
+    attachment_thumbnail =
       metadata
       |> metadata_attachments()
-      |> Enum.find_value(
-        &metadata_value(&1, ["preview_url", :preview_url, "thumbnailUrl", :thumbnailUrl])
-      )
+      |> Enum.find_value(fn attachment ->
+        metadata_value(attachment, [
+          "preview_url",
+          :preview_url,
+          "previewUrl",
+          :previewUrl,
+          "thumbnail_url",
+          :thumbnail_url,
+          "thumbnailUrl",
+          :thumbnailUrl,
+          "sensitiveThumbnailUrl",
+          :sensitiveThumbnailUrl,
+          "poster",
+          :poster,
+          "preview",
+          :preview,
+          "image",
+          :image
+        ])
+      end)
+
+    link_preview_thumbnail =
+      case Map.get(post, :link_preview) do
+        %{image_url: image_url} when is_binary(image_url) -> image_url
+        _ -> nil
+      end
+
+    [
+      metadata_value(metadata, [
+        "thumbnail_url",
+        :thumbnail_url,
+        "thumbnailUrl",
+        :thumbnailUrl,
+        "preview_url",
+        :preview_url,
+        "preview",
+        :preview,
+        "poster",
+        :poster,
+        "image",
+        :image,
+        "icon",
+        :icon
+      ]),
+      attachment_thumbnail,
+      link_preview_thumbnail
+    ]
+    |> Enum.find_value(fn candidate ->
+      candidate
+      |> thumbnail_candidate_url()
+      |> normalize_thumbnail_url(post)
+    end)
+  end
+
+  defp thumbnail_candidate_url(value) when is_binary(value), do: value
+
+  defp thumbnail_candidate_url(value) when is_list(value) do
+    Enum.find_value(value, &thumbnail_candidate_url/1)
+  end
+
+  defp thumbnail_candidate_url(value) when is_map(value) do
+    metadata_value(value, ["url", :url, "href", :href, "src", :src])
+    |> thumbnail_candidate_url()
+  end
+
+  defp thumbnail_candidate_url(_), do: nil
+
+  defp normalize_thumbnail_url(nil, _post), do: nil
+
+  defp normalize_thumbnail_url(url, post) do
+    url
+    |> video_attachment_url(post)
+    |> PostUtilities.safe_image_url()
   end
 
   defp metadata_attachments(metadata) when is_map(metadata) do

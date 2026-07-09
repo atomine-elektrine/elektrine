@@ -30,10 +30,8 @@ defmodule ElektrineWeb.Plugs.APIRateLimit do
     limiter = limiter(conn, opts)
     identifier = get_identifier(conn, opts)
 
-    case limiter.check_rate_limit(identifier) do
+    case limiter.check_and_record(identifier) do
       {:ok, :allowed} ->
-        limiter.record_attempt(identifier)
-
         # Add rate limit headers
         conn
         |> add_rate_limit_headers(limiter, identifier)

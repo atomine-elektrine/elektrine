@@ -35,8 +35,10 @@ defmodule ElektrineSocialWeb.VideosLiveTest do
 
     assert html =~ "Video Feed"
     assert html =~ video.title
-    assert html =~ ~s(<video)
-    assert html =~ ~s(src="https://peertube.example/download/stream")
+    assert html =~ ~s(<img)
+    assert html =~ ~s(src="https://93.184.216.34/previews/)
+    assert html =~ ~s(aria-label="Watch PeerTube Federation Talk")
+    refute html =~ ~s(src="https://peertube.example/download/stream")
     refute html =~ image.title
   end
 
@@ -102,6 +104,35 @@ defmodule ElektrineSocialWeb.VideosLiveTest do
 
     assert html =~ video.title
     assert html =~ ~s(src="https://cdn.example/media/video.mp4")
+  end
+
+  test "video cards recognize nested federated thumbnail variants", %{conn: conn} do
+    media_url = "https://video.example/media/variant.mp4"
+    thumbnail_url = "https://93.184.216.34/previews/variant.webp"
+
+    video =
+      remote_video_post_fixture(
+        title: "Nested Thumbnail Variant",
+        media_url: media_url,
+        media_metadata: %{
+          "type" => "Video",
+          "attachments" => [
+            %{
+              "type" => "Video",
+              "mediaType" => "video/mp4",
+              "url" => media_url,
+              "thumbnailUrl" => thumbnail_url
+            }
+          ]
+        }
+      )
+
+    {:ok, view, _html} = live(conn, ~p"/videos")
+    html = render_async(view)
+
+    assert html =~ video.title
+    assert html =~ ~s(src="#{thumbnail_url}")
+    refute html =~ ~s(src="#{media_url}")
   end
 
   test "videos load more posts through the infinite scroll event", %{conn: conn} do
@@ -204,13 +235,13 @@ defmodule ElektrineSocialWeb.VideosLiveTest do
           attrs[:media_metadata] ||
             %{
               "type" => "Video",
-              "thumbnail_url" => "https://#{domain}/lazy-static/previews/#{unique}.jpg",
+              "thumbnail_url" => "https://93.184.216.34/previews/#{unique}.jpg",
               "media_attachments" => [
                 %{
                   "type" => "video",
                   "mediaType" => "video/mp4",
                   "url" => media_url,
-                  "preview_url" => "https://#{domain}/lazy-static/previews/#{unique}.jpg",
+                  "preview_url" => "https://93.184.216.34/previews/#{unique}.jpg",
                   "width" => 1280,
                   "height" => 720
                 }

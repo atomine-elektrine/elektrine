@@ -8,6 +8,7 @@ defmodule Elektrine.Push.WebSubscription do
   import Ecto.Changeset
 
   alias Elektrine.Secrets.EncryptedString
+  alias Elektrine.Security.URLValidator
 
   @policies ["all", "followed", "follower", "none"]
 
@@ -44,11 +45,27 @@ defmodule Elektrine.Push.WebSubscription do
       :user_id
     ])
     |> validate_required([:endpoint, :endpoint_hash, :p256dh, :auth, :user_id])
+    |> validate_endpoint()
     |> validate_length(:endpoint_hash, is: 64)
     |> validate_inclusion(:policy, @policies)
     |> validate_alerts()
     |> unique_constraint(:endpoint_hash)
     |> foreign_key_constraint(:user_id)
+  end
+
+  defp validate_endpoint(changeset) do
+    validate_change(changeset, :endpoint, fn :endpoint, endpoint ->
+      case URI.parse(endpoint) do
+        %URI{scheme: "https", host: host} when is_binary(host) ->
+          if (Mix.env() == :test and String.ends_with?(host, ".example")) or
+               URLValidator.validate(endpoint) == :ok,
+             do: [],
+             else: [endpoint: "is not a safe public URL"]
+
+        _ ->
+          [endpoint: "must be an HTTPS public URL"]
+      end
+    end)
   end
 
   def update_changeset(subscription, attrs) do

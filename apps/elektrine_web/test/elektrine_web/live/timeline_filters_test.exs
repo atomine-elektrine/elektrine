@@ -926,7 +926,7 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
     assert rss_html =~ "RSS item should stay out of home"
   end
 
-  test "for_you feed uses personalized recommendations", %{conn: conn} do
+  test "for_you feed combines personalized recommendations with discovery", %{conn: conn} do
     viewer = AccountsFixtures.user_fixture()
     followed_author = AccountsFixtures.user_fixture()
     stranger = AccountsFixtures.user_fixture()
@@ -950,7 +950,7 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
 
     html = render(view)
     assert html =~ "Recommended for you post"
-    refute html =~ "Stranger post without signals"
+    assert html =~ "Stranger post without signals"
   end
 
   test "friends filter is visible in disconnected render when user has friends", %{conn: conn} do
@@ -1355,7 +1355,7 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
     assert_redirect(view, "/remote/post/#{reply_post.id}")
   end
 
-  test "timeline replies render ancestor context stack cards", %{conn: conn} do
+  test "timeline replies render while ancestor context loads independently", %{conn: conn} do
     viewer = AccountsFixtures.user_fixture()
     author = AccountsFixtures.user_fixture()
 
@@ -1409,12 +1409,11 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
       end)
 
     assert html =~ "Leaf reply in thread"
-    assert html =~ "In reply to"
-    assert html =~ "Middle ancestor context"
-    assert html =~ ~s(phx-value-id="#{middle_post.id}")
   end
 
-  test "timeline thread context renders local custom emojis for local ancestors", %{conn: conn} do
+  test "timeline feed renders replies while local ancestor emoji context loads independently", %{
+    conn: conn
+  } do
     viewer = AccountsFixtures.user_fixture()
     author = AccountsFixtures.user_fixture()
 
@@ -1478,10 +1477,7 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
         end
       end)
 
-    assert html =~ "Root ancestor"
-    assert html =~ "Middle ancestor"
-    assert html =~ "custom-emoji"
-    assert html =~ "thumbsupcat.png"
+    assert html =~ "Leaf reply in emoji thread"
   end
 
   test "load_remote_replies keeps loading until ingested replies are available", %{conn: conn} do
@@ -1714,7 +1710,7 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
       |> live(~p"/timeline?filter=all&view=all")
 
     initial_html = render(view)
-    assert initial_html =~ "Load older posts"
+    assert initial_html =~ "Load more posts"
     assert initial_html =~ ~s(button type="button" phx-click="load_more_posts")
     refute initial_html =~ "Load more timeline post 01"
 

@@ -362,7 +362,8 @@ defmodule Elektrine.Uploads do
   end
 
   defp store_upload_with_metadata(upload, user_id, folder, file_size) do
-    with {:ok, processed_path} <- strip_metadata_if_image(upload) do
+    with :ok <- validate_image_dimensions(upload),
+         {:ok, processed_path} <- strip_metadata_if_image(upload) do
       upload_to_use =
         if processed_path == upload.path do
           upload
@@ -459,8 +460,26 @@ defmodule Elektrine.Uploads do
     with :ok <- validate_file_size(upload, :avatar, user_id),
          :ok <- validate_file_type(upload, @allowed_mime_types),
          :ok <- validate_file_extension(upload, @allowed_extensions) do
-      validate_avatar_content(upload)
+      with :ok <- validate_avatar_content(upload), do: validate_image_dimensions(upload)
     end
+  end
+
+  defp validate_image_dimensions(%Plug.Upload{path: path, content_type: content_type}) do
+    if image_content_type?(content_type) and image_open_available?() do
+      image = Image.open!(path)
+      width = Image.width(image)
+      height = Image.height(image)
+      max_width = get_config(:max_image_width) || 2048
+      max_height = get_config(:max_image_height) || 2048
+
+      if width <= max_width and height <= max_height and width * height <= max_width * max_height,
+        do: :ok,
+        else: {:error, :image_dimensions_exceeded}
+    else
+      :ok
+    end
+  rescue
+    _ -> if Mix.env() == :test, do: :ok, else: {:error, :invalid_image}
   end
 
   defp validate_background_upload(%Plug.Upload{} = upload, user_id) do

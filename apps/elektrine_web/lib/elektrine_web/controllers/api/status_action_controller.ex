@@ -98,7 +98,7 @@ defmodule ElektrineWeb.API.StatusActionController do
   end
 
   def translate(conn, %{"id" => id} = params) do
-    case get_message(id) do
+    case get_visible_message(id, conn.assigns[:current_user].id) do
       %Message{} = message -> json(conn, translation_json(message, params))
       nil -> error(conn, :not_found)
     end
@@ -107,7 +107,7 @@ defmodule ElektrineWeb.API.StatusActionController do
   def update(conn, %{"id" => id} = params) do
     user = conn.assigns[:current_user]
 
-    with %Message{} = message <- get_message(id),
+    with %Message{} = message <- get_visible_message(id, user.id),
          content when is_binary(content) <- status_content(params),
          {:ok, updated} <- Messages.edit_message(message.id, user.id, content) do
       json(conn, format_status(updated, user.id))
@@ -121,7 +121,7 @@ defmodule ElektrineWeb.API.StatusActionController do
   def delete(conn, %{"id" => id}) do
     user = conn.assigns[:current_user]
 
-    with %Message{} = message <- get_message(id),
+    with %Message{} = message <- get_visible_message(id, user.id),
          {:ok, deleted} <- Messages.delete_message(message.id, user.id) do
       json(conn, format_status(deleted, user.id))
     else
@@ -133,13 +133,25 @@ defmodule ElektrineWeb.API.StatusActionController do
   defp run_post_action(conn, id, fun) do
     user = conn.assigns[:current_user]
 
-    with %Message{} = message <- get_message(id),
+    with %Message{} = message <- get_visible_message(id, user.id),
          {:ok, _result} <- fun.(user, message) do
       json(conn, format_status(message, user.id))
     else
       nil -> error(conn, :not_found)
       {:error, reason} -> error(conn, reason)
     end
+  end
+
+  defp get_visible_message(id, user_id) do
+    case get_message(id) do
+      %Message{} = message -> if message_visible?(user_id, message), do: message
+      nil -> nil
+    end
+  end
+
+  defp message_visible?(user_id, message) do
+    policy = Module.concat([Elektrine, Social, MessagePolicy])
+    Code.ensure_loaded?(policy) and policy.visible?(user_id, message)
   end
 
   defp get_message(id) do

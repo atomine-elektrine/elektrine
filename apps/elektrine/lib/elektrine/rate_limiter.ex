@@ -131,6 +131,20 @@ defmodule Elektrine.RateLimiter do
         end
       end
 
+      @doc "Atomically checks and records an attempt for an identifier."
+      def check_and_record(identifier) do
+        :global.trans({__MODULE__, identifier}, fn ->
+          case check_rate_limit(identifier) do
+            {:ok, :allowed} = result ->
+              record_attempt(identifier)
+              result
+
+            error ->
+              error
+          end
+        end)
+      end
+
       @doc """
       Records an attempt for rate limiting.
       Automatically locks out if limits exceeded.
@@ -331,7 +345,11 @@ defmodule Elektrine.RateLimiter do
       end
 
       # Allow overriding in child modules
-      defoverridable check_rate_limit: 1, record_attempt: 1, clear_limits: 1, get_status: 1
+      defoverridable check_rate_limit: 1,
+                     check_and_record: 1,
+                     record_attempt: 1,
+                     clear_limits: 1,
+                     get_status: 1
     end
   end
 end

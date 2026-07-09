@@ -29,7 +29,8 @@ defmodule ElektrineWeb.Components.Social.PostActionsTest do
         counts_loading: true
       )
 
-    assert html =~ "text-transparent select-none"
+    assert length(Regex.scan(~r/aria-busy="true"/, html)) == 4
+    assert length(:binary.matches(html, "--")) == 4
     refute html =~ ~s(data-count="0")
   end
 

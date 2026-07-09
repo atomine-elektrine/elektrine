@@ -188,24 +188,38 @@ defmodule Atomine.Attestations do
     with {:ok, payload} <- parse_statement(token, @anonymous_token_prefix),
          :ok <- ensure_not_expired(payload),
          :ok <- validate_token_spend_attrs(attrs),
-         %Attestation{} = attestation <-
-           Repo.get_by(Attestation, artifact_hash: artifact_hash(token)) do
-      cond do
-        attestation.status == "redeemed" ->
-          {:error, :already_redeemed}
+         %Attestation{} <- Repo.get_by(Attestation, artifact_hash: artifact_hash(token)) do
+      Repo.transaction(fn ->
+        attestation =
+          Attestation
+          |> where([a], a.artifact_hash == ^artifact_hash(token))
+          |> lock("FOR UPDATE")
+          |> Repo.one!()
 
-        DateTime.compare(attestation.expires_at, now()) == :lt ->
-          update_status(attestation, "expired")
-          {:error, :expired}
+        cond do
+          attestation.status == "redeemed" ->
+            Repo.rollback(:already_redeemed)
 
-        true ->
-          attestation
-          |> Attestation.changeset(%{
-            status: "redeemed",
-            redeemed_at: now(),
-            metadata: spend_metadata(attestation.metadata, attrs, payload)
-          })
-          |> Repo.update()
+          DateTime.compare(attestation.expires_at, now()) == :lt ->
+            update_status(attestation, "expired")
+            Repo.rollback(:expired)
+
+          true ->
+            case attestation
+                 |> Attestation.changeset(%{
+                   status: "redeemed",
+                   redeemed_at: now(),
+                   metadata: spend_metadata(attestation.metadata, attrs, payload)
+                 })
+                 |> Repo.update() do
+              {:ok, updated} -> updated
+              {:error, changeset} -> Repo.rollback(changeset)
+            end
+        end
+      end)
+      |> case do
+        {:ok, result} -> {:ok, result}
+        {:error, reason} -> {:error, reason}
       end
     else
       nil -> {:error, :unknown_token}

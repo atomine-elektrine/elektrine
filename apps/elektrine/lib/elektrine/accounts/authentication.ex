@@ -16,6 +16,7 @@ defmodule Elektrine.Accounts.Authentication do
 
     cond do
       is_nil(user) ->
+        Argon2.no_user_verify(to_charlist(password))
         {:error, :invalid_credentials}
 
       user.banned ->
@@ -248,13 +249,30 @@ defmodule Elektrine.Accounts.Authentication do
         {:ok, :totp}
 
       user.two_factor_backup_codes != nil ->
-        case TwoFactor.verify_backup_code(user.two_factor_backup_codes, code) do
-          {:ok, remaining_codes} ->
-            user |> User.update_backup_codes_changeset(remaining_codes) |> Repo.update()
-            {:ok, :backup_code}
+        Repo.transaction(fn ->
+          locked_user =
+            User
+            |> where([u], u.id == ^user.id)
+            |> lock("FOR UPDATE")
+            |> Repo.one!()
 
-          {:error, :invalid} ->
-            {:error, :invalid_code}
+          case TwoFactor.verify_backup_code(locked_user.two_factor_backup_codes, code) do
+            {:ok, remaining_codes} ->
+              case locked_user
+                   |> User.update_backup_codes_changeset(remaining_codes)
+                   |> Repo.update() do
+                {:ok, _updated_user} -> :backup_code
+                {:error, changeset} -> Repo.rollback({:backup_code_update_failed, changeset})
+              end
+
+            {:error, :invalid} ->
+              Repo.rollback(:invalid_code)
+          end
+        end)
+        |> case do
+          {:ok, :backup_code} -> {:ok, :backup_code}
+          {:error, :invalid_code} -> {:error, :invalid_code}
+          {:error, _reason} -> {:error, :invalid_code}
         end
 
       true ->
@@ -828,7 +846,14 @@ defmodule Elektrine.Accounts.Authentication do
 
   @doc ~s|Admin function to reset a user's password with a new temporary password.\n|
   def admin_reset_password(user, attrs) do
-    user |> User.admin_password_reset_changeset(attrs) |> Repo.update()
+    case user |> User.admin_password_reset_changeset(attrs) |> Repo.update() do
+      {:ok, updated_user} = result ->
+        invalidate_long_lived_credentials(updated_user)
+        result
+
+      error ->
+        error
+    end
   end
 
   defp generate_password_reset_token do

@@ -66,7 +66,8 @@ defmodule ElektrineWeb.NotificationsLiveTest do
       |> log_in_user(viewer)
       |> live(~p"/notifications")
 
-    assert count_occurrences(html, "text-transparent select-none") >= 10
+    assert count_occurrences(html, ~s(aria-busy="true")) == 10
+    assert count_occurrences(html, "--") >= 10
     refute html =~ ~s(animate-pulse rounded bg-base-300)
   end
 

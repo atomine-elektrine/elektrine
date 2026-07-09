@@ -366,7 +366,9 @@ defmodule Kairo do
         extracted_content(nil, nil, "stored", %{"error" => "pdftotext_not_available"})
 
       executable ->
-        case System.cmd(executable, ["-layout", path, "-"], stderr_to_stdout: true) do
+        case System.cmd("timeout", ["--kill-after=2", "15", executable, "-layout", path, "-"],
+               stderr_to_stdout: true
+             ) do
           {content, 0} ->
             {content, truncated?} = truncate_extracted_content(content)
             status = if String.trim(content) == "", do: "stored", else: "compiled"

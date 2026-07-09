@@ -16,9 +16,9 @@ defmodule ElektrineWeb.ProfileLiveDomainsTest do
     assert html =~ "Domains"
     assert html =~ "Profile Domains"
     assert html =~ "Email Domains"
-    assert html =~ "Default Profile URL"
-    assert html =~ "publish a followable ActivityPub alias"
-    assert html =~ "That keeps the domain portable if the underlying hosting IPs change"
+    assert html =~ "Built-in Profile URL"
+    assert html =~ "Use a root domain like example.com for your public profile"
+    assert html =~ "point the root host at the stable routing hostname"
 
     unique = System.unique_integer([:positive])
 
@@ -30,7 +30,7 @@ defmodule ElektrineWeb.ProfileLiveDomainsTest do
       |> render_submit()
 
     assert html =~ "portfolio#{unique}.example.test"
-    assert html =~ "Ownership verification"
+    assert html =~ "DNS Setup"
     assert html =~ "Copy public URL"
     assert html =~ "ActivityPub Alias"
     assert html =~ "@#{user.username}@portfolio#{unique}.example.test"
@@ -47,7 +47,7 @@ defmodule ElektrineWeb.ProfileLiveDomainsTest do
 
     assert html =~ "mail#{unique}.example.test"
     assert html =~ "#{user.username}@mail#{unique}.example.test"
-    assert html =~ "Connected Email Domains"
+    assert html =~ "Your Email Domains"
     assert html =~ "Copy primary email address"
     assert html =~ "Sync DKIM"
   end

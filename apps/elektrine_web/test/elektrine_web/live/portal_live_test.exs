@@ -492,7 +492,8 @@ defmodule ElektrineWeb.PortalLiveTest do
     assert html =~ "Credits"
     refute html =~ "animate-pulse rounded bg-base-300"
     assert count_occurrences(html, ~s(data-dashboard-loading="true")) == 5
-    assert count_occurrences(html, ~s(text-transparent select-none")) == 5
+    assert count_occurrences(html, "aria-busy") == 5
+    assert count_occurrences(html, ">Updating</span>") == 5
   end
 
   test "portal uses the manual pagination feed container", %{conn: conn} do

@@ -200,20 +200,44 @@
                     do: "blur-sm hover:blur-none focus-within:blur-none transition-all"
                   )
                 ]}>
-                  <%= if full_url do %>
-                    <video
-                      src={full_url}
-                      poster={poster_url}
-                      controls
-                      preload="metadata"
-                      class="h-full w-full object-contain"
+                  <%= if poster_url do %>
+                    <.link
+                      navigate={video_post_path(video)}
+                      class="group/thumbnail block h-full w-full overflow-hidden bg-black"
+                      aria-label={"Watch #{video_display_title(video)}"}
                     >
-                      Your browser does not support the video tag.
-                    </video>
+                      <img
+                        src={poster_url}
+                        alt=""
+                        width="1280"
+                        height="720"
+                        loading="lazy"
+                        decoding="async"
+                        class="h-full w-full object-cover transition duration-300 group-hover/thumbnail:scale-[1.02]"
+                      />
+                      <span class="absolute inset-0 bg-black/5 transition group-hover/thumbnail:bg-black/15">
+                      </span>
+                      <span class="absolute inset-0 flex items-center justify-center">
+                        <span class="flex h-12 w-12 items-center justify-center rounded-full bg-black/70 text-white shadow-lg ring-1 ring-white/25 transition group-hover/thumbnail:scale-105 group-hover/thumbnail:bg-primary">
+                          <.icon name="hero-play-solid" class="ml-0.5 h-5 w-5" />
+                        </span>
+                      </span>
+                    </.link>
                   <% else %>
-                    <div class="flex h-full w-full items-center justify-center text-base-content/40">
-                      <.icon name="hero-video-camera" class="h-10 w-10" />
-                    </div>
+                    <%= if full_url do %>
+                      <video
+                        src={full_url}
+                        controls
+                        preload="metadata"
+                        class="h-full w-full bg-black object-contain"
+                      >
+                        Your browser does not support the video tag.
+                      </video>
+                    <% else %>
+                      <div class="flex h-full w-full items-center justify-center text-base-content/40">
+                        <.icon name="hero-video-camera" class="h-10 w-10" />
+                      </div>
+                    <% end %>
                   <% end %>
 
                   <%= if sensitive do %>

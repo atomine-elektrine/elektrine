@@ -789,26 +789,35 @@ defmodule Elektrine.StaticSites do
   end
 
   defp repo_archive_site_files(handle, entries, prefix) do
-    entries
-    |> Enum.reduce_while({:ok, []}, fn entry, {:ok, files} ->
-      case repo_archive_site_path(entry.repo_path, prefix) do
-        nil ->
-          {:cont, {:ok, files}}
+    selected_entries =
+      Enum.filter(entries, &(repo_archive_site_path(&1.repo_path, prefix) != nil))
 
-        path ->
-          with {:ok, content} <- zip_entry_content(handle, entry),
-               {:ok, path} <- normalize_site_path(path),
-               :ok <- validate_file_extension(path) do
-            {:cont, {:ok, [{String.to_charlist(path), content} | files]}}
-          else
-            {:error, reason} -> {:halt, {:error, reason}}
-          end
+    total_size = Enum.reduce(selected_entries, 0, &(&1.size + &2))
+
+    if total_size > max_zip_uncompressed_size() do
+      {:error, :storage_limit_exceeded}
+    else
+      selected_entries
+      |> Enum.reduce_while({:ok, []}, fn entry, {:ok, files} ->
+        case repo_archive_site_path(entry.repo_path, prefix) do
+          nil ->
+            {:cont, {:ok, files}}
+
+          path ->
+            with {:ok, content} <- zip_entry_content(handle, entry),
+                 {:ok, path} <- normalize_site_path(path),
+                 :ok <- validate_file_extension(path) do
+              {:cont, {:ok, [{String.to_charlist(path), content} | files]}}
+            else
+              {:error, reason} -> {:halt, {:error, reason}}
+            end
+        end
+      end)
+      |> case do
+        {:ok, []} -> {:error, :site_dir_not_found}
+        {:ok, files} -> {:ok, Enum.reverse(files)}
+        {:error, reason} -> {:error, reason}
       end
-    end)
-    |> case do
-      {:ok, []} -> {:error, :site_dir_not_found}
-      {:ok, files} -> {:ok, Enum.reverse(files)}
-      {:error, reason} -> {:error, reason}
     end
   end
 
