@@ -171,6 +171,8 @@ services:
       VPN_SELFHOST_SS_PORT_RANGE_START: ${VPN_SELFHOST_SS_PORT_RANGE_START:-8388}
       VPN_SELFHOST_SS_PORT_RANGE_END: ${VPN_SELFHOST_SS_PORT_RANGE_END:-9387}
       VPN_SELFHOST_SS_CIPHER: ${VPN_SELFHOST_SS_CIPHER:-chacha20-ietf-poly1305}
+      # Unix socket ss-server pushes per-port traffic stats to for quota accounting.
+      VPN_SELFHOST_SS_MANAGER_SOCKET: ${VPN_SELFHOST_SS_MANAGER_SOCKET:-/data/vpn/shadowsocks/manager.sock}
     network_mode: host
     cap_add:
       - NET_ADMIN
