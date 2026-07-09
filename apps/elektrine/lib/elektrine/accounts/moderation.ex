@@ -5,6 +5,7 @@ defmodule Elektrine.Accounts.Moderation do
   """
 
   import Ecto.Query, warn: false
+  alias Elektrine.Accounts.Authentication
   alias Elektrine.Accounts.{AccountDeletionRequest, TrustLevel, User}
   alias Elektrine.Platform.Modules
   alias Elektrine.Repo
@@ -34,6 +35,7 @@ defmodule Elektrine.Accounts.Moderation do
       |> User.ban_changeset(attrs)
       |> Repo.update()
       |> maybe_reconcile_trust_level()
+      |> revoke_banned_user_credentials()
     end
   end
 
@@ -100,6 +102,26 @@ defmodule Elektrine.Accounts.Moderation do
     user.suspended &&
       (is_nil(user.suspended_until) ||
          DateTime.compare(user.suspended_until, DateTime.utc_now()) == :gt)
+  end
+
+  defp revoke_banned_user_credentials({:ok, %User{} = user} = result) do
+    _ = Elektrine.Accounts.revoke_all_user_sessions(user.id, "account_banned")
+    _ = Authentication.revoke_all_app_passwords(user.id)
+    _ = Elektrine.Developer.revoke_all_api_tokens(user.id)
+    _ = ElektrineWeb.Endpoint.broadcast("user_socket:#{user.id}", "disconnect", %{})
+    _ = broadcast_mail_auth_changed(user.id)
+
+    result
+  end
+
+  defp revoke_banned_user_credentials(result), do: result
+
+  defp broadcast_mail_auth_changed(user_id) do
+    Phoenix.PubSub.broadcast(
+      Elektrine.PubSub,
+      "mail_auth:user:#{user_id}",
+      {:mail_auth_changed, user_id}
+    )
   end
 
   @doc """

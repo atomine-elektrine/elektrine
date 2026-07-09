@@ -292,18 +292,23 @@ defmodule Elektrine.SMTP.Server do
             end
 
           handled =
-            case normalized_cmd do
-              "EHLO" -> handle_ehlo(args_str, state)
-              "HELO" -> handle_helo(args_str, state)
-              "STARTTLS" -> handle_starttls(state)
-              "AUTH" -> handle_auth(args_str, state)
-              "MAIL" -> handle_mail(args_str, state)
-              "RCPT" -> handle_rcpt(args_str, state)
-              "DATA" -> handle_data(state)
-              "RSET" -> handle_rset(state)
-              "NOOP" -> handle_noop(state)
-              "QUIT" -> handle_quit(state)
-              _ -> handle_unknown(normalized_cmd, state)
+            if authenticated_account_inactive?(state) and normalized_cmd != "QUIT" do
+              send_response(state.socket, "421 Account inactive")
+              {:quit, state}
+            else
+              case normalized_cmd do
+                "EHLO" -> handle_ehlo(args_str, state)
+                "HELO" -> handle_helo(args_str, state)
+                "STARTTLS" -> handle_starttls(state)
+                "AUTH" -> handle_auth(args_str, state)
+                "MAIL" -> handle_mail(args_str, state)
+                "RCPT" -> handle_rcpt(args_str, state)
+                "DATA" -> handle_data(state)
+                "RSET" -> handle_rset(state)
+                "NOOP" -> handle_noop(state)
+                "QUIT" -> handle_quit(state)
+                _ -> handle_unknown(normalized_cmd, state)
+              end
             end
 
           {normalized_cmd, handled}
@@ -668,8 +673,24 @@ defmodule Elektrine.SMTP.Server do
 
       {:error, :user_not_found} ->
         {:error, :authentication_failed}
+
+      {:error, :account_banned} ->
+        {:error, :account_inactive}
+
+      {:error, :account_suspended} ->
+        {:error, :account_inactive}
     end
   end
+
+  defp authenticated_account_inactive?(%{authenticated: true, user_id: user_id})
+       when is_integer(user_id) do
+    case Elektrine.Repo.get(Elektrine.Accounts.User, user_id) do
+      nil -> true
+      user -> Elektrine.Accounts.Authentication.ensure_user_active(user) != :ok
+    end
+  end
+
+  defp authenticated_account_inactive?(_state), do: false
 
   defp has_2fa_enabled?(user) do
     user.two_factor_enabled == true

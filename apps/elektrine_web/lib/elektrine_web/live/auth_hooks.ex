@@ -5,6 +5,7 @@ defmodule ElektrineWeb.Live.AuthHooks do
   use ElektrineWeb, :verified_routes
 
   alias Elektrine.Accounts
+  alias Elektrine.Accounts.Authentication
   alias ElektrineWeb.AdminSecurity
   alias ElektrineWeb.UserAuth
 
@@ -391,6 +392,7 @@ defmodule ElektrineWeb.Live.AuthHooks do
 
     # Add impersonation status
     socket = assign(socket, :is_impersonating, session["impersonating_admin_id"] != nil)
+    socket = maybe_attach_active_user_event_guard(socket)
 
     # Load notification count and subscribe to updates if user is authenticated
     if socket.assigns.current_user do
@@ -416,6 +418,40 @@ defmodule ElektrineWeb.Live.AuthHooks do
     else
       socket
     end
+  end
+
+  defp maybe_attach_active_user_event_guard(%{assigns: %{current_user: %{id: _}}} = socket) do
+    attach_hook(socket, :enforce_active_user_events, :handle_event, &enforce_active_user_event/3)
+  end
+
+  defp maybe_attach_active_user_event_guard(socket), do: socket
+
+  defp enforce_active_user_event(
+         _event,
+         _params,
+         %{assigns: %{current_user: %{id: user_id}}} = socket
+       ) do
+    case active_user_id?(user_id) do
+      true ->
+        {:cont, socket}
+
+      false ->
+        socket =
+          socket
+          |> notify_error("This account is not allowed to perform actions.")
+          |> redirect(to: ~p"/logout")
+
+        {:halt, socket}
+    end
+  end
+
+  defp enforce_active_user_event(_event, _params, socket), do: {:cont, socket}
+
+  defp active_user_id?(user_id) do
+    user = Accounts.get_user!(user_id)
+    Authentication.ensure_user_active(user) == :ok
+  rescue
+    Ecto.NoResultsError -> false
   end
 
   defp assign_live_locale(socket, session) do
@@ -462,7 +498,8 @@ defmodule ElektrineWeb.Live.AuthHooks do
   defp fetch_user_for_claims(user_id, claims) do
     user = Accounts.get_user!(user_id)
 
-    with true <- session_claims_valid?(user, claims),
+    with :ok <- Authentication.ensure_user_active(user),
+         true <- session_claims_valid?(user, claims),
          {:ok, user_session} <- validate_tracked_session(user_id, session_id(claims)) do
       {user, user_session}
     else

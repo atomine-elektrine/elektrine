@@ -609,6 +609,112 @@ defmodule Elektrine.Mail.ProtocolTranscriptTest do
     :ok = close_socket(smtp_socket)
   end
 
+  test "IMAP drops an authenticated banned account on the next command" do
+    {user, password, _mailbox} = create_user_with_messages(0)
+    clear_auth_limits(:imap, user.username)
+
+    {:ok, socket} = connect_tcp(imap_port())
+    assert String.starts_with?(recv_line!(socket), "* OK")
+
+    assert Enum.any?(
+             imap_command(socket, "ATLS", "STARTTLS"),
+             &String.starts_with?(&1, "ATLS OK")
+           )
+
+    {:ok, socket} = upgrade_socket_to_tls(socket)
+
+    assert Enum.any?(
+             imap_command(socket, "A1", "LOGIN #{user.username} #{password}"),
+             &String.starts_with?(&1, "A1 OK")
+           )
+
+    assert {:ok, _banned_user} =
+             Elektrine.Accounts.ban_user(user, %{banned_reason: "security test"})
+
+    send_line!(socket, "A2 NOOP")
+    assert recv_line!(socket) == "* BYE Account inactive"
+    :ok = close_socket(socket)
+  end
+
+  test "IMAP IDLE receives an account inactive BYE after ban" do
+    {user, password, _mailbox} = create_user_with_messages(0)
+    clear_auth_limits(:imap, user.username)
+
+    {:ok, socket} = connect_tcp(imap_port())
+    assert String.starts_with?(recv_line!(socket), "* OK")
+
+    assert Enum.any?(
+             imap_command(socket, "ATLS", "STARTTLS"),
+             &String.starts_with?(&1, "ATLS OK")
+           )
+
+    {:ok, socket} = upgrade_socket_to_tls(socket)
+
+    assert Enum.any?(
+             imap_command(socket, "A1", "LOGIN #{user.username} #{password}"),
+             &String.starts_with?(&1, "A1 OK")
+           )
+
+    assert Enum.any?(
+             imap_command(socket, "A2", "SELECT INBOX"),
+             &String.starts_with?(&1, "A2 OK")
+           )
+
+    send_line!(socket, "A3 IDLE")
+    assert recv_line!(socket) == "+ idling"
+
+    assert {:ok, _banned_user} =
+             Elektrine.Accounts.ban_user(user, %{banned_reason: "security test"})
+
+    assert recv_line!(socket) == "* BYE Account inactive"
+    :ok = close_socket(socket)
+  end
+
+  test "POP3 drops an authenticated banned account on the next command" do
+    {user, password, _mailbox} = create_user_with_messages(0)
+    clear_auth_limits(:pop3, user.username)
+
+    {:ok, socket} = connect_tcp(pop3_port())
+    assert String.starts_with?(recv_line!(socket), "+OK")
+    assert String.starts_with?(pop3_command(socket, "STLS"), "+OK")
+    {:ok, socket} = upgrade_socket_to_tls(socket)
+
+    assert String.starts_with?(pop3_command(socket, "USER #{user.username}"), "+OK")
+    assert String.starts_with?(pop3_command(socket, "PASS #{password}"), "+OK")
+
+    assert {:ok, _banned_user} =
+             Elektrine.Accounts.ban_user(user, %{banned_reason: "security test"})
+
+    assert String.starts_with?(pop3_command(socket, "STAT"), "-ERR Account inactive")
+    :ok = close_socket(socket)
+  end
+
+  test "SMTP drops an authenticated banned account before accepting mail" do
+    {user, password, mailbox} = create_user_with_messages(0)
+    clear_auth_limits(:smtp, user.username)
+
+    {:ok, socket} = connect_tcp(smtp_port())
+    assert String.starts_with?(recv_line!(socket), "220 ")
+    assert String.starts_with?(smtp_command(socket, "STARTTLS"), "220 ")
+    {:ok, socket} = upgrade_socket_to_tls(socket)
+
+    ehlo_lines = smtp_multiline_command(socket, "EHLO localhost")
+    assert Enum.any?(ehlo_lines, &String.starts_with?(&1, "250-AUTH "))
+
+    plain_cred = Base.encode64("\0#{user.username}\0#{password}")
+    assert String.starts_with?(smtp_command(socket, "AUTH plain #{plain_cred}"), "235 ")
+
+    assert {:ok, _banned_user} =
+             Elektrine.Accounts.ban_user(user, %{banned_reason: "security test"})
+
+    assert String.starts_with?(
+             smtp_command(socket, "MAIL FROM:<#{mailbox.email}>"),
+             "421 Account inactive"
+           )
+
+    :ok = close_socket(socket)
+  end
+
   test "SMTP accepts Thunderbird-style LOGIN and unpadded PLAIN app password auth" do
     {user, _password, mailbox} = create_user_with_messages(0)
     {:ok, app_password} = Elektrine.Accounts.create_app_password(user.id, %{name: "Thunderbird"})

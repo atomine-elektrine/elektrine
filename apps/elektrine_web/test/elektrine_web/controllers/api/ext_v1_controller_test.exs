@@ -723,13 +723,13 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
 
     test "Nerve endpoints reject banned PAT users", %{conn: conn} do
       user = user_fixture()
-      {:ok, _banned_user} = Accounts.ban_user(user, %{banned_reason: "security test"})
       conn = with_pat(conn, user.id, ["read:nerve"])
+      {:ok, _banned_user} = Accounts.ban_user(user, %{banned_reason: "security test"})
 
       conn = get(conn, "/api/ext/v1/nerve/entries")
 
       assert %{"error" => error} = json_response(conn, 401)
-      assert error["code"] == "account_inactive"
+      assert error["code"] == "invalid_token"
     end
 
     test "Nerve update endpoint updates an existing entry", %{conn: conn} do

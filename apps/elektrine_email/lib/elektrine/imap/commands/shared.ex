@@ -5,6 +5,8 @@ defmodule Elektrine.IMAP.Commands.Shared do
 
   def revocation_bye(:app_password_revoked), do: "* BYE App password revoked"
 
+  def revocation_bye(:account_inactive), do: "* BYE Account inactive"
+
   def revocation_bye(:two_factor_requires_app_password),
     do: "* BYE 2FA now requires an app password"
 

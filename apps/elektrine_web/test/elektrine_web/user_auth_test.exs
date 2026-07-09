@@ -272,6 +272,60 @@ defmodule ElektrineWeb.UserAuthTest do
   end
 
   describe "fetch_current_user/2" do
+    test "rejects and revokes existing sessions after a user is banned", %{conn: conn} do
+      user = user_fixture()
+
+      logged_in_conn =
+        conn
+        |> init_test_session(%{})
+        |> put_private(:phoenix_endpoint, ElektrineWeb.Endpoint)
+        |> UserAuth.log_in_user(user)
+
+      token = get_session(logged_in_conn, :user_token)
+      session_id = get_session(logged_in_conn, :user_session_id)
+
+      assert {:ok, _banned_user} = Accounts.ban_user(user, %{banned_reason: "security test"})
+
+      conn =
+        build_conn()
+        |> init_test_session(user_token: token, user_session_id: session_id)
+        |> UserAuth.fetch_current_user([])
+
+      assert conn.assigns.current_user == nil
+      assert conn.assigns.current_user_session == nil
+      assert get_session(conn, :user_token) == nil
+      assert get_session(conn, :user_session_id) == nil
+      assert Accounts.get_active_user_session(user.id, session_id) == nil
+    end
+
+    test "does not log in a banned user", %{conn: conn} do
+      user = user_fixture()
+      {:ok, banned_user} = Accounts.ban_user(user, %{banned_reason: "security test"})
+
+      conn =
+        conn
+        |> init_test_session(%{})
+        |> put_private(:phoenix_endpoint, ElektrineWeb.Endpoint)
+        |> UserAuth.log_in_user(banned_user)
+
+      assert redirected_to(conn) == Elektrine.Paths.login_path()
+      assert get_session(conn, :user_token) == nil
+      assert get_session(conn, :user_session_id) == nil
+    end
+
+    test "does not return a banned user from two-factor handoff", %{conn: conn} do
+      user = user_fixture()
+
+      conn =
+        conn
+        |> init_test_session(%{})
+        |> UserAuth.store_user_for_two_factor_verification(user)
+
+      assert {:ok, _banned_user} = Accounts.ban_user(user, %{banned_reason: "security test"})
+
+      assert UserAuth.get_user_for_two_factor_verification(conn) == nil
+    end
+
     test "tracks browser sessions and rejects revoked sessions", %{conn: conn} do
       user = user_fixture()
 

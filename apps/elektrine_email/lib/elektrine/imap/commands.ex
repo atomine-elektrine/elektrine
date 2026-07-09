@@ -194,7 +194,16 @@ defmodule Elektrine.IMAP.Commands do
     end
   end
 
-  defp mail_auth_revoked_reason(%{user: %{id: user_id}, auth_app_password_id: app_password_id})
+  defp mail_auth_revoked_reason(%{user: %{id: user_id}} = state) do
+    case active_account?(user_id) do
+      true -> credential_revoked_reason(state)
+      false -> :account_inactive
+    end
+  end
+
+  defp mail_auth_revoked_reason(_state), do: nil
+
+  defp credential_revoked_reason(%{user: %{id: user_id}, auth_app_password_id: app_password_id})
        when is_integer(app_password_id) do
     if Elektrine.Accounts.app_password_exists?(app_password_id, user_id) do
       nil
@@ -203,7 +212,7 @@ defmodule Elektrine.IMAP.Commands do
     end
   end
 
-  defp mail_auth_revoked_reason(%{user: %{id: user_id}, auth_method: :account_password}) do
+  defp credential_revoked_reason(%{user: %{id: user_id}, auth_method: :account_password}) do
     if Elektrine.Accounts.get_user!(user_id).two_factor_enabled do
       :two_factor_requires_app_password
     end
@@ -211,7 +220,14 @@ defmodule Elektrine.IMAP.Commands do
     Ecto.NoResultsError -> :two_factor_requires_app_password
   end
 
-  defp mail_auth_revoked_reason(_state), do: nil
+  defp credential_revoked_reason(_state), do: nil
+
+  defp active_account?(user_id) do
+    case Elektrine.Repo.get(Elektrine.Accounts.User, user_id) do
+      nil -> false
+      user -> Elektrine.Accounts.Authentication.ensure_user_active(user) == :ok
+    end
+  end
 
   defp handle_capability(tag, state) do
     Helpers.send_response(state.socket, "* CAPABILITY #{capability_string(state)}")

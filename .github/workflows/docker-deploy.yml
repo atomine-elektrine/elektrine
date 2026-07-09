@@ -166,8 +166,31 @@ jobs:
             exit 1
           fi
 
+          env_grep() {
+            local pattern="$1"
+            local env_file="$2"
+
+            if [ -r "$env_file" ]; then
+              grep -q "$pattern" "$env_file"
+            else
+              sudo -n grep -q "$pattern" "$env_file"
+            fi
+          }
+
+          if [ ! -f "$DEPLOY_PATH/.env.production" ]; then
+            echo "Remote env file is missing: $DEPLOY_PATH/.env.production" >&2
+            exit 1
+          fi
+
+          if [ ! -r "$DEPLOY_PATH/.env.production" ] && ! sudo -n test -r "$DEPLOY_PATH/.env.production"; then
+            deploy_user_name="$(id -un)"
+            echo "Remote env file is not readable by $deploy_user_name and sudo cannot read it: $DEPLOY_PATH/.env.production" >&2
+            echo "Fix ownership/permissions, for example: sudo chown $deploy_user_name:$deploy_user_name $DEPLOY_PATH/.env.production && sudo chmod 600 $DEPLOY_PATH/.env.production" >&2
+            exit 1
+          fi
+
           if [[ " $DOCKER_PROFILES " == *" turn "* ]]; then
-            if [ ! -f "$DEPLOY_PATH/.env.production" ] || ! grep -q '^TURN_SHARED_SECRET=.' "$DEPLOY_PATH/.env.production"; then
+            if ! env_grep '^TURN_SHARED_SECRET=.' "$DEPLOY_PATH/.env.production"; then
               echo "TURN profile is enabled, but TURN_SHARED_SECRET is missing from $DEPLOY_PATH/.env.production" >&2
               echo "Add TURN_SHARED_SECRET to the remote .env.production file." >&2
               exit 1
@@ -194,7 +217,13 @@ jobs:
           trap 'git -C "$DEPLOY_PATH" worktree remove --force "$WORKTREE_PATH" >/dev/null 2>&1 || rm -rf "$WORKTREE_PATH"' EXIT
 
           git worktree add --force --detach "$WORKTREE_PATH" "$DEPLOY_REF"
-          ln -sfn "$DEPLOY_PATH/.env.production" "$WORKTREE_PATH/.env.production"
+          WORKTREE_ENV_FILE="$WORKTREE_PATH/.env.production"
+          if [ -r "$DEPLOY_PATH/.env.production" ]; then
+            ln -sfn "$DEPLOY_PATH/.env.production" "$WORKTREE_ENV_FILE"
+          else
+            umask 077
+            sudo -n cat "$DEPLOY_PATH/.env.production" > "$WORKTREE_ENV_FILE"
+          fi
           cd "$WORKTREE_PATH"
 
           EXTRA_OVERRIDE_ARGS=()
@@ -238,7 +267,7 @@ jobs:
 
           ELEKTRINE_IMAGE="$TARGET_IMAGE" COMPOSE_PROJECT_NAME="docker" COMPOSE_PROJECT_DIRECTORY="$DEPLOY_PATH/deploy/docker" CADDY_RENDERED_CONFIG_PATH="$CADDY_OUTPUT_FILE" bash scripts/deploy/docker_deploy.sh \
             --modules "$ELEKTRINE_ENABLED_MODULES" \
-            --env-file "$DEPLOY_PATH/.env.production" \
+            --env-file "$WORKTREE_ENV_FILE" \
             --output "$OUTPUT_FILE" \
             --pull \
             --skip-build \

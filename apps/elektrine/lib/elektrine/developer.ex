@@ -77,36 +77,62 @@ defmodule Elektrine.Developer do
   - `:expires_at` - Optional. Expiration datetime.
   """
   def create_api_token(user_id, attrs) do
-    if count_api_tokens(user_id) >= max_tokens_per_user() do
-      changeset =
-        %ApiToken{}
-        |> Ecto.Changeset.change()
-        |> Ecto.Changeset.add_error(
-          :name,
-          "token limit reached (maximum #{max_tokens_per_user()} active tokens)"
-        )
-
-      {:error, changeset}
-    else
-      {raw_token, token_hash, token_prefix} = ApiToken.generate_token()
-
-      attrs =
-        attrs
-        |> Map.put(:user_id, user_id)
-        |> Map.put(:token_hash, token_hash)
-        |> Map.put(:token_prefix, token_prefix)
-
-      case %ApiToken{}
-           |> ApiToken.changeset(attrs)
-           |> Repo.insert() do
-        {:ok, token} ->
-          # Return with raw token in virtual field (only time it's available)
-          {:ok, %{token | token: raw_token}}
-
-        {:error, changeset} ->
-          {:error, changeset}
-      end
+    with :ok <- ensure_api_token_owner_active(user_id),
+         :ok <- ensure_api_token_limit_available(user_id) do
+      insert_api_token(user_id, attrs)
     end
+  end
+
+  defp ensure_api_token_owner_active(user_id) do
+    case Repo.get(Elektrine.Accounts.User, user_id) do
+      nil ->
+        {:error, api_token_error_changeset(:user_id, "does not exist")}
+
+      user ->
+        case Authentication.ensure_user_active(user) do
+          :ok -> :ok
+          {:error, _reason} -> {:error, api_token_error_changeset(:user_id, "is not active")}
+        end
+    end
+  end
+
+  defp ensure_api_token_limit_available(user_id) do
+    if count_api_tokens(user_id) >= max_tokens_per_user() do
+      {:error,
+       api_token_error_changeset(
+         :name,
+         "token limit reached (maximum #{max_tokens_per_user()} active tokens)"
+       )}
+    else
+      :ok
+    end
+  end
+
+  defp insert_api_token(user_id, attrs) do
+    {raw_token, token_hash, token_prefix} = ApiToken.generate_token()
+
+    attrs =
+      attrs
+      |> Map.put(:user_id, user_id)
+      |> Map.put(:token_hash, token_hash)
+      |> Map.put(:token_prefix, token_prefix)
+
+    case %ApiToken{}
+         |> ApiToken.changeset(attrs)
+         |> Repo.insert() do
+      {:ok, token} ->
+        # Return with raw token in virtual field (only time it's available)
+        {:ok, %{token | token: raw_token}}
+
+      {:error, changeset} ->
+        {:error, changeset}
+    end
+  end
+
+  defp api_token_error_changeset(field, message) do
+    %ApiToken{}
+    |> Ecto.Changeset.change()
+    |> Ecto.Changeset.add_error(field, message)
   end
 
   @doc """

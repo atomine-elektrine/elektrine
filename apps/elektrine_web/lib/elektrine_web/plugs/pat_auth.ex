@@ -105,12 +105,13 @@ defmodule ElektrineWeb.Plugs.PATAuth do
     end
   end
 
-  defp authorize_existing_token(_api_token, %{scopes: []}), do: :ok
+  defp authorize_existing_token(api_token, %{scopes: []}),
+    do: ensure_api_token_user_active(api_token)
 
   defp authorize_existing_token(api_token, %{scopes: scopes, any: any?}) do
-    case check_scopes(api_token, scopes, any?) do
-      {:ok, _} -> :ok
-      {:error, reason} -> {:error, reason}
+    with :ok <- ensure_api_token_user_active(api_token),
+         {:ok, _api_token} <- check_scopes(api_token, scopes, any?) do
+      :ok
     end
   end
 
@@ -159,11 +160,13 @@ defmodule ElektrineWeb.Plugs.PATAuth do
 
     case Developer.verify_api_token(token, ip_address) do
       {:ok, api_token} ->
-        # Check scopes if required
-        if Enum.empty?(opts.scopes) do
-          {:ok, api_token}
-        else
-          check_scopes(api_token, opts.scopes, opts.any)
+        with :ok <- ensure_api_token_user_active(api_token) do
+          # Check scopes if required
+          if Enum.empty?(opts.scopes) do
+            {:ok, api_token}
+          else
+            check_scopes(api_token, opts.scopes, opts.any)
+          end
         end
 
       {:error, reason} ->
@@ -183,6 +186,13 @@ defmodule ElektrineWeb.Plugs.PATAuth do
       rescue
         Ecto.NoResultsError -> {:error, :invalid_token}
       end
+    end
+  end
+
+  defp ensure_api_token_user_active(%ApiToken{user: user}) do
+    case Authentication.ensure_user_active(user) do
+      :ok -> :ok
+      {:error, _reason} -> {:error, :account_inactive}
     end
   end
 
@@ -229,6 +239,7 @@ defmodule ElektrineWeb.Plugs.PATAuth do
         :invalid_token -> "Invalid or unknown token"
         :token_expired -> "Token has expired"
         :token_revoked -> "Token has been revoked"
+        :account_inactive -> "Account is not allowed to authenticate"
         :account_banned -> "Account is not allowed to authenticate"
         :account_suspended -> "Account is not allowed to authenticate"
         _ -> "Authentication failed"

@@ -318,7 +318,12 @@ defmodule Elektrine.POP3.Server do
                 handle_auth_command(normalized_cmd, parsed_args, state)
 
               :transaction ->
-                handle_transaction_command(normalized_cmd, parsed_args, state)
+                if authenticated_account_inactive?(state) and normalized_cmd != "QUIT" do
+                  send_response(state.socket, "-ERR Account inactive")
+                  {:quit, state}
+                else
+                  handle_transaction_command(normalized_cmd, parsed_args, state)
+                end
 
               _ ->
                 send_response(state.socket, "-ERR Unknown state")
@@ -774,8 +779,24 @@ defmodule Elektrine.POP3.Server do
 
       {:error, :user_not_found} ->
         {:error, :authentication_failed}
+
+      {:error, :account_banned} ->
+        {:error, :account_inactive}
+
+      {:error, :account_suspended} ->
+        {:error, :account_inactive}
     end
   end
+
+  defp authenticated_account_inactive?(%{authenticated: true, mailbox: %{user_id: user_id}})
+       when is_integer(user_id) do
+    case Elektrine.Repo.get(Elektrine.Accounts.User, user_id) do
+      nil -> true
+      user -> Elektrine.Accounts.Authentication.ensure_user_active(user) != :ok
+    end
+  end
+
+  defp authenticated_account_inactive?(_state), do: false
 
   defp finalize_successful_auth(user) do
     Accounts.record_pop3_access(user.id)

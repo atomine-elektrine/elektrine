@@ -135,6 +135,12 @@ truthy() {
   [[ "${1:-false}" =~ ^(1|true|TRUE|yes|YES)$ ]]
 }
 
+if [[ -e "$ENV_FILE" && ! -r "$ENV_FILE" ]]; then
+  echo "Error: env file is not readable by $(id -un): $ENV_FILE" >&2
+  echo "Hint: make the file readable by the deploy user, or run the deploy wrapper with an env file copy the deploy user can read." >&2
+  exit 1
+fi
+
 if [[ -f "$ENV_FILE" ]]; then
   validate_env_file "$ENV_FILE"
   set -a

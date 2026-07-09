@@ -3,6 +3,7 @@ defmodule Elektrine.DeveloperTokensTest do
 
   import Elektrine.AccountsFixtures
 
+  alias Elektrine.Accounts
   alias Elektrine.Developer
 
   describe "create_api_token/2" do
@@ -40,6 +41,19 @@ defmodule Elektrine.DeveloperTokensTest do
                })
 
       assert Enum.sort(token.scopes) == ["read:moderation", "write:moderation"]
+    end
+
+    test "does not create tokens for banned users" do
+      user = user_fixture()
+      {:ok, banned_user} = Accounts.ban_user(user, %{banned_reason: "security test"})
+
+      assert {:error, changeset} =
+               Developer.create_api_token(banned_user.id, %{
+                 name: "blocked-token",
+                 scopes: ["read:account"]
+               })
+
+      assert "is not active" in errors_on(changeset).user_id
     end
 
     test "enforces the maximum number of active tokens per user" do
@@ -113,6 +127,20 @@ defmodule Elektrine.DeveloperTokensTest do
   end
 
   describe "verify_api_token/2" do
+    test "banning a user revokes existing tokens" do
+      user = user_fixture()
+
+      assert {:ok, token} =
+               Developer.create_api_token(user.id, %{
+                 name: "token-before-ban",
+                 scopes: ["read:account"]
+               })
+
+      assert {:ok, _banned_user} = Accounts.ban_user(user, %{banned_reason: "security test"})
+
+      assert {:error, :invalid_token} = Developer.verify_api_token(token.token)
+    end
+
     test "revokes tokens older than the user's auth boundary" do
       user = user_fixture()
 

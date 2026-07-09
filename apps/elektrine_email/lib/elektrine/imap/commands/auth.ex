@@ -319,6 +319,12 @@ defmodule Elektrine.IMAP.Commands.Auth do
 
       {:error, :user_not_found} ->
         {:error, :authentication_failed}
+
+      {:error, :account_banned} ->
+        {:error, :account_inactive}
+
+      {:error, :account_suspended} ->
+        {:error, :account_inactive}
     end
   end
 

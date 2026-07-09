@@ -64,7 +64,7 @@ defmodule Elektrine.IMAP.Commands.Idle do
 
       {:mail_auth_changed, _user_id} ->
         Socket.setopts(state.socket, active: false)
-        {:revoked, :two_factor_requires_app_password, state}
+        {:revoked, mail_auth_changed_reason(state), state}
 
       {:tcp, _socket, data} ->
         command = data |> to_string() |> String.trim() |> String.upcase()
@@ -132,4 +132,19 @@ defmodule Elektrine.IMAP.Commands.Idle do
         {:timeout, state}
     end
   end
+
+  defp mail_auth_changed_reason(%{user: %{id: user_id}}) do
+    case Elektrine.Repo.get(Elektrine.Accounts.User, user_id) do
+      nil ->
+        :account_inactive
+
+      user ->
+        case Elektrine.Accounts.Authentication.ensure_user_active(user) do
+          :ok -> :two_factor_requires_app_password
+          {:error, _reason} -> :account_inactive
+        end
+    end
+  end
+
+  defp mail_auth_changed_reason(_state), do: :two_factor_requires_app_password
 end

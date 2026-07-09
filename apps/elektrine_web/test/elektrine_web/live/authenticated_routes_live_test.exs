@@ -59,9 +59,9 @@ defmodule ElektrineWeb.AuthenticatedRoutesLiveTest do
     for path <- ["/portal", "/email", "/account/drive", "/account/proofs"] do
       assert {:error, reason} = live(log_in_user(build_conn(), banned_user), path)
 
-      assert match?({:redirect, %{to: "/logout"}}, reason) or
-               match?({:live_redirect, %{to: "/logout"}}, reason),
-             "expected #{path} to redirect banned user to /logout, got: #{inspect(reason)}"
+      assert match?({:redirect, %{to: "/login"}}, reason) or
+               match?({:live_redirect, %{to: "/login"}}, reason),
+             "expected #{path} to reject banned user as unauthenticated, got: #{inspect(reason)}"
     end
   end
 
@@ -76,8 +76,8 @@ defmodule ElektrineWeb.AuthenticatedRoutesLiveTest do
 
     assert {:error, reason} = live(log_in_user(build_conn(), suspended_user), "/account/drive")
 
-    assert match?({:redirect, %{to: "/logout"}}, reason) or
-             match?({:live_redirect, %{to: "/logout"}}, reason)
+    assert match?({:redirect, %{to: "/login"}}, reason) or
+             match?({:live_redirect, %{to: "/login"}}, reason)
   end
 
   defp log_in_user(conn, user) do

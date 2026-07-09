@@ -8,6 +8,7 @@ defmodule ElektrineWeb.UserAuth do
   import Phoenix.Controller
 
   alias Elektrine.Accounts
+  alias Elektrine.Accounts.Authentication
   alias Elektrine.Accounts.Cached, as: CachedAccounts
   alias Elektrine.Constants
   alias ElektrineWeb.AdminSecurity
@@ -31,36 +32,46 @@ defmodule ElektrineWeb.UserAuth do
   This is used to remember users when they return to the app.
   """
   def log_in_user(conn, user, params \\ %{}, opts \\ []) do
-    if admin_login_restricted?(conn, user) do
-      conn
-      |> renew_session()
-      |> put_flash(:error, "Admin accounts must sign in over the private admin network.")
-      |> redirect(to: Elektrine.Paths.login_path())
-    else
-      user_return_to = get_session(conn, :user_return_to)
+    cond do
+      Authentication.ensure_user_active(user) != :ok ->
+        conn
+        |> renew_session()
+        |> delete_resp_cookie(@remember_me_cookie, remember_me_options(conn))
+        |> ensure_flash_fetched()
+        |> put_flash(:error, account_inactive_message(user))
+        |> redirect(to: Elektrine.Paths.login_path())
 
-      {:ok, user_session} =
-        Accounts.create_user_session(user, user_session_attrs(conn, params, opts))
+      admin_login_restricted?(conn, user) ->
+        conn
+        |> renew_session()
+        |> put_flash(:error, "Admin accounts must sign in over the private admin network.")
+        |> redirect(to: Elektrine.Paths.login_path())
 
-      token = Phoenix.Token.sign(conn, "user auth", user_session_claims(user, user_session))
+      true ->
+        user_return_to = get_session(conn, :user_return_to)
 
-      # Update login information (IP, timestamp, count)
-      remote_ip = get_remote_ip(conn)
-      Accounts.update_user_login_info(user, remote_ip)
+        {:ok, user_session} =
+          Accounts.create_user_session(user, user_session_attrs(conn, params, opts))
 
-      # Warm up caches for the user after successful login
-      warm_user_caches(user)
+        token = Phoenix.Token.sign(conn, "user auth", user_session_claims(user, user_session))
 
-      conn
-      |> renew_session()
-      |> put_token_in_session(token)
-      |> put_session(:user_session_id, user_session.id)
-      |> mark_recent_auth()
-      |> maybe_write_remember_me_cookie(token, user, params)
-      |> maybe_put_session_values(opts[:session])
-      |> maybe_initialize_admin_security_session(user, opts)
-      |> maybe_put_flash(opts[:flash])
-      |> redirect(to: user_return_to || signed_in_path(conn, user))
+        # Update login information (IP, timestamp, count)
+        remote_ip = get_remote_ip(conn)
+        Accounts.update_user_login_info(user, remote_ip)
+
+        # Warm up caches for the user after successful login
+        warm_user_caches(user)
+
+        conn
+        |> renew_session()
+        |> put_token_in_session(token)
+        |> put_session(:user_session_id, user_session.id)
+        |> mark_recent_auth()
+        |> maybe_write_remember_me_cookie(token, user, params)
+        |> maybe_put_session_values(opts[:session])
+        |> maybe_initialize_admin_security_session(user, opts)
+        |> maybe_put_flash(opts[:flash])
+        |> redirect(to: user_return_to || signed_in_path(conn, user))
     end
   end
 
@@ -143,7 +154,12 @@ defmodule ElektrineWeb.UserAuth do
 
     if user_id && timestamp && current_time - timestamp < fifteen_minutes do
       try do
-        Accounts.get_user!(user_id)
+        user = Accounts.get_user!(user_id)
+
+        case Authentication.ensure_user_active(user) do
+          :ok -> user
+          {:error, _reason} -> nil
+        end
       rescue
         _ -> nil
       end
@@ -165,12 +181,24 @@ defmodule ElektrineWeb.UserAuth do
   Completes the 2FA login process by logging in the user.
   """
   def complete_two_factor_login(conn, user, params \\ %{}, opts \\ []) do
-    # Also warm caches for 2FA completion
-    warm_user_caches(user)
+    case Authentication.ensure_user_active(user) do
+      :ok ->
+        # Also warm caches for 2FA completion
+        warm_user_caches(user)
 
-    conn
-    |> clear_two_factor_session()
-    |> log_in_user(user, params, opts)
+        conn
+        |> clear_two_factor_session()
+        |> log_in_user(user, params, opts)
+
+      {:error, _reason} ->
+        conn
+        |> clear_two_factor_session()
+        |> renew_session()
+        |> delete_resp_cookie(@remember_me_cookie, remember_me_options(conn))
+        |> ensure_flash_fetched()
+        |> put_flash(:error, account_inactive_message(user))
+        |> redirect(to: Elektrine.Paths.login_path())
+    end
   end
 
   defp maybe_write_remember_me_cookie(conn, _token, %{is_admin: true}, %{"remember_me" => "true"}) do
@@ -247,6 +275,8 @@ defmodule ElektrineWeb.UserAuth do
   def fetch_current_user(conn, _opts) do
     {user_token, conn} = ensure_user_token(conn)
     {user, user_session} = (user_token && fetch_user_by_token(user_token)) || {nil, nil}
+    conn = maybe_clear_invalid_user_token(conn, user_token, user)
+    {user, user_session, conn} = maybe_reject_inactive_user(conn, user, user_session)
     {user, conn} = maybe_restrict_admin_user_to_vpn(conn, user)
 
     conn
@@ -254,11 +284,49 @@ defmodule ElektrineWeb.UserAuth do
     |> assign(:current_user_session, user && user_session)
   end
 
+  defp maybe_clear_invalid_user_token(conn, token, nil) when is_binary(token) do
+    conn
+    |> delete_session(:user_token)
+    |> delete_session(:user_session_id)
+    |> delete_resp_cookie(@remember_me_cookie, remember_me_options(conn))
+  end
+
+  defp maybe_clear_invalid_user_token(conn, _token, _user), do: conn
+
+  defp maybe_reject_inactive_user(conn, nil, user_session), do: {nil, user_session, conn}
+
+  defp maybe_reject_inactive_user(conn, user, user_session) do
+    case Authentication.ensure_user_active(user) do
+      :ok ->
+        {user, user_session, conn}
+
+      {:error, _reason} ->
+        revoke_user_session(user, user_session || get_session(conn, :user_session_id), "inactive")
+
+        conn =
+          conn
+          |> delete_session(:user_token)
+          |> delete_session(:user_session_id)
+          |> delete_resp_cookie(@remember_me_cookie, remember_me_options(conn))
+
+        {nil, nil, conn}
+    end
+  end
+
+  defp revoke_user_session(%{id: user_id}, %{id: session_id}, reason),
+    do: Accounts.revoke_user_session(user_id, session_id, reason)
+
+  defp revoke_user_session(%{id: user_id}, session_id, reason) when is_integer(session_id),
+    do: Accounts.revoke_user_session(user_id, session_id, reason)
+
+  defp revoke_user_session(_user, _session, _reason), do: :ok
+
   defp maybe_restrict_admin_user_to_vpn(conn, %{is_admin: true} = user) do
     if netbird_enabled?() and not on_netbird_vpn?(conn) do
       {nil,
        conn
        |> delete_session(:user_token)
+       |> delete_session(:user_session_id)
        |> delete_resp_cookie(@remember_me_cookie, remember_me_options(conn))}
     else
       {user, conn}
@@ -402,6 +470,32 @@ defmodule ElektrineWeb.UserAuth do
       remembered: Map.get(params, "remember_me") == "true"
     }
   end
+
+  defp account_inactive_message(%{banned: true} = user) do
+    if Elektrine.Strings.present?(user.banned_reason) do
+      "Your account has been banned. Reason: #{user.banned_reason}"
+    else
+      "Your account has been banned. Please contact support if you believe this is an error."
+    end
+  end
+
+  defp account_inactive_message(%{suspended: true} = user) do
+    base_message =
+      if user.suspended_until do
+        "Your account is suspended until #{Calendar.strftime(user.suspended_until, "%B %d, %Y")}"
+      else
+        "Your account is suspended"
+      end
+
+    if Elektrine.Strings.present?(user.suspension_reason) do
+      "#{base_message}. Reason: #{user.suspension_reason}"
+    else
+      "#{base_message}. Please contact support if you believe this is an error."
+    end
+  end
+
+  defp account_inactive_message(_user),
+    do: "This account is not allowed to authenticate."
 
   @doc """
   Confirms if the current user is authenticated.
