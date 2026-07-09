@@ -720,6 +720,26 @@ maybe_configure_haraka_wildcard_tls() {
       --apply
 }
 
+reconcile_managed_mail_dkim() {
+  case " $RENDER_PROFILES " in
+    *" dns "*" email "*|*" email "*" dns "*) ;;
+    *)
+      return 0
+      ;;
+  esac
+
+  if ! compose_has_service app; then
+    return 0
+  fi
+
+  echo "Info: reconciling managed mail DKIM records" >&2
+
+  if ! "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" exec -T app \
+    bin/elektrine rpc "if Code.ensure_loaded?(Elektrine.DNS.ManagedRecords), do: IO.inspect(Elektrine.DNS.ManagedRecords.reconcile_supported_mail_services(), label: :managed_mail_dkim), else: IO.puts(\"managed DNS module unavailable\")"; then
+    echo "Warn: managed mail DKIM reconciliation failed; continuing deploy" >&2
+  fi
+}
+
 issue_initial_wildcard_cert() {
   if ! uses_elektrine_wildcard_acme; then
     return 0
@@ -849,10 +869,12 @@ if [[ "$DO_UP" -eq 1 ]]; then
 
   if [[ "$DO_BUILD" -eq 1 ]]; then
     "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" up -d --build --no-recreate "${PASSTHROUGH_ARGS[@]}"
+    reconcile_managed_mail_dkim
     exit $?
   fi
 
   "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" up -d --no-recreate "${PASSTHROUGH_ARGS[@]}"
+  reconcile_managed_mail_dkim
   exit $?
 fi
 

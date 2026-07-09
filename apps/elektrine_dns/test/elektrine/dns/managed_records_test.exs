@@ -361,6 +361,33 @@ defmodule Elektrine.DNS.ManagedRecordsTest do
     assert dkim_record.content == "v=DKIM1; k=rsa; p=ROTATEDPUBLICKEY"
   end
 
+  test "reconciles supported managed mail services after DKIM record drift" do
+    user = AccountsFixtures.user_fixture()
+    domain = "elektrine.net"
+
+    {:ok, zone} = DNS.create_zone(user, %{"domain" => domain})
+    assert {:ok, _config} = DNS.apply_zone_service(zone, "mail")
+
+    zone = DNS.get_zone(zone.id, user.id)
+    dkim_record = Enum.find(zone.records, &(&1.managed_key == "mail:dkim"))
+
+    dkim_record
+    |> Elektrine.DNS.Record.changeset(%{content: "v=DKIM1; k=rsa; p=STALE"})
+    |> Elektrine.Repo.update!()
+
+    Application.put_env(:elektrine, :email,
+      supported_domains: [domain],
+      receive_only_domains: ["example.com"],
+      domain: "example.com"
+    )
+
+    assert [{^domain, :ok}] = Elektrine.DNS.ManagedRecords.reconcile_supported_mail_services()
+
+    zone = DNS.get_zone(zone.id, user.id)
+    dkim_record = Enum.find(zone.records, &(&1.managed_key == "mail:dkim"))
+    assert dkim_record.content == "v=DKIM1; k=rsa; p=PUBLICKEY"
+  end
+
   test "managed mail service derives DKIM TXT value from private key when available" do
     Application.put_env(:elektrine, :managed_dns_dkim_module, Elektrine.DNS.RealValueTestDKIM)
 

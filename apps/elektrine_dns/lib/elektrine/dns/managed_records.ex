@@ -123,6 +123,11 @@ defmodule Elektrine.DNS.ManagedRecords do
     end
   end
 
+  def reconcile_supported_mail_services do
+    Elektrine.Domains.supported_email_domains()
+    |> Enum.map(&reconcile_supported_mail_service/1)
+  end
+
   def delete_service(%Zone{} = zone, service) do
     service = normalize_service(service)
 
@@ -130,6 +135,34 @@ defmodule Elektrine.DNS.ManagedRecords do
       where: r.zone_id == ^zone.id and r.service == ^service and r.managed == true
     )
     |> Repo.delete_all()
+  end
+
+  defp reconcile_supported_mail_service(domain) do
+    case Repo.get_by(Zone, domain: domain) do
+      nil ->
+        {domain, :skipped, :zone_missing}
+
+      %Zone{} = zone ->
+        case Repo.get_by(ZoneServiceConfig, zone_id: zone.id, service: "mail") do
+          %ZoneServiceConfig{enabled: true, mode: "managed"} ->
+            case apply_service(zone, "mail", %{}) do
+              {:ok, %ZoneServiceConfig{status: "ok"}} ->
+                {domain, :ok}
+
+              {:ok, %ZoneServiceConfig{} = config} ->
+                {domain, :error, config.status, config.last_error}
+
+              {:error, reason} ->
+                {domain, :error, reason}
+            end
+
+          %ZoneServiceConfig{} ->
+            {domain, :skipped, :mail_not_managed}
+
+          nil ->
+            {domain, :skipped, :mail_not_configured}
+        end
+    end
   end
 
   def service_status(%Zone{} = zone, service) do
