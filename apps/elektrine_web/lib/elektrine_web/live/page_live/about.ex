@@ -15,8 +15,8 @@ defmodule ElektrineWeb.PageLive.About do
       <div class="mx-auto max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
         <.e_nav active_tab="" class="mb-6" current_user={@current_user} />
 
-        <div id="about-card" class="card panel-card">
-          <div class="card-body">
+        <.card id="about-card">
+          <:body>
             <h1 class="card-title text-3xl mb-6">About Elektrine</h1>
 
             <div class="prose prose-lg max-w-none">
@@ -94,8 +94,8 @@ defmodule ElektrineWeb.PageLive.About do
                 </div>
               </section>
             </div>
-          </div>
-        </div>
+          </:body>
+        </.card>
       </div>
     </div>
     """

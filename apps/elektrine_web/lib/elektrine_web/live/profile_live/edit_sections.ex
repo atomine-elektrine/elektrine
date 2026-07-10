@@ -19,8 +19,8 @@ defmodule ElektrineWeb.ProfileLive.EditSections do
 
   defp profile_basic_information_card(assigns) do
     ~H"""
-    <div class="card panel-card">
-      <div class="card-body p-4 sm:p-6">
+    <.card body_class="p-4 sm:p-6">
+      <:body>
         <div class="mb-6">
           <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
             <.icon name="hero-user" class="w-6 h-6" /> Basic Information
@@ -231,10 +231,10 @@ defmodule ElektrineWeb.ProfileLive.EditSections do
             </div>
           </div>
 
-          <button type="submit" class="btn btn-primary w-full"> Save Profile </button>
+          <.button type="submit" class="w-full">Save Profile</.button>
         </.form>
-      </div>
-    </div>
+      </:body>
+    </.card>
     """
   end
 
@@ -243,8 +243,8 @@ defmodule ElektrineWeb.ProfileLive.EditSections do
 
   defp profile_privacy_card(assigns) do
     ~H"""
-    <div class="card panel-card">
-      <div class="card-body p-4 sm:p-6">
+    <.card body_class="p-4 sm:p-6">
+      <:body>
         <div class="mb-6">
           <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
             <.icon name="hero-eye-slash" class="w-6 h-6" /> Privacy
@@ -340,10 +340,10 @@ defmodule ElektrineWeb.ProfileLive.EditSections do
             </.link>.
           </div>
 
-          <button type="submit" class="btn btn-primary w-full"> Save Privacy </button>
+          <.button type="submit" class="w-full">Save Privacy</.button>
         </.form>
-      </div>
-    </div>
+      </:body>
+    </.card>
     """
   end
 
@@ -376,8 +376,8 @@ defmodule ElektrineWeb.ProfileLive.EditSections do
 
   defp profile_federation_card(assigns) do
     ~H"""
-    <div class="card panel-card">
-      <div class="card-body p-4 sm:p-6">
+    <.card body_class="p-4 sm:p-6">
+      <:body>
         <div class="mb-6">
           <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
             <.icon name="hero-globe-alt" class="w-6 h-6" /> Federation Preview
@@ -439,8 +439,8 @@ defmodule ElektrineWeb.ProfileLive.EditSections do
             </ul>
           </div>
         </div>
-      </div>
-    </div>
+      </:body>
+    </.card>
     """
   end
 

@@ -726,9 +726,9 @@ defmodule ElektrineWeb.KairoLive.Index do
               <div class="space-y-2 border-b border-base-300 p-3">
                 <div class="rounded-lg border border-base-300 bg-base-200/35 p-2">
                   <div class="grid grid-cols-3 gap-1">
-                    <button type="button" phx-click="new_note" class="btn btn-primary btn-sm">
+                    <.button type="button" phx-click="new_note" size="sm">
                       <.icon name="hero-pencil-square" class="h-4 w-4" /> Note
-                    </button>
+                    </.button>
                     <label for={@uploads.kairo_files.ref} class="btn btn-outline btn-sm">
                       <.icon name="hero-arrow-up-tray" class="h-4 w-4" /> File
                     </label>
@@ -759,20 +759,22 @@ defmodule ElektrineWeb.KairoLive.Index do
                       <div class="space-y-1">
                         <div
                           :for={entry <- @uploads.kairo_files.entries}
-                          class="flex items-center gap-2 rounded bg-base-100 px-2 py-1 text-xs"
+                          class="flex items-center gap-2 rounded-lg bg-base-100 px-2 py-1 text-xs"
                         >
                           <.icon name="hero-paper-clip" class="h-3.5 w-3.5 shrink-0" />
                           <span class="min-w-0 flex-1 truncate">{entry.client_name}</span>
                           <span class="text-base-content/50">{entry.progress}%</span>
-                          <button
+                          <.button
                             type="button"
                             phx-click="cancel_kairo_upload"
                             phx-value-ref={entry.ref}
-                            class="btn btn-ghost btn-xs h-6 min-h-0 w-6 p-0"
+                            variant="ghost"
+                            size="xs"
+                            class="h-6 min-h-0 w-6 p-0"
                             aria-label="Remove file"
                           >
                             <.icon name="hero-x-mark" class="h-3.5 w-3.5" />
-                          </button>
+                          </.button>
                         </div>
                       </div>
                       <div class="grid grid-cols-2 gap-1.5">
@@ -790,9 +792,9 @@ defmodule ElektrineWeb.KairoLive.Index do
                           class="input input-bordered input-sm w-full"
                         />
                       </div>
-                      <button type="submit" class="btn btn-secondary btn-sm w-full">
+                      <.button type="submit" variant="secondary" size="sm" class="w-full">
                         Save files
-                      </button>
+                      </.button>
                     </div>
 
                     <p
@@ -836,7 +838,9 @@ defmodule ElektrineWeb.KairoLive.Index do
                         class="input input-bordered input-sm w-full"
                       />
                     </div>
-                    <button type="submit" class="btn btn-secondary btn-sm w-full">Save link</button>
+                    <.button type="submit" variant="secondary" size="sm" class="w-full">
+                      Save link
+                    </.button>
                   </form>
                 </div>
 
@@ -875,13 +879,16 @@ defmodule ElektrineWeb.KairoLive.Index do
                       autocomplete="current-password"
                       data-kairo-master-unlock-input
                     />
-                    <button
+                    <.button
                       type="button"
-                      class="btn btn-outline btn-xs w-full"
+                      variant="default"
+                      outline
+                      size="xs"
+                      class="w-full"
                       data-kairo-master-unlock
                     >
                       Unlock with account password
-                    </button>
+                    </.button>
                   <% else %>
                     <span class="text-xs text-warning">
                       <.link navigate={~p"/account/encrypted-data"} class="link">
@@ -945,30 +952,36 @@ defmodule ElektrineWeb.KairoLive.Index do
                           required
                           class="input input-bordered input-xs min-w-0 flex-1"
                         />
-                        <button type="submit" class="btn btn-outline btn-xs" title="Rename">
+                        <.button type="submit" variant="default" outline size="xs" title="Rename">
                           <.icon name="hero-check" class="h-3 w-3" />
-                        </button>
+                        </.button>
                       </form>
                       <div class="flex gap-1">
-                        <button
+                        <.button
                           type="button"
                           phx-click="toggle_archive_project"
                           phx-value-id={@active_project_record.id}
-                          class="btn btn-outline btn-xs flex-1"
+                          variant="default"
+                          outline
+                          size="xs"
+                          class="flex-1"
                         >
                           {if @active_project_record.status == "archived",
                             do: "Unarchive",
                             else: "Archive"}
-                        </button>
-                        <button
+                        </.button>
+                        <.button
                           type="button"
                           phx-click="delete_project"
                           phx-value-id={@active_project_record.id}
                           data-confirm="Delete this project? Its sources will move to the inbox."
-                          class="btn btn-error btn-outline btn-xs flex-1"
+                          variant="error"
+                          outline
+                          size="xs"
+                          class="flex-1"
                         >
                           Delete
-                        </button>
+                        </.button>
                       </div>
                     </div>
                   </div>
@@ -1005,7 +1018,7 @@ defmodule ElektrineWeb.KairoLive.Index do
                 </p>
 
                 <details :for={folder <- @folders} open class="group">
-                  <summary class="flex cursor-pointer items-center justify-between rounded px-2 py-1 text-xs font-semibold uppercase tracking-wide text-base-content/60 hover:bg-base-300/40">
+                  <summary class="flex cursor-pointer items-center justify-between rounded-lg px-2 py-1 text-xs font-semibold uppercase tracking-wide text-base-content/60 hover:bg-base-300/40">
                     <span class="flex items-center gap-1">
                       <.icon
                         name="hero-chevron-right"
@@ -1021,7 +1034,7 @@ defmodule ElektrineWeb.KairoLive.Index do
                         phx-click="select_source"
                         phx-value-id={source.id}
                         class={[
-                          "flex w-full items-center gap-1.5 truncate rounded px-2 py-1.5 text-left text-sm",
+                          "flex w-full items-center gap-1.5 truncate rounded-lg px-2 py-1.5 text-left text-sm",
                           if(@selected && @selected.id == source.id,
                             do: "bg-primary/15 text-primary",
                             else: "hover:bg-base-300/40"
@@ -1038,19 +1051,21 @@ defmodule ElektrineWeb.KairoLive.Index do
                   </ul>
                 </details>
 
-                <button
+                <.button
                   :if={length(@sources) < @sources_total}
                   type="button"
                   phx-click="load_more"
-                  class="btn btn-xs w-full load-more-button"
+                  variant="default"
+                  size="xs"
+                  class="w-full load-more-button"
                 >
                   Load more ({length(@sources)} of {@sources_total} loaded)
-                </button>
+                </.button>
               </nav>
 
               <div class="border-t border-base-300 p-2">
                 <details class="group">
-                  <summary class="flex cursor-pointer items-center gap-1 rounded px-2 py-1 text-xs text-base-content/70 hover:bg-base-300/40">
+                  <summary class="flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1 text-xs text-base-content/70 hover:bg-base-300/40">
                     <.icon name="hero-plus" class="h-3.5 w-3.5" /> New project
                   </summary>
                   <.form
@@ -1075,9 +1090,9 @@ defmodule ElektrineWeb.KairoLive.Index do
                       placeholder="Description (optional)"
                       class="input input-bordered input-sm w-full"
                     />
-                    <button type="submit" class="btn btn-secondary btn-sm w-full">
+                    <.button type="submit" variant="secondary" size="sm" class="w-full">
                       Create project
-                    </button>
+                    </.button>
                   </.form>
                 </details>
               </div>
@@ -1148,9 +1163,9 @@ defmodule ElektrineWeb.KairoLive.Index do
                       New note
                     <% end %>
                   </h2>
-                  <button type="button" phx-click="cancel_note" class="btn btn-ghost btn-sm">
+                  <.button type="button" phx-click="cancel_note" variant="ghost" size="sm">
                     Cancel
-                  </button>
+                  </.button>
                 </div>
 
                 <input
@@ -1219,14 +1234,14 @@ defmodule ElektrineWeb.KairoLive.Index do
                 >{@compose["content"]}</textarea>
                 <div
                   :if={@editing_source && @editing_source.encrypted}
-                  class="rounded border border-warning/30 bg-warning/5 p-3 text-sm text-base-content/70"
+                  class="rounded-lg border border-warning/30 bg-warning/5 p-3 text-sm text-base-content/70"
                 >
                   Encrypted source content cannot be edited on the server. You can still change the
                   title, project, and tags.
                 </div>
                 <div
                   :if={@compose_tab == "preview"}
-                  class="prose min-h-[16rem] max-w-none rounded border border-base-300 bg-base-100 p-3"
+                  class="prose min-h-[16rem] max-w-none rounded-lg border border-base-300 bg-base-100 p-3"
                 >
                   {Phoenix.HTML.raw(Elektrine.Markdown.to_html(@compose["content"] || ""))}
                 </div>
@@ -1246,24 +1261,20 @@ defmodule ElektrineWeb.KairoLive.Index do
                 <p class="hidden text-xs text-error" data-kairo-encrypt-error></p>
 
                 <div class="flex justify-end gap-1.5">
-                  <button type="button" phx-click="cancel_note" class="btn btn-ghost btn-sm">
+                  <.button type="button" phx-click="cancel_note" variant="ghost" size="sm">
                     Cancel
-                  </button>
-                  <button
-                    :if={@compose["encrypt"] != "true"}
-                    type="submit"
-                    class="btn btn-primary btn-sm"
-                  >
+                  </.button>
+                  <.button :if={@compose["encrypt"] != "true"} type="submit" size="sm">
                     {if @editing_source, do: "Save changes", else: "Save note"}
-                  </button>
-                  <button
+                  </.button>
+                  <.button
                     :if={@compose["encrypt"] == "true"}
                     type="button"
                     data-kairo-encrypt-save
-                    class="btn btn-primary btn-sm"
+                    size="sm"
                   >
                     <.icon name="hero-lock-closed" class="h-3.5 w-3.5" /> Save encrypted
-                  </button>
+                  </.button>
                 </div>
               </form>
 
@@ -1273,9 +1284,9 @@ defmodule ElektrineWeb.KairoLive.Index do
               >
                 <.icon name="hero-document-magnifying-glass" class="h-10 w-10" />
                 <p class="text-sm">Select a source to read it, or start a new note.</p>
-                <button type="button" phx-click="new_note" class="btn btn-outline btn-sm">
+                <.button type="button" phx-click="new_note" variant="default" outline size="sm">
                   <.icon name="hero-pencil-square" class="h-4 w-4" /> New note
-                </button>
+                </.button>
               </div>
 
               <article
@@ -1286,23 +1297,27 @@ defmodule ElektrineWeb.KairoLive.Index do
                   <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <h1 class="min-w-0 text-xl font-bold sm:text-2xl">{source_label(@selected)}</h1>
                     <div class="flex shrink-0 items-center gap-2">
-                      <button
+                      <.button
                         type="button"
                         phx-click="edit_source"
                         phx-value-id={@selected.id}
-                        class="btn btn-outline btn-xs"
+                        variant="default"
+                        outline
+                        size="xs"
                       >
                         <.icon name="hero-pencil-square" class="h-3.5 w-3.5" /> Edit
-                      </button>
-                      <button
+                      </.button>
+                      <.button
                         type="button"
                         phx-click="delete_source"
                         phx-value-id={@selected.id}
                         data-confirm="Delete this Kairo source? This cannot be undone."
-                        class="btn btn-error btn-outline btn-xs"
+                        variant="error"
+                        outline
+                        size="xs"
                       >
                         <.icon name="hero-trash" class="h-3.5 w-3.5" /> Delete
-                      </button>
+                      </.button>
                     </div>
                   </div>
                   <div class="flex flex-wrap items-center gap-2 text-xs text-base-content/60">
@@ -1352,16 +1367,18 @@ defmodule ElektrineWeb.KairoLive.Index do
                   <p class="text-sm text-base-content/70">
                     This source is encrypted. Decrypt it in this tab to read the content.
                   </p>
-                  <button
+                  <.button
                     type="button"
-                    class="btn btn-outline btn-sm"
+                    variant="default"
+                    outline
+                    size="sm"
                     data-kairo-decrypt
                     data-kairo-payload={Jason.encode!(@selected.encrypted_content)}
                   >
                     <.icon name="hero-lock-open" class="h-4 w-4" /> Decrypt content
-                  </button>
+                  </.button>
                   <pre
-                    class="mt-1 hidden max-w-none whitespace-pre-wrap break-words rounded bg-base-100 p-3 text-sm"
+                    class="mt-1 hidden max-w-none whitespace-pre-wrap break-words rounded-lg bg-base-100 p-3 text-sm"
                     data-kairo-output
                   ></pre>
                 </div>
@@ -1381,25 +1398,27 @@ defmodule ElektrineWeb.KairoLive.Index do
                           {format_file_size(source_file_size(@selected))}
                         </span>
                       </div>
-                      <a
+                      <.button
                         href={file_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        class="btn btn-outline btn-xs"
+                        variant="default"
+                        outline
+                        size="xs"
                       >
                         <.icon name="hero-arrow-top-right-on-square" class="h-3.5 w-3.5" /> Open
-                      </a>
+                      </.button>
                     </div>
                     <img
                       :if={source_image?(@selected)}
                       src={file_url}
                       alt={source_file_name(@selected)}
-                      class="max-h-[70vh] w-full rounded border border-base-300 object-contain"
+                      class="max-h-[70vh] w-full rounded-lg border border-base-300 object-contain"
                     />
                     <iframe
                       :if={source_pdf?(@selected)}
                       src={file_url}
-                      class="h-[70vh] w-full rounded border border-base-300 bg-base-100"
+                      class="h-[70vh] w-full rounded-lg border border-base-300 bg-base-100"
                       title={source_file_name(@selected)}
                     >
                     </iframe>
@@ -1411,7 +1430,7 @@ defmodule ElektrineWeb.KairoLive.Index do
                     !@selected.encrypted and present?(@selected.content) and
                       preformatted_content?(@selected)
                   }
-                  class="max-w-none whitespace-pre-wrap break-words rounded border border-base-300 bg-base-200/30 p-3 text-sm"
+                  class="max-w-none whitespace-pre-wrap break-words rounded-lg border border-base-300 bg-base-200/30 p-3 text-sm"
                 ><%= @selected.content %></pre>
 
                 <div
@@ -1434,7 +1453,7 @@ defmodule ElektrineWeb.KairoLive.Index do
                         type="button"
                         phx-click="select_source"
                         phx-value-id={source.id}
-                        class="flex w-full items-center gap-1.5 truncate rounded px-2 py-1 text-left text-sm hover:bg-base-300/40"
+                        class="flex w-full items-center gap-1.5 truncate rounded-lg px-2 py-1 text-left text-sm hover:bg-base-300/40"
                       >
                         <.icon
                           name={source_icon(source)}

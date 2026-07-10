@@ -143,8 +143,8 @@ defmodule ElektrineWeb.SettingsLive.RSS do
         </p>
       </div>
 
-      <div class="card panel-card">
-        <div class="card-body p-4 sm:p-6">
+      <.card body_class="p-4 sm:p-6">
+        <:body>
           <h2 class="card-title text-xl mb-4">
             <.icon name="hero-rss" class="w-5 h-5 text-warning" /> Manage Feeds
           </h2>
@@ -172,9 +172,9 @@ defmodule ElektrineWeb.SettingsLive.RSS do
                   ]}
                   disabled={@adding_feed}
                 />
-                <button
+                <.button
                   type="submit"
-                  class="btn btn-secondary"
+                  variant="secondary"
                   disabled={@adding_feed}
                 >
                   <%= if @adding_feed do %>
@@ -182,7 +182,7 @@ defmodule ElektrineWeb.SettingsLive.RSS do
                   <% else %>
                     Add Feed
                   <% end %>
-                </button>
+                </.button>
               </div>
               <%= if @error_message do %>
                 <label class="label">
@@ -216,11 +216,11 @@ defmodule ElektrineWeb.SettingsLive.RSS do
                           id={"rss-feed-favicon-#{subscription.id}"}
                           src={favicon_url}
                           alt=""
-                          class="w-8 h-8 rounded"
+                          class="w-8 h-8 rounded-lg"
                           phx-hook="ImageFallback"
                         />
                       <% else %>
-                        <div class="w-8 h-8 rounded bg-base-300 flex items-center justify-center">
+                        <div class="w-8 h-8 rounded-lg bg-base-300 flex items-center justify-center">
                           <.icon name="hero-rss" class="w-4 h-4 text-warning" />
                         </div>
                       <% end %>
@@ -256,22 +256,24 @@ defmodule ElektrineWeb.SettingsLive.RSS do
                       </label>
                       
     <!-- Remove Button -->
-                      <button
+                      <.button
+                        variant="ghost"
+                        size="sm"
+                        class="text-error"
                         phx-click="remove_feed"
                         phx-value-feed_id={subscription.feed_id}
-                        class="btn btn-ghost btn-sm text-error"
                         title="Unsubscribe"
                       >
                         <.icon name="hero-trash" class="w-4 h-4" />
-                      </button>
+                      </.button>
                     </div>
                   </div>
                 <% end %>
               </div>
             <% end %>
           </div>
-        </div>
-      </div>
+        </:body>
+      </.card>
     </div>
     """
   end

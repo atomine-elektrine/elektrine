@@ -14,8 +14,8 @@
     />
   <% else %>
     <.form for={%{}} action={~p"/pripyat/deletion-requests/bulk-approve"} method="post">
-      <div class="card bg-base-200/50 border border-base-300/60 mb-4">
-        <div class="card-body gap-4 p-4">
+      <.card class="border border-base-300/60 mb-4" body_class="gap-4 p-4">
+        <:body>
           <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <h2 class="text-base font-semibold">Bulk approve selected requests</h2>
@@ -38,17 +38,17 @@
                 ></textarea>
               </div>
 
-              <button
+              <.button
                 type="submit"
-                class="btn btn-error"
+                variant="error"
                 data-confirm="Approve the selected deletion requests and permanently delete those accounts? This cannot be undone."
               >
                 Approve Selected
-              </button>
+              </.button>
             </div>
           </div>
-        </div>
-      </div>
+        </:body>
+      </.card>
 
       <div class="overflow-x-auto">
         <table class="table table-zebra w-full">
@@ -136,19 +136,17 @@
                 </td>
                 <td>
                   <div class="flex gap-2">
-                    <.link
+                    <.button
                       href={~p"/pripyat/deletion-requests/#{request.id}"}
-                      class="btn btn-sm btn-ghost"
+                      variant="ghost"
+                      size="sm"
                     >
                       View
-                    </.link>
+                    </.button>
                     <%= if request.status == "pending" do %>
-                      <.link
-                        href={~p"/pripyat/deletion-requests/#{request.id}"}
-                        class="btn btn-sm btn-primary"
-                      >
+                      <.button href={~p"/pripyat/deletion-requests/#{request.id}"} size="sm">
                         Review
-                      </.link>
+                      </.button>
                     <% end %>
                   </div>
                 </td>

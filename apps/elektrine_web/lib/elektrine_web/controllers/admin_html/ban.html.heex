@@ -5,8 +5,8 @@
     <p class="opacity-70 mt-2">Restrict user access to the platform.</p>
   </div>
 
-  <div class="card panel-card">
-    <div class="card-body">
+  <.card>
+    <:body>
       <!-- User Info -->
       <div class="flex items-center gap-3 mb-6">
         <div class="avatar">
@@ -59,16 +59,16 @@
         </div>
 
         <div class="card-actions justify-between mt-6">
-          <.link href={~p"/pripyat/users"} class="btn btn-ghost"> Cancel </.link>
-          <button
+          <.button href={~p"/pripyat/users"} variant="ghost">Cancel</.button>
+          <.button
             type="submit"
-            class="btn btn-secondary"
+            variant="secondary"
             data-confirm={"Are you sure you want to ban #{@user.username}? This action will immediately restrict their access."}
           >
             <.icon name="hero-no-symbol" class="w-4 h-4 mr-2" /> Ban User
-          </button>
+          </.button>
         </div>
       </.form>
-    </div>
-  </div>
+    </:body>
+  </.card>
 </div>

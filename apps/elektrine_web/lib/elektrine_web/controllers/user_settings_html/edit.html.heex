@@ -12,8 +12,8 @@
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
     <!-- Profile Section -->
     <div class="lg:col-span-2">
-      <div class="card panel-card">
-        <div class="card-body p-4 sm:p-6">
+      <.card body_class="p-4 sm:p-6">
+        <:body>
           <h2 class="card-title text-lg sm:text-xl mb-4 sm:mb-6 flex items-center gap-2">
             <.icon name="hero-user" class="w-5 h-5" /> {gettext("Profile Information")}
           </h2>
@@ -93,17 +93,17 @@
             </div>
 
             <div class="card-actions justify-end mt-4 sm:mt-6">
-              <.button class="btn-primary w-full sm:w-auto">Save Changes</.button>
+              <.button class="w-full sm:w-auto">Save Changes</.button>
             </div>
           </.simple_form>
-        </div>
-      </div>
+        </:body>
+      </.card>
     </div>
     <!-- Security & Actions Sidebar -->
     <div class="space-y-4 sm:space-y-6">
       <!-- Password Section -->
-      <div class="card panel-card">
-        <div class="card-body p-4 sm:p-6">
+      <.card body_class="p-4 sm:p-6">
+        <:body>
           <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
             <.icon name="hero-key" class="w-5 h-5" /> Password
           </h3>
@@ -113,18 +113,20 @@
           </p>
 
           <div class="card-actions">
-            <.link
+            <.button
               href={~p"/account/password"}
-              class="btn btn-secondary btn-sm w-full text-xs sm:text-sm"
+              variant="secondary"
+              size="sm"
+              class="w-full text-xs sm:text-sm"
             >
               Change Password
-            </.link>
+            </.button>
           </div>
-        </div>
-      </div>
+        </:body>
+      </.card>
       <!-- Two-Factor Authentication Section -->
-      <div class="card panel-card">
-        <div class="card-body p-4 sm:p-6">
+      <.card body_class="p-4 sm:p-6">
+        <:body>
           <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
             <.icon name="hero-shield-check" class="w-5 h-5" /> Two-Factor Authentication
           </h3>
@@ -140,12 +142,14 @@
             </p>
 
             <div class="card-actions">
-              <.link
+              <.button
                 href={~p"/account/two_factor"}
-                class="btn btn-secondary btn-sm w-full text-xs sm:text-sm"
+                variant="secondary"
+                size="sm"
+                class="w-full text-xs sm:text-sm"
               >
                 Manage 2FA
-              </.link>
+              </.button>
             </div>
           <% else %>
             <div class="flex items-center gap-2 mb-3">
@@ -158,19 +162,20 @@
             </p>
 
             <div class="card-actions">
-              <.link
+              <.button
                 href={~p"/account/two_factor/setup"}
-                class="btn btn-primary btn-sm w-full text-xs sm:text-sm"
+                size="sm"
+                class="w-full text-xs sm:text-sm"
               >
                 Enable 2FA
-              </.link>
+              </.button>
             </div>
           <% end %>
-        </div>
-      </div>
+        </:body>
+      </.card>
       <!-- Profile Page Section -->
-      <div class="card panel-card">
-        <div class="card-body">
+      <.card>
+        <:body>
           <h3 class="card-title text-lg flex items-center gap-2">
             <.icon name="hero-user-circle" class="w-5 h-5" /> Profile Page
           </h3>
@@ -195,24 +200,25 @@
               </div>
 
               <div class="flex gap-2">
-                <.link
+                <.button
                   href={
                     Elektrine.Domains.profile_url_for_user(@user) ||
                       "/#{@user.handle || @user.username}"
                   }
                   target="_blank"
-                  class="btn btn-secondary btn-sm"
+                  variant="secondary"
+                  size="sm"
                 >
                   <.icon name="hero-eye" class="w-4 h-4" /> View
-                </.link>
-                <.link href={~p"/account/profile/edit"} class="btn btn-primary btn-sm">
+                </.button>
+                <.button href={~p"/account/profile/edit"} size="sm">
                   <.icon name="hero-pencil" class="w-4 h-4" /> Customize
-                </.link>
+                </.button>
               </div>
             </div>
           </div>
-        </div>
-      </div>
+        </:body>
+      </.card>
       <!-- Danger Zone -->
       <div class="card bg-error/10 shadow-lg">
         <div class="card-body">
@@ -249,9 +255,9 @@
             </p>
 
             <div class="card-actions">
-              <.link href={~p"/account/delete"} class="btn btn-secondary btn-sm w-full">
+              <.button href={~p"/account/delete"} variant="secondary" size="sm" class="w-full">
                 Request Deletion
-              </.link>
+              </.button>
             </div>
           <% end %>
         </div>

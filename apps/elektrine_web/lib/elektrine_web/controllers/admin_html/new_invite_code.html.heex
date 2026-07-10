@@ -1,14 +1,14 @@
 <div class="admin-page max-w-5xl mx-auto space-y-6">
   <div class="flex flex-wrap items-center gap-3">
-    <.link href={~p"/pripyat/invite-codes"} class="btn btn-ghost btn-sm">
+    <.button href={~p"/pripyat/invite-codes"} variant="ghost" size="sm">
       <.icon name="hero-arrow-left" class="h-4 w-4" /> <span>Back to Invite Codes</span>
-    </.link>
+    </.button>
     <div class="text-sm text-base-content/50">Invite Codes</div>
   </div>
 
   <section class="card panel-card">
     <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
-      <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+      <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
         New Invite
       </div>
 
@@ -28,7 +28,7 @@
         <div class="grid gap-6 xl:grid-cols-2">
           <section class="surface-muted rounded-box p-5 h-full">
             <div class="border-b border-base-content/10 pb-3">
-              <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
                 Basics
               </div>
 
@@ -68,7 +68,7 @@
 
           <section class="surface-muted rounded-box p-5 h-full">
             <div class="border-b border-base-content/10 pb-3">
-              <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
                 Access
               </div>
 
@@ -89,7 +89,7 @@
               </div>
 
               <div class="surface-soft rounded-box p-4">
-                <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
                   Availability
                 </div>
 
@@ -111,7 +111,7 @@
 
           <section class="surface-muted rounded-box p-5 xl:col-span-2">
             <div class="border-b border-base-content/10 pb-3">
-              <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
                 Internal
               </div>
 
@@ -135,10 +135,10 @@
 
         <:actions>
           <div class="flex flex-col gap-3 border-t border-base-content/10 pt-5 sm:flex-row sm:items-center">
-            <.button class="btn-primary">
+            <.button>
               <.icon name="hero-plus" class="h-4 w-4" /> <span>Create Invite Code</span>
             </.button>
-            <.link href={~p"/pripyat/invite-codes"} class="btn btn-ghost"> Cancel </.link>
+            <.button href={~p"/pripyat/invite-codes"} variant="ghost">Cancel</.button>
           </div>
         </:actions>
       </.simple_form>

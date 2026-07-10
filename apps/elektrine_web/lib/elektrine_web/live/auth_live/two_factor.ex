@@ -9,8 +9,8 @@ defmodule ElektrineWeb.AuthLive.TwoFactor do
 
   def render(assigns) do
     ~H"""
-    <div id="two-factor-card" class="card panel-card border border-base-300 max-w-md mx-auto">
-      <div class="card-body p-6">
+    <.card id="two-factor-card" class="border border-base-300 max-w-md mx-auto" body_class="p-6">
+      <:body>
         <div class="mb-6 text-center">
           <div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
             <.icon name="hero-shield-check" class="h-6 w-6 text-primary" />
@@ -63,9 +63,9 @@ defmodule ElektrineWeb.AuthLive.TwoFactor do
           </div>
 
           <div class="mt-6">
-            <button type="submit" class="btn btn-primary w-full">
+            <.button type="submit" class="w-full">
               Verify
-            </button>
+            </.button>
           </div>
         </.form>
 
@@ -73,12 +73,12 @@ defmodule ElektrineWeb.AuthLive.TwoFactor do
           <p class="mb-3 text-sm text-base-content/70">
             Lost your authenticator device? Use a backup code in the same field.
           </p>
-          <.link href={Elektrine.Paths.login_path()} class="btn btn-ghost btn-sm">
+          <.button href={Elektrine.Paths.login_path()} variant="ghost" size="sm">
             <.icon name="hero-arrow-left" class="w-4 h-4 inline" /> Back to login
-          </.link>
+          </.button>
         </div>
-      </div>
-    </div>
+      </:body>
+    </.card>
     """
   end
 end

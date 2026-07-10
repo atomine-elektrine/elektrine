@@ -13,9 +13,9 @@
       </div>
 
       <.form for={%{}} action={~p"/pripyat/stop-impersonation"} method="post" class="inline">
-        <button type="submit" class="btn btn-sm btn-secondary">
+        <.button type="submit" variant="secondary" size="sm">
           <.icon name="hero-x-circle" class="w-4 h-4" /> Stop Impersonation
-        </button>
+        </.button>
       </.form>
     </div>
   </div>
@@ -47,12 +47,13 @@
                 id="global-search"
               />
             </label>
-            <button
+            <.button
               type="submit"
-              class="btn btn-outline btn-primary join-item flex-shrink-0 rounded-l-none rounded-r-full px-4"
+              outline
+              class="join-item flex-shrink-0 rounded-l-none rounded-r-full px-4"
             >
               <.icon name="hero-magnifying-glass" class="h-4 w-4" />
-            </button>
+            </.button>
           </div>
         </form>
       </div>
@@ -73,7 +74,7 @@
 
           <div tabindex="0" class="dropdown-content mt-3 w-80 rounded-lg p-2">
             <div class="px-3 py-2">
-              <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-base-content/50">
+              <p class="text-2xs font-medium uppercase tracking-[0.18em] text-base-content/50">
                 Quick Create
               </p>
 
@@ -123,7 +124,7 @@
                 <button
                   type="submit"
                   class={[
-                    "gap-2 rounded-md px-3 py-3 w-full text-left flex items-center",
+                    "gap-2 rounded-lg px-3 py-3 w-full text-left flex items-center",
                     if(@current_user.status == "online",
                       do: "bg-success/10 text-success border border-success/30",
                       else: "border border-base-300"
@@ -140,7 +141,7 @@
                 <button
                   type="submit"
                   class={[
-                    "gap-2 rounded-md px-3 py-3 w-full text-left flex items-center",
+                    "gap-2 rounded-lg px-3 py-3 w-full text-left flex items-center",
                     if(@current_user.status == "away",
                       do: "bg-warning/10 text-warning border border-warning/30",
                       else: "border border-base-300"
@@ -157,7 +158,7 @@
                 <button
                   type="submit"
                   class={[
-                    "gap-2 rounded-md px-3 py-3 w-full text-left flex items-center",
+                    "gap-2 rounded-lg px-3 py-3 w-full text-left flex items-center",
                     if(@current_user.status == "dnd",
                       do: "bg-error/10 text-error border border-error/30",
                       else: "border border-base-300"
@@ -174,7 +175,7 @@
                 <button
                   type="submit"
                   class={[
-                    "gap-2 rounded-md px-3 py-3 w-full text-left flex items-center",
+                    "gap-2 rounded-lg px-3 py-3 w-full text-left flex items-center",
                     if(@current_user.status == "offline",
                       do: "bg-base-300/20",
                       else: "border border-base-300"
@@ -243,9 +244,10 @@
 
       <%= if @current_user do %>
         <!-- Notification Bell -->
-        <.link
+        <.button
           href="/notifications"
-          class="indicator btn btn-ghost rounded-full h-10 w-10 p-0 inline-flex items-center justify-center flex-shrink-0"
+          variant="ghost"
+          class="indicator rounded-full h-10 w-10 p-0 inline-flex items-center justify-center flex-shrink-0"
           title={gettext("Notifications")}
         >
           <%= if assigns[:notification_count] && @notification_count > 0 do %>
@@ -263,7 +265,7 @@
           <% else %>
             <.icon name="hero-bell" class="w-5 h-5" />
           <% end %>
-        </.link>
+        </.button>
         <div class="dropdown dropdown-end ml-2 flex-shrink-0" data-test="user-menu">
           <div
             tabindex="0"
@@ -276,9 +278,9 @@
           <% user_menu_item_class =
             "gap-3 rounded-lg px-3 py-2 text-base-content/80 hover:bg-base-200 hover:text-base-content focus:bg-base-200 focus:text-base-content" %>
           <% user_menu_tile_class =
-            "flex flex-col items-center gap-1.5 rounded-xl px-1 py-3 text-base-content/70 transition-colors hover:bg-base-200 hover:text-base-content focus:bg-base-200 focus:text-base-content" %>
+            "flex flex-col items-center gap-1.5 rounded-lg px-1 py-3 text-base-content/70 transition-colors hover:bg-base-200 hover:text-base-content focus:bg-base-200 focus:text-base-content" %>
           <% user_menu_section_label_class =
-            "px-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-base-content/40" %>
+            "px-2 pb-1 text-2xs font-semibold uppercase tracking-wider text-base-content/40" %>
 
           <div
             tabindex="0"
@@ -302,14 +304,16 @@
                 </div>
               </.link>
 
-              <.link
+              <.button
                 navigate={~p"/account/profile/edit"}
-                class="btn btn-ghost btn-sm btn-circle flex-shrink-0"
+                variant="ghost"
+                size="sm"
+                class="btn-circle flex-shrink-0"
                 title={gettext("Edit Profile")}
               >
                 <.icon name="hero-pencil-square" class="w-4 h-4" />
                 <span class="sr-only">{gettext("Edit Profile")}</span>
-              </.link>
+              </.button>
             </div>
             <!-- Your stuff -->
             <ul class="menu menu-sm w-full p-2">
@@ -383,7 +387,7 @@
                       class={user_menu_tile_class}
                     >
                       <.icon name="hero-inbox" class="w-5 h-5 text-primary" />
-                      <span class="text-[11px] font-medium">{gettext("Email")}</span>
+                      <span class="text-2xs font-medium">{gettext("Email")}</span>
                     </.link>
                   <% end %>
 
@@ -393,7 +397,7 @@
                       class={user_menu_tile_class}
                     >
                       <.icon name="hero-rectangle-stack" class="w-5 h-5 text-secondary" />
-                      <span class="text-[11px] font-medium">{gettext("Timeline")}</span>
+                      <span class="text-2xs font-medium">{gettext("Timeline")}</span>
                     </.link>
                   <% end %>
 
@@ -403,21 +407,21 @@
                       class={user_menu_tile_class}
                     >
                       <.icon name="hero-shield-check" class="w-5 h-5 text-success" />
-                      <span class="text-[11px] font-medium">{gettext("VPN")}</span>
+                      <span class="text-2xs font-medium">{gettext("VPN")}</span>
                     </.link>
                   <% end %>
 
                   <%= if platform_module_enabled?(:dns) do %>
                     <.link navigate={~p"/dns"} class={user_menu_tile_class}>
                       <.icon name="hero-globe-alt" class="w-5 h-5 text-accent" />
-                      <span class="text-[11px] font-medium">{gettext("DNS")}</span>
+                      <span class="text-2xs font-medium">{gettext("DNS")}</span>
                     </.link>
                   <% end %>
 
                   <%= if platform_module_enabled?(:kairo) do %>
                     <.link navigate={~p"/kairo"} class={user_menu_tile_class}>
                       <.icon name="hero-circle-stack" class="w-5 h-5 text-info" />
-                      <span class="text-[11px] font-medium">{gettext("Kairo")}</span>
+                      <span class="text-2xs font-medium">{gettext("Kairo")}</span>
                     </.link>
                   <% end %>
                 </div>
@@ -483,15 +487,16 @@
           </div>
         </div>
       <% else %>
-        <.link
+        <.button
           navigate={Elektrine.Paths.login_path()}
-          class="btn btn-ghost rounded-full flex-shrink-0"
+          variant="ghost"
+          class="rounded-full flex-shrink-0"
         >
           Log in
-        </.link>
-        <.link navigate={~p"/register"} class="btn btn-primary rounded-full flex-shrink-0">
+        </.button>
+        <.button navigate={~p"/register"} class="rounded-full flex-shrink-0">
           Register
-        </.link>
+        </.button>
       <% end %>
     </div>
   </div>
@@ -689,7 +694,7 @@
     <!-- Bottom Bar -->
     <div class="border-t border-base-300 pt-3 sm:pt-4">
       <div class="flex flex-wrap justify-center items-center gap-3 sm:gap-4 text-xs opacity-60">
-        <span class="font-serif-accent">© 2026 Elektrine. All rights reserved.</span>
+        <span>© 2026 Elektrine. All rights reserved.</span>
         <span class="hidden sm:inline">•</span>
         <span data-live-clock>
           Server: {DateTime.utc_now() |> Calendar.strftime("%H:%M:%S UTC")}

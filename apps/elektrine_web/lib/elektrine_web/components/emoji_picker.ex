@@ -117,28 +117,32 @@ defmodule ElektrineWeb.Components.EmojiPicker do
           <div class="grid grid-cols-8 gap-1 max-h-40 overflow-y-auto">
             <%= for emoji <- @filtered_emojis do %>
               <%= if is_binary(emoji) do %>
-                <button
+                <.button
                   type="button"
                   phx-click={@on_select}
                   phx-value-emoji={emoji}
-                  class="btn btn-sm btn-ghost text-lg hover:bg-base-300 p-1"
+                  variant="ghost"
+                  size="sm"
+                  class="text-lg hover:bg-base-300 p-1"
                   title={emoji}
                 >
                   {emoji}
-                </button>
+                </.button>
               <% else %>
-                <button
+                <.button
                   type="button"
                   phx-click={@on_select}
                   phx-value-emoji={":#{emoji.shortcode}:"}
-                  class="btn btn-sm btn-ghost hover:bg-base-300 p-1"
+                  variant="ghost"
+                  size="sm"
+                  class="hover:bg-base-300 p-1"
                   title={":" <> emoji.shortcode <> ":"}
                 >
                   <%= if emoji_url =
                         ElektrineWeb.HtmlHelpers.safe_external_image_url(emoji.image_url) do %>
                     <img src={emoji_url} alt={emoji.shortcode} class="w-5 h-5" />
                   <% end %>
-                </button>
+                </.button>
               <% end %>
             <% end %>
           </div>
@@ -184,32 +188,36 @@ defmodule ElektrineWeb.Components.EmojiPicker do
           <%= if @active_tab == "Custom" && !Enum.empty?(@custom_emojis) do %>
             <div class="grid grid-cols-8 gap-1 max-h-40 overflow-y-auto">
               <%= for emoji <- @custom_emojis do %>
-                <button
+                <.button
                   type="button"
                   phx-click={@on_select}
                   phx-value-emoji={":#{emoji.shortcode}:"}
-                  class="btn btn-sm btn-ghost hover:bg-base-300 p-1"
+                  variant="ghost"
+                  size="sm"
+                  class="hover:bg-base-300 p-1"
                   title={":" <> emoji.shortcode <> ":"}
                 >
                   <%= if emoji_url =
                         ElektrineWeb.HtmlHelpers.safe_external_image_url(emoji.image_url) do %>
                     <img src={emoji_url} alt={emoji.shortcode} class="w-5 h-5" />
                   <% end %>
-                </button>
+                </.button>
               <% end %>
             </div>
           <% else %>
             <div class="grid grid-cols-8 gap-1 max-h-40 overflow-y-auto">
               <%= for emoji <- Map.get(@categories, @active_tab, []) do %>
-                <button
+                <.button
                   type="button"
                   phx-click={@on_select}
                   phx-value-emoji={emoji}
-                  class="btn btn-sm btn-ghost text-lg hover:bg-base-300 p-1"
+                  variant="ghost"
+                  size="sm"
+                  class="text-lg hover:bg-base-300 p-1"
                   title={emoji}
                 >
                   {emoji}
-                </button>
+                </.button>
               <% end %>
             </div>
           <% end %>

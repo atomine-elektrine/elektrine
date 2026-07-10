@@ -194,51 +194,51 @@ defmodule ElektrineWeb.AdminLive.Relays do
       >
         <:actions>
           <.action_toolbar>
-            <.link navigate={~p"/pripyat/federation"} class="btn btn-sm btn-ghost">
+            <.button navigate={~p"/pripyat/federation"} variant="ghost" size="sm">
               <.icon name="hero-globe-alt" class="w-4 h-4" />
               <span class="hidden sm:inline ml-1">ActivityPub Policies</span>
-            </.link>
-            <.link navigate={~p"/pripyat/messaging-federation"} class="btn btn-sm btn-ghost">
+            </.button>
+            <.button navigate={~p"/pripyat/messaging-federation"} variant="ghost" size="sm">
               <.icon name="hero-chat-bubble-left-right" class="w-4 h-4" />
               <span class="hidden sm:inline ml-1">Chat Federation</span>
-            </.link>
-            <.link navigate={~p"/pripyat/bluesky-bridge"} class="btn btn-sm btn-ghost">
+            </.button>
+            <.button navigate={~p"/pripyat/bluesky-bridge"} variant="ghost" size="sm">
               <.icon name="hero-link" class="w-4 h-4" />
               <span class="hidden sm:inline ml-1">Bluesky Bridge</span>
-            </.link>
-            <button phx-click="show_add_modal" class="btn btn-sm btn-primary">
+            </.button>
+            <.button size="sm" phx-click="show_add_modal">
               <.icon name="hero-plus" class="w-4 h-4" />
               <span class="ml-1">Subscribe</span>
-            </button>
-            <button phx-click="refresh" class="btn btn-sm btn-ghost">
+            </.button>
+            <.button variant="ghost" size="sm" phx-click="refresh">
               <.icon name="hero-arrow-path" class="w-4 h-4" />
-            </button>
+            </.button>
           </.action_toolbar>
         </:actions>
       </.section_header>
       
     <!-- Stats -->
       <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <div class="card panel-card shadow">
-          <div class="card-body p-4">
+        <.card body_class="p-4">
+          <:body>
             <div class="flex items-center gap-2">
               <.icon name="hero-signal" class="w-4 h-4 text-primary opacity-70" />
               <span class="text-xs opacity-70">Total</span>
             </div>
             <div class="text-xl font-bold">{@stats.total}</div>
-          </div>
-        </div>
-        <div class="card panel-card shadow">
-          <div class="card-body p-4">
+          </:body>
+        </.card>
+        <.card body_class="p-4">
+          <:body>
             <div class="flex items-center gap-2">
               <.icon name="hero-check-circle" class="w-4 h-4 text-success opacity-70" />
               <span class="text-xs opacity-70">Active</span>
             </div>
             <div class="text-xl font-bold text-success">{@stats.active}</div>
-          </div>
-        </div>
-        <div class="card panel-card shadow">
-          <div class="card-body p-4">
+          </:body>
+        </.card>
+        <.card body_class="p-4">
+          <:body>
             <div class="flex items-center gap-2">
               <.icon name="hero-clock" class="w-4 h-4 text-warning opacity-70" />
               <span class="text-xs opacity-70">Pending</span>
@@ -246,27 +246,28 @@ defmodule ElektrineWeb.AdminLive.Relays do
             <div class="flex items-center gap-2">
               <div class="text-xl font-bold text-warning">{@stats.pending}</div>
               <%= if @stats.pending > 0 do %>
-                <button
+                <.button
+                  variant="warning"
+                  size="xs"
                   phx-click="force_activate_all"
                   data-confirm="Force activate all pending relay subscriptions? Use this if relays don't send Accept activities."
-                  class="btn btn-xs btn-warning"
                   title="Force activate all pending"
                 >
                   <.icon name="hero-bolt" class="w-3 h-3" />
-                </button>
+                </.button>
               <% end %>
             </div>
-          </div>
-        </div>
-        <div class="card panel-card shadow">
-          <div class="card-body p-4">
+          </:body>
+        </.card>
+        <.card body_class="p-4">
+          <:body>
             <div class="flex items-center gap-2">
               <.icon name="hero-exclamation-triangle" class="w-4 h-4 text-error opacity-70" />
               <span class="text-xs opacity-70">Failed</span>
             </div>
             <div class="text-xl font-bold text-error">{@stats.error}</div>
-          </div>
-        </div>
+          </:body>
+        </.card>
       </div>
       
     <!-- Info alert -->
@@ -283,8 +284,8 @@ defmodule ElektrineWeb.AdminLive.Relays do
       </div>
       
     <!-- Subscriptions Table -->
-      <div class="card panel-card">
-        <div class="card-body p-4 sm:p-6">
+      <.card body_class="p-4 sm:p-6">
+        <:body>
           <h2 class="card-title text-base sm:text-lg mb-4">
             <.icon name="hero-signal" class="w-5 h-5" /> Relay Subscriptions
             <span class="badge badge-neutral">{@total_count}</span>
@@ -333,51 +334,57 @@ defmodule ElektrineWeb.AdminLive.Relays do
                       <td>
                         <div class="flex gap-1">
                           <%= if sub.status == "pending" do %>
-                            <button
+                            <.button
+                              variant="success"
+                              size="xs"
                               phx-click="force_activate"
                               phx-value-uri={sub.relay_uri}
-                              class="btn btn-xs btn-success"
                               title="Force activate (skip waiting for Accept)"
                             >
                               <.icon name="hero-bolt" class="w-3 h-3" />
-                            </button>
-                            <button
+                            </.button>
+                            <.button
+                              variant="warning"
+                              size="xs"
                               phx-click="resend_follow"
                               phx-value-uri={sub.relay_uri}
-                              class="btn btn-xs btn-warning"
                               title="Resend Follow request"
                             >
                               <.icon name="hero-arrow-path" class="w-3 h-3" />
-                            </button>
+                            </.button>
                           <% end %>
                           <%= if sub.status in ["error", "rejected"] do %>
-                            <button
+                            <.button
+                              variant="warning"
+                              size="xs"
                               phx-click="retry"
                               phx-value-uri={sub.relay_uri}
-                              class="btn btn-xs btn-warning"
                               title="Retry"
                             >
                               <.icon name="hero-arrow-path" class="w-3 h-3" />
-                            </button>
+                            </.button>
                           <% end %>
-                          <button
+                          <.button
+                            variant="ghost"
+                            size="xs"
+                            class="btn-error"
                             phx-click="unsubscribe"
                             phx-value-uri={sub.relay_uri}
                             data-confirm="Unsubscribe from this relay?"
-                            class="btn btn-xs btn-error btn-ghost"
                             title="Unsubscribe (sends Undo Follow)"
                           >
                             <.icon name="hero-trash" class="w-3 h-3" />
-                          </button>
-                          <button
+                          </.button>
+                          <.button
+                            variant="error"
+                            size="xs"
                             phx-click="force_delete"
                             phx-value-uri={sub.relay_uri}
                             data-confirm="Force delete this subscription without notifying the relay?"
-                            class="btn btn-xs btn-error"
                             title="Force Delete (no notification)"
                           >
                             <.icon name="hero-x-mark" class="w-3 h-3" />
-                          </button>
+                          </.button>
                         </div>
                       </td>
                     </tr>
@@ -389,16 +396,24 @@ defmodule ElektrineWeb.AdminLive.Relays do
               <div class="flex items-center justify-between mt-4">
                 <span class="text-xs opacity-70">Page {@page} of {@total_pages}</span>
                 <div class="join">
-                  <button phx-click="prev_page" class="btn btn-sm join-item" disabled={@page <= 1}>
+                  <.button
+                    variant="default"
+                    size="sm"
+                    class="join-item"
+                    phx-click="prev_page"
+                    disabled={@page <= 1}
+                  >
                     Previous
-                  </button>
-                  <button
+                  </.button>
+                  <.button
+                    variant="default"
+                    size="sm"
+                    class="join-item"
                     phx-click="next_page"
-                    class="btn btn-sm join-item"
                     disabled={@page >= @total_pages}
                   >
                     Next
-                  </button>
+                  </.button>
                 </div>
               </div>
             <% end %>
@@ -409,17 +424,17 @@ defmodule ElektrineWeb.AdminLive.Relays do
               <p class="text-sm opacity-50 mt-1">
                 Subscribe to a relay to start receiving federated content
               </p>
-              <button phx-click="show_add_modal" class="btn btn-primary btn-sm mt-4">
+              <.button size="sm" class="mt-4" phx-click="show_add_modal">
                 <.icon name="hero-plus" class="w-4 h-4 mr-1" /> Subscribe to a Relay
-              </button>
+              </.button>
             </div>
           <% end %>
-        </div>
-      </div>
+        </:body>
+      </.card>
       
     <!-- Popular Relays -->
-      <div class="card panel-card">
-        <div class="card-body p-4 sm:p-6">
+      <.card body_class="p-4 sm:p-6">
+        <:body>
           <h2 class="card-title text-base sm:text-lg mb-2">
             <.icon name="hero-star" class="w-5 h-5" /> Popular Relays
           </h2>
@@ -582,8 +597,8 @@ defmodule ElektrineWeb.AdminLive.Relays do
               subscription_urls={@subscription_urls}
             />
           </div>
-        </div>
-      </div>
+        </:body>
+      </.card>
       
     <!-- Add Modal -->
       <%= if @show_add_modal do %>
@@ -635,23 +650,23 @@ defmodule ElektrineWeb.AdminLive.Relays do
           <%= if @participants do %>
             <div class="text-right">
               <div class="text-sm font-bold">{format_number(@participants)}</div>
-              <div class="text-[10px] opacity-50">instances</div>
+              <div class="text-3xs opacity-50">instances</div>
             </div>
           <% end %>
         </div>
         <div class="flex items-center justify-between mt-2">
-          <div class="text-[10px] font-mono opacity-40 truncate max-w-[150px]">{@url}</div>
+          <div class="text-3xs font-mono opacity-40 truncate max-w-[150px]">{@url}</div>
           <%= if @already_subscribed do %>
             <span class="badge badge-xs badge-success">Subscribed</span>
           <% else %>
             <%= if @status == "up" do %>
-              <button
+              <.button
+                size="xs"
                 phx-click="subscribe"
                 phx-value-relay_url={@url}
-                class="btn btn-xs btn-primary"
               >
                 Subscribe
-              </button>
+              </.button>
             <% else %>
               <span class="badge badge-xs badge-neutral">Offline</span>
             <% end %>
@@ -707,16 +722,16 @@ defmodule ElektrineWeb.AdminLive.Relays do
           </div>
 
           <div class="modal-action">
-            <button type="button" phx-click="close_modal" class="btn" disabled={@adding}>
+            <.button type="button" variant="default" phx-click="close_modal" disabled={@adding}>
               Cancel
-            </button>
-            <button type="submit" class="btn btn-primary" disabled={@adding}>
+            </.button>
+            <.button type="submit" disabled={@adding}>
               <%= if @adding do %>
                 <.spinner size="sm" /> Subscribing...
               <% else %>
                 Subscribe
               <% end %>
-            </button>
+            </.button>
           </div>
         </form>
       </div>

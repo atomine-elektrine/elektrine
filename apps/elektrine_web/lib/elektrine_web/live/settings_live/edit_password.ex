@@ -42,11 +42,8 @@ defmodule ElektrineWeb.SettingsLive.EditPassword do
       sidebar_tab="security"
       current_user={@current_user}
     >
-      <div
-        id="edit-password-card"
-        class="card panel-card border border-base-300 shadow-xl"
-      >
-        <div class="card-body p-4 sm:p-6">
+      <.card id="edit-password-card" class="border border-base-300" body_class="p-4 sm:p-6">
+        <:body>
           <.simple_form
             :let={f}
             for={@changeset}
@@ -77,7 +74,7 @@ defmodule ElektrineWeb.SettingsLive.EditPassword do
               Oops, something went wrong! Please check the errors below.
             </.error>
 
-            <div class="rounded-xl border border-info/30 bg-info/10 p-3 text-sm text-base-content/80">
+            <div class="rounded-box border border-info/30 bg-info/10 p-3 text-sm text-base-content/80">
               If encrypted data is enabled, this browser will rewrap it with your new password
               before the change is saved. Your recovery code is not needed.
             </div>
@@ -128,8 +125,8 @@ defmodule ElektrineWeb.SettingsLive.EditPassword do
               <.button>Change password</.button>
             </:actions>
           </.simple_form>
-        </div>
-      </div>
+        </:body>
+      </.card>
     </.account_page>
     """
   end

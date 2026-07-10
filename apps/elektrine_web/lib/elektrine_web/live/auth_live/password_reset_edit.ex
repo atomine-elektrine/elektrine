@@ -31,11 +31,8 @@ defmodule ElektrineWeb.AuthLive.PasswordResetEdit do
 
   def render(assigns) do
     ~H"""
-    <div
-      id="password-reset-edit-card"
-      class="card panel-card max-w-md mx-auto"
-    >
-      <div class="card-body">
+    <.card id="password-reset-edit-card" class="max-w-md mx-auto">
+      <:body>
         <%= if @valid_token do %>
           <h1 class="text-center text-3xl font-bold mb-6">Set New Password</h1>
 
@@ -45,7 +42,7 @@ defmodule ElektrineWeb.AuthLive.PasswordResetEdit do
 
           <div
             :if={@encrypted_data_configured}
-            class="mb-4 rounded-xl border border-warning/40 bg-warning/10 p-3 text-sm text-base-content/80"
+            class="mb-4 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm text-base-content/80"
           >
             This resets your login password only. After logging in, use your encrypted data recovery code at
             <span class="font-mono">/account/encrypted-data</span>
@@ -87,9 +84,9 @@ defmodule ElektrineWeb.AuthLive.PasswordResetEdit do
           <div class="divider mt-6">OR</div>
 
           <div class="text-center">
-            <.link href={Elektrine.Paths.login_path()} class="btn btn-ghost btn-sm">
+            <.button href={Elektrine.Paths.login_path()} variant="ghost" size="sm">
               Back to Login
-            </.link>
+            </.button>
           </div>
         <% else %>
           <h1 class="text-center text-3xl font-bold mb-6">Invalid Link</h1>
@@ -97,11 +94,11 @@ defmodule ElektrineWeb.AuthLive.PasswordResetEdit do
             This password reset link is invalid or has expired.
           </p>
           <div class="text-center">
-            <.link href={~p"/password/reset"} class="btn btn-primary">Request New Link</.link>
+            <.button href={~p"/password/reset"}>Request New Link</.button>
           </div>
         <% end %>
-      </div>
-    </div>
+      </:body>
+    </.card>
     """
   end
 end

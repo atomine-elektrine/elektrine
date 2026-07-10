@@ -176,8 +176,8 @@ defmodule ElektrineWeb.AuthLive.Register do
 
   def render(assigns) do
     ~H"""
-    <div id="register-card" class="card panel-card max-w-md mx-auto">
-      <div class="card-body">
+    <.card id="register-card" class="max-w-md mx-auto">
+      <:body>
         <h1 class="text-center text-3xl font-bold mb-6">{gettext("Register")}</h1>
 
         <%= if @registration_access && @registration_access.status == :pending do %>
@@ -314,10 +314,10 @@ defmodule ElektrineWeb.AuthLive.Register do
                   <span class="label-text">{gettext("Solve the problem")}</span>
                 </label>
                 <div class="flex items-center gap-3">
-                  <img src={~p"/captcha"} alt="Captcha" class="rounded border border-base-300" />
-                  <.link href={~p"/register"} class="btn btn-ghost btn-sm">
+                  <img src={~p"/captcha"} alt="Captcha" class="rounded-lg border border-base-300" />
+                  <.button href={~p"/register"} variant="ghost" size="sm">
                     {gettext("Refresh")}
-                  </.link>
+                  </.button>
                 </div>
                 <input
                   type="text"
@@ -354,7 +354,7 @@ defmodule ElektrineWeb.AuthLive.Register do
                     <div class="space-y-2 text-left">
                       <div class="flex items-start justify-between gap-3">
                         <p class="font-semibold">Security check</p>
-                        <span class="rounded-full bg-base-200 px-2 py-0.5 text-[11px] text-base-content/70">
+                        <span class="rounded-full bg-base-200 px-2 py-0.5 text-2xs text-base-content/70">
                           check level {@atomine_pow_difficulty}
                         </span>
                       </div>
@@ -404,9 +404,9 @@ defmodule ElektrineWeb.AuthLive.Register do
             </div>
 
             <.form for={%{}} action={~p"/register/purchase"} method="post" class="mt-3">
-              <button type="submit" class="btn btn-outline btn-sm w-full">
+              <.button type="submit" variant="default" outline size="sm" class="w-full">
                 {gettext("Pay One-Time Fee")}
-              </button>
+              </.button>
             </.form>
           </div>
         <% end %>
@@ -414,12 +414,12 @@ defmodule ElektrineWeb.AuthLive.Register do
         <div class="divider mt-6">{gettext("OR")}</div>
 
         <div class="text-center">
-          <.link href={Elektrine.Paths.login_path()} class="btn btn-ghost btn-sm">
+          <.button href={Elektrine.Paths.login_path()} variant="ghost" size="sm">
             {gettext("Already have an account? Log in")}
-          </.link>
+          </.button>
         </div>
-      </div>
-    </div>
+      </:body>
+    </.card>
     """
   end
 

@@ -12,33 +12,33 @@
   </div>
 
   <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-    <div class="card bg-base-300">
-      <div class="card-body">
+    <.card>
+      <:body>
         <h2 class="card-title text-lg">Total Unsubscribes</h2>
 
         <p class="text-3xl font-bold">{@stats.total}</p>
-      </div>
-    </div>
+      </:body>
+    </.card>
 
-    <div class="card bg-base-300">
-      <div class="card-body">
+    <.card>
+      <:body>
         <h2 class="card-title text-lg">Last 7 Days</h2>
 
         <p class="text-3xl font-bold">{@stats.last_7_days}</p>
-      </div>
-    </div>
+      </:body>
+    </.card>
 
-    <div class="card bg-base-300">
-      <div class="card-body">
+    <.card>
+      <:body>
         <h2 class="card-title text-lg">Unique Lists</h2>
 
         <p class="text-3xl font-bold">{length(@list_counts)}</p>
-      </div>
-    </div>
+      </:body>
+    </.card>
   </div>
 
-  <div class="card panel-card mb-8">
-    <div class="card-body">
+  <.card class="mb-8">
+    <:body>
       <h2 class="card-title text-xl mb-4">Unsubscribes by List</h2>
 
       <div class="overflow-x-auto">
@@ -66,11 +66,11 @@
           </tbody>
         </table>
       </div>
-    </div>
-  </div>
+    </:body>
+  </.card>
 
-  <div class="card panel-card">
-    <div class="card-body">
+  <.card>
+    <:body>
       <h2 class="card-title text-xl mb-4">Recent Unsubscribes</h2>
 
       <div class="overflow-x-auto">
@@ -106,20 +106,28 @@
       <%= if @total_pages > 1 do %>
         <div class="flex justify-center gap-2 mt-6">
           <%= if @page > 1 do %>
-            <.link href={~p"/pripyat/unsubscribe-stats?page=#{@page - 1}"} class="btn btn-sm">
+            <.button
+              href={~p"/pripyat/unsubscribe-stats?page=#{@page - 1}"}
+              variant="default"
+              size="sm"
+            >
               Previous
-            </.link>
+            </.button>
           <% end %>
           <span class="btn btn-sm btn-ghost">
             Page {@page} of {@total_pages}
           </span>
           <%= if @page < @total_pages do %>
-            <.link href={~p"/pripyat/unsubscribe-stats?page=#{@page + 1}"} class="btn btn-sm">
+            <.button
+              href={~p"/pripyat/unsubscribe-stats?page=#{@page + 1}"}
+              variant="default"
+              size="sm"
+            >
               Next
-            </.link>
+            </.button>
           <% end %>
         </div>
       <% end %>
-    </div>
-  </div>
+    </:body>
+  </.card>
 </div>

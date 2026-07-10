@@ -8,8 +8,8 @@
   </div>
 
   <div class="max-w-2xl">
-    <div class="card panel-card">
-      <div class="card-body gap-5">
+    <.card body_class="gap-5">
+      <:body>
         <div class="alert alert-info">
           <.icon name="hero-information-circle" class="w-5 h-5" />
           <span>This applies only to admin privileges, not your regular user session.</span>
@@ -22,13 +22,9 @@
             data-return-to={@return_to}
             class="space-y-3"
           >
-            <button
-              id="admin-elevate-passkey"
-              type="button"
-              class="btn btn-primary w-full sm:w-auto"
-            >
+            <.button id="admin-elevate-passkey" type="button" class="w-full sm:w-auto">
               <.icon name="hero-finger-print" class="w-5 h-5" /> Verify With Passkey
-            </button>
+            </.button>
             <p class="text-sm opacity-70">
               You may be asked to verify again for sensitive admin actions.
             </p>
@@ -40,9 +36,9 @@
 
               <p class="text-sm">Add a passkey in account settings, then return here.</p>
 
-              <.link href={~p"/account/passkeys"} class="btn btn-sm btn-warning">
+              <.button href={~p"/account/passkeys"} variant="warning" size="sm">
                 Open Passkey Settings
-              </.link>
+              </.button>
             </div>
           </div>
         <% end %>
@@ -52,7 +48,7 @@
             Back to previous admin page
           </.link>
         </div>
-      </div>
-    </div>
+      </:body>
+    </.card>
   </div>
 </div>

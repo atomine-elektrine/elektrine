@@ -55,7 +55,7 @@
       >
         <div class="card-body flex-row items-center gap-3 p-3 sm:p-4">
           <span class={[
-            "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
+            "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
             if(!@loading_dashboard and stat.count > 0,
               do: "bg-primary/10 text-primary",
               else: "bg-base-200 text-base-content/45"
@@ -123,8 +123,8 @@
     <div :if={@portal_view == "feed"} class="flex-1 min-w-0">
       <% posts = filtered_posts(@filtered_all_posts, @filter, assigns) %> <% visible_posts =
         Enum.take(posts, @visible_post_limit) %>
-      <div class="card panel-card overflow-hidden">
-        <div class="card-body p-4 sm:p-5">
+      <.card class="overflow-hidden" body_class="p-4 sm:p-5">
+        <:body>
           <!-- Filter Pills -->
           <div class="-mx-1 flex gap-2 overflow-x-auto px-1 pt-1 pb-4 sm:mx-0 sm:px-0">
             <button
@@ -174,27 +174,27 @@
               <!-- Loading skeleton for feed -->
               <div class="space-y-4 min-h-[60vh]" data-feed-loading-skeleton>
                 <%= for _i <- 1..5 do %>
-                  <div class="card panel-card animate-pulse">
-                    <div class="card-body">
+                  <.card class="animate-pulse">
+                    <:body>
                       <div class="flex items-start gap-3">
                         <div class="w-10 h-10 rounded-full bg-base-300"></div>
 
                         <div class="flex-1">
-                          <div class="h-4 bg-base-300 rounded w-1/4 mb-2"></div>
+                          <div class="h-4 bg-base-300 rounded-lg w-1/4 mb-2"></div>
 
-                          <div class="h-3 bg-base-300 rounded w-1/6 mb-4"></div>
+                          <div class="h-3 bg-base-300 rounded-lg w-1/6 mb-4"></div>
 
                           <div class="space-y-2">
-                            <div class="h-3 bg-base-300 rounded w-full"></div>
+                            <div class="h-3 bg-base-300 rounded-lg w-full"></div>
 
-                            <div class="h-3 bg-base-300 rounded w-5/6"></div>
+                            <div class="h-3 bg-base-300 rounded-lg w-5/6"></div>
 
-                            <div class="h-3 bg-base-300 rounded w-4/6"></div>
+                            <div class="h-3 bg-base-300 rounded-lg w-4/6"></div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  </div>
+                    </:body>
+                  </.card>
                 <% end %>
               </div>
             <% else %>
@@ -237,10 +237,12 @@
                 :if={!@no_more_posts}
                 class="flex justify-center py-2"
               >
-                <button
+                <.button
                   type="button"
                   phx-click="load-more"
-                  class="btn btn-sm load-more-button"
+                  variant="default"
+                  size="sm"
+                  class="load-more-button"
                   disabled={@loading_more}
                 >
                   <%= if @loading_more do %>
@@ -248,12 +250,12 @@
                   <% else %>
                     Load more posts
                   <% end %>
-                </button>
+                </.button>
               </div>
 
               <%= if Enum.empty?(posts) do %>
-                <div class="card panel-card">
-                  <div class="card-body text-center py-12">
+                <.card body_class="text-center py-12">
+                  <:body>
                     <%= case @filter do %>
                       <% "my_posts" -> %>
                         <.icon name="hero-user-circle" class="w-16 h-16 mx-auto opacity-30 mb-4" />
@@ -262,13 +264,13 @@
                         <.icon name="hero-sparkles" class="w-16 h-16 mx-auto opacity-30 mb-4" />
                         <h3 class="text-lg font-semibold mb-2">No posts in this view</h3>
                     <% end %>
-                  </div>
-                </div>
+                  </:body>
+                </.card>
               <% end %>
             <% end %>
           </div>
-        </div>
-      </div>
+        </:body>
+      </.card>
     </div>
 
     <%= if @show_quote_modal && @quote_target_post do %>
@@ -282,9 +284,13 @@
           <div class="p-4 border-b border-base-300 flex items-center justify-between">
             <h3 class="text-lg font-semibold">Quote Post</h3>
 
-            <button phx-click="close_quote_modal" class="btn btn-ghost btn-sm btn-circle">
-              <.icon name="hero-x-mark" class="w-5 h-5" />
-            </button>
+            <.icon_button
+              icon="hero-x-mark"
+              variant="ghost"
+              size="sm"
+              label="Close"
+              phx-click="close_quote_modal"
+            />
           </div>
 
           <div class="p-4">
@@ -332,16 +338,16 @@
               </div>
 
               <div class="flex justify-end gap-2">
-                <button type="button" phx-click="close_quote_modal" class="btn btn-ghost">
+                <.button type="button" phx-click="close_quote_modal" variant="ghost">
                   Cancel
-                </button>
-                <button
+                </.button>
+                <.button
                   type="submit"
-                  class="btn btn-secondary"
+                  variant="secondary"
                   disabled={String.trim(@quote_content) == ""}
                 >
                   <.icon name="hero-chat-bubble-bottom-center-text" class="w-4 h-4 mr-1" /> Quote
-                </button>
+                </.button>
               </div>
             </.form>
           </div>
@@ -365,9 +371,13 @@
               </p>
             </div>
 
-            <button phx-click="close_modal" class="btn btn-ghost btn-sm btn-circle">
-              <.icon name="hero-x-mark" class="w-5 h-5" />
-            </button>
+            <.icon_button
+              icon="hero-x-mark"
+              variant="ghost"
+              size="sm"
+              label="Close"
+              phx-click="close_modal"
+            />
           </div>
 
           <div class="space-y-3 p-4 pt-0" data-role="activity-inspector">
@@ -385,21 +395,22 @@
                   autocomplete="off"
                 />
 
-                <button
+                <.button
                   type="button"
                   phx-click="clear_activity_search"
                   data-search-clear="true"
                   aria-label="Clear search"
-                  class={[
-                    "btn btn-ghost btn-xs",
+                  variant="ghost"
+                  size="xs"
+                  class={
                     if(@activity_inspector.query == "",
                       do: "pointer-events-none invisible",
                       else: nil
                     )
-                  ]}
+                  }
                 >
                   <.icon name="hero-x-mark" class="h-4 w-4" />
-                </button>
+                </.button>
               </label>
             </.form>
 
@@ -463,41 +474,47 @@
                   </.link>
 
                   <%= if @activity_inspector.section == "following" && entry.remote_actor_id do %>
-                    <button
+                    <.button
                       phx-click="unfollow_remote"
                       phx-value-remote-actor-id={entry.remote_actor_id}
-                      class="btn btn-ghost btn-sm transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80"
+                      variant="ghost"
+                      size="sm"
+                      class="transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80"
                     >
                       <span class="phx-click-loading:hidden">Unfollow</span>
                       <span class="hidden phx-click-loading:inline-flex items-center">
                         <.spinner size="sm" class="mr-1" /> Unfollowing...
                       </span>
-                    </button>
+                    </.button>
                   <% end %>
 
                   <%= if @activity_inspector.section == "following" && entry.user_id do %>
-                    <button
+                    <.button
                       phx-click="unfollow_local"
                       phx-value-followed-id={entry.user_id}
-                      class="btn btn-ghost btn-sm transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80"
+                      variant="ghost"
+                      size="sm"
+                      class="transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80"
                     >
                       <span class="phx-click-loading:hidden">Unfollow</span>
                       <span class="hidden phx-click-loading:inline-flex items-center">
                         <.spinner size="sm" class="mr-1" /> Unfollowing...
                       </span>
-                    </button>
+                    </.button>
                   <% end %>
                 </div>
               <% end %>
 
               <div :if={!@activity_inspector.no_more} class="flex justify-center pt-1">
-                <button
+                <.button
                   type="button"
                   phx-click="load_more_activity"
-                  class="btn btn-sm load-more-button"
+                  variant="default"
+                  size="sm"
+                  class="load-more-button"
                 >
                   Load more
-                </button>
+                </.button>
               </div>
             <% end %>
           </div>

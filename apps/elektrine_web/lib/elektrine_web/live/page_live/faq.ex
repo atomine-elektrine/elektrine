@@ -15,8 +15,8 @@ defmodule ElektrineWeb.PageLive.FAQ do
       <div class="mx-auto max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
         <.e_nav active_tab="" class="mb-6" current_user={@current_user} />
 
-        <div id="faq-card" class="card panel-card">
-          <div class="card-body">
+        <.card id="faq-card">
+          <:body>
             <h1 class="card-title text-3xl mb-6">FAQ</h1>
 
             <div class="space-y-4" id="faq-items">
@@ -248,8 +248,8 @@ defmodule ElektrineWeb.PageLive.FAQ do
                 <p>Still have questions? Email {EmailAddresses.local("support")}</p>
               </div>
             </div>
-          </div>
-        </div>
+          </:body>
+        </.card>
       </div>
     </div>
     """

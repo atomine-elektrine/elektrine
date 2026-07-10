@@ -35,7 +35,7 @@ defmodule ElektrineWeb.Components.Layout.Announcement do
       <div class="min-w-0 flex-1 leading-5">
         <div class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
           <span class="font-semibold text-base-content">{@announcement.title}</span>
-          <span class="text-[11px] font-semibold uppercase tracking-[0.16em] text-base-content/45">
+          <span class="text-2xs font-semibold uppercase tracking-[0.16em] text-base-content/45">
             {announcement_label(@announcement.type)}
           </span>
         </div>

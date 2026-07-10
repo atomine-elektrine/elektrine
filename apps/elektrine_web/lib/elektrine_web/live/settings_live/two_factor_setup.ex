@@ -69,8 +69,8 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorSetup do
       current_user={@current_user}
     >
       <div class="space-y-4 sm:space-y-6">
-        <div id="step1-card" class="card panel-card border border-base-300">
-          <div class="card-body p-4 sm:p-6">
+        <.card id="step1-card" class="border border-base-300" body_class="p-4 sm:p-6">
+          <:body>
             <.section_header
               title="Install an authenticator app"
               description="Use any TOTP-compatible authenticator app on your phone or password manager."
@@ -111,11 +111,11 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorSetup do
                 </div>
               </div>
             </div>
-          </div>
-        </div>
+          </:body>
+        </.card>
 
-        <div id="step2-card" class="card panel-card border border-base-300">
-          <div class="card-body p-4 sm:p-6">
+        <.card id="step2-card" class="border border-base-300" body_class="p-4 sm:p-6">
+          <:body>
             <.section_header
               title="Scan the QR code"
               description="Open your authenticator app and add Elektrine as a new account."
@@ -127,7 +127,7 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorSetup do
 
             <div class="flex flex-col items-center my-4 sm:my-6">
               <div
-                class="rounded-xl border border-base-300 bg-base-100 p-3 sm:p-4"
+                class="rounded-lg border border-base-300 bg-base-100 p-3 sm:p-4"
                 style={"background-color: #{Elektrine.Theme.inverse_text_color()};"}
               >
                 <%= if @qr_code_data_uri do %>
@@ -142,12 +142,14 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorSetup do
                   </div>
                 <% end %>
               </div>
-              <.link
+              <.button
                 href={~p"/account/two_factor/setup?refresh=true"}
-                class="btn btn-ghost btn-sm mt-2"
+                variant="ghost"
+                size="sm"
+                class="mt-2"
               >
                 <.icon name="hero-arrow-path" class="h-4 w-4 mr-1" /> Generate New QR Code
-              </.link>
+              </.button>
 
               <div class="rounded-lg border border-warning/20 bg-warning/10 p-4 mt-4 max-w-md flex gap-3">
                 <.icon name="hero-exclamation-triangle" class="h-5 w-5 shrink-0" />
@@ -172,7 +174,7 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorSetup do
                     <div class="space-y-2 text-xs">
                       <div>
                         <span class="font-medium text-base-content/70">Secret:</span>
-                        <div class="font-medium text-sm bg-base-200 p-2 rounded mt-1 break-all">
+                        <div class="font-medium text-sm bg-base-200 p-2 rounded-lg mt-1 break-all">
                           {Elektrine.Accounts.TwoFactor.secret_to_base32(@secret)}
                         </div>
                       </div>
@@ -185,11 +187,11 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorSetup do
                 </div>
               </div>
             </div>
-          </div>
-        </div>
+          </:body>
+        </.card>
 
-        <div id="step3-card" class="card panel-card border border-base-300">
-          <div class="card-body p-4 sm:p-6">
+        <.card id="step3-card" class="border border-base-300" body_class="p-4 sm:p-6">
+          <:body>
             <.section_header
               title="Save your backup codes"
               description="These one-time codes can unlock your account if your authenticator is unavailable."
@@ -218,11 +220,11 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorSetup do
                 <% end %>
               </div>
             </div>
-          </div>
-        </div>
+          </:body>
+        </.card>
 
-        <div id="step4-card" class="card panel-card border border-base-300">
-          <div class="card-body p-4 sm:p-6">
+        <.card id="step4-card" class="border border-base-300" body_class="p-4 sm:p-6">
+          <:body>
             <.section_header
               title="Verify your setup"
               description="Enter the current six-digit code to finish enabling two-factor authentication."
@@ -261,17 +263,17 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorSetup do
               </div>
 
               <div class="card-actions justify-end mt-4 sm:mt-6">
-                <button type="submit" class="btn btn-primary btn-sm sm:btn-md" disabled={@submitting}>
+                <.button type="submit" size="sm" class="sm:btn-md" disabled={@submitting}>
                   <%= if @submitting do %>
                     <.spinner size="sm" /> Verifying...
                   <% else %>
                     Enable Two-Factor Authentication
                   <% end %>
-                </button>
+                </.button>
               </div>
             </.form>
-          </div>
-        </div>
+          </:body>
+        </.card>
       </div>
     </.account_page>
     """

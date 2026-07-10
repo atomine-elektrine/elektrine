@@ -23,8 +23,8 @@
       <!-- Profile Tab -->
       <%= if @selected_tab == "profile" do %>
         <div class="space-y-4 sm:space-y-6">
-          <div class="card panel-card">
-            <div class="card-body p-4 sm:p-6">
+          <.card body_class="p-4 sm:p-6">
+            <:body>
               <h2 class="card-title text-lg sm:text-xl mb-4 sm:mb-6 flex items-center gap-2">
                 <.icon name="hero-user" class="w-5 h-5" /> {gettext("Profile Information")}
               </h2>
@@ -108,14 +108,15 @@
                           <% end %>
                         </label>
                         <%= if avatar_entry do %>
-                          <button
+                          <.button
                             type="button"
                             phx-click="cancel_avatar_upload"
                             phx-value-ref={avatar_entry.ref}
-                            class="btn btn-ghost btn-sm"
+                            variant="ghost"
+                            size="sm"
                           >
                             {gettext("Remove Selection")}
-                          </button>
+                          </.button>
                         <% end %>
                       </div>
 
@@ -129,7 +130,7 @@
                       <%= if avatar_entry do %>
                         <div
                           id="avatar-upload-status"
-                          class="surface-muted rounded-xl p-3 space-y-2"
+                          class="surface-muted rounded-box p-3 space-y-2"
                         >
                           <div class="flex items-start gap-3">
                             <div class="min-w-0 flex-1">
@@ -279,15 +280,16 @@
 
                   <%= if @user.recovery_email && @user.recovery_email != "" && !@user.recovery_email_verified do %>
                     <div class="mt-2">
-                      <button
+                      <.button
                         type="button"
                         phx-click="send_recovery_verification"
-                        class="btn btn-sm btn-outline btn-primary"
+                        size="sm"
+                        outline
                       >
                         <.icon name="hero-envelope" class="w-4 h-4" /> {gettext(
                           "Send Verification Email"
                         )}
-                      </button>
+                      </.button>
                       <p class="text-xs text-base-content/60 mt-1">
                         {gettext(
                           "You must verify your recovery email before it can be used for password resets."
@@ -298,16 +300,16 @@
                 </div>
 
                 <div class="card-actions justify-end mt-4 sm:mt-6">
-                  <.button class="btn-primary w-full sm:w-auto">
+                  <.button class="w-full sm:w-auto">
                     {gettext("Save Changes")}
                   </.button>
                 </div>
               </.form>
-            </div>
-          </div>
+            </:body>
+          </.card>
 
-          <div class="card panel-card">
-            <div class="card-body p-4 sm:p-6 space-y-4">
+          <.card body_class="p-4 sm:p-6 space-y-4">
+            <:body>
               <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div>
                   <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
@@ -334,7 +336,7 @@
 
               <div class="grid grid-cols-3 gap-3">
                 <div class="surface-muted rounded-box px-3 py-3">
-                  <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                  <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
                     Total
                   </div>
 
@@ -344,7 +346,7 @@
                 </div>
 
                 <div class="surface-muted rounded-box px-3 py-3">
-                  <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                  <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
                     Active
                   </div>
 
@@ -354,7 +356,7 @@
                 </div>
 
                 <div class="surface-muted rounded-box px-3 py-3">
-                  <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                  <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
                     Used
                   </div>
 
@@ -405,12 +407,9 @@
                         <span class="text-xs text-base-content/60">
                           Single-use code. Expires automatically after {@invite_code_policy.expires_in_days} days and follows your monthly invite limits.
                         </span>
-                        <button
-                          type="submit"
-                          class="btn btn-primary w-full sm:w-auto sm:flex-none"
-                        >
+                        <.button type="submit" class="w-full sm:w-auto sm:flex-none">
                           <.icon name="hero-plus" class="w-4 h-4" /> Create Invite Code
-                        </button>
+                        </.button>
                       </div>
                     </div>
                   </.form>
@@ -442,14 +441,15 @@
                               ]}>
                                 {invite_code_status_label(invite_code)}
                               </span>
-                              <button
+                              <.button
                                 type="button"
-                                class="btn btn-ghost btn-xs"
+                                variant="ghost"
+                                size="xs"
                                 data-copy-to-clipboard={invite_code.code}
                                 title="Copy code"
                               >
                                 <.icon name="hero-document-duplicate" class="h-4 w-4" />
-                              </button>
+                              </.button>
                             </div>
 
                             <%= if note = String.trim(invite_code.note || "") do %>
@@ -460,7 +460,7 @@
 
                         <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                           <div>
-                            <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                            <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
                               Usage
                             </div>
 
@@ -478,7 +478,7 @@
                           </div>
 
                           <div>
-                            <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                            <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
                               Expires
                             </div>
 
@@ -497,7 +497,7 @@
                           </div>
 
                           <div>
-                            <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                            <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
                               Created
                             </div>
 
@@ -514,14 +514,16 @@
 
                         <%= if invite_code_status(invite_code) == :active do %>
                           <div class="flex justify-end border-t border-base-300/70 pt-3">
-                            <button
+                            <.button
                               type="button"
                               phx-click="deactivate_invite_code"
                               phx-value-id={invite_code.id}
-                              class="btn btn-ghost btn-sm text-warning"
+                              variant="ghost"
+                              size="sm"
+                              class="text-warning"
                             >
                               <.icon name="hero-pause-circle" class="w-4 h-4" /> Deactivate
-                            </button>
+                            </.button>
                           </div>
                         <% end %>
                       </div>
@@ -529,8 +531,8 @@
                   <% end %>
                 </div>
               <% end %>
-            </div>
-          </div>
+            </:body>
+          </.card>
         </div>
       <% end %>
       <!-- Security Tab -->
@@ -539,20 +541,20 @@
           <%= if tab_enabled?("email", @current_user) do %>
             <!-- Email Sending Status Section -->
             <%= if @loading_security do %>
-              <div class="card panel-card">
-                <div class="card-body p-4 sm:p-6">
+              <.card body_class="p-4 sm:p-6">
+                <:body>
                   <div class="animate-pulse space-y-4">
-                    <div class="h-4 bg-base-300 rounded w-1/3"></div>
+                    <div class="h-4 bg-base-300 rounded-lg w-1/3"></div>
 
-                    <div class="h-3 bg-base-300 rounded w-2/3"></div>
+                    <div class="h-3 bg-base-300 rounded-lg w-2/3"></div>
                   </div>
-                </div>
-              </div>
+                </:body>
+              </.card>
             <% end %>
 
             <%= if !@loading_security && @email_restriction_status.restricted do %>
-              <div class="card panel-card border-2 border-warning">
-                <div class="card-body p-4 sm:p-6">
+              <.card class="border-2 border-warning" body_class="p-4 sm:p-6">
+                <:body>
                   <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
                     <.icon name="hero-exclamation-triangle" class="w-5 h-5 text-warning" />
                     Email Sending Restricted
@@ -585,7 +587,7 @@
                     <div class="mb-4">
                       <div class="text-sm opacity-70 mb-1">Recovery Email</div>
 
-                      <div class="font-mono bg-base-200 rounded px-3 py-2 flex items-center justify-between text-sm">
+                      <div class="font-mono bg-base-200 rounded-lg px-3 py-2 flex items-center justify-between text-sm">
                         <span>{@email_restriction_status.recovery_email}</span>
                         <%= if @email_restriction_status.recovery_email_verified do %>
                           <span class="badge badge-success badge-sm">Verified</span>
@@ -595,13 +597,14 @@
                       </div>
                     </div>
 
-                    <button
+                    <.button
                       type="button"
                       phx-click="send_recovery_verification"
-                      class="btn btn-warning w-full"
+                      variant="warning"
+                      class="w-full"
                     >
                       <.icon name="hero-envelope" class="w-5 h-5 mr-2" /> Send Verification Email
-                    </button>
+                    </.button>
                   <% else %>
                     <div class="alert alert-info">
                       <.icon name="hero-information-circle" class="w-5 h-5" />
@@ -610,13 +613,13 @@
                       </span>
                     </div>
                   <% end %>
-                </div>
-              </div>
+                </:body>
+              </.card>
             <% end %>
           <% end %>
 
-          <div class="card panel-card">
-            <div class="card-body p-4 sm:p-6">
+          <.card body_class="p-4 sm:p-6">
+            <:body>
               <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
@@ -631,14 +634,16 @@
                   </p>
                 </div>
 
-                <button
+                <.button
                   type="button"
                   phx-click="revoke_other_user_sessions"
-                  class="btn btn-outline btn-sm"
+                  variant="default"
+                  outline
+                  size="sm"
                   disabled={Enum.count(active_user_sessions(@user_sessions)) <= 1}
                 >
                   {gettext("Sign Out Others")}
-                </button>
+                </.button>
               </div>
 
               <%= if @loading_security do %>
@@ -703,29 +708,31 @@
                             </p>
                           </div>
 
-                          <button
+                          <.button
                             type="button"
                             phx-click="revoke_user_session"
                             phx-value-id={session.id}
-                            class="btn btn-ghost btn-sm text-error"
+                            variant="ghost"
+                            size="sm"
+                            class="text-error"
                             disabled={
                               session.id == @current_user_session_id ||
                                 not is_nil(session.revoked_at)
                             }
                           >
                             {gettext("Revoke")}
-                          </button>
+                          </.button>
                         </div>
                       <% end %>
                     </div>
                   <% end %>
                 </div>
               <% end %>
-            </div>
-          </div>
+            </:body>
+          </.card>
 
-          <div class="card panel-card">
-            <div class="card-body p-4 sm:p-6">
+          <.card body_class="p-4 sm:p-6">
+            <:body>
               <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
                 <.icon name="hero-shield-check" class="w-5 h-5" /> {gettext(
                   "Two-Factor Authentication"
@@ -743,12 +750,14 @@
                 </p>
 
                 <div class="card-actions">
-                  <.link
+                  <.button
                     navigate={~p"/account/two_factor"}
-                    class="btn btn-outline btn-primary btn-sm w-full text-xs sm:text-sm"
+                    outline
+                    size="sm"
+                    class="w-full text-xs sm:text-sm"
                   >
                     {gettext("Manage 2FA")}
-                  </.link>
+                  </.button>
                 </div>
               <% else %>
                 <div class="flex items-center gap-2 mb-3">
@@ -761,19 +770,20 @@
                 </p>
 
                 <div class="card-actions">
-                  <.link
+                  <.button
                     navigate={~p"/account/two_factor/setup"}
-                    class="btn btn-primary btn-sm w-full text-xs sm:text-sm"
+                    size="sm"
+                    class="w-full text-xs sm:text-sm"
                   >
                     {gettext("Enable 2FA")}
-                  </.link>
+                  </.button>
                 </div>
               <% end %>
-            </div>
-          </div>
+            </:body>
+          </.card>
 
-          <div class="card panel-card">
-            <div class="card-body p-4 sm:p-6">
+          <.card body_class="p-4 sm:p-6">
+            <:body>
               <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
                 <.icon name="hero-finger-print" class="w-5 h-5" /> {gettext("Passkeys")}
               </h3>
@@ -785,18 +795,20 @@
               </p>
 
               <div class="card-actions">
-                <.link
+                <.button
                   navigate={~p"/account/passkeys"}
-                  class="btn btn-outline btn-primary btn-sm w-full text-xs sm:text-sm"
+                  outline
+                  size="sm"
+                  class="w-full text-xs sm:text-sm"
                 >
                   {gettext("Manage Passkeys")}
-                </.link>
+                </.button>
               </div>
-            </div>
-          </div>
+            </:body>
+          </.card>
 
-          <div class="card panel-card">
-            <div class="card-body p-4 sm:p-6">
+          <.card body_class="p-4 sm:p-6">
+            <:body>
               <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
                 <.icon name="hero-key" class="w-5 h-5" /> {gettext("Password")}
               </h3>
@@ -806,18 +818,20 @@
               </p>
 
               <div class="card-actions">
-                <.link
+                <.button
                   navigate={~p"/account/password"}
-                  class="btn btn-outline btn-primary btn-sm w-full text-xs sm:text-sm"
+                  outline
+                  size="sm"
+                  class="w-full text-xs sm:text-sm"
                 >
                   {gettext("Change Password")}
-                </.link>
+                </.button>
               </div>
-            </div>
-          </div>
+            </:body>
+          </.card>
 
-          <div class="card panel-card">
-            <div class="card-body p-4 sm:p-6">
+          <.card body_class="p-4 sm:p-6">
+            <:body>
               <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
                 <.icon name="hero-shield-check" class="w-5 h-5" /> {gettext("Encrypted Data")}
                 <span
@@ -835,24 +849,26 @@
               </p>
 
               <div class="card-actions">
-                <.link
+                <.button
                   navigate={~p"/account/encrypted-data"}
-                  class="btn btn-outline btn-primary btn-sm w-full text-xs sm:text-sm"
+                  outline
+                  size="sm"
+                  class="w-full text-xs sm:text-sm"
                 >
                   <%= if @master_password_configured do %>
                     {gettext("Manage Encrypted Data")}
                   <% else %>
                     {gettext("Set Up Encrypted Data")}
                   <% end %>
-                </.link>
+                </.button>
               </div>
-            </div>
-          </div>
+            </:body>
+          </.card>
 
           <%= if tab_enabled?("email", @current_user) do %>
             <!-- App Passwords Section -->
-            <div class="card panel-card">
-              <div class="card-body p-4 sm:p-6">
+            <.card body_class="p-4 sm:p-6">
+              <:body>
                 <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
                   <.icon name="hero-device-tablet" class="w-5 h-5" /> {gettext("App Passwords")}
                 </h3>
@@ -862,19 +878,21 @@
                 </p>
 
                 <div class="card-actions">
-                  <.link
+                  <.button
                     navigate={~p"/account/app-passwords"}
-                    class="btn btn-outline btn-primary btn-sm w-full text-xs sm:text-sm"
+                    outline
+                    size="sm"
+                    class="w-full text-xs sm:text-sm"
                   >
                     {gettext("Manage App Passwords")}
-                  </.link>
+                  </.button>
                 </div>
-              </div>
-            </div>
+              </:body>
+            </.card>
           <% end %>
 
-          <div class="card panel-card">
-            <div class="card-body p-4 sm:p-6">
+          <.card body_class="p-4 sm:p-6">
+            <:body>
               <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
                 <.icon name="hero-lock-closed" class="w-5 h-5" /> Encryption Coverage
               </h3>
@@ -998,14 +1016,14 @@
                 the conversation toggle is enabled; otherwise the server can read chat content for
                 delivery and federation.
               </p>
-            </div>
-          </div>
+            </:body>
+          </.card>
         </div>
       <% end %>
       <!-- Privacy Tab -->
       <%= if @selected_tab == "privacy" do %>
-        <div class="card panel-card">
-          <div class="card-body p-4 sm:p-6">
+        <.card body_class="p-4 sm:p-6">
+          <:body>
             <h2 class="card-title text-lg sm:text-xl mb-4 sm:mb-6 flex items-center gap-2">
               <.icon name="hero-lock-closed" class="w-5 h-5" /> {gettext("Privacy Settings")}
             </h2>
@@ -1462,16 +1480,16 @@
               </div>
 
               <div class="card-actions justify-end mt-4 sm:mt-6">
-                <.button class="btn-primary w-full sm:w-auto">{gettext("Save Changes")}</.button>
+                <.button class="w-full sm:w-auto">{gettext("Save Changes")}</.button>
               </div>
             </.form>
-          </div>
-        </div>
+          </:body>
+        </.card>
       <% end %>
       <!-- Preferences Tab -->
       <%= if @selected_tab == "preferences" do %>
-        <div class="card panel-card">
-          <div class="card-body p-4 sm:p-6">
+        <.card body_class="p-4 sm:p-6">
+          <:body>
             <h2 class="card-title text-lg sm:text-xl mb-4 sm:mb-6 flex items-center gap-2">
               <.icon name="hero-cog-6-tooth" class="w-5 h-5" /> {gettext("Preferences")}
             </h2>
@@ -1683,7 +1701,7 @@
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
                   <%= for field <- Elektrine.Theme.editor_fields() do %>
-                    <label class="flex items-center gap-4 rounded-xl border border-base-300/60 bg-base-200/40 p-4">
+                    <label class="flex items-center gap-4 rounded-lg border border-base-300/60 bg-base-200/40 p-4">
                       <input
                         type="color"
                         name={"user[theme_overrides][#{field.key}]"}
@@ -1714,24 +1732,25 @@
               </div>
 
               <div class="card-actions justify-end mt-4 sm:mt-6 gap-3">
-                <button
+                <.button
                   type="submit"
                   name="action"
                   value="reset_theme_defaults"
-                  class="btn btn-ghost w-full sm:w-auto"
+                  variant="ghost"
+                  class="w-full sm:w-auto"
                 >
                   Reset Theme
-                </button>
-                <.button class="btn-primary w-full sm:w-auto">{gettext("Save Changes")}</.button>
+                </.button>
+                <.button class="w-full sm:w-auto">{gettext("Save Changes")}</.button>
               </div>
             </.form>
-          </div>
-        </div>
+          </:body>
+        </.card>
       <% end %>
       <!-- Notifications Tab -->
       <%= if @selected_tab == "notifications" do %>
-        <div class="card panel-card">
-          <div class="card-body p-4 sm:p-6">
+        <.card body_class="p-4 sm:p-6">
+          <:body>
             <h2 class="card-title text-lg sm:text-xl mb-4 sm:mb-6 flex items-center gap-2">
               <.icon name="hero-bell" class="w-5 h-5" /> {gettext("Notifications")}
             </h2>
@@ -1891,17 +1910,17 @@
               </div>
 
               <div class="card-actions justify-end mt-4 sm:mt-6">
-                <.button class="btn-primary w-full sm:w-auto">{gettext("Save Changes")}</.button>
+                <.button class="w-full sm:w-auto">{gettext("Save Changes")}</.button>
               </div>
             </.form>
-          </div>
-        </div>
+          </:body>
+        </.card>
       <% end %>
       <!-- Federation Tab -->
       <%= if @selected_tab == "federation" do %>
         <div class="space-y-4 sm:space-y-6">
-          <div class="card panel-card">
-            <div class="card-body p-4 sm:p-6">
+          <.card body_class="p-4 sm:p-6">
+            <:body>
               <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                 <.icon name="hero-globe-alt" class="w-5 h-5" /> {gettext("Federation")}
               </h2>
@@ -1953,7 +1972,7 @@
                 </div>
 
                 <div class="card-actions justify-end">
-                  <.button class="btn-primary w-full sm:w-auto">
+                  <.button class="w-full sm:w-auto">
                     {gettext("Save Changes")}
                   </.button>
                 </div>
@@ -1962,7 +1981,7 @@
               <div class="divider my-4">{gettext("Bluesky Integration")}</div>
               <% managed_linked = @bluesky_managed_enabled && @user.bluesky_enabled %> <% bluesky_profile_url =
                 bluesky_profile_url(@user) %>
-              <div class="surface-muted rounded-xl p-4 sm:p-5 space-y-4">
+              <div class="surface-muted rounded-box p-4 sm:p-5 space-y-4">
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                   <h3 class="text-sm sm:text-base font-semibold flex items-center gap-2">
                     <.icon name="hero-link" class="w-4 h-4" /> {gettext("Bluesky Account")}
@@ -2036,16 +2055,19 @@
 
                       <%= if bluesky_profile_url do %>
                         <div class="card-actions justify-end pt-1">
-                          <a
+                          <.button
                             href={bluesky_profile_url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            class="btn btn-outline btn-sm w-full sm:w-auto"
+                            variant="default"
+                            outline
+                            size="sm"
+                            class="w-full sm:w-auto"
                           >
                             <.icon name="hero-arrow-top-right-on-square" class="w-4 h-4" /> {gettext(
                               "Open Bluesky Profile"
                             )}
-                          </a>
+                          </.button>
                         </div>
                       <% end %>
                     </div>
@@ -2066,13 +2088,13 @@
                   </div>
                 <% end %>
               </div>
-            </div>
-          </div>
+            </:body>
+          </.card>
 
           <%= if @bluesky_managed_enabled do %>
             <% managed_linked = @user.bluesky_enabled && @user.bluesky_app_password %>
-            <div class="card panel-card">
-              <div class="card-body p-4 sm:p-6 space-y-4">
+            <.card body_class="p-4 sm:p-6 space-y-4">
+              <:body>
                 <h3 class="card-title text-base sm:text-lg flex flex-wrap items-center gap-2 leading-tight">
                   <.icon name="hero-link" class="w-5 h-5 shrink-0" /> {gettext(
                     "Bluesky Connection"
@@ -2093,7 +2115,7 @@
                   <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     <form
                       phx-submit="reconnect_bluesky_managed"
-                      class="space-y-3 min-w-0 rounded-xl border border-base-300/70 bg-base-200/30 p-4"
+                      class="space-y-3 min-w-0 rounded-lg border border-base-300/70 bg-base-200/30 p-4"
                     >
                       <label class="label py-0 w-full min-w-0 flex-wrap items-start gap-1">
                         <span class="label-text block w-full min-w-0 font-medium whitespace-normal break-words leading-snug">
@@ -2117,7 +2139,7 @@
                       <div class="card-actions justify-start sm:justify-end">
                         <.button
                           type="submit"
-                          class="btn-primary w-full sm:w-auto whitespace-normal text-left sm:text-center leading-tight"
+                          class="w-full sm:w-auto whitespace-normal text-left sm:text-center leading-tight"
                         >
                           {gettext("Reconnect Bluesky")}
                         </.button>
@@ -2126,7 +2148,7 @@
 
                     <form
                       phx-submit="disconnect_bluesky_managed"
-                      class="space-y-3 min-w-0 rounded-xl border border-base-300/70 bg-base-200/30 p-4"
+                      class="space-y-3 min-w-0 rounded-lg border border-base-300/70 bg-base-200/30 p-4"
                     >
                       <label class="label py-0 w-full min-w-0 flex-wrap items-start gap-1">
                         <span class="label-text block w-full min-w-0 font-medium whitespace-normal break-words leading-snug">
@@ -2150,7 +2172,8 @@
                       <div class="card-actions justify-start sm:justify-end">
                         <.button
                           type="submit"
-                          class="btn-error w-full sm:w-auto whitespace-normal text-left sm:text-center leading-tight"
+                          variant="error"
+                          class="w-full sm:w-auto whitespace-normal text-left sm:text-center leading-tight"
                         >
                           {gettext("Disconnect Bluesky")}
                         </.button>
@@ -2166,7 +2189,7 @@
 
                   <form
                     phx-submit="enable_bluesky_managed"
-                    class="space-y-4 rounded-xl border border-base-300/70 bg-base-200/30 p-4"
+                    class="space-y-4 rounded-lg border border-base-300/70 bg-base-200/30 p-4"
                   >
                     <div>
                       <label class="label py-0 w-full min-w-0 flex-wrap items-start gap-1">
@@ -2192,15 +2215,15 @@
                     <div class="card-actions justify-start sm:justify-end">
                       <.button
                         type="submit"
-                        class="btn-primary w-full sm:w-auto whitespace-normal text-left sm:text-center leading-tight"
+                        class="w-full sm:w-auto whitespace-normal text-left sm:text-center leading-tight"
                       >
                         {gettext("Connect or Reconnect Bluesky")}
                       </.button>
                     </div>
                   </form>
                 <% end %>
-              </div>
-            </div>
+              </:body>
+            </.card>
           <% end %>
         </div>
       <% end %>
@@ -2208,8 +2231,8 @@
       <%= if @selected_tab == "timeline" do %>
         <div class="space-y-4 sm:space-y-6">
           <!-- RSS Feeds Card -->
-          <div class="card panel-card">
-            <div class="card-body p-4 sm:p-6">
+          <.card body_class="p-4 sm:p-6">
+            <:body>
               <h3 class="card-title text-base sm:text-lg flex items-center gap-2 mb-2">
                 <.icon name="hero-rss" class="w-5 h-5" /> {gettext("RSS Feeds")}
               </h3>
@@ -2220,13 +2243,13 @@
 
               <%= if @loading_timeline do %>
                 <div class="animate-pulse space-y-4">
-                  <div class="h-10 bg-base-300 rounded"></div>
+                  <div class="h-10 bg-base-300 rounded-lg"></div>
 
-                  <div class="h-4 bg-base-300 rounded w-1/4"></div>
+                  <div class="h-4 bg-base-300 rounded-lg w-1/4"></div>
 
-                  <div class="h-16 bg-base-300 rounded"></div>
+                  <div class="h-16 bg-base-300 rounded-lg"></div>
 
-                  <div class="h-16 bg-base-300 rounded"></div>
+                  <div class="h-16 bg-base-300 rounded-lg"></div>
                 </div>
               <% else %>
                 <!-- Add Feed Form -->
@@ -2245,13 +2268,13 @@
                         class={["input input-bordered flex-1", @rss_error && "input-error"]}
                         disabled={@adding_feed}
                       />
-                      <button type="submit" class="btn btn-secondary" disabled={@adding_feed}>
+                      <.button type="submit" variant="secondary" disabled={@adding_feed}>
                         <%= if @adding_feed do %>
                           <.spinner size="sm" /> {gettext("Adding...")}
                         <% else %>
                           {gettext("Add Feed")}
                         <% end %>
-                      </button>
+                      </.button>
                     </div>
 
                     <%= if @rss_error do %>
@@ -2289,10 +2312,10 @@
                               <img
                                 src={favicon_url}
                                 alt=""
-                                class="w-6 h-6 rounded"
+                                class="w-6 h-6 rounded-lg"
                               />
                             <% else %>
-                              <div class="w-6 h-6 rounded bg-base-300 flex items-center justify-center">
+                              <div class="w-6 h-6 rounded-lg bg-base-300 flex items-center justify-center">
                                 <.icon name="hero-rss" class="w-3 h-3" />
                               </div>
                             <% end %>
@@ -2330,14 +2353,16 @@
                               />
                             </label>
                             <!-- Remove Button -->
-                            <button
+                            <.button
                               phx-click="remove_rss_feed"
                               phx-value-feed_id={subscription.feed_id}
-                              class="btn btn-ghost btn-xs text-error"
+                              variant="ghost"
+                              size="xs"
+                              class="text-error"
                               title={gettext("Unsubscribe")}
                             >
                               <.icon name="hero-trash" class="w-4 h-4" />
-                            </button>
+                            </.button>
                           </div>
                         </div>
                       <% end %>
@@ -2345,8 +2370,8 @@
                   <% end %>
                 </div>
               <% end %>
-            </div>
-          </div>
+            </:body>
+          </.card>
         </div>
       <% end %>
       <!-- Email Tab -->
@@ -2358,8 +2383,8 @@
         <div class="space-y-6">
           <%= if @loading_developer do %>
             <!-- Loading skeleton for API Tokens -->
-            <div class="card panel-card">
-              <div class="card-body p-4 sm:p-6">
+            <.card body_class="p-4 sm:p-6">
+              <:body>
                 <div class="flex items-center justify-between mb-4">
                   <h2 class="card-title text-lg sm:text-xl flex items-center gap-2">
                     <.icon name="hero-key" class="w-5 h-5" /> {gettext("API Tokens")}
@@ -2367,44 +2392,44 @@
                 </div>
 
                 <div class="animate-pulse space-y-3">
-                  <div class="h-4 bg-base-300 rounded w-2/3"></div>
+                  <div class="h-4 bg-base-300 rounded-lg w-2/3"></div>
 
-                  <div class="h-16 bg-base-300 rounded"></div>
+                  <div class="h-16 bg-base-300 rounded-lg"></div>
 
-                  <div class="h-16 bg-base-300 rounded"></div>
+                  <div class="h-16 bg-base-300 rounded-lg"></div>
                 </div>
-              </div>
-            </div>
+              </:body>
+            </.card>
             <!-- Loading skeleton for Data Export -->
-            <div class="card panel-card">
-              <div class="card-body p-4 sm:p-6">
+            <.card body_class="p-4 sm:p-6">
+              <:body>
                 <h2 class="card-title text-lg sm:text-xl flex items-center gap-2 mb-4">
                   <.icon name="hero-arrow-down-tray" class="w-5 h-5" /> {gettext("Data Export")}
                 </h2>
 
                 <div class="animate-pulse space-y-3">
-                  <div class="h-4 bg-base-300 rounded w-1/2"></div>
+                  <div class="h-4 bg-base-300 rounded-lg w-1/2"></div>
 
-                  <div class="h-10 bg-base-300 rounded w-1/3"></div>
+                  <div class="h-10 bg-base-300 rounded-lg w-1/3"></div>
                 </div>
-              </div>
-            </div>
+              </:body>
+            </.card>
           <% else %>
             <!-- API Tokens Section -->
-            <div class="card panel-card">
-              <div class="card-body p-4 sm:p-6">
+            <.card body_class="p-4 sm:p-6">
+              <:body>
                 <div class="flex items-center justify-between mb-4">
                   <h2 class="card-title text-lg sm:text-xl flex items-center gap-2">
                     <.icon name="hero-key" class="w-5 h-5" /> {gettext("API Tokens")}
                   </h2>
 
-                  <button
+                  <.button
                     phx-click="show_create_token_modal"
-                    class="btn btn-primary btn-sm"
+                    size="sm"
                     disabled={length(@api_tokens) >= 20}
                   >
                     <.icon name="hero-plus" class="w-4 h-4" /> {gettext("Create Token")}
-                  </button>
+                  </.button>
                 </div>
 
                 <p class="text-sm text-base-content/70 mb-4">
@@ -2428,7 +2453,7 @@
                           <div class="flex-1 min-w-0">
                             <div class="flex items-center gap-2 flex-wrap">
                               <span class="font-semibold">{token.name}</span>
-                              <code class="text-xs bg-base-300 px-2 py-0.5 rounded font-mono">
+                              <code class="text-xs bg-base-300 px-2 py-0.5 rounded-lg font-mono">
                                 {token.token_prefix}...
                               </code>
                             </div>
@@ -2483,15 +2508,16 @@
                           </div>
 
                           <div class="flex gap-1">
-                            <button
+                            <.button
                               phx-click="duplicate_token"
                               phx-value-id={token.id}
-                              class="btn btn-ghost btn-sm"
+                              variant="ghost"
+                              size="sm"
                               title={gettext("Create a new token with the same scopes")}
                             >
                               <.icon name="hero-document-duplicate" class="w-4 h-4" />
-                            </button>
-                            <button
+                            </.button>
+                            <.button
                               phx-click="revoke_token"
                               phx-value-id={token.id}
                               data-confirm={
@@ -2499,10 +2525,12 @@
                                   "Are you sure you want to revoke this token? This cannot be undone."
                                 )
                               }
-                              class="btn btn-ghost btn-sm text-error hover:bg-error/10"
+                              variant="ghost"
+                              size="sm"
+                              class="text-error hover:bg-error/10"
                             >
                               <.icon name="hero-trash" class="w-4 h-4" />
-                            </button>
+                            </.button>
                           </div>
                         </div>
                       </div>
@@ -2512,7 +2540,7 @@
 
                 <div class="divider"></div>
 
-                <div class="rounded-xl border border-base-300/60 bg-base-200/30 p-4">
+                <div class="rounded-lg border border-base-300/60 bg-base-200/30 p-4">
                   <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <p class="font-semibold">{gettext("OAuth / OpenID Connect Clients")}</p>
@@ -2524,18 +2552,23 @@
                       </p>
                     </div>
 
-                    <.link
+                    <.button
                       href={~p"/account/developer/oidc/clients"}
-                      class="btn btn-outline btn-sm rounded-full"
+                      variant="default"
+                      outline
+                      size="sm"
+                      class="rounded-full"
                     >
                       {gettext("Manage Clients")}
-                    </.link>
-                    <.link
+                    </.button>
+                    <.button
                       href={~p"/account/developer/oidc/grants"}
-                      class="btn btn-ghost btn-sm rounded-full"
+                      variant="ghost"
+                      size="sm"
+                      class="rounded-full"
                     >
                       {gettext("Granted Apps")}
-                    </.link>
+                    </.button>
                   </div>
                 </div>
 
@@ -2546,7 +2579,7 @@
                     {gettext("Use personal access tokens with the versioned external API:")}
                   </p>
 
-                  <code class="block bg-base-300 p-3 rounded text-xs font-mono overflow-x-auto">
+                  <code class="block bg-base-300 p-3 rounded-lg text-xs font-mono overflow-x-auto">
                     curl -H "Authorization: Bearer ekt_xxxxx" \<br />
                     &nbsp;&nbsp;{"#{Elektrine.Domains.public_base_url()}/api/ext/v1/search?q=inbox"}
                   </code>
@@ -2560,29 +2593,31 @@
                     <div class="flex flex-wrap items-center justify-between gap-2">
                       <p class="font-semibold text-base-content/80">{gettext("Identity")}</p>
                       <div class="flex flex-wrap gap-1">
-                        <code class="rounded bg-base-300 px-2 py-0.5 text-[11px]">
+                        <code class="rounded-lg bg-base-300 px-2 py-0.5 text-2xs">
                           read:proofs
                         </code>
-                        <code class="rounded bg-base-300 px-2 py-0.5 text-[11px]">
+                        <code class="rounded-lg bg-base-300 px-2 py-0.5 text-2xs">
                           write:proofs
                         </code>
                       </div>
                     </div>
 
                     <div class="mt-3 grid gap-1 text-xs sm:grid-cols-2">
-                      <code class="rounded bg-base-300/70 px-2 py-1">GET /api/ext/v1/proofs</code>
-                      <code class="rounded bg-base-300/70 px-2 py-1">
+                      <code class="rounded-lg bg-base-300/70 px-2 py-1">
+                        GET /api/ext/v1/proofs
+                      </code>
+                      <code class="rounded-lg bg-base-300/70 px-2 py-1">
                         GET /api/ext/v1/proofs/score
                       </code>
-                      <code class="rounded bg-base-300/70 px-2 py-1">
+                      <code class="rounded-lg bg-base-300/70 px-2 py-1">
                         POST /api/ext/v1/proofs
                       </code>
-                      <code class="rounded bg-base-300/70 px-2 py-1">
+                      <code class="rounded-lg bg-base-300/70 px-2 py-1">
                         POST /api/ext/v1/proofs/:id/check
                       </code>
                     </div>
 
-                    <code class="mt-3 block bg-base-300 p-3 rounded text-xs font-mono overflow-x-auto">
+                    <code class="mt-3 block bg-base-300 p-3 rounded-lg text-xs font-mono overflow-x-auto">
                       curl -H "Authorization: Bearer ekt_xxxxx" {"#{Elektrine.Domains.public_base_url()}/api/ext/v1/proofs"}
                     </code>
                   </div>
@@ -2593,11 +2628,11 @@
                     )}
                   </p>
                 </div>
-              </div>
-            </div>
+              </:body>
+            </.card>
             <!-- Data Export Section -->
-            <div class="card panel-card">
-              <div class="card-body p-4 sm:p-6">
+            <.card body_class="p-4 sm:p-6">
+              <:body>
                 <h2 class="card-title text-lg sm:text-xl flex items-center gap-2 mb-4">
                   <.icon name="hero-arrow-down-tray" class="w-5 h-5" /> {gettext("Data Export")}
                 </h2>
@@ -2609,40 +2644,48 @@
                 </p>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <button
+                  <.button
                     phx-click="export_data"
                     phx-value-type="email"
-                    class="btn btn-outline btn-sm"
+                    variant="default"
+                    outline
+                    size="sm"
                   >
                     <.icon name="hero-envelope" class="w-4 h-4" /> {gettext(
                       "Export Emails (JSON)"
                     )}
-                  </button>
-                  <button
+                  </.button>
+                  <.button
                     phx-click="export_data"
                     phx-value-type="social"
-                    class="btn btn-outline btn-sm"
+                    variant="default"
+                    outline
+                    size="sm"
                   >
                     <.icon name="hero-chat-bubble-left-right" class="w-4 h-4" /> {gettext(
                       "Export Posts (JSON)"
                     )}
-                  </button>
-                  <button
+                  </.button>
+                  <.button
                     phx-click="export_data"
                     phx-value-type="chat"
-                    class="btn btn-outline btn-sm"
+                    variant="default"
+                    outline
+                    size="sm"
                   >
                     <.icon name="hero-chat-bubble-bottom-center-text" class="w-4 h-4" /> {gettext(
                       "Export Chat (JSON)"
                     )}
-                  </button>
-                  <button
+                  </.button>
+                  <.button
                     phx-click="export_data"
                     phx-value-type="account"
-                    class="btn btn-outline btn-sm"
+                    variant="default"
+                    outline
+                    size="sm"
                   >
                     <.icon name="hero-user" class="w-4 h-4" /> {gettext("Export Account (JSON)")}
-                  </button>
+                  </.button>
                 </div>
 
                 <%= if @pending_exports && length(@pending_exports) > 0 do %>
@@ -2667,14 +2710,15 @@
                                 <.spinner size="xs" class="mr-1" /> {gettext("Processing")}
                               </span>
                             <% "completed" -> %>
-                              <a
+                              <.button
                                 href={~p"/api/export/#{export.id}/download"}
-                                class="btn btn-success btn-xs"
+                                variant="success"
+                                size="xs"
                               >
                                 <.icon name="hero-arrow-down-tray" class="w-3 h-3" /> {gettext(
                                   "Download"
                                 )}
-                              </a>
+                              </.button>
                             <% "failed" -> %>
                               <span class="badge badge-error badge-sm">{gettext("Failed")}</span>
                             <% _ -> %>
@@ -2685,19 +2729,19 @@
                     <% end %>
                   </div>
                 <% end %>
-              </div>
-            </div>
+              </:body>
+            </.card>
             <!-- Webhooks Section -->
-            <div class="card panel-card">
-              <div class="card-body p-4 sm:p-6">
+            <.card body_class="p-4 sm:p-6">
+              <:body>
                 <div class="flex items-center justify-between mb-4">
                   <h2 class="card-title text-lg sm:text-xl flex items-center gap-2">
                     <.icon name="hero-bell-alert" class="w-5 h-5" /> {gettext("Webhooks")}
                   </h2>
 
-                  <button phx-click="show_create_webhook_modal" class="btn btn-primary btn-sm">
+                  <.button phx-click="show_create_webhook_modal" size="sm">
                     <.icon name="hero-plus" class="w-4 h-4" /> {gettext("Add Webhook")}
-                  </button>
+                  </.button>
                 </div>
 
                 <p class="text-sm text-base-content/70 mb-4">
@@ -2733,13 +2777,14 @@
                       </div>
                     </div>
 
-                    <button
+                    <.button
                       type="button"
                       phx-click="close_webhook_secret_notice"
-                      class="btn btn-ghost btn-sm"
+                      variant="ghost"
+                      size="sm"
                     >
                       <.icon name="hero-x-mark" class="w-4 h-4" />
-                    </button>
+                    </.button>
                   </div>
                 <% end %>
 
@@ -2823,7 +2868,7 @@
                               <% else %>
                                 <div class="space-y-2">
                                   <%= for delivery <- Enum.take(Map.get(@webhook_deliveries_by_webhook, webhook.id, []), 3) do %>
-                                    <div class="flex items-start justify-between gap-3 rounded border border-base-300/70 p-2">
+                                    <div class="flex items-start justify-between gap-3 rounded-lg border border-base-300/70 p-2">
                                       <div class="min-w-0">
                                         <div class="flex items-center gap-2 flex-wrap">
                                           <span class="text-sm font-medium">
@@ -2868,14 +2913,15 @@
                                       </div>
 
                                       <%= if delivery.status == "failed" do %>
-                                        <button
+                                        <.button
                                           phx-click="replay_webhook_delivery"
                                           phx-value-id={delivery.id}
-                                          class="btn btn-ghost btn-xs"
+                                          variant="ghost"
+                                          size="xs"
                                           title={gettext("Replay delivery")}
                                         >
                                           <.icon name="hero-arrow-path" class="w-3 h-3" />
-                                        </button>
+                                        </.button>
                                       <% end %>
                                     </div>
                                   <% end %>
@@ -2885,41 +2931,45 @@
                           </div>
 
                           <div class="flex gap-1">
-                            <button
+                            <.button
                               phx-click="rotate_webhook_secret"
                               phx-value-id={webhook.id}
-                              class="btn btn-ghost btn-sm"
+                              variant="ghost"
+                              size="sm"
                               title={gettext("Rotate signing secret")}
                             >
                               <.icon name="hero-arrow-path" class="w-4 h-4" />
-                            </button>
-                            <button
+                            </.button>
+                            <.button
                               phx-click="test_webhook"
                               phx-value-id={webhook.id}
-                              class="btn btn-ghost btn-sm"
+                              variant="ghost"
+                              size="sm"
                               title={gettext("Test webhook")}
                             >
                               <.icon name="hero-play" class="w-4 h-4" />
-                            </button>
-                            <button
+                            </.button>
+                            <.button
                               phx-click="delete_webhook"
                               phx-value-id={webhook.id}
                               data-confirm={gettext("Delete this webhook?")}
-                              class="btn btn-ghost btn-sm text-error"
+                              variant="ghost"
+                              size="sm"
+                              class="text-error"
                             >
                               <.icon name="hero-trash" class="w-4 h-4" />
-                            </button>
+                            </.button>
                           </div>
                         </div>
                       </div>
                     <% end %>
                   </div>
                 <% end %>
-              </div>
-            </div>
+              </:body>
+            </.card>
             <!-- MCP Section -->
-            <div class="card panel-card">
-              <div class="card-body p-4 sm:p-6">
+            <.card body_class="p-4 sm:p-6">
+              <:body>
                 <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <h2 class="card-title text-lg sm:text-xl flex items-center gap-2">
@@ -2935,15 +2985,17 @@
                     </p>
                   </div>
 
-                  <button
+                  <.button
                     type="button"
-                    class="btn btn-outline btn-sm"
+                    variant="default"
+                    outline
+                    size="sm"
                     data-copy-to-clipboard={mcp_endpoint_url()}
                   >
                     <.icon name="hero-clipboard-document" class="w-4 h-4" /> {gettext(
                       "Copy Endpoint"
                     )}
-                  </button>
+                  </.button>
                 </div>
 
                 <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.9fr)]">
@@ -2951,10 +3003,10 @@
                     <div class="rounded-lg border border-base-300 bg-base-200/40 p-4">
                       <div class="flex items-center justify-between gap-3">
                         <p class="text-sm font-semibold">{gettext("Server URL")}</p>
-                        <code class="rounded bg-base-300 px-2 py-1 text-xs">POST</code>
+                        <code class="rounded-lg bg-base-300 px-2 py-1 text-xs">POST</code>
                       </div>
 
-                      <code class="mt-2 block overflow-x-auto rounded bg-base-300 p-3 text-xs">
+                      <code class="mt-2 block overflow-x-auto rounded-lg bg-base-300 p-3 text-xs">
                         {mcp_endpoint_url()}
                       </code>
                     </div>
@@ -2988,37 +3040,37 @@
                       <p class="text-sm font-semibold">{gettext("Scope guide")}</p>
 
                       <div class="mt-3 grid gap-2 text-xs sm:grid-cols-2">
-                        <div class="rounded bg-base-300/60 p-2">
+                        <div class="rounded-lg bg-base-300/60 p-2">
                           <code>read:kairo</code>
                           <p class="mt-1 text-base-content/60">
                             {gettext("Projects and ingested sources")}
                           </p>
                         </div>
-                        <div class="rounded bg-base-300/60 p-2">
+                        <div class="rounded-lg bg-base-300/60 p-2">
                           <code>write:kairo</code>
                           <p class="mt-1 text-base-content/60">
                             {gettext("Create Kairo notes and captures")}
                           </p>
                         </div>
-                        <div class="rounded bg-base-300/60 p-2">
+                        <div class="rounded-lg bg-base-300/60 p-2">
                           <code>read:email</code>
                           <p class="mt-1 text-base-content/60">
                             {gettext("Read and search email")}
                           </p>
                         </div>
-                        <div class="rounded bg-base-300/60 p-2">
+                        <div class="rounded-lg bg-base-300/60 p-2">
                           <code>write:email</code>
                           <p class="mt-1 text-base-content/60">
                             {gettext("Send and update email")}
                           </p>
                         </div>
-                        <div class="rounded bg-base-300/60 p-2">
+                        <div class="rounded-lg bg-base-300/60 p-2">
                           <code>read:nerve</code>
                           <p class="mt-1 text-base-content/60">
                             {gettext("List encrypted Nerve entries")}
                           </p>
                         </div>
-                        <div class="rounded bg-base-300/60 p-2">
+                        <div class="rounded-lg bg-base-300/60 p-2">
                           <code>write:nerve</code>
                           <p class="mt-1 text-base-content/60">
                             {gettext("Create encrypted Nerve entries")}
@@ -3032,31 +3084,33 @@
                     <div class="rounded-lg border border-base-300 bg-base-200/40 p-4">
                       <div class="mb-2 flex items-center justify-between gap-3">
                         <p class="text-sm font-semibold">{gettext("Client config")}</p>
-                        <button
+                        <.button
                           type="button"
-                          class="btn btn-ghost btn-xs"
+                          variant="ghost"
+                          size="xs"
                           data-copy-to-clipboard={mcp_client_config_example()}
                         >
                           <.icon name="hero-clipboard-document" class="w-3.5 h-3.5" />
-                        </button>
+                        </.button>
                       </div>
 
-                      <pre class="max-h-64 overflow-auto rounded bg-neutral p-3 text-xs text-neutral-content"><code>{mcp_client_config_example()}</code></pre>
+                      <pre class="max-h-64 overflow-auto rounded-lg bg-neutral p-3 text-xs text-neutral-content"><code>{mcp_client_config_example()}</code></pre>
                     </div>
 
                     <div class="rounded-lg border border-base-300 bg-base-200/40 p-4">
                       <div class="mb-2 flex items-center justify-between gap-3">
                         <p class="text-sm font-semibold">{gettext("Test with curl")}</p>
-                        <button
+                        <.button
                           type="button"
-                          class="btn btn-ghost btn-xs"
+                          variant="ghost"
+                          size="xs"
                           data-copy-to-clipboard={mcp_curl_example()}
                         >
                           <.icon name="hero-clipboard-document" class="w-3.5 h-3.5" />
-                        </button>
+                        </.button>
                       </div>
 
-                      <pre class="max-h-56 overflow-auto rounded bg-neutral p-3 text-xs text-neutral-content"><code>{mcp_curl_example()}</code></pre>
+                      <pre class="max-h-56 overflow-auto rounded-lg bg-neutral p-3 text-xs text-neutral-content"><code>{mcp_curl_example()}</code></pre>
                     </div>
 
                     <div class="rounded-lg border border-base-300 bg-base-200/40 p-4">
@@ -3067,24 +3121,24 @@
                           <p class="mb-1 text-xs font-medium text-base-content/70">
                             {gettext("Initialize")}
                           </p>
-                          <pre class="overflow-auto rounded bg-base-300 p-3 text-xs"><code>{mcp_initialize_example()}</code></pre>
+                          <pre class="overflow-auto rounded-lg bg-base-300 p-3 text-xs"><code>{mcp_initialize_example()}</code></pre>
                         </div>
 
                         <div>
                           <p class="mb-1 text-xs font-medium text-base-content/70">
                             {gettext("List available tools")}
                           </p>
-                          <pre class="overflow-auto rounded bg-base-300 p-3 text-xs"><code>{mcp_tools_list_example()}</code></pre>
+                          <pre class="overflow-auto rounded-lg bg-base-300 p-3 text-xs"><code>{mcp_tools_list_example()}</code></pre>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            </div>
+              </:body>
+            </.card>
             <!-- API Info Section -->
-            <div class="card panel-card">
-              <div class="card-body p-4 sm:p-6">
+            <.card body_class="p-4 sm:p-6">
+              <:body>
                 <h2 class="card-title text-lg sm:text-xl flex items-center gap-2 mb-4">
                   <.icon name="hero-document-text" class="w-5 h-5" /> {gettext("API Reference")}
                 </h2>
@@ -3356,24 +3410,24 @@
                     )}
                   </p>
                 </div>
-              </div>
-            </div>
+              </:body>
+            </.card>
           <% end %>
         </div>
       <% end %>
       <!-- Danger Zone Tab -->
       <%= if @selected_tab == "danger" do %>
-        <div class="card bg-error/10 shadow-lg">
-          <div class="card-body p-4 sm:p-6">
+        <.card class="bg-error/10" body_class="p-4 sm:p-6">
+          <:body>
             <h2 class="card-title text-lg sm:text-xl text-error flex items-center gap-2">
               <.icon name="hero-exclamation-triangle" class="w-5 h-5" /> {gettext("Danger Zone")}
             </h2>
 
             <%= if @loading_danger do %>
               <div class="animate-pulse space-y-4 mt-4">
-                <div class="h-4 bg-base-300 rounded w-2/3"></div>
+                <div class="h-4 bg-base-300 rounded-lg w-2/3"></div>
 
-                <div class="h-10 bg-base-300 rounded w-1/3"></div>
+                <div class="h-10 bg-base-300 rounded-lg w-1/3"></div>
               </div>
             <% else %>
               <%= if @pending_deletion do %>
@@ -3402,14 +3456,14 @@
                 </p>
 
                 <div class="card-actions">
-                  <.link href={~p"/account/delete"} class="btn btn-secondary btn-sm w-full">
+                  <.button href={~p"/account/delete"} variant="secondary" size="sm" class="w-full">
                     {gettext("Request Deletion")}
-                  </.link>
+                  </.button>
                 </div>
               <% end %>
             <% end %>
-          </div>
-        </div>
+          </:body>
+        </.card>
       <% end %>
     </div>
   </div>

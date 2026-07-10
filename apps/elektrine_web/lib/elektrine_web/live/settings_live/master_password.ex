@@ -149,7 +149,7 @@ defmodule ElektrineWeb.SettingsLive.MasterPassword do
         class="space-y-6"
       >
         <%= if @vault_configured do %>
-          <div class="surface-subtle rounded-xl p-4 sm:p-5">
+          <div class="surface-subtle rounded-box p-4 sm:p-5">
             <h2 class="text-base font-semibold text-base-content">How this works</h2>
             <div class="mt-3 grid gap-3 text-sm text-base-content/70 md:grid-cols-3">
               <div class="surface-muted rounded-lg p-3">
@@ -171,8 +171,8 @@ defmodule ElektrineWeb.SettingsLive.MasterPassword do
             </div>
           </div>
 
-          <div class="card panel-card">
-            <div class="card-body p-4 sm:p-6">
+          <.card body_class="p-4 sm:p-6">
+            <:body>
               <.section_header
                 title="Unlock with account password"
                 description="Use your account password. It unwraps the encryption key in this browser and is not sent from this page during unlock."
@@ -197,9 +197,9 @@ defmodule ElektrineWeb.SettingsLive.MasterPassword do
                   autocomplete="current-password"
                   data-vault-unlock-input
                 />
-                <button type="button" class="btn btn-primary btn-sm" data-vault-unlock>
+                <.button type="button" size="sm" data-vault-unlock>
                   Unlock
-                </button>
+                </.button>
                 <p class="text-xs text-base-content/60">
                   Reset your account password or lost access? Use the recovery section below to re-link encrypted data.
                 </p>
@@ -207,15 +207,15 @@ defmodule ElektrineWeb.SettingsLive.MasterPassword do
               </div>
 
               <div class="mt-4 hidden" data-vault-unlocked-section>
-                <button type="button" class="btn btn-outline btn-sm" data-vault-lock>
+                <.button type="button" variant="default" outline size="sm" data-vault-lock>
                   Lock now
-                </button>
+                </.button>
               </div>
-            </div>
-          </div>
+            </:body>
+          </.card>
 
-          <div class="card panel-card">
-            <div class="card-body p-4 sm:p-6">
+          <.card body_class="p-4 sm:p-6">
+            <:body>
               <.section_header
                 title="Recover encrypted data"
                 description="If your account password was reset or encrypted data no longer unlocks, use your recovery code to rewrap it to your current password."
@@ -254,9 +254,9 @@ defmodule ElektrineWeb.SettingsLive.MasterPassword do
                   data-vault-recovery-wrapped-dek-recovery-input
                 />
                 <p class="text-xs text-error" data-vault-recovery-error></p>
-                <button type="button" class="btn btn-primary btn-sm" data-vault-recovery>
+                <.button type="button" size="sm" data-vault-recovery>
                   Recover and create new code
-                </button>
+                </.button>
               </form>
 
               <div
@@ -268,23 +268,24 @@ defmodule ElektrineWeb.SettingsLive.MasterPassword do
                   Your old recovery code stops working after this update. This new code is shown once.
                 </p>
                 <code
-                  class="mt-2 block break-all rounded bg-base-200 p-3 font-mono text-sm"
+                  class="mt-2 block break-all rounded-lg bg-base-200 p-3 font-mono text-sm"
                   data-vault-recovery-new-output
                 >
                 </code>
-                <button
+                <.button
                   type="button"
-                  class="btn btn-primary btn-sm mt-3"
+                  size="sm"
+                  class="mt-3"
                   data-vault-recovery-finish
                 >
                   I've saved it - update encrypted data
-                </button>
+                </.button>
               </div>
-            </div>
-          </div>
+            </:body>
+          </.card>
 
-          <div class="card panel-card border border-error/30">
-            <div class="card-body p-4 sm:p-6">
+          <.card class="border border-error/30" body_class="p-4 sm:p-6">
+            <:body>
               <.section_header
                 title="Reset encrypted data"
                 description="Only use this if you lost the recovery code and cannot unlock with the password that originally protected this data."
@@ -304,20 +305,23 @@ defmodule ElektrineWeb.SettingsLive.MasterPassword do
                 autocomplete="off"
                 data-vault-reset-confirm
               />
-              <button
+              <.button
                 type="button"
+                variant="error"
+                outline
+                size="sm"
+                class="mt-3"
                 phx-click="reset_master"
                 data-confirm="Reset encrypted data? Everything encrypted under this key becomes permanently unreadable."
-                class="btn btn-error btn-outline btn-sm mt-3"
                 disabled
                 data-vault-reset-button
               >
                 Reset encrypted data
-              </button>
-            </div>
-          </div>
+              </.button>
+            </:body>
+          </.card>
         <% else %>
-          <div class="surface-subtle rounded-xl p-4 sm:p-5">
+          <div class="surface-subtle rounded-box p-4 sm:p-5">
             <h2 class="text-base font-semibold text-base-content">Before you start</h2>
             <ul class="mt-3 space-y-2 text-sm text-base-content/70">
               <li>Use your current account password. No separate Nerve password is needed.</li>
@@ -329,8 +333,8 @@ defmodule ElektrineWeb.SettingsLive.MasterPassword do
             </ul>
           </div>
 
-          <div class="card panel-card">
-            <div class="card-body p-4 sm:p-6">
+          <.card body_class="p-4 sm:p-6">
+            <:body>
               <.section_header
                 title="Set up account-password encryption"
                 description="Enter your current account password once. The browser uses it to wrap the encryption key, and the server verifies it before saving."
@@ -357,9 +361,9 @@ defmodule ElektrineWeb.SettingsLive.MasterPassword do
                   data-vault-wrapped-dek-recovery-input
                 />
                 <p class="text-xs text-error" data-vault-error></p>
-                <button type="button" class="btn btn-primary btn-sm" data-vault-setup>
+                <.button type="button" size="sm" data-vault-setup>
                   Set up encryption
-                </button>
+                </.button>
               </form>
 
               <div
@@ -371,16 +375,16 @@ defmodule ElektrineWeb.SettingsLive.MasterPassword do
                   This is the only way to keep encrypted data accessible if your account password is reset. It is shown once.
                 </p>
                 <code
-                  class="mt-2 block break-all rounded bg-base-200 p-3 font-mono text-sm"
+                  class="mt-2 block break-all rounded-lg bg-base-200 p-3 font-mono text-sm"
                   data-vault-recovery-output
                 >
                 </code>
-                <button type="button" class="btn btn-primary btn-sm mt-3" data-vault-setup-finish>
+                <.button type="button" size="sm" class="mt-3" data-vault-setup-finish>
                   I've saved it - finish
-                </button>
+                </.button>
               </div>
-            </div>
-          </div>
+            </:body>
+          </.card>
         <% end %>
       </div>
     </.account_page>

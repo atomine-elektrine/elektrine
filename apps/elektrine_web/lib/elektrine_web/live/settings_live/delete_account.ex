@@ -9,11 +9,8 @@ defmodule ElektrineWeb.SettingsLive.DeleteAccount do
 
   def render(assigns) do
     ~H"""
-    <div
-      id="delete-account-card"
-      class="card panel-card max-w-md mx-auto"
-    >
-      <div class="card-body">
+    <.card id="delete-account-card" class="max-w-md mx-auto">
+      <:body>
         <h1 class="text-2xl font-bold mb-6 text-error">Delete Account</h1>
 
         <div class="alert alert-error mb-6">
@@ -58,12 +55,12 @@ defmodule ElektrineWeb.SettingsLive.DeleteAccount do
           />
 
           <:actions>
-            <.link href={~p"/account"} class="btn btn-ghost">Cancel</.link>
-            <.button class="btn-secondary">Submit Deletion Request</.button>
+            <.button href={~p"/account"} variant="ghost">Cancel</.button>
+            <.button variant="secondary">Submit Deletion Request</.button>
           </:actions>
         </.simple_form>
-      </div>
-    </div>
+      </:body>
+    </.card>
     """
   end
 end

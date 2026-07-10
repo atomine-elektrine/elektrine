@@ -18,9 +18,9 @@
               The user you're looking for doesn't exist or the URL is invalid.
             </p>
 
-            <.link href={profile_url(@base_url, ~p"/")} class="btn btn-primary w-full">
+            <.button href={profile_url(@base_url, ~p"/")} class="w-full">
               <.icon name="hero-home" class="w-5 h-5 mr-2" /> Go to Homepage
-            </.link>
+            </.button>
           </div>
         </div>
       </div>
@@ -50,20 +50,21 @@
             </p>
 
             <%= if @current_user do %>
-              <.link href={profile_url(@base_url, ~p"/")} class="btn btn-primary w-full">
+              <.button href={profile_url(@base_url, ~p"/")} class="w-full">
                 <.icon name="hero-home" class="w-5 h-5 mr-2" /> Go to Homepage
-              </.link>
+              </.button>
             <% else %>
               <div class="space-y-2">
-                <.link
+                <.button
                   href={profile_url(@base_url, Elektrine.Paths.login_path())}
-                  class="btn btn-secondary w-full"
+                  variant="secondary"
+                  class="w-full"
                 >
                   <.icon name="hero-arrow-right-on-rectangle" class="w-5 h-5 mr-2" /> Sign In
-                </.link>
-                <.link href={profile_url(@base_url, ~p"/")} class="btn btn-ghost w-full">
+                </.button>
+                <.button href={profile_url(@base_url, ~p"/")} variant="ghost" class="w-full">
                   <.icon name="hero-home" class="w-5 h-5 mr-2" /> Go to Homepage
-                </.link>
+                </.button>
               </div>
             <% end %>
           </div>
@@ -188,8 +189,8 @@
                   <div class="space-y-3 animate-pulse">
                     <%= for _i <- 1..3 do %>
                       <div class="p-3 rounded-lg bg-base-200/70 border border-base-300/60">
-                        <div class="h-4 bg-base-200/80 rounded w-3/4 mb-2"></div>
-                        <div class="h-3 bg-base-200/80 rounded w-full"></div>
+                        <div class="h-4 bg-base-200/80 rounded-lg w-3/4 mb-2"></div>
+                        <div class="h-3 bg-base-200/80 rounded-lg w-full"></div>
                       </div>
                     <% end %>
                   </div>
@@ -339,7 +340,7 @@
 
                             <%= if has_poll do %>
                               <% poll = content_source.poll %>
-                              <div class="mt-2 p-2 rounded border border-base-300/60 bg-base-200/70">
+                              <div class="mt-2 p-2 rounded-lg border border-base-300/60 bg-base-200/70">
                                 <div class="text-xs font-medium text-[var(--profile-accent)] mb-1">
                                   <.icon name="hero-chart-bar" class="w-3 h-3 inline" /> Poll
                                 </div>
@@ -367,7 +368,7 @@
                                   true ->
                                     "Quoted post"
                                 end %>
-                              <div class="mt-2 p-2 rounded border border-base-300/60 bg-base-200/60">
+                              <div class="mt-2 p-2 rounded-lg border border-base-300/60 bg-base-200/60">
                                 <div class="text-xs text-[var(--profile-accent)] opacity-80 mb-1">
                                   <.icon
                                     name="hero-chat-bubble-oval-left-ellipsis"
@@ -410,7 +411,7 @@
                               media_count = length(content_source.media_urls) %>
                               <div class="mt-2 relative">
                                 <%= if is_video do %>
-                                  <div class="w-full h-20 rounded profile-overlay-surface flex items-center justify-center">
+                                  <div class="w-full h-20 rounded-lg profile-overlay-surface flex items-center justify-center">
                                     <.icon
                                       name="hero-play-circle"
                                       class="w-8 h-8 text-[var(--profile-text)] opacity-70"
@@ -418,7 +419,7 @@
                                   </div>
                                 <% else %>
                                   <%= if is_audio do %>
-                                    <div class="w-full h-12 rounded profile-overlay-surface flex items-center justify-center gap-2">
+                                    <div class="w-full h-12 rounded-lg profile-overlay-surface flex items-center justify-center gap-2">
                                       <.icon
                                         name="hero-musical-note"
                                         class="w-5 h-5 text-[var(--profile-text)] opacity-70"
@@ -432,13 +433,13 @@
                                       <img
                                         src={full_url}
                                         alt=""
-                                        class="w-full h-20 object-cover rounded"
+                                        class="w-full h-20 object-cover rounded-lg"
                                       />
                                     <% end %>
                                   <% end %>
                                 <% end %>
                                 <%= if media_count > 1 do %>
-                                  <div class="absolute bottom-1 right-1 profile-overlay-surface-strong text-[var(--profile-text)] text-xs px-1.5 py-0.5 rounded">
+                                  <div class="absolute bottom-1 right-1 profile-overlay-surface-strong text-[var(--profile-text)] text-xs px-1.5 py-0.5 rounded-lg">
                                     +{media_count - 1}
                                   </div>
                                 <% end %>
@@ -755,7 +756,7 @@
                 <%= for badge <- @user_badges do %>
                   <% base_badge_color = badge.badge_color || "var(--profile-accent)" %>
                   <span
-                    class={"inline-flex items-center gap-1 px-2.5 py-1 rounded font-semibold text-xs transition-all duration-200 hover:opacity-95 #{if @profile && @profile.background_url && @profile.background_type in ["image", "video"], do: "drop-shadow-lg", else: ""}"}
+                    class={"inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-semibold text-xs transition-all duration-200 hover:opacity-95 #{if @profile && @profile.background_url && @profile.background_type in ["image", "video"], do: "drop-shadow-lg", else: ""}"}
                     style={"--badge-base: #{base_badge_color}; background: linear-gradient(to right, color-mix(in srgb, var(--badge-base) 50%, var(--color-base-100) 50%), color-mix(in srgb, var(--badge-base) 65%, var(--color-base-100) 35%)); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); color: #{Elektrine.Theme.inverse_text_color()}; border: 1px solid color-mix(in srgb, var(--profile-accent) 30%, transparent); box-shadow: 0 2px 4px color-mix(in srgb, var(--profile-accent) 20%, transparent);"}
                     title={badge.tooltip}
                   >
@@ -801,48 +802,57 @@
                          @friend_status.pending_request.requester_id == @current_user.id) do %>
                   <%= cond do %>
                     <% Map.get(@friend_status, :are_friends) -> %>
-                      <button
+                      <.button
                         phx-click="unfriend_user"
                         phx-value-user_id={@user.id}
                         data-action="unfriend"
-                        class="btn btn-outline btn-sm sm:btn-md rounded-full"
+                        variant="default"
+                        outline
+                        size="sm"
+                        class="sm:btn-md rounded-full"
                         style="border-color: var(--profile-accent); color: var(--profile-accent);"
                         title="Remove friend"
                       >
                         <.icon name="hero-check" class="w-4 h-4" /> Friends
-                      </button>
+                      </.button>
                     <% Map.get(@friend_status, :pending_request) && @friend_status.pending_request.recipient_id == @current_user.id -> %>
-                      <button
+                      <.button
                         phx-click="accept_friend_request"
                         phx-value-user_id={@user.id}
                         data-action="accept-friend-request"
-                        class="btn btn-sm sm:btn-md rounded-full"
+                        variant="default"
+                        size="sm"
+                        class="sm:btn-md rounded-full"
                         style={"background-color: var(--profile-accent); color: #{btn_text_color};"}
                         title="Accept friend request"
                       >
                         <.icon name="hero-user-plus" class="w-4 h-4" /> Accept Request
-                      </button>
+                      </.button>
                     <% Map.get(@friend_status, :pending_request) && @friend_status.pending_request.requester_id == @current_user.id -> %>
-                      <button
+                      <.button
                         phx-click="cancel_friend_request"
                         phx-value-user_id={@user.id}
                         data-action="cancel-friend-request"
-                        class="btn btn-ghost btn-sm sm:btn-md rounded-full opacity-60"
+                        variant="ghost"
+                        size="sm"
+                        class="sm:btn-md rounded-full opacity-60"
                         title="Cancel friend request"
                       >
                         <.icon name="hero-clock" class="w-4 h-4" /> Pending
-                      </button>
+                      </.button>
                     <% true -> %>
-                      <button
+                      <.button
                         phx-click="send_friend_request"
                         phx-value-user_id={@user.id}
                         data-action="send-friend-request"
-                        class="btn btn-sm sm:btn-md rounded-full"
+                        variant="default"
+                        size="sm"
+                        class="sm:btn-md rounded-full"
                         style={"background-color: var(--profile-accent); color: #{btn_text_color};"}
                         title="Send friend request"
                       >
                         Add Friend
-                      </button>
+                      </.button>
                   <% end %>
                 <% end %>
                 
@@ -953,10 +963,12 @@
                       class="w-4 h-4"
                     />
                   </button>
-                  <button
+                  <.button
                     phx-click="toggle_account_note"
                     data-action="toggle-account-note"
-                    class="btn btn-ghost btn-sm sm:btn-md rounded-full"
+                    variant="ghost"
+                    size="sm"
+                    class="sm:btn-md rounded-full"
                     style="color: var(--profile-accent);"
                     title={
                       if @account_note != "", do: "Edit private note", else: "Add private note"
@@ -970,7 +982,7 @@
                       }
                       class="w-4 h-4"
                     />
-                  </button>
+                  </.button>
                 <% else %>
                   <form
                     action={~p"/profiles/#{@user.handle || @user.username}/subscribe"}
@@ -1050,15 +1062,17 @@
                 
 <!-- Report Button -->
                 <%= if !@profile_static do %>
-                  <button
+                  <.button
                     phx-click="show_report_modal"
                     phx-value-type="user"
                     phx-value-id={@user.id}
-                    class="btn btn-ghost btn-sm sm:btn-md rounded-full text-error hover:bg-error/10"
+                    variant="ghost"
+                    size="sm"
+                    class="sm:btn-md rounded-full text-error hover:bg-error/10"
                     title="Report this user"
                   >
                     <.icon name="hero-flag" class="w-4 h-4" />
-                  </button>
+                  </.button>
                 <% end %>
               </div>
               
@@ -1099,13 +1113,15 @@
                       class="textarea textarea-bordered w-full mt-1 bg-base-200/80 text-sm text-[var(--profile-text)]"
                     >{@account_note}</textarea>
                     <div class="flex justify-end gap-2 mt-2">
-                      <button
+                      <.button
                         type="submit"
-                        class="btn btn-xs rounded-full"
+                        variant="default"
+                        size="xs"
+                        class="rounded-full"
                         style={"background-color: var(--profile-accent); color: #{btn_text_color};"}
                       >
                         Save note
-                      </button>
+                      </.button>
                     </div>
                   </form>
                 </details>
@@ -1123,21 +1139,25 @@
                       class="textarea textarea-bordered w-full mt-1 bg-base-200/80 text-sm text-[var(--profile-text)]"
                     >{@account_note}</textarea>
                     <div class="flex justify-end gap-2 mt-2">
-                      <button
+                      <.button
                         type="button"
                         phx-click="toggle_account_note"
-                        class="btn btn-ghost btn-xs rounded-full"
+                        variant="ghost"
+                        size="xs"
+                        class="rounded-full"
                         style="color: var(--profile-accent);"
                       >
                         Cancel
-                      </button>
-                      <button
+                      </.button>
+                      <.button
                         type="submit"
-                        class="btn btn-xs rounded-full"
+                        variant="default"
+                        size="xs"
+                        class="rounded-full"
                         style={"background-color: var(--profile-accent); color: #{btn_text_color};"}
                       >
                         Save note
-                      </button>
+                      </.button>
                     </div>
                   </form>
                 </div>
@@ -1223,7 +1243,7 @@
                   </div>
                   <div class="space-y-2">
                     <%= for link <- @links do %>
-                      <a
+                      <.button
                         href={if Map.get(link, :id), do: ~p"/l/#{link.id}", else: link.url}
                         target={
                           if String.starts_with?(link.url, "mailto:"), do: "_self", else: "_blank"
@@ -1233,7 +1253,8 @@
                             do: "noopener noreferrer",
                             else: nil
                         }
-                        class="btn btn-ghost justify-between w-full border border-base-300 hover:border-primary/40 hover:bg-base-100 min-h-12 normal-case px-3"
+                        variant="ghost"
+                        class="justify-between w-full border border-base-300 hover:border-primary/40 hover:bg-base-100 min-h-12 normal-case px-3"
                       >
                         <span class="flex items-center gap-3 min-w-0">
                           <span class="text-primary shrink-0">
@@ -1247,7 +1268,7 @@
                           name="hero-arrow-top-right-on-square"
                           class="w-4 h-4 text-base-content/50 shrink-0"
                         />
-                      </a>
+                      </.button>
                     <% end %>
                   </div>
                 </div>
@@ -1520,8 +1541,8 @@
           <%= if @profile && is_list(@profile.widgets) && length(@profile.widgets) > 0 do %>
             <div class="mb-8 space-y-3 sm:space-y-4 w-full">
               <%= for widget <- @profile.widgets do %>
-                <div class="card panel-card border border-base-300/60">
-                  <div class="card-body p-3 sm:p-4">
+                <.card class="border border-base-300/60" body_class="p-3 sm:p-4">
+                  <:body>
                     <%= if widget.title do %>
                       <h3
                         class="card-title text-base sm:text-lg mb-2 sm:mb-3"
@@ -1690,8 +1711,8 @@
                           Unknown widget type
                         </div>
                     <% end %>
-                  </div>
-                </div>
+                  </:body>
+                </.card>
               <% end %>
             </div>
           <% end %>
@@ -1894,7 +1915,7 @@
 
                       <%= if has_poll do %>
                         <% poll = content_source.poll %>
-                        <div class="mt-2 p-2 rounded border border-base-300/60 bg-base-200/70">
+                        <div class="mt-2 p-2 rounded-lg border border-base-300/60 bg-base-200/70">
                           <div class="text-xs font-medium text-[var(--profile-accent)] mb-1">
                             <.icon name="hero-chart-bar" class="w-3 h-3 inline" /> Poll
                           </div>
@@ -1922,7 +1943,7 @@
                             true ->
                               "Quoted post"
                           end %>
-                        <div class="mt-2 p-2 rounded border border-base-300/60 bg-base-200/60">
+                        <div class="mt-2 p-2 rounded-lg border border-base-300/60 bg-base-200/60">
                           <div class="text-xs text-[var(--profile-accent)] opacity-80 mb-1">
                             <.icon
                               name="hero-chat-bubble-oval-left-ellipsis"
@@ -1963,7 +1984,7 @@
                         media_count = length(content_source.media_urls) %>
                         <div class="mt-2 relative">
                           <%= if is_video do %>
-                            <div class="w-full h-20 rounded profile-overlay-surface flex items-center justify-center">
+                            <div class="w-full h-20 rounded-lg profile-overlay-surface flex items-center justify-center">
                               <.icon
                                 name="hero-play-circle"
                                 class="w-8 h-8 text-[var(--profile-text)] opacity-70"
@@ -1971,7 +1992,7 @@
                             </div>
                           <% else %>
                             <%= if is_audio do %>
-                              <div class="w-full h-12 rounded profile-overlay-surface flex items-center justify-center gap-2">
+                              <div class="w-full h-12 rounded-lg profile-overlay-surface flex items-center justify-center gap-2">
                                 <.icon
                                   name="hero-musical-note"
                                   class="w-5 h-5 text-[var(--profile-text)] opacity-70"
@@ -1985,13 +2006,13 @@
                                 <img
                                   src={full_url}
                                   alt=""
-                                  class="w-full h-20 object-cover rounded"
+                                  class="w-full h-20 object-cover rounded-lg"
                                 />
                               <% end %>
                             <% end %>
                           <% end %>
                           <%= if media_count > 1 do %>
-                            <div class="absolute bottom-1 right-1 profile-overlay-surface-strong text-[var(--profile-text)] text-xs px-1.5 py-0.5 rounded">
+                            <div class="absolute bottom-1 right-1 profile-overlay-surface-strong text-[var(--profile-text)] text-xs px-1.5 py-0.5 rounded-lg">
                               +{media_count - 1}
                             </div>
                           <% end %>
@@ -2208,16 +2229,18 @@
                         </div>
                       </.link>
                       <%= if @current_user && @current_user.id == @user.id do %>
-                        <button
+                        <.button
                           phx-click="unfollow_remote"
                           phx-value-remote-actor-id={following.remote_actor.id}
-                          class="btn btn-ghost btn-sm text-[var(--profile-text)] transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80"
+                          variant="ghost"
+                          size="sm"
+                          class="text-[var(--profile-text)] transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80"
                         >
                           <span class="phx-click-loading:hidden">Unfollow</span>
                           <span class="hidden phx-click-loading:inline-flex items-center">
                             <.spinner size="sm" class="mr-1" /> Unfollowing...
                           </span>
-                        </button>
+                        </.button>
                       <% end %>
                     </div>
                   <% else %>
@@ -2248,16 +2271,18 @@
                         </div>
                       </.link>
                       <%= if @current_user && @current_user.id == @user.id do %>
-                        <button
+                        <.button
                           phx-click="unfollow_local"
                           phx-value-followed-id={following.user.id}
-                          class="btn btn-ghost btn-sm text-[var(--profile-text)] transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80"
+                          variant="ghost"
+                          size="sm"
+                          class="text-[var(--profile-text)] transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80"
                         >
                           <span class="phx-click-loading:hidden">Unfollow</span>
                           <span class="hidden phx-click-loading:inline-flex items-center">
                             <.spinner size="sm" class="mr-1" /> Unfollowing...
                           </span>
-                        </button>
+                        </.button>
                       <% end %>
                     </div>
                   <% end %>

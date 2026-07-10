@@ -22,18 +22,18 @@
         </div>
 
         <div class="space-y-3">
-          <button type="button" data-action="go-back" class="btn btn-primary w-full">
+          <.button type="button" data-action="go-back" class="w-full">
             <.icon name="hero-arrow-left" class="w-5 h-5" /> Go Back
-          </button>
-          <.link href={~p"/"} class="btn btn-ghost w-full">
+          </.button>
+          <.button href={~p"/"} variant="ghost" class="w-full">
             <.icon name="hero-home" class="w-5 h-5" /> Go Home
-          </.link>
+          </.button>
         </div>
 
         <div class="text-center text-xs text-base-content/40 mt-8">
           <p>
             Request ID:
-            <span class="font-mono bg-base-200 px-2 py-1 rounded">
+            <span class="font-mono bg-base-200 px-2 py-1 rounded-lg">
               {Plug.Conn.get_resp_header(@conn, "x-request-id") |> List.first() ||
                 "ERR-#{System.system_time(:millisecond)}"}
             </span>

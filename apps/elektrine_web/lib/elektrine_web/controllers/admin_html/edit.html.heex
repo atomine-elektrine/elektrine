@@ -17,13 +17,14 @@
             method="post"
             class="inline"
           >
-            <button
+            <.button
               type="submit"
               data-confirm={"Are you sure you want to impersonate #{@user.username}? This action will be logged."}
-              class="btn btn-info btn-sm"
+              variant="info"
+              size="sm"
             >
               <.icon name="hero-user-circle" class="w-4 h-4" /> Impersonate User
-            </button>
+            </.button>
           </.form>
         <% end %>
 
@@ -34,15 +35,15 @@
             method="post"
             class="inline"
           >
-            <button type="submit" data-confirm="Are you sure?" class="btn btn-success btn-sm">
+            <.button type="submit" data-confirm="Are you sure?" variant="success" size="sm">
               <.icon name="hero-check-circle" class="w-4 h-4" /> Unban User
-            </button>
+            </.button>
           </.form>
         <% else %>
           <%= if !@user.is_admin do %>
-            <.link href={~p"/pripyat/users/#{@user.id}/ban"} class="btn btn-secondary btn-sm">
+            <.button href={~p"/pripyat/users/#{@user.id}/ban"} variant="secondary" size="sm">
               <.icon name="hero-no-symbol" class="w-4 h-4" /> Ban User
-            </.link>
+            </.button>
           <% end %>
         <% end %>
 
@@ -53,9 +54,9 @@
             method="post"
             class="inline"
           >
-            <button type="submit" data-confirm="Are you sure?" class="btn btn-success btn-sm">
+            <.button type="submit" data-confirm="Are you sure?" variant="success" size="sm">
               <.icon name="hero-play" class="w-4 h-4" /> Unsuspend User
-            </button>
+            </.button>
           </.form>
         <% else %>
           <%= if !@user.is_admin do %>
@@ -66,9 +67,9 @@
               class="inline"
             >
               <input type="hidden" name="suspension_reason" value="Suspended by administrator" />
-              <button type="submit" data-confirm="Are you sure?" class="btn btn-warning btn-sm">
+              <.button type="submit" data-confirm="Are you sure?" variant="warning" size="sm">
                 <.icon name="hero-pause" class="w-4 h-4" /> Suspend User
-              </button>
+              </.button>
             </.form>
           <% end %>
         <% end %>
@@ -79,13 +80,15 @@
           method="post"
           class="inline"
         >
-          <button
+          <.button
             type="submit"
             data-confirm={"Reset password for #{@user.username}? A temporary password will be generated and displayed."}
-            class="btn btn-outline btn-sm"
+            variant="default"
+            outline
+            size="sm"
           >
             <.icon name="hero-key" class="w-4 h-4" /> Reset Password
-          </button>
+          </.button>
         </.form>
 
         <%= if @user.two_factor_enabled do %>
@@ -95,21 +98,23 @@
             method="post"
             class="inline"
           >
-            <button
+            <.button
               type="submit"
               data-confirm={"Disable 2FA for #{@user.username}? They will need to set it up again."}
-              class="btn btn-outline btn-warning btn-sm"
+              variant="warning"
+              outline
+              size="sm"
             >
               <.icon name="hero-shield-exclamation" class="w-4 h-4" /> Disable 2FA
-            </button>
+            </.button>
           </.form>
         <% end %>
       </div>
     </div>
   <% end %>
 
-  <div class="card panel-card">
-    <div class="card-body">
+  <.card>
+    <:body>
       <.form for={@changeset} action={~p"/pripyat/users/#{@user.id}"} method="put">
         <div>
           <label class="label"><span>Username</span></label>
@@ -404,19 +409,18 @@
         <% end %>
 
         <div class="card-actions justify-between mt-6">
-          <.link href={~p"/pripyat/users"} class="btn btn-ghost"> Cancel </.link>
-          <button type="submit" class="btn btn-primary">
+          <.button href={~p"/pripyat/users"} variant="ghost">Cancel</.button>
+          <.button type="submit">
             <.icon name="hero-check" class="w-4 h-4 mr-2" /> Update User
-          </button>
+          </.button>
         </div>
       </.form>
-    </div>
-  </div>
+    </:body>
+  </.card>
   <!-- User Info Card -->
-  <div class="card panel-card mt-6">
-    <div class="card-body">
-      <h2 class="card-title">User Information</h2>
-
+  <.card class="mt-6">
+    <:title>User Information</:title>
+    <:body>
       <div class="stats stats-vertical lg:stats-horizontal shadow">
         <div class="stat">
           <div class="stat-title">User ID</div>
@@ -512,13 +516,12 @@
           </div>
         </div>
       <% end %>
-    </div>
-  </div>
+    </:body>
+  </.card>
   <!-- IP Address Information -->
-  <div class="card panel-card mt-6">
-    <div class="card-body">
-      <h2 class="card-title">IP Address Information</h2>
-
+  <.card class="mt-6">
+    <:title>IP Address Information</:title>
+    <:body>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div class="stat">
           <div class="stat-title">Registration IP</div>
@@ -562,15 +565,14 @@
           <div class="stat-value text-sm">{@user.login_count || 0}</div>
         </div>
       </div>
-    </div>
-  </div>
+    </:body>
+  </.card>
 
   <%= if assigns[:email_available] do %>
     <!-- Email Aliases -->
-    <div class="card panel-card mt-6">
-      <div class="card-body">
-        <h2 class="card-title">Email Aliases</h2>
-
+    <.card class="mt-6">
+      <:title>Email Aliases</:title>
+      <:body>
         <%= if @aliases && length(@aliases) > 0 do %>
           <div class="overflow-x-auto">
             <table class="table table-sm">
@@ -616,7 +618,7 @@
         <% else %>
           <p class="text-sm opacity-70">No email aliases configured</p>
         <% end %>
-      </div>
-    </div>
+      </:body>
+    </.card>
   <% end %>
 </div>

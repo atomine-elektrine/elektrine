@@ -6,8 +6,8 @@
 >
   <:sidebar><.developer_settings_sidebar selected_page="oidc-grants" /></:sidebar>
 
-  <div class="card panel-card">
-    <div class="card-body gap-6 p-4 sm:p-6">
+  <.card body_class="gap-6 p-4 sm:p-6">
+    <:body>
       <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div class="space-y-2">
           <p class="text-xs uppercase tracking-[0.3em] text-base-content/60">Identity Provider</p>
@@ -17,19 +17,19 @@
           </p>
         </div>
 
-        <.link href={~p"/account/developer/oidc/clients"} class="btn btn-ghost rounded-full">
+        <.button href={~p"/account/developer/oidc/clients"} variant="ghost" class="rounded-full">
           Manage Clients
-        </.link>
+        </.button>
       </div>
 
       <%= if Enum.empty?(@grants) do %>
-        <div class="rounded-2xl border border-dashed border-base-300/70 bg-base-200/30 p-10 text-center text-base-content/60">
+        <div class="rounded-box border border-dashed border-base-300/70 bg-base-200/30 p-10 text-center text-base-content/60">
           No active app grants.
         </div>
       <% else %>
         <div class="space-y-4">
           <%= for grant <- @grants do %>
-            <article class="rounded-2xl border border-base-300/60 bg-base-200/30 p-5">
+            <article class="rounded-box border border-base-300/60 bg-base-200/30 p-5">
               <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div class="space-y-3">
                   <div>
@@ -60,19 +60,20 @@
                   action={~p"/account/developer/oidc/grants/#{grant.app.id}"}
                   method="delete"
                 >
-                  <button
+                  <.button
                     type="submit"
-                    class="btn btn-ghost text-error rounded-full"
+                    variant="ghost"
+                    class="text-error rounded-full"
                     data-confirm="Revoke this app's access?"
                   >
                     Revoke Access
-                  </button>
+                  </.button>
                 </.form>
               </div>
             </article>
           <% end %>
         </div>
       <% end %>
-    </div>
-  </div>
+    </:body>
+  </.card>
 </.account_page>

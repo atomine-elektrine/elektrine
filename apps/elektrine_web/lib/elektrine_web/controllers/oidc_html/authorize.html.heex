@@ -22,7 +22,7 @@
     <section class="card panel-card">
       <div class="card-body gap-6 p-4 sm:p-6">
         <div class="grid gap-4 sm:grid-cols-2">
-          <div class="rounded-2xl border border-base-300/60 bg-base-200/50 p-4">
+          <div class="rounded-box border border-base-300/60 bg-base-200/50 p-4">
             <p class="text-xs uppercase tracking-[0.24em] text-base-content/60">Client</p>
 
             <p class="mt-2 text-lg font-semibold text-base-content">{@app.client_name}</p>
@@ -32,7 +32,7 @@
             <% end %>
           </div>
 
-          <div class="rounded-2xl border border-base-300/60 bg-base-200/50 p-4">
+          <div class="rounded-box border border-base-300/60 bg-base-200/50 p-4">
             <p class="text-xs uppercase tracking-[0.24em] text-base-content/60">Signed in as</p>
 
             <p class="mt-2 text-lg font-semibold text-base-content">
@@ -45,7 +45,7 @@
           </div>
         </div>
 
-        <div class="rounded-2xl border border-base-300/60 bg-base-200/55 p-4">
+        <div class="rounded-box border border-base-300/60 bg-base-200/55 p-4">
           <p class="text-xs uppercase tracking-[0.24em] text-base-content/60">Requested scopes</p>
 
           <div class="mt-3 flex flex-wrap gap-2">
@@ -73,22 +73,18 @@
             name="code_challenge_method"
             value={@params["code_challenge_method"]}
           />
-          <button
-            type="submit"
-            name="decision"
-            value="approve"
-            class="btn btn-primary flex-1 rounded-full"
-          >
+          <.button type="submit" name="decision" value="approve" class="flex-1 rounded-full">
             Authorize app
-          </button>
-          <button
+          </.button>
+          <.button
             type="submit"
             name="decision"
             value="deny"
-            class="btn btn-ghost flex-1 rounded-full"
+            variant="ghost"
+            class="flex-1 rounded-full"
           >
             Deny
-          </button>
+          </.button>
         </.form>
       </div>
     </section>

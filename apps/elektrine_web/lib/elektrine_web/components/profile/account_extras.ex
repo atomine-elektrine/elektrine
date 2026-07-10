@@ -29,14 +29,16 @@ defmodule ElektrineWeb.Components.Profile.AccountExtras do
           {@user.display_name || @user.handle || @user.username} has moved to a new account
         </span>
       </div>
-      <.link
+      <.button
         :if={@target_href}
         href={@target_href}
         rel="noopener noreferrer"
-        class="btn btn-warning btn-sm rounded-full mt-3"
+        variant="warning"
+        size="sm"
+        class="rounded-full mt-3"
       >
         {moved_to_label(@target)}
-      </.link>
+      </.button>
       <p :if={is_nil(@target_href)} class="mt-3 text-sm font-medium text-[var(--profile-text)]">
         {moved_to_label(@target)}
       </p>

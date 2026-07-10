@@ -1493,14 +1493,14 @@ defmodule ElektrineWeb.UserSettingsLive do
     <%= if @show_create_token_modal do %>
       <div class="modal modal-open">
         <div class="modal-box modal-surface relative w-full max-w-2xl max-h-[calc(100vh-2rem)] overflow-y-auto">
-          <button
-            type="button"
+          <.icon_button
+            icon="hero-x-mark"
             phx-click="close_token_modal"
-            class="btn btn-ghost btn-sm btn-circle absolute right-4 top-4"
-            aria-label={gettext("close")}
-          >
-            <.icon name="hero-x-mark" class="w-5 h-5" />
-          </button>
+            variant="ghost"
+            size="sm"
+            label={gettext("close")}
+            class="absolute right-4 top-4"
+          />
 
           <h3 class="font-bold text-lg mb-4 pr-10">{gettext("Create API Token")}</h3>
 
@@ -1515,7 +1515,7 @@ defmodule ElektrineWeb.UserSettingsLive do
               <label class="label">
                 <span class="label-text font-medium">{gettext("Your new token")}</span>
               </label>
-              <div class="rounded-xl border border-base-300/70 bg-base-200/55 p-3">
+              <div class="rounded-lg border border-base-300/70 bg-base-200/55 p-3">
                 <div class="join w-full">
                   <input
                     type="text"
@@ -1538,7 +1538,7 @@ defmodule ElektrineWeb.UserSettingsLive do
             </div>
 
             <div class="modal-action">
-              <button phx-click="close_token_modal" class="btn btn-primary">{gettext("Done")}</button>
+              <.button phx-click="close_token_modal">{gettext("Done")}</.button>
             </div>
           <% else %>
             <!-- Token Creation Form -->
@@ -1657,12 +1657,12 @@ defmodule ElektrineWeb.UserSettingsLive do
               <% end %>
 
               <div class="modal-action">
-                <button type="button" phx-click="close_token_modal" class="btn btn-ghost">
+                <.button type="button" phx-click="close_token_modal" variant="ghost">
                   {gettext("Cancel")}
-                </button>
-                <button type="submit" class="btn btn-primary">
+                </.button>
+                <.button type="submit">
                   {gettext("Create Token")}
-                </button>
+                </.button>
               </div>
             </.form>
           <% end %>
@@ -1675,14 +1675,14 @@ defmodule ElektrineWeb.UserSettingsLive do
     <%= if @show_create_webhook_modal do %>
       <div class="modal modal-open">
         <div class="modal-box modal-surface relative w-full max-w-md max-h-[calc(100vh-2rem)] overflow-y-auto">
-          <button
-            type="button"
+          <.icon_button
+            icon="hero-x-mark"
             phx-click="close_webhook_modal"
-            class="btn btn-ghost btn-sm btn-circle absolute right-4 top-4"
-            aria-label={gettext("close")}
-          >
-            <.icon name="hero-x-mark" class="w-5 h-5" />
-          </button>
+            variant="ghost"
+            size="sm"
+            label={gettext("close")}
+            class="absolute right-4 top-4"
+          />
 
           <h3 class="font-bold text-lg mb-4 pr-10">{gettext("Add Webhook")}</h3>
 
@@ -1733,12 +1733,12 @@ defmodule ElektrineWeb.UserSettingsLive do
             </div>
 
             <div class="modal-action">
-              <button type="button" phx-click="close_webhook_modal" class="btn btn-ghost">
+              <.button type="button" phx-click="close_webhook_modal" variant="ghost">
                 {gettext("Cancel")}
-              </button>
-              <button type="submit" class="btn btn-primary">
+              </.button>
+              <.button type="submit">
                 {gettext("Add Webhook")}
-              </button>
+              </.button>
             </div>
           </.form>
         </div>
@@ -1935,14 +1935,14 @@ defmodule ElektrineWeb.UserSettingsLive do
     case Integrations.user_settings_email_component() do
       nil ->
         ~H"""
-        <div class="card panel-card">
-          <div class="card-body p-4 sm:p-6">
+        <.card body_class="p-4 sm:p-6">
+          <:body>
             <h2 class="card-title text-lg sm:text-xl">Email</h2>
             <p class="text-sm text-base-content/70">
               Email settings are unavailable in this build.
             </p>
-          </div>
-        </div>
+          </:body>
+        </.card>
         """
 
       module ->

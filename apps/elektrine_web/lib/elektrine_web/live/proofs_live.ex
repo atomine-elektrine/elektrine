@@ -241,8 +241,8 @@ defmodule ElektrineWeb.ProofsLive do
 
       <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div class="space-y-6">
-          <div class="card panel-card border border-base-300 shadow-lg">
-            <div class="card-body p-4 sm:p-6">
+          <.card class="border border-base-300" body_class="p-4 sm:p-6">
+            <:body>
               <h2 class="card-title text-lg mb-2">Create a proof</h2>
               <p class="text-sm text-base-content/70">
                 Pick where the proof will live. After creating it, publish the signed statement and check it.
@@ -302,13 +302,13 @@ defmodule ElektrineWeb.ProofsLive do
                   Snapshot is checked once. Live proofs can be rechecked later.
                 </p>
 
-                <button class="btn btn-primary w-full sm:w-auto" type="submit">Create proof</button>
+                <.button class="w-full sm:w-auto" type="submit">Create proof</.button>
               </.form>
-            </div>
-          </div>
+            </:body>
+          </.card>
 
-          <div class="card panel-card border border-base-300 shadow-lg">
-            <div class="card-body p-4 sm:p-6">
+          <.card class="border border-base-300" body_class="p-4 sm:p-6">
+            <:body>
               <h2 class="card-title text-lg mb-2">Your proofs</h2>
               <p class="text-sm text-base-content/70">
                 Pending proofs still need to be published. Verified proofs count toward your identity score.
@@ -355,24 +355,27 @@ defmodule ElektrineWeb.ProofsLive do
                         <div class="flex items-center gap-3 text-sm sm:block sm:text-right">
                           <p class="font-semibold">{proof.score_weight} pts</p>
                           <p class="text-base-content/60">{proof.verification_method}</p>
-                          <button
+                          <.button
                             :if={checkable_proof?(proof)}
                             type="button"
                             phx-click="check_proof"
                             phx-value-id={proof.id}
-                            class="btn btn-primary btn-xs mt-2"
+                            size="xs"
+                            class="mt-2"
                           >
                             Check now
-                          </button>
-                          <button
+                          </.button>
+                          <.button
                             type="button"
                             phx-click="delete_proof"
                             phx-value-id={proof.id}
                             data-confirm="Delete this proof?"
-                            class="btn btn-ghost btn-xs mt-2 text-error"
+                            variant="ghost"
+                            size="xs"
+                            class="mt-2 text-error"
                           >
                             Delete
-                          </button>
+                          </.button>
                         </div>
                       </div>
 
@@ -420,13 +423,13 @@ defmodule ElektrineWeb.ProofsLive do
                   <% end %>
                 </div>
               <% end %>
-            </div>
-          </div>
+            </:body>
+          </.card>
         </div>
 
         <div class="space-y-6">
-          <div class="card panel-card border border-base-300 shadow-lg">
-            <div class="card-body p-4 sm:p-6">
+          <.card class="border border-base-300" body_class="p-4 sm:p-6">
+            <:body>
               <div class="flex items-start justify-between gap-3">
                 <h2 class="card-title text-lg">Credits and trust</h2>
                 <span class="badge badge-outline shrink-0">
@@ -485,9 +488,9 @@ defmodule ElektrineWeb.ProofsLive do
                     difficulty={@atomine_pow_difficulty}
                   />
 
-                  <button class="btn btn-secondary btn-sm w-full" type="submit">
+                  <.button variant="secondary" size="sm" class="w-full" type="submit">
                     Claim today's credit
-                  </button>
+                  </.button>
                 </.form>
               </div>
 
@@ -593,11 +596,13 @@ defmodule ElektrineWeb.ProofsLive do
                     required
                   />
 
-                  <button class="btn btn-secondary btn-sm w-full" type="submit">Add assertion</button>
+                  <.button variant="secondary" size="sm" class="w-full" type="submit">
+                    Add assertion
+                  </.button>
                 </.form>
               </details>
-            </div>
-          </div>
+            </:body>
+          </.card>
         </div>
       </div>
     </.account_page>

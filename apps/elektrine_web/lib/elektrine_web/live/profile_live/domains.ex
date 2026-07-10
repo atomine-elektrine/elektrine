@@ -333,9 +333,9 @@ defmodule ElektrineWeb.ProfileLive.Domains do
                   or email; the advanced identity tools can stay collapsed until you need them.
                 </p>
               </div>
-              <.link navigate={~p"/analytics/domains"} class="btn btn-ghost btn-sm">
+              <.button navigate={~p"/analytics/domains"} variant="ghost" size="sm">
                 <.icon name="hero-chart-bar" class="h-4 w-4" /> Analytics
-              </.link>
+              </.button>
             </div>
 
             <div class="grid gap-3 md:grid-cols-3">
@@ -399,7 +399,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
           </summary>
           <div class="card-body space-y-4 border-t border-base-300 pt-4">
             <div class="grid gap-3 lg:grid-cols-3">
-              <div class="rounded-2xl border border-base-content/10 bg-base-200/30 px-4 py-3">
+              <div class="rounded-box border border-base-content/10 bg-base-200/30 px-4 py-3">
                 <div class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
                   Current Identity
                 </div>
@@ -407,7 +407,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
                   {@own_root_domain}
                 </div>
               </div>
-              <div class="rounded-2xl border border-base-content/10 bg-base-200/30 px-4 py-3">
+              <div class="rounded-box border border-base-content/10 bg-base-200/30 px-4 py-3">
                 <div class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
                   OIDC Subject
                 </div>
@@ -415,7 +415,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
                   {OwnRoot.subject(@own_root_domain)}
                 </div>
               </div>
-              <div class="rounded-2xl border border-base-content/10 bg-base-200/30 px-4 py-3">
+              <div class="rounded-box border border-base-content/10 bg-base-200/30 px-4 py-3">
                 <div class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
                   DID
                 </div>
@@ -438,7 +438,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
               />
             </div>
 
-            <div class="rounded-2xl border border-base-content/10 bg-base-100 px-4 py-3">
+            <div class="rounded-box border border-base-content/10 bg-base-100 px-4 py-3">
               <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div>
                   <div class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
@@ -477,15 +477,15 @@ defmodule ElektrineWeb.ProfileLive.Domains do
                   placeholder="Display name"
                   class="input input-bordered w-full"
                 />
-                <button type="submit" class="btn btn-primary lg:min-w-32">Create</button>
+                <.button type="submit" class="lg:min-w-32">Create</.button>
               </.form>
 
               <%= if Enum.empty?(@per_site_identities) do %>
-                <div class="mt-4 rounded-xl border border-dashed border-base-content/15 bg-base-200/20 px-4 py-5 text-sm text-base-content/60">
+                <div class="mt-4 rounded-lg border border-dashed border-base-content/15 bg-base-200/20 px-4 py-5 text-sm text-base-content/60">
                   No saved per-site identities yet.
                 </div>
               <% else %>
-                <div class="mt-4 divide-y divide-base-content/10 overflow-hidden rounded-2xl border border-base-content/10">
+                <div class="mt-4 divide-y divide-base-content/10 overflow-hidden rounded-box border border-base-content/10">
                   <%= for identity <- @per_site_identities do %>
                     <div class="grid gap-3 bg-base-100 px-4 py-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-center">
                       <div class="min-w-0">
@@ -532,23 +532,26 @@ defmodule ElektrineWeb.ProfileLive.Domains do
                       </div>
 
                       <div class="flex gap-2 lg:justify-end">
-                        <button
+                        <.button
                           type="button"
                           phx-click="toggle_per_site_identity"
                           phx-value-id={identity.id}
-                          class="btn btn-ghost btn-sm"
+                          variant="ghost"
+                          size="sm"
                         >
                           {if identity.enabled, do: "Pause", else: "Enable"}
-                        </button>
-                        <button
+                        </.button>
+                        <.button
                           type="button"
                           phx-click="delete_per_site_identity"
                           phx-value-id={identity.id}
-                          class="btn btn-ghost btn-sm text-error hover:bg-error/10"
+                          variant="ghost"
+                          size="sm"
+                          class="text-error hover:bg-error/10"
                           data-confirm="Remove this per-site identity?"
                         >
                           Delete
-                        </button>
+                        </.button>
                       </div>
                     </div>
                   <% end %>
@@ -557,7 +560,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
 
               <div class="mt-3 grid gap-3 lg:grid-cols-3">
                 <%= for site <- ["hn", "spotify", "banking"] do %>
-                  <div class="rounded-xl border border-base-content/10 bg-base-200/30 px-3 py-3">
+                  <div class="rounded-lg border border-base-content/10 bg-base-200/30 px-3 py-3">
                     <div class="font-mono text-xs break-all text-base-content/85">
                       {site}.{@own_root_domain}
                     </div>
@@ -571,8 +574,8 @@ defmodule ElektrineWeb.ProfileLive.Domains do
           </div>
         </details>
 
-        <div id="built-in-profile-url" class="card panel-card border border-base-300">
-          <div class="card-body space-y-4">
+        <.card id="built-in-profile-url" class="border border-base-300" body_class="space-y-4">
+          <:body>
             <.section_header
               title="Built-in Profile URL"
               description="This URL works even before you connect a custom domain."
@@ -591,26 +594,28 @@ defmodule ElektrineWeb.ProfileLive.Domains do
 
               <div class="flex flex-wrap items-center gap-3">
                 <%= if @built_in_subdomain_mode == "platform" do %>
-                  <button
+                  <.button
                     type="button"
-                    class="btn btn-outline btn-sm"
+                    variant="default"
+                    outline
+                    size="sm"
                     phx-click="update_builtin_profile_hosting"
                     phx-value-mode="path"
                   >
                     Use main-domain URL
-                  </button>
+                  </.button>
                   <span class="text-xs text-base-content/60">
                     Handle subdomain is enabled.
                   </span>
                 <% else %>
-                  <button
+                  <.button
                     type="button"
-                    class="btn btn-primary btn-sm"
+                    size="sm"
                     phx-click="update_builtin_profile_hosting"
                     phx-value-mode="platform"
                   >
                     Enable handle subdomain
-                  </button>
+                  </.button>
                   <span class="text-xs text-base-content/60">
                     <span class="font-mono">
                       {user_handle(@user)}.{Domains.default_profile_domain()}
@@ -619,11 +624,11 @@ defmodule ElektrineWeb.ProfileLive.Domains do
                 <% end %>
               </div>
             </div>
-          </div>
-        </div>
+          </:body>
+        </.card>
 
-        <div id="profile-domains" class="card panel-card">
-          <div class="card-body space-y-5">
+        <.card id="profile-domains" body_class="space-y-5">
+          <:body>
             <.section_header
               title="Profile Domains"
               description="Use a root domain like example.com for your public profile and ActivityPub identity."
@@ -651,20 +656,20 @@ defmodule ElektrineWeb.ProfileLive.Domains do
                   class="input input-bordered w-full"
                   required
                 />
-                <button type="submit" class="btn btn-primary lg:min-w-40">Add Domain</button>
+                <.button type="submit" class="lg:min-w-40">Add Domain</.button>
               </div>
             </.form>
 
-            <div class="rounded-2xl border border-info/20 bg-info/5 px-4 py-3 text-sm text-base-content/75">
+            <div class="rounded-box border border-info/20 bg-info/5 px-4 py-3 text-sm text-base-content/75">
               Start with the TXT verification record. After verification, point the root host at the stable routing hostname shown in the generated DNS records. Optional
               <span class="font-mono">www</span>
               traffic will redirect to the bare domain.
             </div>
-          </div>
-        </div>
+          </:body>
+        </.card>
 
-        <div class="card panel-card">
-          <div class="card-body p-0">
+        <.card body_class="p-0">
+          <:body>
             <div class="border-b border-base-content/10 px-5 py-4">
               <h3 class="text-lg font-semibold">Your Profile Domains</h3>
               <p class="text-sm text-base-content/70 mt-1">
@@ -674,7 +679,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
 
             <%= if Enum.empty?(@custom_domains) do %>
               <div class="px-5 py-10">
-                <div class="rounded-2xl border border-dashed border-base-content/15 bg-base-200/20 px-6 py-8 text-center">
+                <div class="rounded-box border border-dashed border-base-content/15 bg-base-200/20 px-6 py-8 text-center">
                   <div class="text-sm font-medium text-base-content/75">
                     No profile domains added yet
                   </div>
@@ -764,18 +769,18 @@ defmodule ElektrineWeb.ProfileLive.Domains do
                         <% end %>
 
                         <%= if Elektrine.Strings.present?(custom_domain.last_error) do %>
-                          <div class="rounded-xl border border-error/20 bg-error/5 px-3 py-2 text-xs leading-5 text-error">
+                          <div class="rounded-lg border border-error/20 bg-error/5 px-3 py-2 text-xs leading-5 text-error">
                             {custom_domain.last_error}
                           </div>
                         <% end %>
 
                         <details
-                          class="overflow-hidden rounded-2xl border border-base-content/10"
+                          class="overflow-hidden rounded-box border border-base-content/10"
                           open={custom_domain.status != "verified"}
                         >
                           <summary class="flex cursor-pointer items-center justify-between gap-3 bg-base-200/35 px-4 py-3">
                             <div>
-                              <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                              <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
                                 DNS Setup
                               </div>
                               <div class="mt-1 text-xs text-base-content/60">
@@ -801,7 +806,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
                                 </div>
 
                                 <div class="min-w-0">
-                                  <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-base-content/45">
+                                  <div class="text-2xs font-semibold uppercase tracking-[0.14em] text-base-content/45">
                                     Host
                                   </div>
                                   <div class="mt-1 flex items-start gap-2">
@@ -817,7 +822,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
                                 </div>
 
                                 <div class="min-w-0">
-                                  <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-base-content/45">
+                                  <div class="text-2xs font-semibold uppercase tracking-[0.14em] text-base-content/45">
                                     Value
                                   </div>
                                   <div class="mt-1 text-xs font-medium text-base-content/55">
@@ -842,44 +847,50 @@ defmodule ElektrineWeb.ProfileLive.Domains do
 
                       <div class="flex w-full flex-col gap-2 xl:w-40 xl:shrink-0">
                         <%= if custom_domain.status == "verified" do %>
-                          <.link
+                          <.button
                             href={"https://#{custom_domain.domain}"}
                             target="_blank"
-                            class="btn btn-secondary btn-sm w-full"
+                            variant="secondary"
+                            size="sm"
+                            class="w-full"
                           >
                             View Domain
-                          </.link>
+                          </.button>
                         <% else %>
-                          <button
+                          <.button
                             type="button"
                             phx-click="verify_profile_domain"
                             phx-value-id={custom_domain.id}
-                            class="btn btn-secondary btn-sm w-full"
+                            variant="secondary"
+                            size="sm"
+                            class="w-full"
                           >
                             Verify
-                          </button>
+                          </.button>
                         <% end %>
 
-                        <button
+                        <.button
                           type="button"
                           phx-click="delete_profile_domain"
                           phx-value-id={custom_domain.id}
-                          class="btn btn-ghost btn-sm w-full text-error hover:bg-error/10"
+                          variant="ghost"
+                          size="sm"
+                          class="w-full text-error hover:bg-error/10"
                           data-confirm="Remove this profile domain?"
                         >
                           Delete
-                        </button>
+                        </.button>
                       </div>
                     </div>
                   </div>
                 <% end %>
               </div>
             <% end %>
-          </div>
-        </div>
+          </:body>
+        </.card>
 
-        <div id="email-domains" class="card panel-card">
-          <div class="card-body space-y-5">
+        <.card id="email-domains" body_class="space-y-5">
+          <:body>
             <.section_header
               title="Email Domains"
               description="Use your domain for mailbox addresses like username@your-domain.com."
@@ -907,20 +918,20 @@ defmodule ElektrineWeb.ProfileLive.Domains do
                   class="input input-bordered w-full"
                   required
                 />
-                <button type="submit" class="btn btn-secondary lg:min-w-40">Add Domain</button>
+                <.button type="submit" variant="secondary" class="lg:min-w-40">Add Domain</.button>
               </div>
             </.form>
 
-            <div class="rounded-2xl border border-info/20 bg-info/5 px-4 py-3 text-sm text-base-content/75">
+            <div class="rounded-box border border-info/20 bg-info/5 px-4 py-3 text-sm text-base-content/75">
               Publish the TXT, MX, SPF, DKIM, and DMARC records after adding the domain. Once verified, mail to
               <span class="font-mono">{@user.username}@your-domain.com</span>
               will route into your mailbox.
             </div>
-          </div>
-        </div>
+          </:body>
+        </.card>
 
-        <div class="card panel-card">
-          <div class="card-body p-0">
+        <.card body_class="p-0">
+          <:body>
             <div class="border-b border-base-content/10 px-5 py-4">
               <h3 class="text-lg font-semibold">Your Email Domains</h3>
               <p class="text-sm text-base-content/70 mt-1">
@@ -930,7 +941,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
 
             <%= if Enum.empty?(@email_custom_domains) do %>
               <div class="px-5 py-10">
-                <div class="rounded-2xl border border-dashed border-base-content/15 bg-base-200/20 px-6 py-8 text-center">
+                <div class="rounded-box border border-dashed border-base-content/15 bg-base-200/20 px-6 py-8 text-center">
                   <div class="text-sm font-medium text-base-content/75">
                     No email domains added yet
                   </div>
@@ -972,24 +983,24 @@ defmodule ElektrineWeb.ProfileLive.Domains do
                         </div>
 
                         <%= if Elektrine.Strings.present?(custom_domain.last_error) do %>
-                          <div class="rounded-xl border border-error/20 bg-error/5 px-3 py-2 text-xs leading-5 text-error">
+                          <div class="rounded-lg border border-error/20 bg-error/5 px-3 py-2 text-xs leading-5 text-error">
                             {custom_domain.last_error}
                           </div>
                         <% end %>
 
                         <%= if Elektrine.Strings.present?(custom_domain.dkim_last_error) do %>
-                          <div class="rounded-xl border border-warning/20 bg-warning/10 px-3 py-2 text-xs leading-5 text-warning-content">
+                          <div class="rounded-lg border border-warning/20 bg-warning/10 px-3 py-2 text-xs leading-5 text-warning-content">
                             DKIM: {custom_domain.dkim_last_error}
                           </div>
                         <% end %>
 
                         <details
-                          class="overflow-hidden rounded-2xl border border-base-content/10"
+                          class="overflow-hidden rounded-box border border-base-content/10"
                           open={custom_domain.status != "verified"}
                         >
                           <summary class="flex cursor-pointer items-center justify-between gap-3 bg-base-200/35 px-4 py-3">
                             <div>
-                              <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                              <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
                                 Mail DNS Setup
                               </div>
                               <div class="mt-1 text-xs text-base-content/60">
@@ -1015,7 +1026,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
                                 </div>
 
                                 <div class="min-w-0">
-                                  <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-base-content/45">
+                                  <div class="text-2xs font-semibold uppercase tracking-[0.14em] text-base-content/45">
                                     Host
                                   </div>
                                   <div class="mt-1 flex items-start gap-2">
@@ -1031,11 +1042,11 @@ defmodule ElektrineWeb.ProfileLive.Domains do
                                 </div>
 
                                 <div class="min-w-0">
-                                  <div class="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-base-content/45">
+                                  <div class="flex flex-wrap items-center gap-2 text-2xs font-semibold uppercase tracking-[0.14em] text-base-content/45">
                                     <span>Value</span>
                                     <span
                                       :if={Map.get(record, :priority)}
-                                      class="rounded-full bg-base-200 px-2 py-0.5 text-[10px] normal-case tracking-normal text-base-content/65"
+                                      class="rounded-full bg-base-200 px-2 py-0.5 text-3xs normal-case tracking-normal text-base-content/65"
                                     >
                                       priority {record.priority}
                                     </span>
@@ -1062,42 +1073,48 @@ defmodule ElektrineWeb.ProfileLive.Domains do
 
                       <div class="flex w-full flex-col gap-2 xl:w-40 xl:shrink-0">
                         <%= if custom_domain.status != "verified" do %>
-                          <button
+                          <.button
                             type="button"
                             phx-click="verify_email_domain"
                             phx-value-id={custom_domain.id}
-                            class="btn btn-secondary btn-sm w-full"
+                            variant="secondary"
+                            size="sm"
+                            class="w-full"
                           >
                             Verify
-                          </button>
+                          </.button>
                         <% end %>
 
-                        <button
+                        <.button
                           type="button"
                           phx-click="sync_email_domain_dkim"
                           phx-value-id={custom_domain.id}
-                          class="btn btn-ghost btn-sm w-full"
+                          variant="ghost"
+                          size="sm"
+                          class="w-full"
                         >
                           Sync DKIM
-                        </button>
+                        </.button>
 
-                        <button
+                        <.button
                           type="button"
                           phx-click="delete_email_domain"
                           phx-value-id={custom_domain.id}
-                          class="btn btn-ghost btn-sm w-full text-error hover:bg-error/10"
+                          variant="ghost"
+                          size="sm"
+                          class="w-full text-error hover:bg-error/10"
                           data-confirm="Remove this email domain?"
                         >
                           Delete
-                        </button>
+                        </.button>
                       </div>
                     </div>
                   </div>
                 <% end %>
               </div>
             <% end %>
-          </div>
-        </div>
+          </:body>
+        </.card>
       </div>
     </div>
     """
@@ -1180,7 +1197,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
 
   defp identity_endpoint(assigns) do
     ~H"""
-    <div class="rounded-2xl border border-base-content/10 bg-base-200/30 px-4 py-3">
+    <div class="rounded-box border border-base-content/10 bg-base-200/30 px-4 py-3">
       <div class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
         {@label}
       </div>

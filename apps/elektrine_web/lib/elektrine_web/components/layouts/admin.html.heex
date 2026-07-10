@@ -10,9 +10,9 @@
 
       <form action={~p"/pripyat/stop-impersonation"} method="post" class="inline">
         <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
-        <button type="submit" class="btn btn-sm btn-secondary">
+        <.button type="submit" variant="secondary" size="sm">
           <.icon name="hero-x-circle" class="w-4 h-4" /> Stop Impersonation
-        </button>
+        </.button>
       </form>
     </div>
   </div>
@@ -94,17 +94,19 @@
 
     <div class="navbar-end !w-auto flex-shrink-0 gap-2 sm:gap-3">
       <%= if @current_user do %>
-        <.link
+        <.button
           href={~p"/portal"}
-          class="btn btn-ghost rounded-full hidden md:inline-flex flex-shrink-0 gap-2 px-4"
+          variant="ghost"
+          class="rounded-full hidden md:inline-flex flex-shrink-0 gap-2 px-4"
           title="Exit Admin"
         >
           <.icon name="hero-arrow-left" class="w-4 h-4" /> <span>Exit Admin</span>
-        </.link>
+        </.button>
         <!-- Notification Bell -->
-        <.link
+        <.button
           href="/notifications"
-          class="indicator btn btn-ghost rounded-full h-10 w-10 p-0 inline-flex items-center justify-center flex-shrink-0"
+          variant="ghost"
+          class="indicator rounded-full h-10 w-10 p-0 inline-flex items-center justify-center flex-shrink-0"
           title="Notifications"
         >
           <%= if assigns[:notification_count] && @notification_count > 0 do %>
@@ -122,7 +124,7 @@
           <% else %>
             <.icon name="hero-bell" class="w-5 h-5" />
           <% end %>
-        </.link>
+        </.button>
         <!-- User Avatar Dropdown -->
         <div class="dropdown dropdown-end ml-2 flex-shrink-0">
           <div
@@ -140,7 +142,7 @@
             <li class="menu-title px-3 py-2">
               <.link
                 navigate={~p"/#{@current_user.handle || @current_user.username}"}
-                class="flex items-center gap-3 hover:bg-primary/20 hover:text-base-content transition-all duration-200 rounded-md px-2 py-2 -mx-2 -my-2"
+                class="flex items-center gap-3 hover:bg-primary/20 hover:text-base-content transition-all duration-200 rounded-lg px-2 py-2 -mx-2 -my-2"
               >
                 <.user_avatar user={@current_user} size="sm" />
                 <div>

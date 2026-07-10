@@ -5,8 +5,8 @@
     <p class="text-base-content/70">Your account is protected with two-factor authentication</p>
   </div>
 
-  <div class="card panel-card">
-    <div class="card-body">
+  <.card>
+    <:body>
       <!-- Status Section -->
       <div class="flex items-center gap-4 mb-6">
         <.icon name="hero-shield-check" class="w-12 h-12 text-success" />
@@ -36,9 +36,9 @@
           </div>
         </div>
 
-        <button data-show-modal="regenerate_modal" class="btn btn-primary">
+        <.button data-show-modal="regenerate_modal">
           <.icon name="hero-arrow-path" class="w-4 h-4" /> Generate New Codes
-        </button>
+        </.button>
       </div>
 
       <div class="divider"></div>
@@ -50,20 +50,20 @@
           Disabling 2FA will make your account less secure. You'll need your current password and a current code from your authenticator app to confirm. Backup codes cannot be used.
         </p>
 
-        <button data-show-modal="disable_modal" class="btn btn-secondary">
+        <.button variant="secondary" data-show-modal="disable_modal">
           <.icon name="hero-shield-exclamation" class="w-4 h-4" /> Disable 2FA
-        </button>
+        </.button>
       </div>
 
       <div class="divider"></div>
       <!-- Navigation -->
       <div class="card-actions">
-        <.link href={~p"/account"} class="btn btn-secondary">
+        <.button href={~p"/account"} variant="secondary">
           <.icon name="hero-arrow-left" class="w-4 h-4" /> Back to account settings
-        </.link>
+        </.button>
       </div>
-    </div>
-  </div>
+    </:body>
+  </.card>
   <!-- Regenerate Backup Codes Modal -->
   <dialog id="regenerate_modal" class="modal">
     <div class="modal-box modal-surface max-w-md w-full mx-4">
@@ -92,10 +92,10 @@
         </div>
 
         <div class="modal-action">
-          <button type="button" data-close-modal="regenerate_modal" class="btn btn-secondary">
+          <.button type="button" variant="secondary" data-close-modal="regenerate_modal">
             Cancel
-          </button>
-          <button type="submit" class="btn btn-primary"> Generate New Codes </button>
+          </.button>
+          <.button type="submit">Generate New Codes</.button>
         </div>
       </.form>
     </div>
@@ -144,10 +144,10 @@
         </div>
 
         <div class="modal-action">
-          <button type="button" data-close-modal="disable_modal" class="btn btn-secondary">
+          <.button type="button" variant="secondary" data-close-modal="disable_modal">
             Cancel
-          </button>
-          <button type="submit" class="btn btn-secondary"> Disable 2FA </button>
+          </.button>
+          <.button type="submit" variant="secondary">Disable 2FA</.button>
         </div>
       </.form>
     </div>

@@ -34,6 +34,7 @@ defmodule ElektrineWeb.Components.UI.Card do
       </.card>
   """
   attr :class, :string, default: nil, doc: "Additional CSS classes for the card container"
+  attr :body_class, :string, default: nil, doc: "Additional CSS classes for the card body"
   attr :rest, :global, doc: "Additional HTML attributes"
 
   slot :title, doc: "Card title/header content"
@@ -43,12 +44,12 @@ defmodule ElektrineWeb.Components.UI.Card do
   def card(assigns) do
     ~H"""
     <div class={["card panel-card", @class]} {@rest}>
-      <div class="card-body">
+      <div class={["card-body", @body_class]}>
         <%= if @title != [] do %>
           <h2 class="card-title text-base-content">{render_slot(@title)}</h2>
         <% end %>
 
-        <div class="flex-1">{render_slot(@body)}</div>
+        {render_slot(@body)}
 
         <%= if @actions != [] do %>
           <div class="card-actions justify-end mt-4">

@@ -69,13 +69,16 @@
               <.live_file_input upload={@uploads.files} class="hidden" />
             </label>
           </form>
-          <button
+          <.button
             type="button"
             phx-click="toggle_new_folder"
-            class="btn btn-outline btn-sm h-9 min-h-9"
+            variant="default"
+            outline
+            size="sm"
+            class="h-9 min-h-9"
           >
             <.icon name="hero-folder-plus" class="h-4 w-4" /> New Folder
-          </button>
+          </.button>
 
           <form
             phx-change="filter"
@@ -122,31 +125,29 @@
         <%= if MapSet.size(@selected_items) > 0 do %>
           <div class="flex flex-wrap items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm">
             <span class="font-medium">{MapSet.size(@selected_items)} selected</span>
-            <button
-              type="button"
-              phx-click="open_bulk_move"
-              class="btn btn-outline btn-xs"
-            >
+            <.button type="button" phx-click="open_bulk_move" variant="default" outline size="xs">
               <.icon name="hero-arrows-right-left" class="h-3.5 w-3.5" /> Move
-            </button>
-            <button
+            </.button>
+            <.button
               type="button"
               phx-click="bulk_delete"
               data-confirm="Delete all selected items?"
-              class="btn btn-error btn-outline btn-xs"
+              variant="error"
+              outline
+              size="xs"
             >
               <.icon name="hero-trash" class="h-3.5 w-3.5" /> Delete
-            </button>
-            <button type="button" phx-click="clear_selection" class="btn btn-ghost btn-xs">
+            </.button>
+            <.button type="button" phx-click="clear_selection" variant="ghost" size="xs">
               Clear
-            </button>
+            </.button>
           </div>
         <% end %>
 
         <%= if @show_new_folder_form do %>
           <form
             phx-submit="create_folder"
-            class="flex flex-col gap-2 rounded-xl border border-base-300/60 bg-base-100/70 p-3 sm:flex-row sm:items-center"
+            class="flex flex-col gap-2 rounded-box border border-base-300/60 bg-base-100/70 p-3 sm:flex-row sm:items-center"
           >
             <input
               type="text"
@@ -154,21 +155,24 @@
               value={@new_folder_name}
               placeholder="Folder name"
               class="input input-bordered h-9 min-h-9 flex-1"
-            /> <button type="submit" class="btn btn-primary btn-sm h-9 min-h-9">Create</button>
-            <button
+            />
+            <.button type="submit" size="sm" class="h-9 min-h-9">Create</.button>
+            <.button
               type="button"
               phx-click="cancel_new_folder"
-              class="btn btn-ghost btn-sm h-9 min-h-9"
+              variant="ghost"
+              size="sm"
+              class="h-9 min-h-9"
             >
               Cancel
-            </button>
+            </.button>
           </form>
         <% end %>
 
         <%= if @bulk_move_open do %>
           <form
             phx-submit="bulk_move"
-            class="flex flex-col gap-2 rounded-xl border border-base-300/60 bg-base-100/70 p-3 sm:flex-row sm:items-center"
+            class="flex flex-col gap-2 rounded-box border border-base-300/60 bg-base-100/70 p-3 sm:flex-row sm:items-center"
           >
             <input
               type="text"
@@ -177,16 +181,18 @@
               placeholder="Destination folder"
               class="input input-bordered h-9 min-h-9 flex-1"
             />
-            <button type="submit" class="btn btn-primary btn-sm h-9 min-h-9">
+            <.button type="submit" size="sm" class="h-9 min-h-9">
               Move selected
-            </button>
-            <button
+            </.button>
+            <.button
               type="button"
               phx-click="close_bulk_move"
-              class="btn btn-ghost btn-sm h-9 min-h-9"
+              variant="ghost"
+              size="sm"
+              class="h-9 min-h-9"
             >
               Cancel
-            </button>
+            </.button>
           </form>
         <% end %>
 
@@ -194,7 +200,7 @@
           <form
             phx-change="validate_upload"
             phx-submit="upload_files"
-            class="rounded-xl border border-base-300/60 bg-base-100/70 p-3"
+            class="rounded-box border border-base-300/60 bg-base-100/70 p-3"
           >
             <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
               <input
@@ -204,9 +210,9 @@
                 placeholder="Destination folder"
                 class="input input-bordered h-9 min-h-9 flex-1"
               />
-              <button type="submit" class="btn btn-primary btn-sm h-9 min-h-9">
+              <.button type="submit" size="sm" class="h-9 min-h-9">
                 Finish upload
-              </button>
+              </.button>
             </div>
 
             <div class="mt-3 space-y-2">
@@ -220,14 +226,15 @@
                       </p>
                     </div>
 
-                    <button
+                    <.button
                       type="button"
-                      class="btn btn-ghost btn-xs"
+                      variant="ghost"
+                      size="xs"
                       phx-click="cancel-upload"
                       phx-value-ref={entry.ref}
                     >
                       Remove
-                    </button>
+                    </.button>
                   </div>
 
                   <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-base-300">
@@ -251,7 +258,7 @@
           style="--files-tree-width: 20rem;"
         >
           <aside
-            class="relative min-w-0 overflow-hidden rounded-2xl border border-base-300/60 bg-base-100/80"
+            class="relative min-w-0 overflow-hidden rounded-box border border-base-300/60 bg-base-100/80"
             data-tree-pane
           >
             <div
@@ -312,7 +319,7 @@
                       phx-value-path={node.path}
                       data-tree-folder-drop-path={node.path}
                       class={[
-                        "flex min-w-0 flex-1 items-center gap-2.5 overflow-hidden rounded-xl border border-transparent px-3 py-2.5 text-left text-sm transition-all",
+                        "flex min-w-0 flex-1 items-center gap-2.5 overflow-hidden rounded-lg border border-transparent px-3 py-2.5 text-left text-sm transition-all",
                         folder_tree_item_class(@current_folder, node.path)
                       ]}
                       data-row-ignore
@@ -330,12 +337,12 @@
           </aside>
 
           <div
-            class="min-w-0 overflow-visible rounded-2xl border border-base-300/60 bg-base-100/80"
+            class="min-w-0 overflow-visible rounded-box border border-base-300/60 bg-base-100/80"
             phx-drop-target={@uploads.files.ref}
           >
             <%= if @folders == [] and @files == [] do %>
               <div class="px-6 py-14 text-center">
-                <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-lg bg-primary/10 text-primary">
                   <.icon name="hero-folder-open" class="h-8 w-8" />
                 </div>
 
@@ -447,7 +454,7 @@
 
                           <div class="min-w-0">
                             <div class="flex items-center gap-3">
-                              <div class="rounded-xl bg-secondary/12 p-2.5 text-secondary">
+                              <div class="rounded-lg bg-secondary/12 p-2.5 text-secondary">
                                 <.icon name="hero-folder" class="h-5 w-5" />
                               </div>
 
@@ -500,24 +507,28 @@
                             class="flex items-center justify-end gap-1 lg:justify-self-end"
                             data-row-ignore
                           >
-                            <.link
+                            <.button
                               patch={
                                 drive_path(folder.path, @search_query, @sort_by, @active_filter)
                               }
-                              class="btn btn-ghost btn-sm h-8 min-h-8 px-2"
+                              variant="ghost"
+                              size="sm"
+                              class="h-8 min-h-8 px-2"
                               title="Open folder"
                             >
                               <.icon name="hero-folder-open" class="h-4 w-4" />
-                            </.link>
-                            <button
+                            </.button>
+                            <.button
                               type="button"
                               phx-click="open_manage_folder"
                               phx-value-path={folder.path}
-                              class="btn btn-ghost btn-sm h-8 min-h-8 px-2"
+                              variant="ghost"
+                              size="sm"
+                              class="h-8 min-h-8 px-2"
                               title="Manage folder"
                             >
                               <.icon name="hero-cog-6-tooth" class="h-4 w-4" />
-                            </button>
+                            </.button>
                           </div>
                         </div>
                       </article>
@@ -554,10 +565,10 @@
                                 <img
                                   src={~p"/account/drive/#{file.id}/preview"}
                                   alt={file_display_name(file)}
-                                  class="h-10 w-10 rounded-xl object-cover ring-1 ring-base-300"
+                                  class="h-10 w-10 rounded-lg object-cover ring-1 ring-base-300"
                                 />
                               <% else %>
-                                <div class="rounded-xl bg-primary/10 p-2.5 text-primary">
+                                <div class="rounded-lg bg-primary/10 p-2.5 text-primary">
                                   <.icon name={file_icon_name(file.content_type)} class="h-5 w-5" />
                                 </div>
                               <% end %>
@@ -600,32 +611,38 @@
                             data-row-ignore
                           >
                             <%= if inline_viewable?(file.content_type) do %>
-                              <.link
+                              <.button
                                 href={~p"/account/drive/#{file.id}/preview"}
                                 target="_blank"
-                                class="btn btn-ghost btn-sm h-8 min-h-8 px-2"
+                                variant="ghost"
+                                size="sm"
+                                class="h-8 min-h-8 px-2"
                                 title="Preview"
                               >
                                 <.icon name="hero-eye" class="h-4 w-4" />
-                              </.link>
+                              </.button>
                             <% end %>
 
-                            <.link
+                            <.button
                               href={~p"/account/drive/#{file.id}/download"}
-                              class="btn btn-ghost btn-sm h-8 min-h-8 px-2"
+                              variant="ghost"
+                              size="sm"
+                              class="h-8 min-h-8 px-2"
                               title="Download"
                             >
                               <.icon name="hero-arrow-down-tray" class="h-4 w-4" />
-                            </.link>
-                            <button
+                            </.button>
+                            <.button
                               type="button"
                               phx-click="open_manage_file"
                               phx-value-id={file.id}
-                              class="btn btn-ghost btn-sm h-8 min-h-8 px-2"
+                              variant="ghost"
+                              size="sm"
+                              class="h-8 min-h-8 px-2"
                               title="Manage file"
                             >
                               <.icon name="hero-cog-6-tooth" class="h-4 w-4" />
-                            </button>
+                            </.button>
                           </div>
                         </div>
                       </article>
@@ -661,53 +678,61 @@
 
           <div class="flex flex-wrap gap-2 border-t border-base-300/70 pt-4">
             <%= if inline_viewable?(@active_file.content_type) do %>
-              <.link
+              <.button
                 href={~p"/account/drive/#{@active_file.id}/preview"}
                 target="_blank"
-                class="btn btn-outline btn-sm"
+                variant="default"
+                outline
+                size="sm"
               >
                 Preview
-              </.link>
+              </.button>
             <% end %>
-            <.link
+            <.button
               href={~p"/account/drive/#{@active_file.id}/download"}
-              class="btn btn-outline btn-sm"
+              variant="default"
+              outline
+              size="sm"
             >
               Download
-            </.link>
-            <button
+            </.button>
+            <.button
               type="button"
               phx-click="start_rename"
               phx-value-type="file"
               phx-value-id={@active_file.id}
-              class="btn btn-ghost btn-sm"
+              variant="ghost"
+              size="sm"
             >
               Rename
-            </button>
-            <button
+            </.button>
+            <.button
               type="button"
               phx-click="start_move"
               phx-value-type="file"
               phx-value-id={@active_file.id}
-              class="btn btn-ghost btn-sm"
+              variant="ghost"
+              size="sm"
             >
               Move
-            </button>
-            <button
+            </.button>
+            <.button
               type="button"
               phx-click="delete_file"
               phx-value-id={@active_file.id}
               data-confirm="Delete this file and all of its share links?"
-              class="btn btn-error btn-outline btn-sm"
+              variant="error"
+              outline
+              size="sm"
             >
               <.icon name="hero-trash" class="h-4 w-4" /> Delete
-            </button>
+            </.button>
           </div>
 
           <%= if @rename_target && @rename_target.type == "file" && @rename_target.id == to_string(@active_file.id) do %>
             <form
               phx-submit="rename_file"
-              class="surface-soft space-y-3 rounded-2xl p-4"
+              class="surface-soft space-y-3 rounded-box p-4"
             >
               <input type="hidden" name="rename[id]" value={@active_file.id} />
               <input
@@ -718,14 +743,16 @@
                 class="input input-bordered h-10 min-h-10 w-full"
               />
               <div class="flex flex-wrap gap-2">
-                <button type="submit" class="btn btn-primary btn-sm h-9 min-h-9">Save</button>
-                <button
+                <.button type="submit" size="sm" class="h-9 min-h-9">Save</.button>
+                <.button
                   type="button"
                   phx-click="cancel_rename"
-                  class="btn btn-ghost btn-sm h-9 min-h-9"
+                  variant="ghost"
+                  size="sm"
+                  class="h-9 min-h-9"
                 >
                   Cancel
-                </button>
+                </.button>
               </div>
             </form>
           <% end %>
@@ -733,7 +760,7 @@
           <%= if @move_target && @move_target.type == "file" && @move_target.id == to_string(@active_file.id) do %>
             <form
               phx-submit="move_file"
-              class="surface-soft space-y-3 rounded-2xl p-4"
+              class="surface-soft space-y-3 rounded-box p-4"
             >
               <input type="hidden" name="move[id]" value={@active_file.id} />
               <input
@@ -744,19 +771,21 @@
                 class="input input-bordered h-10 min-h-10 w-full"
               />
               <div class="flex flex-wrap gap-2">
-                <button type="submit" class="btn btn-primary btn-sm h-9 min-h-9">Move</button>
-                <button
+                <.button type="submit" size="sm" class="h-9 min-h-9">Move</.button>
+                <.button
                   type="button"
                   phx-click="cancel_move"
-                  class="btn btn-ghost btn-sm h-9 min-h-9"
+                  variant="ghost"
+                  size="sm"
+                  class="h-9 min-h-9"
                 >
                   Cancel
-                </button>
+                </.button>
               </div>
             </form>
           <% end %>
 
-          <div class="surface-soft rounded-2xl p-4">
+          <div class="surface-soft rounded-box p-4">
             <p class="text-sm font-semibold">Create share link</p>
 
             <form phx-submit="create_share" class="mt-4 grid gap-3 lg:grid-cols-2">
@@ -790,16 +819,16 @@
                 <input type="checkbox" name="share[burn_after_read]" class="checkbox checkbox-sm" />
                 <span class="label-text text-sm">Burn after first open/download</span>
               </label>
-              <button type="submit" class="btn btn-primary h-9 min-h-9 w-full lg:col-span-2">
+              <.button type="submit" class="h-9 min-h-9 w-full lg:col-span-2">
                 <.icon name="hero-link" class="h-4 w-4" /> Create link
-              </button>
+              </.button>
             </form>
           </div>
 
           <%= if @active_file.shares != [] do %>
             <div class="space-y-3 border-t border-base-300/70 pt-4">
               <%= for share <- @active_file.shares do %>
-                <div class="surface-soft rounded-2xl p-4">
+                <div class="surface-soft rounded-box p-4">
                   <div class="space-y-3">
                     <div class="min-w-0 flex-1">
                       <div class="flex flex-wrap items-center gap-2">
@@ -869,22 +898,25 @@
                     </div>
 
                     <div class="flex flex-wrap gap-2">
-                      <.link
+                      <.button
                         href={~p"/drive/share/#{share.token}"}
                         target="_blank"
-                        class="btn btn-outline btn-sm"
+                        variant="default"
+                        outline
+                        size="sm"
                       >
                         Open
-                      </.link>
-                      <button
+                      </.button>
+                      <.button
                         type="button"
                         phx-click="revoke_share"
                         phx-value-id={share.id}
                         data-confirm="Revoke this share link?"
-                        class="btn btn-secondary btn-sm"
+                        variant="secondary"
+                        size="sm"
                       >
                         Revoke
-                      </button>
+                      </.button>
                     </div>
                   </div>
                 </div>
@@ -922,47 +954,53 @@
           </div>
 
           <div class="flex flex-wrap gap-2 border-t border-base-300/70 pt-4">
-            <button
+            <.button
               type="button"
               phx-click="open_folder"
               phx-value-path={@active_folder.path}
-              class="btn btn-outline btn-sm"
+              variant="default"
+              outline
+              size="sm"
             >
               Open
-            </button>
-            <button
+            </.button>
+            <.button
               type="button"
               phx-click="start_rename"
               phx-value-type="folder"
               phx-value-path={@active_folder.path}
-              class="btn btn-ghost btn-sm"
+              variant="ghost"
+              size="sm"
             >
               Rename
-            </button>
-            <button
+            </.button>
+            <.button
               type="button"
               phx-click="start_move"
               phx-value-type="folder"
               phx-value-path={@active_folder.path}
-              class="btn btn-ghost btn-sm"
+              variant="ghost"
+              size="sm"
             >
               Move
-            </button>
-            <button
+            </.button>
+            <.button
               type="button"
               phx-click="delete_folder"
               phx-value-path={@active_folder.path}
               data-confirm="Delete this folder and everything inside it?"
-              class="btn btn-error btn-outline btn-sm"
+              variant="error"
+              outline
+              size="sm"
             >
               <.icon name="hero-trash" class="h-4 w-4" /> Delete
-            </button>
+            </.button>
           </div>
 
           <%= if @rename_target && @rename_target.type == "folder" && @rename_target.path == @active_folder.path do %>
             <form
               phx-submit="rename_folder"
-              class="space-y-3 rounded-2xl border border-base-300/70 bg-base-100/50 p-4"
+              class="space-y-3 rounded-box border border-base-300/70 bg-base-100/50 p-4"
             >
               <input type="hidden" name="rename_folder[path]" value={@active_folder.path} />
               <input
@@ -972,14 +1010,16 @@
                 class="input input-bordered h-10 min-h-10 w-full"
               />
               <div class="flex flex-wrap gap-2">
-                <button type="submit" class="btn btn-primary btn-sm h-9 min-h-9">Save</button>
-                <button
+                <.button type="submit" size="sm" class="h-9 min-h-9">Save</.button>
+                <.button
                   type="button"
                   phx-click="cancel_rename"
-                  class="btn btn-ghost btn-sm h-9 min-h-9"
+                  variant="ghost"
+                  size="sm"
+                  class="h-9 min-h-9"
                 >
                   Cancel
-                </button>
+                </.button>
               </div>
             </form>
           <% end %>
@@ -987,7 +1027,7 @@
           <%= if @move_target && @move_target.type == "folder" && @move_target.path == @active_folder.path do %>
             <form
               phx-submit="move_folder"
-              class="space-y-3 rounded-2xl border border-base-300/70 bg-base-100/50 p-4"
+              class="space-y-3 rounded-box border border-base-300/70 bg-base-100/50 p-4"
             >
               <input type="hidden" name="move_folder[path]" value={@active_folder.path} />
               <input
@@ -998,14 +1038,16 @@
                 class="input input-bordered h-10 min-h-10 w-full"
               />
               <div class="flex flex-wrap gap-2">
-                <button type="submit" class="btn btn-primary btn-sm h-9 min-h-9">Move</button>
-                <button
+                <.button type="submit" size="sm" class="h-9 min-h-9">Move</.button>
+                <.button
                   type="button"
                   phx-click="cancel_move"
-                  class="btn btn-ghost btn-sm h-9 min-h-9"
+                  variant="ghost"
+                  size="sm"
+                  class="h-9 min-h-9"
                 >
                   Cancel
-                </button>
+                </.button>
               </div>
             </form>
           <% end %>

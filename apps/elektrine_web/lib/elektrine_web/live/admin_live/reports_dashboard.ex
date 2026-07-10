@@ -42,12 +42,12 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
       >
         <:actions>
           <.action_toolbar>
-            <.link href={~p"/pripyat/content-moderation"} class="btn btn-sm btn-ghost">
+            <.button href={~p"/pripyat/content-moderation"} variant="ghost" size="sm">
               <.icon name="hero-shield-exclamation" class="w-4 h-4" /> Moderation Queue
-            </.link>
-            <.link href={~p"/pripyat/content-moderation?type=chat"} class="btn btn-sm btn-ghost">
+            </.button>
+            <.button href={~p"/pripyat/content-moderation?type=chat"} variant="ghost" size="sm">
               <.icon name="hero-chat-bubble-left-right" class="w-4 h-4" /> Chat Queue
-            </.link>
+            </.button>
           </.action_toolbar>
         </:actions>
       </.section_header>
@@ -64,7 +64,7 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
             )
           ]}
         >
-          <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+          <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
             Pending
           </div>
           <div class="mt-2 text-3xl font-semibold text-warning">{@stats[:pending] || 0}</div>
@@ -82,7 +82,7 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
             )
           ]}
         >
-          <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+          <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
             Reviewing
           </div>
           <div class="mt-2 text-3xl font-semibold text-info">{@stats[:reviewing] || 0}</div>
@@ -100,7 +100,7 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
             )
           ]}
         >
-          <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+          <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
             Resolved
           </div>
           <div class="mt-2 text-3xl font-semibold text-success">{@stats[:resolved] || 0}</div>
@@ -118,7 +118,7 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
             )
           ]}
         >
-          <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+          <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
             Critical Pending
           </div>
           <div class="mt-2 text-3xl font-semibold text-error">{@stats[:critical] || 0}</div>
@@ -126,8 +126,8 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
         </button>
       </div>
 
-      <div class="card panel-card">
-        <div class="card-body gap-4">
+      <.card body_class="gap-4">
+        <:body>
           <div class="tabs tabs-boxed overflow-x-auto flex-nowrap">
             <button
               phx-click="set_filter_status"
@@ -220,11 +220,11 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
               Showing {length(@reports)} of {@reports_total_count}
             </span>
           </div>
-        </div>
-      </div>
+        </:body>
+      </.card>
 
-      <div class="card panel-card">
-        <div class="card-body p-0">
+      <.card body_class="p-0">
+        <:body>
           <%= if @reports == [] do %>
             <.empty_state
               icon="hero-document-magnifying-glass"
@@ -290,14 +290,15 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
                           <span class="text-xs font-mono text-base-content/70">
                             {report.reportable_id}
                           </span>
-                          <button
+                          <.button
                             phx-click="view_reported_item"
                             phx-value-type={report.reportable_type}
                             phx-value-id={report.reportable_id}
-                            class="btn btn-ghost btn-xs"
+                            variant="ghost"
+                            size="xs"
                           >
                             Open
-                          </button>
+                          </.button>
                         </div>
                       </td>
                       <td>
@@ -327,13 +328,9 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
                       </td>
                       <td>
                         <div class="flex items-center gap-2">
-                          <button
-                            phx-click="view_report"
-                            phx-value-id={report.id}
-                            class="btn btn-primary btn-xs"
-                          >
+                          <.button phx-click="view_report" phx-value-id={report.id} size="xs">
                             Review
-                          </button>
+                          </.button>
 
                           <%= if report.status in ["pending", "reviewing"] do %>
                             <div class="dropdown dropdown-end dropdown-left">
@@ -414,21 +411,23 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
                   </div>
 
                   <div class="mt-4 flex items-center gap-2">
-                    <button
+                    <.button
                       phx-click="view_report"
                       phx-value-id={report.id}
-                      class="btn btn-primary btn-sm flex-1"
+                      size="sm"
+                      class="flex-1"
                     >
                       Review
-                    </button>
-                    <button
+                    </.button>
+                    <.button
                       phx-click="view_reported_item"
                       phx-value-type={report.reportable_type}
                       phx-value-id={report.reportable_id}
-                      class="btn btn-ghost btn-sm"
+                      variant="ghost"
+                      size="sm"
                     >
                       View Item
-                    </button>
+                    </.button>
                     <%= if report.status in ["pending", "reviewing"] do %>
                       <div class="dropdown dropdown-end">
                         <label tabindex="0" class="btn btn-ghost btn-sm btn-square">
@@ -465,8 +464,8 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
               <% end %>
             </div>
           <% end %>
-        </div>
-      </div>
+        </:body>
+      </.card>
 
       <%= if @total_pages > 1 do %>
         <div class="mt-4 flex items-center justify-between gap-3">
@@ -474,20 +473,24 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
             Page {@page} of {@total_pages}
           </div>
           <div class="join">
-            <button
+            <.button
               phx-click="prev_page"
-              class="btn btn-sm join-item"
+              variant="default"
+              size="sm"
+              class="join-item"
               disabled={@page <= 1}
             >
               Previous
-            </button>
-            <button
+            </.button>
+            <.button
               phx-click="next_page"
-              class="btn btn-sm join-item"
+              variant="default"
+              size="sm"
+              class="join-item"
               disabled={@page >= @total_pages}
             >
               Next
-            </button>
+            </.button>
           </div>
         </div>
       <% end %>
@@ -514,16 +517,21 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
                   <span class={["badge", status_badge_class(@selected_report.status)]}>
                     {String.capitalize(@selected_report.status || "pending")}
                   </span>
-                  <button phx-click="close_report_modal" class="btn btn-ghost btn-sm btn-square">
+                  <.button
+                    phx-click="close_report_modal"
+                    variant="ghost"
+                    size="sm"
+                    class="btn-square"
+                  >
                     <.icon name="hero-x-mark" class="w-4 h-4" />
-                  </button>
+                  </.button>
                 </div>
               </div>
             </div>
 
             <div class="max-h-[75vh] overflow-y-auto p-6 space-y-6">
               <div class="grid gap-4 lg:grid-cols-2">
-                <section class="rounded-xl border border-base-300 bg-base-200/50 p-4 space-y-4">
+                <section class="rounded-box border border-base-300 bg-base-200/50 p-4 space-y-4">
                   <h3 class="font-semibold">Context</h3>
 
                   <div>
@@ -556,14 +564,15 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
                       <span class="text-xs font-mono opacity-70">
                         ID {@selected_report.reportable_id}
                       </span>
-                      <button
+                      <.button
                         phx-click="view_reported_item"
                         phx-value-type={@selected_report.reportable_type}
                         phx-value-id={@selected_report.reportable_id}
-                        class="btn btn-ghost btn-xs"
+                        variant="ghost"
+                        size="xs"
                       >
                         <.icon name="hero-arrow-top-right-on-square" class="w-4 h-4" /> View original
-                      </button>
+                      </.button>
                     </div>
                   </div>
 
@@ -582,7 +591,7 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
                   <% end %>
                 </section>
 
-                <section class="rounded-xl border border-base-300 bg-base-200/50 p-4 space-y-4">
+                <section class="rounded-box border border-base-300 bg-base-200/50 p-4 space-y-4">
                   <h3 class="font-semibold">Reason and Resolution</h3>
 
                   <div>
@@ -623,7 +632,7 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
               </div>
 
               <%= if @selected_report.status in ["pending", "reviewing"] do %>
-                <section class="rounded-xl border border-base-300 bg-base-100 p-4">
+                <section class="rounded-box border border-base-300 bg-base-100 p-4">
                   <h3 class="font-semibold mb-3">Take Action</h3>
                   <form phx-submit="update_report" class="space-y-4">
                     <input type="hidden" name="report_id" value={@selected_report.id} />
@@ -728,45 +737,48 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
                     </label>
 
                     <div class="flex flex-wrap gap-2">
-                      <button type="submit" class="btn btn-primary">Update Report</button>
-                      <button type="button" phx-click="close_report_modal" class="btn btn-ghost">
+                      <.button type="submit">Update Report</.button>
+                      <.button type="button" phx-click="close_report_modal" variant="ghost">
                         Cancel
-                      </button>
+                      </.button>
                     </div>
                   </form>
 
                   <div class="divider my-6">Quick Actions</div>
                   <div class="flex flex-wrap gap-2">
                     <%= if @selected_report.reportable_type == "user" do %>
-                      <button
+                      <.button
                         phx-click="admin_action"
                         phx-value-action="suspend_user"
                         phx-value-user_id={@selected_report.reportable_id}
                         data-confirm="Suspend this user for 7 days?"
-                        class="btn btn-warning btn-sm"
+                        variant="warning"
+                        size="sm"
                       >
                         <.icon name="hero-pause" class="w-4 h-4" /> Suspend User (7 days)
-                      </button>
-                      <button
+                      </.button>
+                      <.button
                         phx-click="admin_action"
                         phx-value-action="ban_user"
                         phx-value-user_id={@selected_report.reportable_id}
                         data-confirm="Permanently ban this user?"
-                        class="btn btn-secondary btn-sm"
+                        variant="secondary"
+                        size="sm"
                       >
                         <.icon name="hero-no-symbol" class="w-4 h-4" /> Ban User
-                      </button>
+                      </.button>
                     <% end %>
                     <%= if @selected_report.reportable_type == "message" do %>
-                      <button
+                      <.button
                         phx-click="admin_action"
                         phx-value-action="delete_message"
                         phx-value-message_id={@selected_report.reportable_id}
                         data-confirm="Delete this message?"
-                        class="btn btn-secondary btn-sm"
+                        variant="secondary"
+                        size="sm"
                       >
                         <.icon name="hero-trash" class="w-4 h-4" /> Delete Message
-                      </button>
+                      </.button>
                     <% end %>
                   </div>
                 </section>
@@ -774,9 +786,9 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
             </div>
 
             <div class="border-t border-base-300 px-6 py-4 flex justify-end">
-              <button type="button" phx-click="close_report_modal" class="btn btn-ghost">
+              <.button type="button" phx-click="close_report_modal" variant="ghost">
                 Close
-              </button>
+              </.button>
             </div>
           </div>
           <div class="modal-backdrop" phx-click="close_report_modal"></div>

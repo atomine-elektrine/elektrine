@@ -1,17 +1,17 @@
 <div class="admin-page">
   <div class="mb-6">
     <div class="flex items-center mb-2">
-      <.link href={~p"/pripyat/announcements"} class="btn btn-ghost btn-sm mr-4">
+      <.button href={~p"/pripyat/announcements"} variant="ghost" size="sm" class="mr-4">
         <.icon name="hero-arrow-left" class="h-4 w-4 mr-2" /> Back
-      </.link>
+      </.button>
       <h1 class="text-2xl font-bold">Edit Announcement</h1>
     </div>
 
     <p class="opacity-70">Update the announcement message, status, or display window.</p>
   </div>
 
-  <div class="card panel-card">
-    <div class="card-body">
+  <.card>
+    <:body>
       <.simple_form
         :let={f}
         for={@changeset}
@@ -89,15 +89,15 @@
 
         <:actions>
           <div class="card-actions justify-end mt-6">
-            <.link href={~p"/pripyat/announcements"} class="btn btn-ghost">
+            <.button href={~p"/pripyat/announcements"} variant="ghost">
               <.icon name="hero-arrow-left" class="w-4 h-4 mr-2" /> Cancel
-            </.link>
-            <.button type="submit" class="btn btn-primary">
+            </.button>
+            <.button type="submit">
               <.icon name="hero-check" class="w-4 h-4 mr-2" /> Update Announcement
             </.button>
           </div>
         </:actions>
       </.simple_form>
-    </div>
-  </div>
+    </:body>
+  </.card>
 </div>

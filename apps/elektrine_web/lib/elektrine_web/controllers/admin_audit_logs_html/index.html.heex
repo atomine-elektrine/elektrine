@@ -7,14 +7,14 @@
       </p>
     </div>
     <div class="flex gap-2">
-      <.link href={~p"/pripyat"} class="btn btn-ghost">
+      <.button href={~p"/pripyat"} variant="ghost">
         <.icon name="hero-arrow-left" class="w-4 h-4 mr-2" /> Back to Dashboard
-      </.link>
+      </.button>
     </div>
   </div>
 
-  <div class="card panel-card">
-    <div class="card-body">
+  <.card>
+    <:body>
       <div class="overflow-x-auto">
         <table class="table table-zebra w-full">
           <thead>
@@ -88,34 +88,33 @@
         <div class="flex justify-center mt-6">
           <div class="join">
             <%= if @current_page > 1 do %>
-              <.link
+              <.button
                 href={~p"/pripyat/audit-logs?page=#{@current_page - 1}"}
-                class="join-item btn"
+                variant="default"
+                class="join-item"
               >
                 «
-              </.link>
+              </.button>
             <% end %>
 
             <%= for page_num <- @page_range do %>
-              <.link
+              <.button
                 href={~p"/pripyat/audit-logs?page=#{page_num}"}
-                class={
-                  if page_num == @current_page,
-                    do: "join-item btn btn-primary",
-                    else: "join-item btn btn-ghost"
-                }
+                variant={if page_num == @current_page, do: "primary", else: "ghost"}
+                class="join-item"
               >
                 {page_num}
-              </.link>
+              </.button>
             <% end %>
 
             <%= if @current_page < @total_pages do %>
-              <.link
+              <.button
                 href={~p"/pripyat/audit-logs?page=#{@current_page + 1}"}
-                class="join-item btn"
+                variant="default"
+                class="join-item"
               >
                 »
-              </.link>
+              </.button>
             <% end %>
           </div>
         </div>
@@ -124,6 +123,6 @@
           Page {@current_page} of {@total_pages} • {@total_count} total audit entries
         </div>
       <% end %>
-    </div>
-  </div>
+    </:body>
+  </.card>
 </div>

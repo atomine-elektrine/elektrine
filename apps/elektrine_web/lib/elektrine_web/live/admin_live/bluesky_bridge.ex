@@ -214,18 +214,18 @@ defmodule ElektrineWeb.AdminLive.BlueskyBridge do
       >
         <:actions>
           <.action_toolbar>
-            <.link navigate={~p"/pripyat/messaging-federation"} class="btn btn-sm btn-ghost">
+            <.button navigate={~p"/pripyat/messaging-federation"} variant="ghost" size="sm">
               <.icon name="hero-chat-bubble-left-right" class="w-4 h-4" />
               <span class="ml-1">Chat Federation</span>
-            </.link>
-            <.link navigate={~p"/pripyat/federation"} class="btn btn-sm btn-ghost">
+            </.button>
+            <.button navigate={~p"/pripyat/federation"} variant="ghost" size="sm">
               <.icon name="hero-globe-alt" class="w-4 h-4" />
               <span class="ml-1">ActivityPub Policies</span>
-            </.link>
-            <button phx-click="refresh" class="btn btn-sm btn-ghost">
+            </.button>
+            <.button variant="ghost" size="sm" phx-click="refresh">
               <.icon name="hero-arrow-path" class="w-4 h-4" />
               <span class="ml-1">Refresh</span>
-            </button>
+            </.button>
           </.action_toolbar>
         </:actions>
       </.section_header>
@@ -239,96 +239,96 @@ defmodule ElektrineWeb.AdminLive.BlueskyBridge do
       </div>
 
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div class="card bg-base-200 shadow">
-          <div class="card-body p-3 sm:p-4">
+        <.card body_class="p-3 sm:p-4">
+          <:body>
             <div class="text-xs opacity-70">Bridge Enabled</div>
             <span class={status_badge_classes(@config.enabled)}>
               {if @config.enabled, do: "enabled", else: "disabled"}
             </span>
-          </div>
-        </div>
-        <div class="card bg-base-200 shadow">
-          <div class="card-body p-3 sm:p-4">
+          </:body>
+        </.card>
+        <.card body_class="p-3 sm:p-4">
+          <:body>
             <div class="text-xs opacity-70">Inbound Sync</div>
             <span class={status_badge_classes(@config.inbound_enabled)}>
               {if @config.inbound_enabled, do: "enabled", else: "disabled"}
             </span>
-          </div>
-        </div>
-        <div class="card bg-base-200 shadow">
-          <div class="card-body p-3 sm:p-4">
+          </:body>
+        </.card>
+        <.card body_class="p-3 sm:p-4">
+          <:body>
             <div class="text-xs opacity-70">Managed PDS</div>
             <span class={status_badge_classes(@config.managed_enabled)}>
               {if @config.managed_enabled, do: "enabled", else: "disabled"}
             </span>
-          </div>
-        </div>
-        <div class="card bg-base-200 shadow">
-          <div class="card-body p-3 sm:p-4">
+          </:body>
+        </.card>
+        <.card body_class="p-3 sm:p-4">
+          <:body>
             <div class="text-xs opacity-70">Managed Admin Secret</div>
             <span class={status_badge_classes(@config.managed_admin_password_configured)}>
               {if @config.managed_admin_password_configured, do: "configured", else: "missing"}
             </span>
-          </div>
-        </div>
+          </:body>
+        </.card>
       </div>
 
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div class="card panel-card shadow">
-          <div class="card-body p-3 sm:p-4">
+        <.card body_class="p-3 sm:p-4">
+          <:body>
             <div class="text-xs opacity-70">Linked Users</div>
             <div class="text-xl font-semibold">{@stats.linked_users}</div>
-          </div>
-        </div>
-        <div class="card panel-card shadow">
-          <div class="card-body p-3 sm:p-4">
+          </:body>
+        </.card>
+        <.card body_class="p-3 sm:p-4">
+          <:body>
             <div class="text-xs opacity-70">Ready Users</div>
             <div class="text-xl font-semibold">{@stats.ready_users}</div>
-          </div>
-        </div>
-        <div class="card panel-card shadow">
-          <div class="card-body p-3 sm:p-4">
+          </:body>
+        </.card>
+        <.card body_class="p-3 sm:p-4">
+          <:body>
             <div class="text-xs opacity-70">Managed Linked Users</div>
             <div class="text-xl font-semibold">{@stats.managed_linked_users}</div>
-          </div>
-        </div>
-        <div class="card panel-card shadow">
-          <div class="card-body p-3 sm:p-4">
+          </:body>
+        </.card>
+        <.card body_class="p-3 sm:p-4">
+          <:body>
             <div class="text-xs opacity-70">Polled in 24h</div>
             <div class="text-xl font-semibold">{@stats.users_polled_24h}</div>
-          </div>
-        </div>
+          </:body>
+        </.card>
       </div>
 
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div class="card panel-card shadow">
-          <div class="card-body p-3 sm:p-4">
+        <.card body_class="p-3 sm:p-4">
+          <:body>
             <div class="text-xs opacity-70">Mirrored Posts</div>
             <div class="text-xl font-semibold">{@stats.mirrored_posts}</div>
-          </div>
-        </div>
-        <div class="card panel-card shadow">
-          <div class="card-body p-3 sm:p-4">
+          </:body>
+        </.card>
+        <.card body_class="p-3 sm:p-4">
+          <:body>
             <div class="text-xs opacity-70">Inbound Events (24h)</div>
             <div class="text-xl font-semibold">{@stats.inbound_events_24h}</div>
-          </div>
-        </div>
-        <div class="card panel-card shadow">
-          <div class="card-body p-3 sm:p-4">
+          </:body>
+        </.card>
+        <.card body_class="p-3 sm:p-4">
+          <:body>
             <div class="text-xs opacity-70">Pending Outbound Jobs</div>
             <div class="text-xl font-semibold">{@stats.pending_outbound_jobs}</div>
-          </div>
-        </div>
-        <div class="card panel-card shadow">
-          <div class="card-body p-3 sm:p-4">
+          </:body>
+        </.card>
+        <.card body_class="p-3 sm:p-4">
+          <:body>
             <div class="text-xs opacity-70">Discarded Jobs (24h)</div>
             <div class="text-xl font-semibold text-error">{@stats.discarded_outbound_jobs_24h}</div>
-          </div>
-        </div>
+          </:body>
+        </.card>
       </div>
 
-      <div class="card panel-card shadow">
-        <div class="card-body p-4 sm:p-6">
+      <.card body_class="p-4 sm:p-6">
+        <:body>
           <h2 class="card-title text-base sm:text-lg mb-3">
             <.icon name="hero-cog-6-tooth" class="w-5 h-5" /> Bridge Configuration
           </h2>
@@ -368,12 +368,12 @@ defmodule ElektrineWeb.AdminLive.BlueskyBridge do
               </div>
             </div>
           <% end %>
-        </div>
-      </div>
+        </:body>
+      </.card>
 
       <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <div class="card panel-card shadow">
-          <div class="card-body p-4 sm:p-6">
+        <.card body_class="p-4 sm:p-6">
+          <:body>
             <h2 class="card-title text-base sm:text-lg mb-3">
               <.icon name="hero-arrow-down-tray" class="w-5 h-5" /> Recent Inbound Events
             </h2>
@@ -409,11 +409,11 @@ defmodule ElektrineWeb.AdminLive.BlueskyBridge do
                 </table>
               </div>
             <% end %>
-          </div>
-        </div>
+          </:body>
+        </.card>
 
-        <div class="card panel-card shadow">
-          <div class="card-body p-4 sm:p-6">
+        <.card body_class="p-4 sm:p-6">
+          <:body>
             <h2 class="card-title text-base sm:text-lg mb-3">
               <.icon name="hero-arrow-up-tray" class="w-5 h-5" /> Recent Outbound Jobs
             </h2>
@@ -447,8 +447,8 @@ defmodule ElektrineWeb.AdminLive.BlueskyBridge do
                 </table>
               </div>
             <% end %>
-          </div>
-        </div>
+          </:body>
+        </.card>
       </div>
     </div>
     """

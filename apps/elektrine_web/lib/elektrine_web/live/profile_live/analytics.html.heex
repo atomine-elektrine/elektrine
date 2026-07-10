@@ -11,14 +11,14 @@
         <div class="space-y-2">
           <.link
             navigate={~p"/analytics/profile"}
-            class="flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/10 px-3 py-3 text-sm font-medium text-primary"
+            class="flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/10 px-3 py-3 text-sm font-medium text-primary"
           >
             <.icon name="hero-user-circle" class="h-5 w-5" />
             <span>Profile Analytics</span>
           </.link>
           <.link
             navigate={~p"/analytics/domains"}
-            class="flex items-center gap-3 rounded-xl border border-base-content/10 bg-base-100 px-3 py-3 text-sm font-medium hover:bg-base-200/60"
+            class="flex items-center gap-3 rounded-lg border border-base-content/10 bg-base-100 px-3 py-3 text-sm font-medium hover:bg-base-200/60"
           >
             <.icon name="hero-globe-alt" class="h-5 w-5" />
             <span>Domain Analytics</span>
@@ -26,18 +26,22 @@
         </div>
 
         <div class="mt-5 border-t border-base-300 pt-4">
-          <.link
+          <.button
             navigate={~p"/account/profile/edit"}
-            class="btn btn-ghost btn-sm w-full justify-start"
+            variant="ghost"
+            size="sm"
+            class="w-full justify-start"
           >
             <.icon name="hero-pencil-square" class="h-4 w-4" /> Edit Profile
-          </.link>
-          <.link
+          </.button>
+          <.button
             navigate={~p"/domains"}
-            class="btn btn-ghost btn-sm mt-2 w-full justify-start"
+            variant="ghost"
+            size="sm"
+            class="mt-2 w-full justify-start"
           >
             <.icon name="hero-cog-6-tooth" class="h-4 w-4" /> Manage Domains
-          </.link>
+          </.button>
         </div>
       </div>
     </aside>
@@ -46,51 +50,50 @@
       <div class="space-y-6">
         <!-- Overview Stats -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div class="card panel-card">
-            <div class="card-body p-4">
+          <.card body_class="p-4">
+            <:body>
               <div class="text-sm text-base-content/65">Total Views</div>
               <div class="truncate text-2xl font-bold tabular-nums sm:text-3xl">
                 {@stats.total_views}
               </div>
-            </div>
-          </div>
+            </:body>
+          </.card>
 
-          <div class="card panel-card">
-            <div class="card-body p-4">
+          <.card body_class="p-4">
+            <:body>
               <div class="text-sm text-base-content/65">Unique Visitors</div>
               <div class="truncate text-2xl font-bold tabular-nums sm:text-3xl">
                 {@stats.unique_viewers}
               </div>
-            </div>
-          </div>
+            </:body>
+          </.card>
 
-          <div class="card panel-card">
-            <div class="card-body p-4">
+          <.card body_class="p-4">
+            <:body>
               <div class="text-sm text-base-content/65">Views This Week</div>
               <div class="truncate text-2xl font-bold tabular-nums sm:text-3xl">
                 {@stats.views_this_week}
               </div>
-            </div>
-          </div>
+            </:body>
+          </.card>
 
-          <div class="card panel-card">
-            <div class="card-body p-4">
+          <.card body_class="p-4">
+            <:body>
               <div class="text-sm text-base-content/65">Views Today</div>
               <div class="truncate text-2xl font-bold tabular-nums sm:text-3xl">
                 {@stats.views_today}
               </div>
-            </div>
-          </div>
+            </:body>
+          </.card>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <!-- Left Column - Charts and Timeline -->
           <div class="lg:col-span-2 space-y-6">
             <!-- Views Over Time Chart -->
-            <div class="card panel-card">
-              <div class="card-body">
-                <h2 class="card-title mb-4">Views Over Time</h2>
-
+            <.card>
+              <:title>Views Over Time</:title>
+              <:body>
                 <ElektrineWeb.Components.UI.UPlotChart.uplot_chart
                   id="profile-views-chart"
                   data={@daily_views}
@@ -102,13 +105,12 @@
                   empty_message="No view data for this period"
                   aria_label="Profile views over the last 30 days"
                 />
-              </div>
-            </div>
+              </:body>
+            </.card>
             <!-- Visitor Breakdown -->
-            <div class="card panel-card">
-              <div class="card-body">
-                <h2 class="card-title mb-4">Visitor Types</h2>
-
+            <.card>
+              <:title>Visitor Types</:title>
+              <:body>
                 <div class="space-y-4">
                   <div>
                     <div class="flex justify-between mb-2">
@@ -148,13 +150,12 @@
                     </div>
                   </div>
                 </div>
-              </div>
-            </div>
+              </:body>
+            </.card>
             <!-- Top Referrers -->
-            <div class="card panel-card">
-              <div class="card-body">
-                <h2 class="card-title mb-4">Top Referrers</h2>
-
+            <.card>
+              <:title>Top Referrers</:title>
+              <:body>
                 <%= if @top_referrers && length(@top_referrers) > 0 do %>
                   <div class="space-y-2">
                     <%= for referrer <- @top_referrers do %>
@@ -176,16 +177,15 @@
                     No referrer data yet
                   </div>
                 <% end %>
-              </div>
-            </div>
+              </:body>
+            </.card>
           </div>
           <!-- Right Column - Recent Activity and Link Performance -->
           <div class="space-y-6">
             <!-- Most Clicked Links -->
-            <div class="card panel-card">
-              <div class="card-body">
-                <h2 class="card-title mb-4">Link Performance</h2>
-
+            <.card>
+              <:title>Link Performance</:title>
+              <:body>
                 <%= if @top_links && length(@top_links) > 0 do %>
                   <div class="space-y-3">
                     <%= for link <- @top_links do %>
@@ -204,13 +204,12 @@
                     No link clicks yet
                   </div>
                 <% end %>
-              </div>
-            </div>
+              </:body>
+            </.card>
             <!-- Recent Viewers -->
-            <div class="card panel-card">
-              <div class="card-body">
-                <h2 class="card-title mb-4">Recent Visitors</h2>
-
+            <.card>
+              <:title>Recent Visitors</:title>
+              <:body>
                 <%= if @recent_viewers && length(@recent_viewers) > 0 do %>
                   <div class="space-y-2">
                     <%= for viewer <- Enum.take(@recent_viewers, 10) do %>
@@ -250,8 +249,8 @@
                     No authenticated viewers yet
                   </div>
                 <% end %>
-              </div>
-            </div>
+              </:body>
+            </.card>
           </div>
         </div>
       </div>

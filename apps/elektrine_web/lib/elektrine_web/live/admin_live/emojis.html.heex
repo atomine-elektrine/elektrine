@@ -7,9 +7,9 @@
   >
     <:actions>
       <.action_toolbar>
-        <.link patch={~p"/pripyat/emojis/new"} class="btn btn-secondary">
+        <.button patch={~p"/pripyat/emojis/new"} variant="secondary">
           <.icon name="hero-plus" class="w-5 h-5 mr-2" /> Add Emoji
-        </.link>
+        </.button>
       </.action_toolbar>
     </:actions>
   </.section_header>
@@ -31,18 +31,20 @@
           phx-debounce="300"
         />
 
-        <button
+        <.button
           type="button"
+          variant="ghost"
+          size="xs"
           phx-click="clear_search"
           data-search-clear="true"
           aria-label="Clear search"
           class={[
-            "btn btn-ghost btn-xs absolute right-2 top-1/2 -translate-y-1/2",
+            "absolute right-2 top-1/2 -translate-y-1/2",
             if(@search_query == "", do: "pointer-events-none invisible", else: nil)
           ]}
         >
           <.icon name="hero-x-mark" class="h-4 w-4" />
-        </button>
+        </.button>
       </form>
     </div>
 
@@ -148,10 +150,10 @@
           </div>
 
           <div class="modal-action">
-            <button type="button" phx-click="cancel" class="btn btn-ghost"> Cancel </button>
-            <button type="submit" class="btn btn-secondary">
+            <.button type="button" variant="ghost" phx-click="cancel">Cancel</.button>
+            <.button type="submit" variant="secondary">
               {if @editing_emoji, do: "Update Emoji", else: "Create Emoji"}
-            </button>
+            </.button>
           </div>
         </form>
       </div>
@@ -184,7 +186,7 @@
           </div>
           <!-- Shortcode -->
           <code
-            class="text-xs bg-base-200 px-2 py-0.5 rounded truncate max-w-full"
+            class="text-xs bg-base-200 px-2 py-0.5 rounded-lg truncate max-w-full"
             title={":#{emoji.shortcode}:"}
           >
             :{emoji.shortcode}:
@@ -216,47 +218,52 @@
           </div>
           <!-- Actions -->
           <div class="flex gap-1 mt-2">
-            <.link
+            <.button
               patch={~p"/pripyat/emojis/#{emoji.id}/edit"}
-              class="btn btn-ghost btn-xs"
+              variant="ghost"
+              size="xs"
               title="Edit"
             >
               <.icon name="hero-pencil" class="w-3 h-3" />
-            </.link>
-            <button
+            </.button>
+            <.button
               type="button"
+              variant="ghost"
+              size="xs"
               phx-click="toggle_disabled"
               phx-value-id={emoji.id}
-              class="btn btn-ghost btn-xs"
               title={if emoji.disabled, do: "Enable", else: "Disable"}
             >
               <.icon
                 name={if emoji.disabled, do: "hero-eye", else: "hero-eye-slash"}
                 class="w-3 h-3"
               />
-            </button>
-            <button
+            </.button>
+            <.button
               type="button"
+              variant="ghost"
+              size="xs"
               phx-click="toggle_visibility"
               phx-value-id={emoji.id}
-              class="btn btn-ghost btn-xs"
               title={if emoji.visible_in_picker, do: "Hide from picker", else: "Show in picker"}
             >
               <.icon
                 name={if emoji.visible_in_picker, do: "hero-star-solid", else: "hero-star"}
                 class="w-3 h-3"
               />
-            </button>
-            <button
+            </.button>
+            <.button
               type="button"
+              variant="ghost"
+              size="xs"
+              class="text-error"
               phx-click="delete"
               phx-value-id={emoji.id}
-              class="btn btn-ghost btn-xs text-error"
               title="Delete"
               data-confirm="Delete this emoji? This cannot be undone."
             >
               <.icon name="hero-trash" class="w-3 h-3" />
-            </button>
+            </.button>
           </div>
         </div>
       </div>
@@ -271,18 +278,18 @@
       size="sm"
     >
       <:actions>
-        <.link patch={~p"/pripyat/emojis/new"} class="btn btn-secondary btn-sm mt-2">
+        <.button patch={~p"/pripyat/emojis/new"} variant="secondary" size="sm" class="mt-2">
           Add your first emoji
-        </.link>
+        </.button>
       </:actions>
     </.empty_state>
   <% end %>
   <!-- Load More -->
   <%= if length(@emojis) < @total_count do %>
     <div class="text-center mt-6">
-      <button type="button" phx-click="load_more" class="btn load-more-button">
+      <.button type="button" variant="default" class="load-more-button" phx-click="load_more">
         Load More ({@total_count - length(@emojis)} remaining)
-      </button>
+      </.button>
     </div>
   <% end %>
 </div>

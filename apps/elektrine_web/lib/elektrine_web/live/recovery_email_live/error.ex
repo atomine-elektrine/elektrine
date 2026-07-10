@@ -15,11 +15,8 @@ defmodule ElektrineWeb.RecoveryEmailLive.Error do
 
   def render(assigns) do
     ~H"""
-    <div
-      id="recovery-error-card"
-      class="card panel-card max-w-md mx-auto"
-    >
-      <div class="card-body text-center">
+    <.card id="recovery-error-card" class="max-w-md mx-auto" body_class="text-center">
+      <:body>
         <div class="flex justify-center mb-4">
           <div class="w-16 h-16 rounded-full bg-error/20 flex items-center justify-center">
             <.icon name="hero-x-circle" class="w-10 h-10 text-error" />
@@ -49,15 +46,15 @@ defmodule ElektrineWeb.RecoveryEmailLive.Error do
         <% end %>
 
         <div class="space-y-2">
-          <.link href={~p"/account?tab=security"} class="btn btn-primary w-full">
+          <.button href={~p"/account?tab=security"} class="w-full">
             Go to Account Settings
-          </.link>
-          <.link href={Elektrine.Paths.login_path()} class="btn btn-ghost w-full">
+          </.button>
+          <.button href={Elektrine.Paths.login_path()} variant="ghost" class="w-full">
             Back to Login
-          </.link>
+          </.button>
         </div>
-      </div>
-    </div>
+      </:body>
+    </.card>
     """
   end
 end

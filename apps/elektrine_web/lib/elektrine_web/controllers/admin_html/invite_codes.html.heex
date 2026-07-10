@@ -8,14 +8,14 @@
       </p>
     </div>
 
-    <.link href={~p"/pripyat/invite-codes/new"} class="btn btn-primary btn-sm">
+    <.button href={~p"/pripyat/invite-codes/new"} size="sm">
       <.icon name="hero-plus" class="h-4 w-4" /> <span>Create Invite Code</span>
-    </.link>
+    </.button>
   </div>
 
   <div class="grid grid-cols-2 gap-3 lg:grid-cols-5">
     <div class="surface-muted rounded-box px-4 py-3">
-      <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+      <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
         Total
       </div>
 
@@ -23,7 +23,7 @@
     </div>
 
     <div class="surface-muted rounded-box px-4 py-3">
-      <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+      <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
         Usable
       </div>
 
@@ -31,7 +31,7 @@
     </div>
 
     <div class="surface-muted rounded-box px-4 py-3">
-      <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+      <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
         Expired
       </div>
 
@@ -39,7 +39,7 @@
     </div>
 
     <div class="surface-muted rounded-box px-4 py-3">
-      <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+      <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
         Exhausted
       </div>
 
@@ -47,7 +47,7 @@
     </div>
 
     <div class="surface-muted rounded-box px-4 py-3">
-      <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+      <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
         Mode
       </div>
 
@@ -62,8 +62,8 @@
     </div>
   </div>
 
-  <div class="card panel-card">
-    <div class="card-body p-4 sm:p-5">
+  <.card body_class="p-4 sm:p-5">
+    <:body>
       <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 class="font-semibold">Module Trust Access</h2>
@@ -98,16 +98,16 @@
         </div>
 
         <div class="flex justify-end">
-          <button type="submit" class="btn btn-primary btn-sm">
+          <.button type="submit" size="sm">
             <.icon name="hero-check" class="h-4 w-4" /> <span>Save Module Access</span>
-          </button>
+          </.button>
         </div>
       </form>
-    </div>
-  </div>
+    </:body>
+  </.card>
 
-  <div class="card panel-card">
-    <div class="card-body p-4 sm:p-5">
+  <.card body_class="p-4 sm:p-5">
+    <:body>
       <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h2 class="font-semibold">Registration Mode</h2>
@@ -176,16 +176,16 @@
               </select>
             </div>
           </label>
-          <button type="submit" class="btn btn-primary btn-sm">
+          <.button type="submit" size="sm">
             <.icon name="hero-check" class="h-4 w-4" /> <span>Save Access Rule</span>
-          </button>
+          </.button>
         </form>
       </div>
-    </div>
-  </div>
+    </:body>
+  </.card>
 
-  <div class="card panel-card">
-    <div class="card-body p-0">
+  <.card body_class="p-0">
+    <:body>
       <div class="flex items-center justify-between border-b border-base-content/10 px-4 py-4 sm:px-5">
         <h2 class="font-semibold">Codes</h2>
         <span class="text-sm text-base-content/60">{length(@invite_codes)} total</span>
@@ -198,9 +198,9 @@
 
           <p class="mt-2 text-sm opacity-55">Create one when you need to hand out access.</p>
 
-          <.link href={~p"/pripyat/invite-codes/new"} class="btn btn-primary btn-sm mt-6">
+          <.button href={~p"/pripyat/invite-codes/new"} size="sm" class="mt-6">
             <.icon name="hero-plus" class="h-4 w-4" /> <span>Create Invite Code</span>
-          </.link>
+          </.button>
         </div>
       <% else %>
         <div class="overflow-x-auto">
@@ -240,14 +240,15 @@
                         <% end %>
                       </div>
 
-                      <button
+                      <.button
                         type="button"
-                        class="btn btn-ghost btn-xs"
+                        variant="ghost"
+                        size="xs"
                         data-copy-to-clipboard={invite_code.code}
                         title="Copy code"
                       >
                         <.icon name="hero-document-duplicate" class="h-4 w-4" />
-                      </button>
+                      </.button>
                     </div>
                   </td>
 
@@ -300,26 +301,29 @@
 
                   <td class="align-top">
                     <div class="flex gap-1">
-                      <.link
+                      <.button
                         href={~p"/pripyat/invite-codes/#{invite_code.id}/edit"}
-                        class="btn btn-ghost btn-xs"
+                        variant="ghost"
+                        size="xs"
                         title="Edit"
                       >
                         <.icon name="hero-pencil" class="h-4 w-4" />
-                      </.link>
+                      </.button>
                       <.form
                         for={%{}}
                         action={~p"/pripyat/invite-codes/#{invite_code.id}"}
                         method="delete"
                       >
-                        <button
+                        <.button
                           type="submit"
                           data-confirm="Delete this invite code? This action cannot be undone."
-                          class="btn btn-ghost btn-xs text-error"
+                          variant="ghost"
+                          size="xs"
+                          class="text-error"
                           title="Delete"
                         >
                           <.icon name="hero-trash" class="h-4 w-4" />
-                        </button>
+                        </.button>
                       </.form>
                     </div>
                   </td>
@@ -329,6 +333,6 @@
           </table>
         </div>
       <% end %>
-    </div>
-  </div>
+    </:body>
+  </.card>
 </div>

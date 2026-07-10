@@ -19,8 +19,8 @@
   </div>
   
 <!-- Search Form -->
-  <div class="card panel-card mb-6">
-    <div class="card-body">
+  <.card class="mb-6">
+    <:body>
       <.form for={%{}} action={~p"/pripyat/account-lookup"} method="post">
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div class="md:col-span-2">
@@ -70,18 +70,18 @@
         </div>
 
         <div class="flex justify-end mt-4">
-          <button type="submit" class="btn btn-warning">
+          <.button type="submit" variant="warning">
             <.icon name="hero-magnifying-glass" class="w-4 h-4" /> Search Accounts
-          </button>
+          </.button>
         </div>
       </.form>
-    </div>
-  </div>
+    </:body>
+  </.card>
   
 <!-- Search Results -->
   <%= if @search_results do %>
-    <div class="card panel-card">
-      <div class="card-body p-3 sm:p-6">
+    <.card body_class="p-3 sm:p-6">
+      <:body>
         <h3 class="font-semibold mb-4 flex items-center gap-2">
           <.icon name="hero-users" class="w-5 h-5" /> Search Results
           <span class="badge badge-primary">{length(@search_results)}</span>
@@ -177,13 +177,15 @@
                       <div class="flex flex-col gap-1">
                         <!-- Row 1: Primary actions -->
                         <div class="flex items-center gap-1">
-                          <.link
+                          <.button
                             href={~p"/pripyat/users/#{result.id}/edit"}
-                            class="btn btn-xs sm:btn-sm btn-ghost min-h-[1.5rem] px-2"
+                            variant="ghost"
+                            size="xs"
+                            class="sm:btn-sm min-h-[1.5rem] px-2"
                             title="Edit User"
                           >
                             <.icon name="hero-pencil" class="w-3 h-3 sm:w-4 sm:h-4" />
-                          </.link>
+                          </.button>
 
                           <.form
                             for={%{}}
@@ -191,14 +193,16 @@
                             method="post"
                             class="inline"
                           >
-                            <button
+                            <.button
                               type="submit"
                               data-confirm={"Reset password for #{result.username}? This will generate a new temporary password."}
-                              class="btn btn-xs btn-warning min-h-[1.5rem] px-2"
+                              variant="warning"
+                              size="xs"
+                              class="min-h-[1.5rem] px-2"
                               title="Reset password"
                             >
                               PWD
-                            </button>
+                            </.button>
                           </.form>
                         </div>
                         
@@ -210,14 +214,16 @@
                             method="post"
                             class="inline"
                           >
-                            <button
+                            <.button
                               type="submit"
                               data-confirm={"Reset 2FA for #{result.username}? This will disable their 2FA and clear all secrets."}
-                              class="btn btn-xs btn-info min-h-[1.5rem] px-2"
+                              variant="info"
+                              size="xs"
+                              class="min-h-[1.5rem] px-2"
                               title="Reset 2FA"
                             >
                               2FA
-                            </button>
+                            </.button>
                           </.form>
                           
 <!-- More actions dropdown -->
@@ -269,7 +275,7 @@
             size="sm"
           />
         <% end %>
-      </div>
-    </div>
+      </:body>
+    </.card>
   <% end %>
 </div>

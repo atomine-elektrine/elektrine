@@ -7,8 +7,8 @@
     </p>
   </div>
   <!-- IMAP Users Table -->
-  <div class="card panel-card">
-    <div class="card-body p-3 sm:p-6">
+  <.card body_class="p-3 sm:p-6">
+    <:body>
       <div class="overflow-x-auto">
         <table class="table table-zebra w-full">
           <thead>
@@ -96,20 +96,17 @@
                 </td>
 
                 <td>
-                  <.link
-                    navigate={~p"/pripyat/users/#{user.id}/edit"}
-                    class="btn btn-ghost btn-xs"
-                  >
+                  <.button navigate={~p"/pripyat/users/#{user.id}/edit"} variant="ghost" size="xs">
                     <.icon name="hero-pencil" class="w-3 h-3" /> View
-                  </.link>
+                  </.button>
                 </td>
               </tr>
             <% end %>
           </tbody>
         </table>
       </div>
-    </div>
-  </div>
+    </:body>
+  </.card>
   <!-- Pagination -->
   <%= if @total_pages > 1 do %>
     <div class="flex items-center justify-between mt-6">
@@ -117,32 +114,44 @@
 
       <div class="join">
         <%= if @page > 1 do %>
-          <.link navigate={~p"/pripyat/imap-users?page=#{@page - 1}"} class="join-item btn btn-sm">
+          <.button
+            navigate={~p"/pripyat/imap-users?page=#{@page - 1}"}
+            variant="default"
+            size="sm"
+            class="join-item"
+          >
             «
-          </.link>
+          </.button>
         <% end %>
 
         <%= for page_num <- max(1, @page - 2)..min(@total_pages, @page + 2) do %>
-          <.link
+          <.button
             navigate={~p"/pripyat/imap-users?page=#{page_num}"}
-            class={["join-item btn btn-sm", if(@page == page_num, do: "btn-active", else: "")]}
+            variant="default"
+            size="sm"
+            class={"join-item " <> if(@page == page_num, do: "btn-active", else: "")}
           >
             {page_num}
-          </.link>
+          </.button>
         <% end %>
 
         <%= if @page < @total_pages do %>
-          <.link navigate={~p"/pripyat/imap-users?page=#{@page + 1}"} class="join-item btn btn-sm">
+          <.button
+            navigate={~p"/pripyat/imap-users?page=#{@page + 1}"}
+            variant="default"
+            size="sm"
+            class="join-item"
+          >
             »
-          </.link>
+          </.button>
         <% end %>
       </div>
     </div>
   <% end %>
   <!-- Back to Dashboard -->
   <div class="mt-6">
-    <.link navigate={~p"/pripyat"} class="btn btn-ghost">
+    <.button navigate={~p"/pripyat"} variant="ghost">
       <.icon name="hero-arrow-left" class="w-4 h-4" /> Back to Dashboard
-    </.link>
+    </.button>
   </div>
 </div>

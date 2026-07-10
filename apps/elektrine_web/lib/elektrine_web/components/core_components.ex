@@ -65,8 +65,9 @@ defmodule ElektrineWeb.CoreComponents do
   defdelegate show_modal(js \\ %Phoenix.LiveView.JS{}, id), to: Modal
   defdelegate hide_modal(js \\ %Phoenix.LiveView.JS{}, id), to: Modal
 
-  # Button component
+  # Button components
   defdelegate button(assigns), to: Button
+  defdelegate icon_button(assigns), to: Button
 
   # Floating panel component
   defdelegate floating_panel(assigns), to: FloatingPanel
@@ -220,8 +221,8 @@ defmodule ElektrineWeb.CoreComponents do
 
     ~H"""
     <.sticky_sidebar>
-      <div class="card panel-card">
-        <div class="card-body p-4">
+      <.card body_class="p-4">
+        <:body>
           <h3 class="font-semibold text-sm mb-4">{gettext("Settings")}</h3>
           <ul class="menu menu-compact w-full p-0 space-y-1">
             <%= for {tab_id, tab_icon, tab_tone} <- @tabs do %>
@@ -266,8 +267,8 @@ defmodule ElektrineWeb.CoreComponents do
               <.icon name="hero-identification" class="w-4 h-4" /> {gettext("Identity")}
             </.link>
           </div>
-        </div>
-      </div>
+        </:body>
+      </.card>
     </.sticky_sidebar>
     """
   end
@@ -281,8 +282,8 @@ defmodule ElektrineWeb.CoreComponents do
   def profile_settings_sidebar(assigns) do
     ~H"""
     <.sticky_sidebar>
-      <div class="card panel-card">
-        <div class="card-body p-4">
+      <.card body_class="p-4">
+        <:body>
           <div class="mb-3 flex items-center justify-between gap-3">
             <h3 class="text-sm font-semibold">Profile Builder</h3>
             <span
@@ -354,8 +355,8 @@ defmodule ElektrineWeb.CoreComponents do
               </.link>
             </li>
           </ul>
-        </div>
-      </div>
+        </:body>
+      </.card>
     </.sticky_sidebar>
     """
   end
@@ -365,8 +366,8 @@ defmodule ElektrineWeb.CoreComponents do
   def developer_settings_sidebar(assigns) do
     ~H"""
     <.sticky_sidebar>
-      <div class="card panel-card">
-        <div class="card-body p-4">
+      <.card body_class="p-4">
+        <:body>
           <h3 class="font-semibold text-sm mb-4">{gettext("Developer")}</h3>
 
           <ul class="menu menu-compact w-full p-0 space-y-1">
@@ -397,8 +398,8 @@ defmodule ElektrineWeb.CoreComponents do
               </.link>
             </li>
           </ul>
-        </div>
-      </div>
+        </:body>
+      </.card>
     </.sticky_sidebar>
     """
   end
@@ -518,16 +519,18 @@ defmodule ElektrineWeb.CoreComponents do
         <p class="font-semibold leading-tight">{@title || default_flash_title(@kind)}</p>
         <p class="text-sm break-words">{msg}</p>
       </div>
-      <button
+      <.button
         type="button"
-        class="btn btn-ghost btn-xs app-flash__dismiss"
+        variant="ghost"
+        size="xs"
+        class="app-flash__dismiss"
         data-flash-dismiss="true"
         phx-click={JS.push("lv:clear-flash", value: %{key: @kind})}
         aria-label="Dismiss notification"
       >
         <span class="sr-only">Dismiss</span>
         <.icon name="hero-x-mark-solid" class="h-4 w-4" />
-      </button>
+      </.button>
     </div>
     """
   end

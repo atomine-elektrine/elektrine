@@ -15,8 +15,8 @@ defmodule ElektrineWeb.AuthLive.Login do
 
   def render(assigns) do
     ~H"""
-    <div id="login-card" class="card panel-card max-w-md mx-auto">
-      <div class="card-body">
+    <.card id="login-card" class="max-w-md mx-auto">
+      <:body>
         <h1 class="text-center text-3xl font-bold mb-6">{gettext("Log in")}</h1>
 
         <.simple_form
@@ -91,12 +91,12 @@ defmodule ElektrineWeb.AuthLive.Login do
         <div class="divider">{gettext("OR")}</div>
 
         <div class="text-center">
-          <.link href={~p"/register"} class="btn btn-ghost btn-sm">
+          <.button href={~p"/register"} variant="ghost" size="sm">
             {gettext("Create an account")}
-          </.link>
+          </.button>
         </div>
-      </div>
-    </div>
+      </:body>
+    </.card>
     """
   end
 

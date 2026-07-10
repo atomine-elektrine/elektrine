@@ -513,31 +513,43 @@ defmodule ElektrineWeb.SearchLive do
                 <span class="text-xs text-base-content/45">Commands</span>
               </div>
               <div class="grid gap-2">
-                <button
+                <.button
+                  variant="ghost"
+                  size="sm"
                   class={quick_action_class()}
                   phx-click="search"
                   phx-value-query=">compose email"
                 >
                   <.icon name="hero-pencil-square" class="h-4 w-4 text-primary" /> Compose Email
-                </button>
-                <button
+                </.button>
+                <.button
+                  variant="ghost"
+                  size="sm"
                   class={quick_action_class()}
                   phx-click="search"
                   phx-value-query=">open chat"
                 >
                   <.icon name="hero-chat-bubble-left-right" class="h-4 w-4 text-secondary" />
                   Open Chat
-                </button>
-                <button
+                </.button>
+                <.button
+                  variant="ghost"
+                  size="sm"
                   class={quick_action_class()}
                   phx-click="search"
                   phx-value-query=">open notifications"
                 >
                   <.icon name="hero-bell" class="h-4 w-4 text-warning" /> Notifications
-                </button>
-                <button class={quick_action_class()} phx-click="search" phx-value-query="settings">
+                </.button>
+                <.button
+                  variant="ghost"
+                  size="sm"
+                  class={quick_action_class()}
+                  phx-click="search"
+                  phx-value-query="settings"
+                >
                   <.icon name="hero-cog-6-tooth" class="h-4 w-4 text-info" /> Settings
-                </button>
+                </.button>
               </div>
             </aside>
           </section>
@@ -582,20 +594,22 @@ defmodule ElektrineWeb.SearchLive do
             <ul class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               <li
                 :for={{domain, action} <- Enum.sort(@domain_rules)}
-                class="flex min-w-0 items-center justify-between gap-3 rounded border border-base-300 px-3 py-2 text-sm"
+                class="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-base-300 px-3 py-2 text-sm"
               >
                 <span class="truncate">{domain}</span>
                 <span class="flex shrink-0 items-center gap-2">
                   <span class="badge badge-ghost badge-sm">{domain_rule_label(action)}</span>
-                  <button
+                  <.button
                     type="button"
-                    class="btn btn-ghost btn-xs btn-square"
+                    variant="ghost"
+                    size="xs"
+                    class="btn-square"
                     phx-click="remove_domain_rule"
                     phx-value-domain={domain}
                     aria-label={"Remove rule for #{domain}"}
                   >
                     <.icon name="hero-x-mark" class="h-4 w-4" />
-                  </button>
+                  </.button>
                 </span>
               </li>
             </ul>
@@ -712,20 +726,26 @@ defmodule ElektrineWeb.SearchLive do
                     </div>
 
                     <div class="mt-4 flex flex-wrap gap-2">
-                      <button class="btn btn-sm rounded-full" phx-click="clear_search">
+                      <.button
+                        variant="default"
+                        size="sm"
+                        class="rounded-full"
+                        phx-click="clear_search"
+                      >
                         <.icon name="hero-arrow-uturn-left" class="h-4 w-4" /> Start over
-                      </button>
-                      <button
+                      </.button>
+                      <.button
                         :if={
                           @web_search_allowed? and
                             @active_lens not in ["web", "images", "videos", "news"]
                         }
-                        class="btn btn-primary btn-sm rounded-full"
+                        size="sm"
+                        class="rounded-full"
                         phx-click="set_lens"
                         phx-value-lens="web"
                       >
                         <.icon name="hero-globe-alt" class="h-4 w-4" /> Search the web
-                      </button>
+                      </.button>
                     </div>
                   </div>
                 </div>
@@ -745,17 +765,18 @@ defmodule ElektrineWeb.SearchLive do
               <ul class="space-y-1">
                 <li
                   :for={{domain, action} <- Enum.sort(@domain_rules)}
-                  class="flex items-center justify-between gap-2 rounded px-2 py-1.5 text-sm hover:bg-base-200/50"
+                  class="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-base-200/50"
                 >
                   <span class="min-w-0 truncate">{domain}</span>
-                  <button
+                  <.button
                     type="button"
-                    class="btn btn-ghost btn-xs"
+                    variant="ghost"
+                    size="xs"
                     phx-click="remove_domain_rule"
                     phx-value-domain={domain}
                   >
                     {domain_rule_label(action)}
-                  </button>
+                  </.button>
                 </li>
               </ul>
             </section>
@@ -804,28 +825,27 @@ defmodule ElektrineWeb.SearchLive do
             >
               Command
             </span>
-            <button
+            <.button
               type="button"
+              variant="ghost"
+              size="xs"
               phx-click="clear_search"
               data-search-clear="true"
               aria-label="Clear search"
-              class={[
-                "btn btn-ghost btn-xs",
-                if(@query == "", do: "pointer-events-none invisible", else: nil)
-              ]}
+              class={if(@query == "", do: "pointer-events-none invisible", else: nil)}
             >
               <.icon name="hero-x-mark" class="h-4 w-4" />
-            </button>
+            </.button>
           </label>
 
-          <button
+          <.button
             type="submit"
-            class="btn btn-primary join-item rounded-l-none rounded-r-full px-4"
+            class="join-item rounded-l-none rounded-r-full px-4"
             aria-label="Search"
             title="Search"
           >
             <.icon name="hero-magnifying-glass" class="h-4 w-4" />
-          </button>
+          </.button>
         </div>
       </form>
 
@@ -858,7 +878,7 @@ defmodule ElektrineWeb.SearchLive do
   defp trust_wall_notice(assigns) do
     ~H"""
     <div class={[
-      "rounded-xl border border-warning/30 bg-warning/10 p-4 text-left text-sm text-base-content/75",
+      "rounded-box border border-warning/30 bg-warning/10 p-4 text-left text-sm text-base-content/75",
       @class
     ]}>
       <div class="flex gap-3">
@@ -882,7 +902,7 @@ defmodule ElektrineWeb.SearchLive do
       <div class="card panel-card overflow-hidden">
         <div class="divide-y divide-base-300">
           <div :for={_placeholder <- 1..5} class="flex gap-3 px-4 py-4 sm:px-5">
-            <div class="skeleton h-8 w-8 shrink-0 rounded"></div>
+            <div class="skeleton h-8 w-8 shrink-0 rounded-lg"></div>
             <div class="min-w-0 flex-1 space-y-2">
               <div class="skeleton h-3 w-40"></div>
               <div class="skeleton h-4 w-3/4"></div>
@@ -896,7 +916,7 @@ defmodule ElektrineWeb.SearchLive do
   end
 
   defp quick_action_class do
-    "btn btn-sm btn-ghost justify-start gap-2 rounded px-3"
+    "justify-start gap-2 rounded-lg px-3"
   end
 
   defp starter_card_class do
@@ -1134,7 +1154,7 @@ defmodule ElektrineWeb.SearchLive do
                 rel="noopener noreferrer"
                 class="group min-w-0"
               >
-                <div class="surface-subtle aspect-video overflow-hidden rounded">
+                <div class="surface-subtle aspect-video overflow-hidden rounded-lg">
                   <%= if image_url = result_image_url(result) do %>
                     <img
                       src={image_url}
@@ -1292,7 +1312,7 @@ defmodule ElektrineWeb.SearchLive do
   defp search_result_content(assigns) do
     ~H"""
     <article class="flex min-w-0 gap-3">
-      <div class="surface-subtle mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded text-base-content/60">
+      <div class="surface-subtle mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg text-base-content/60">
         <img
           :if={favicon_url(@result.url)}
           src={favicon_url(@result.url)}
@@ -1336,7 +1356,7 @@ defmodule ElektrineWeb.SearchLive do
         <img
           src={thumbnail_url}
           alt=""
-          class="hidden h-20 w-28 shrink-0 rounded object-cover sm:block"
+          class="hidden h-20 w-28 shrink-0 rounded-lg object-cover sm:block"
           loading="lazy"
         />
       <% end %>

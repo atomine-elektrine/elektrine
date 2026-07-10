@@ -7,8 +7,8 @@ defmodule ElektrineWeb.ProfileLive.DesignThemeSections do
 
   def design_colors_card(assigns) do
     ~H"""
-    <div class="card panel-card">
-      <div class="card-body p-4 sm:p-6">
+    <.card body_class="p-4 sm:p-6">
+      <:body>
         <div class="mb-6">
           <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
@@ -18,14 +18,15 @@ defmodule ElektrineWeb.ProfileLive.DesignThemeSections do
 
               <p class="text-sm text-base-content/60">Fine-tune each color separately</p>
             </div>
-            <button
+            <.button
               type="button"
               phx-click="reset_design_section"
               phx-value-section="colors"
-              class="btn btn-ghost btn-sm"
+              variant="ghost"
+              size="sm"
             >
               Reset colors
-            </button>
+            </.button>
           </div>
         </div>
 
@@ -201,10 +202,10 @@ defmodule ElektrineWeb.ProfileLive.DesignThemeSections do
             </label>
           </div>
 
-          <button type="submit" class="btn btn-primary w-full"> Save Design </button>
+          <.button type="submit" class="w-full">Save Design</.button>
         </.form>
-      </div>
-    </div>
+      </:body>
+    </.card>
     """
   end
 
@@ -244,14 +245,15 @@ defmodule ElektrineWeb.ProfileLive.DesignThemeSections do
         <p class="font-semibold">{@title}</p>
         <p class="text-sm text-base-content/60">{@description}</p>
       </div>
-      <button
+      <.button
         type="button"
         phx-click="reset_design_section"
         phx-value-section={@reset_section}
-        class="btn btn-ghost btn-sm"
+        variant="ghost"
+        size="sm"
       >
         {@reset_label}
-      </button>
+      </.button>
     </div>
     """
   end

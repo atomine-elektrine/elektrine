@@ -245,8 +245,8 @@ defmodule ElektrineWeb.SubscribeLive do
     assigns = assign(assigns, :one_time_product, Product.one_time?(assigns.product))
 
     ~H"""
-    <div class="card panel-card border border-base-300 max-w-lg mx-auto">
-      <div class="card-body text-center">
+    <.card class="border border-base-300 max-w-lg mx-auto" body_class="text-center">
+      <:body>
         <div class="w-16 h-16 rounded-full bg-success/20 flex items-center justify-center mx-auto mb-4">
           <.icon name="hero-check-circle" class="w-8 h-8 text-success" />
         </div>
@@ -300,9 +300,9 @@ defmodule ElektrineWeb.SubscribeLive do
               )}
             </span>
           </div>
-          <button phx-click="resume" class="btn btn-primary btn-block" disabled={@loading}>
+          <.button phx-click="resume" class="btn-block" disabled={@loading}>
             {if @loading, do: "Loading...", else: "Resume Subscription"}
-          </button>
+          </.button>
         <% else %>
           <div class="space-y-2">
             <%= if @one_time_product do %>
@@ -310,22 +310,23 @@ defmodule ElektrineWeb.SubscribeLive do
                 This purchase does not renew automatically.
               </div>
             <% else %>
-              <button phx-click="manage" class="btn btn-primary btn-block" disabled={@loading}>
+              <.button phx-click="manage" class="btn-block" disabled={@loading}>
                 {if @loading, do: "Loading...", else: "Manage Subscription"}
-              </button>
-              <button
+              </.button>
+              <.button
                 phx-click="cancel"
                 data-confirm="Are you sure you want to cancel? You'll keep access until the end of your billing period."
-                class="btn btn-ghost btn-block text-error"
+                variant="ghost"
+                class="btn-block text-error"
                 disabled={@loading}
               >
                 Cancel Subscription
-              </button>
+              </.button>
             <% end %>
           </div>
         <% end %>
-      </div>
-    </div>
+      </:body>
+    </.card>
     """
   end
 
@@ -341,8 +342,8 @@ defmodule ElektrineWeb.SubscribeLive do
 
       ~H"""
       <div class="max-w-xl mx-auto">
-        <div class="card panel-card border-2 border-primary">
-          <div class="card-body">
+        <.card class="border-2 border-primary">
+          <:body>
             <h3 class="text-xl font-semibold text-base-content">One-time Purchase</h3>
             <div class="my-4">
               <%= if @one_time_price do %>
@@ -362,10 +363,10 @@ defmodule ElektrineWeb.SubscribeLive do
             </ul>
             <%= if @current_user do %>
               <%= if @has_one_time do %>
-                <button
+                <.button
                   phx-click="checkout"
                   phx-value-plan="one_time"
-                  class="btn btn-primary btn-block"
+                  class="btn-block"
                   disabled={@loading or @pending_checkout}
                 >
                   {cond do
@@ -373,17 +374,17 @@ defmodule ElektrineWeb.SubscribeLive do
                     @pending_checkout -> "Processing..."
                     true -> "Pay Once"
                   end}
-                </button>
+                </.button>
               <% else %>
-                <button class="btn btn-disabled btn-block">Coming Soon</button>
+                <.button variant="default" class="btn-disabled btn-block">Coming Soon</.button>
               <% end %>
             <% else %>
-              <.link href={Elektrine.Paths.login_path()} class="btn btn-primary btn-block">
+              <.button href={Elektrine.Paths.login_path()} class="btn-block">
                 Log in to Purchase
-              </.link>
+              </.button>
             <% end %>
-          </div>
-        </div>
+          </:body>
+        </.card>
       </div>
 
       <div class="text-center mt-8 text-base-content/60 text-sm">
@@ -420,8 +421,8 @@ defmodule ElektrineWeb.SubscribeLive do
 
       ~H"""
       <div class="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto">
-        <div class="card panel-card border border-base-300 hover:border-secondary/50 transition-colors">
-          <div class="card-body">
+        <.card class="border border-base-300 hover:border-secondary/50 transition-colors">
+          <:body>
             <h3 class="text-xl font-semibold text-base-content">Monthly</h3>
             <div class="my-4">
               <%= if @monthly_price do %>
@@ -441,10 +442,11 @@ defmodule ElektrineWeb.SubscribeLive do
             </ul>
             <%= if @current_user do %>
               <%= if @has_monthly do %>
-                <button
+                <.button
                   phx-click="checkout"
                   phx-value-plan="monthly"
-                  class="btn btn-secondary btn-block"
+                  variant="secondary"
+                  class="btn-block"
                   disabled={@loading or @pending_checkout}
                 >
                   {cond do
@@ -452,17 +454,17 @@ defmodule ElektrineWeb.SubscribeLive do
                     @pending_checkout -> "Processing..."
                     true -> "Subscribe Monthly"
                   end}
-                </button>
+                </.button>
               <% else %>
-                <button class="btn btn-disabled btn-block">Coming Soon</button>
+                <.button variant="default" class="btn-disabled btn-block">Coming Soon</.button>
               <% end %>
             <% else %>
-              <.link href={Elektrine.Paths.login_path()} class="btn btn-secondary btn-block">
+              <.button href={Elektrine.Paths.login_path()} variant="secondary" class="btn-block">
                 Log in to Subscribe
-              </.link>
+              </.button>
             <% end %>
-          </div>
-        </div>
+          </:body>
+        </.card>
 
         <div class="card panel-card border-2 border-secondary relative">
           <%= if @savings_percent && @savings_percent > 0 do %>
@@ -493,10 +495,10 @@ defmodule ElektrineWeb.SubscribeLive do
             </ul>
             <%= if @current_user do %>
               <%= if @has_yearly do %>
-                <button
+                <.button
                   phx-click="checkout"
                   phx-value-plan="yearly"
-                  class="btn btn-primary btn-block"
+                  class="btn-block"
                   disabled={@loading or @pending_checkout}
                 >
                   {cond do
@@ -504,14 +506,14 @@ defmodule ElektrineWeb.SubscribeLive do
                     @pending_checkout -> "Processing..."
                     true -> "Subscribe Yearly"
                   end}
-                </button>
+                </.button>
               <% else %>
-                <button class="btn btn-disabled btn-block">Coming Soon</button>
+                <.button variant="default" class="btn-disabled btn-block">Coming Soon</.button>
               <% end %>
             <% else %>
-              <.link href={Elektrine.Paths.login_path()} class="btn btn-primary btn-block">
+              <.button href={Elektrine.Paths.login_path()} class="btn-block">
                 Log in to Subscribe
-              </.link>
+              </.button>
             <% end %>
           </div>
         </div>

@@ -15,8 +15,8 @@
     ]}
   />
   <!-- Search and Filters -->
-  <div class="card panel-card mb-6">
-    <div class="card-body">
+  <.card class="mb-6">
+    <:body>
       <form method="get" action={~p"/pripyat/communities"} class="space-y-4">
         <!-- Search Box -->
         <div class="form-control">
@@ -29,17 +29,18 @@
               placeholder="Search by community name or description..."
               class="input flex-1 join-item w-full"
             />
-            <button type="submit" class="btn btn-primary join-item">
+            <.button type="submit" class="join-item">
               <.icon name="hero-magnifying-glass" class="w-4 h-4" /> Search
-            </button>
+            </.button>
             <%= if @search_query != "" do %>
-              <a
+              <.button
                 href={~p"/pripyat/communities"}
                 data-search-clear="true"
-                class="btn btn-ghost join-item"
+                variant="ghost"
+                class="join-item"
               >
                 <.icon name="hero-x-mark" class="w-4 h-4" />
-              </a>
+              </.button>
             <% end %>
           </div>
         </div>
@@ -110,12 +111,12 @@
           </div>
         <% end %>
       </form>
-    </div>
-  </div>
+    </:body>
+  </.card>
   <!-- Communities Table -->
   <%= if Enum.empty?(@communities) do %>
-    <div class="card panel-card">
-      <div class="card-body text-center py-12">
+    <.card body_class="text-center py-12">
+      <:body>
         <.icon name="hero-magnifying-glass" class="w-16 h-16 mx-auto mb-4 text-base-content/30" />
         <h3 class="text-lg font-semibold">No Communities Found</h3>
 
@@ -126,11 +127,11 @@
             No communities have been created yet.
           <% end %>
         </p>
-      </div>
-    </div>
+      </:body>
+    </.card>
   <% else %>
-    <div class="card panel-card">
-      <div class="card-body p-3 sm:p-6">
+    <.card body_class="p-3 sm:p-6">
+      <:body>
         <div class="overflow-x-auto">
           <table class="table table-zebra">
             <thead>
@@ -229,21 +230,23 @@
 
                   <td>
                     <div class="flex gap-1">
-                      <.link
+                      <.button
                         href={~p"/pripyat/communities/#{community.id}"}
-                        class="btn btn-ghost btn-xs"
+                        variant="ghost"
+                        size="xs"
                         title="View Details"
                       >
                         <.icon name="hero-eye" class="w-4 h-4" />
-                      </.link>
-                      <.link
+                      </.button>
+                      <.button
                         href={~p"/discussions/#{community.name}"}
-                        class="btn btn-ghost btn-xs"
+                        variant="ghost"
+                        size="xs"
                         title="Visit Community"
                         target="_blank"
                       >
                         <.icon name="hero-arrow-top-right-on-square" class="w-4 h-4" />
-                      </.link>
+                      </.button>
                       <.form
                         for={%{}}
                         action={~p"/pripyat/communities/#{community.id}"}
@@ -251,7 +254,9 @@
                         class="inline"
                       >
                         <.button
-                          class="btn btn-ghost btn-xs text-error"
+                          variant="ghost"
+                          size="xs"
+                          class="text-error"
                           data-confirm={"Delete '#{community.name}'?\n\nThis will permanently delete:\n• The community\n• All #{community.member_count || 0} members\n• All #{community.post_count} posts\n• All replies and comments\n\nThis CANNOT be undone!"}
                         >
                           <.icon name="hero-trash" class="w-4 h-4" />
@@ -268,7 +273,7 @@
         <%= if @total_pages > 1 do %>
           <div class="flex justify-center mt-6 gap-2">
             <%= if @current_page > 1 do %>
-              <a
+              <.button
                 href={
                   build_communities_url(
                     @search_query,
@@ -277,15 +282,16 @@
                     @current_page - 1
                   )
                 }
-                class="btn btn-sm"
+                variant="default"
+                size="sm"
               >
                 «
-              </a>
+              </.button>
             <% end %>
 
             <div class="join">
               <%= for page_num <- @page_range do %>
-                <a
+                <.button
                   href={
                     build_communities_url(
                       @search_query,
@@ -294,15 +300,17 @@
                       page_num
                     )
                   }
-                  class={"join-item btn btn-sm " <> if(page_num == @current_page, do: "btn-active", else: "")}
+                  variant="default"
+                  size="sm"
+                  class={"join-item " <> if(page_num == @current_page, do: "btn-active", else: "")}
                 >
                   {page_num}
-                </a>
+                </.button>
               <% end %>
             </div>
 
             <%= if @current_page < @total_pages do %>
-              <a
+              <.button
                 href={
                   build_communities_url(
                     @search_query,
@@ -311,10 +319,11 @@
                     @current_page + 1
                   )
                 }
-                class="btn btn-sm"
+                variant="default"
+                size="sm"
               >
                 »
-              </a>
+              </.button>
             <% end %>
           </div>
 
@@ -322,13 +331,13 @@
             Page {@current_page} of {@total_pages} • {@total_count} communities
           </div>
         <% end %>
-      </div>
-    </div>
+      </:body>
+    </.card>
   <% end %>
   <!-- Back Button -->
   <div class="mt-6">
-    <.link href={~p"/pripyat"} class="btn btn-ghost">
+    <.button href={~p"/pripyat"} variant="ghost">
       <.icon name="hero-arrow-left" class="w-4 h-4" /> Back to Admin Dashboard
-    </.link>
+    </.button>
   </div>
 </div>

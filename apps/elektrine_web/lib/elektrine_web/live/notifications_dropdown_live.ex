@@ -56,22 +56,26 @@ defmodule ElektrineWeb.NotificationsDropdownLive do
               </div>
               <div class="flex items-center gap-1 sm:gap-2">
                 <%= if @unread_count > 0 do %>
-                  <button
+                  <.button
                     phx-click="mark_all_as_read"
-                    class="btn btn-xs btn-secondary rounded-full"
+                    variant="secondary"
+                    size="xs"
+                    class="rounded-full"
                     title={gettext("Mark all read")}
                   >
                     <.icon name="hero-check-circle" class="w-4 h-4 sm:mr-1" />
                     <span class="hidden sm:inline text-xs">{gettext("Mark all read")}</span>
-                  </button>
+                  </.button>
                 <% end %>
-                <button
+                <.button
                   phx-click="close_dropdown"
-                  class="btn btn-circle btn-xs border border-base-300 bg-base-100 hover:bg-base-200"
+                  variant="default"
+                  size="xs"
+                  class="btn-circle border border-base-300 bg-base-100 hover:bg-base-200"
                   aria-label={gettext("Close notifications")}
                 >
                   <.icon name="hero-x-mark" class="w-4 h-4" />
-                </button>
+                </.button>
               </div>
             </div>
           </div>
@@ -89,7 +93,7 @@ defmodule ElektrineWeb.NotificationsDropdownLive do
               <div class="space-y-2 p-2">
                 <%= for notification <- @notifications do %>
                   <article class={[
-                    "rounded-2xl border p-3 transition-colors hover:bg-base-200 group",
+                    "rounded-box border p-3 transition-colors hover:bg-base-200 group",
                     if(is_nil(notification.read_at),
                       do: "border-secondary/40 bg-secondary/5",
                       else: "border-base-300 bg-base-100"
@@ -98,7 +102,7 @@ defmodule ElektrineWeb.NotificationsDropdownLive do
                     <div class="flex gap-3">
                       <div class="flex-shrink-0 mt-0.5">
                         <div class={[
-                          "w-9 h-9 rounded-2xl flex items-center justify-center border",
+                          "w-9 h-9 rounded-lg flex items-center justify-center border",
                           if(notification.priority == "urgent",
                             do: "border-error/30 bg-error/15",
                             else: "border-base-300 bg-base-200"
@@ -151,23 +155,27 @@ defmodule ElektrineWeb.NotificationsDropdownLive do
                           </div>
                           <div class="flex flex-col gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex-shrink-0">
                             <%= if is_nil(notification.read_at) do %>
-                              <button
+                              <.button
                                 phx-click="mark_as_read"
                                 phx-value-id={notification.id}
-                                class="btn btn-circle btn-xs min-h-0 h-7 w-7 border border-base-300 bg-base-100 hover:bg-base-200"
+                                variant="default"
+                                size="xs"
+                                class="btn-circle min-h-0 h-7 w-7 border border-base-300 bg-base-100 hover:bg-base-200"
                                 title={gettext("Mark as read")}
                               >
                                 <.icon name="hero-check" class="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                              </button>
+                              </.button>
                             <% end %>
-                            <button
+                            <.button
                               phx-click="dismiss"
                               phx-value-id={notification.id}
-                              class="btn btn-circle btn-xs min-h-0 h-7 w-7 border border-base-300 bg-base-100 hover:bg-base-200"
+                              variant="default"
+                              size="xs"
+                              class="btn-circle min-h-0 h-7 w-7 border border-base-300 bg-base-100 hover:bg-base-200"
                               title={gettext("Dismiss")}
                             >
                               <.icon name="hero-x-mark" class="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                            </button>
+                            </.button>
                           </div>
                         </div>
                       </div>
@@ -180,12 +188,14 @@ defmodule ElektrineWeb.NotificationsDropdownLive do
 
           <%= if @notifications != [] do %>
             <div class="p-2 sm:p-3 border-t border-base-300 flex-shrink-0 bg-base-100/95">
-              <button
+              <.button
                 phx-click="view_all"
-                class="btn btn-sm btn-block rounded-full border border-base-300 bg-base-100 hover:bg-base-200"
+                variant="default"
+                size="sm"
+                class="btn-block rounded-full border border-base-300 bg-base-100 hover:bg-base-200"
               >
                 {gettext("Open notification center")}
-              </button>
+              </.button>
             </div>
           <% end %>
         </.floating_panel>

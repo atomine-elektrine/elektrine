@@ -27,11 +27,8 @@ defmodule ElektrineWeb.AuthLive.PasswordReset do
 
   def render(assigns) do
     ~H"""
-    <div
-      id="password-reset-card"
-      class="card panel-card max-w-md mx-auto"
-    >
-      <div class="card-body">
+    <.card id="password-reset-card" class="max-w-md mx-auto">
+      <:body>
         <h1 class="text-center text-3xl font-bold mb-6">{gettext("Reset Password")}</h1>
 
         <p class="text-center opacity-70 mb-6">
@@ -58,10 +55,14 @@ defmodule ElektrineWeb.AuthLive.PasswordReset do
                       <span class="label-text">{gettext("Solve the problem")}</span>
                     </label>
                     <div class="flex items-center gap-3">
-                      <img src={~p"/captcha"} alt="Captcha" class="rounded border border-base-300" />
-                      <.link href={~p"/password/reset"} class="btn btn-ghost btn-sm">
+                      <img
+                        src={~p"/captcha"}
+                        alt="Captcha"
+                        class="rounded-lg border border-base-300"
+                      />
+                      <.button href={~p"/password/reset"} variant="ghost" size="sm">
                         {gettext("Refresh")}
-                      </.link>
+                      </.button>
                     </div>
                     <input
                       type="text"
@@ -85,7 +86,7 @@ defmodule ElektrineWeb.AuthLive.PasswordReset do
                         <div class="space-y-2 text-left">
                           <div class="flex items-start justify-between gap-3">
                             <p class="font-semibold">Security check</p>
-                            <span class="rounded-full bg-base-200 px-2 py-0.5 text-[11px] text-base-content/70">
+                            <span class="rounded-full bg-base-200 px-2 py-0.5 text-2xs text-base-content/70">
                               check level {@atomine_pow_difficulty}
                             </span>
                           </div>
@@ -110,12 +111,12 @@ defmodule ElektrineWeb.AuthLive.PasswordReset do
         <div class="divider mt-6">{gettext("OR")}</div>
 
         <div class="text-center">
-          <.link href={Elektrine.Paths.login_path()} class="btn btn-ghost btn-sm">
+          <.button href={Elektrine.Paths.login_path()} variant="ghost" size="sm">
             {gettext("Back to Login")}
-          </.link>
+          </.button>
         </div>
-      </div>
-    </div>
+      </:body>
+    </.card>
     """
   end
 end

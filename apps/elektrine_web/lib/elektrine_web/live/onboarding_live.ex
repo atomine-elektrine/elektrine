@@ -116,8 +116,8 @@ defmodule ElektrineWeb.OnboardingLive do
   def render(assigns) do
     ~H"""
     <div class="mx-auto max-w-4xl px-2 sm:px-4 lg:px-8 pb-8">
-      <div class="card panel-card mt-6">
-        <div class="card-body p-6 sm:p-8">
+      <.card class="mt-6" body_class="p-6 sm:p-8">
+        <:body>
           <div class="mb-8">
             <div class="flex justify-between mb-2">
               <span class="text-sm font-medium">Step {@step} of {@total_steps}</span>
@@ -373,7 +373,7 @@ defmodule ElektrineWeb.OnboardingLive do
               </div>
             <% 4 -> %>
               <div class="text-center">
-                <div class="w-20 h-20 mx-auto bg-success/10 border-2 border-success/20 rounded-2xl flex items-center justify-center mb-6">
+                <div class="w-20 h-20 mx-auto bg-success/10 border-2 border-success/20 rounded-lg flex items-center justify-center mb-6">
                   <.icon name="hero-check-circle" class="w-12 h-12 text-success" />
                 </div>
                 <h2 class="text-3xl font-bold mb-3">Pick a starting point</h2>
@@ -471,39 +471,36 @@ defmodule ElektrineWeb.OnboardingLive do
           <div class="flex justify-between items-center mt-8 pt-6 border-t border-base-300">
             <div>
               <%= if @step > 1 do %>
-                <button phx-click="prev_step" class="btn btn-ghost">
+                <.button phx-click="prev_step" variant="ghost">
                   <.icon name="hero-arrow-left" class="w-4 h-4 mr-1" /> Back
-                </button>
+                </.button>
               <% else %>
-                <button phx-click="skip_onboarding" class="btn btn-ghost">
+                <.button phx-click="skip_onboarding" variant="ghost">
                   Skip Setup
-                </button>
+                </.button>
               <% end %>
             </div>
 
             <div>
               <%= if @step < @total_steps do %>
                 <%= if @step == 2 do %>
-                  <button
-                    phx-click="save_profile"
-                    class="btn btn-primary"
-                  >
+                  <.button phx-click="save_profile">
                     Continue <.icon name="hero-arrow-right" class="w-4 h-4 ml-1" />
-                  </button>
+                  </.button>
                 <% else %>
-                  <button phx-click="next_step" class="btn btn-primary">
+                  <.button phx-click="next_step">
                     Continue <.icon name="hero-arrow-right" class="w-4 h-4 ml-1" />
-                  </button>
+                  </.button>
                 <% end %>
               <% else %>
-                <button phx-click="complete_onboarding" class="btn btn-primary">
+                <.button phx-click="complete_onboarding">
                   <.icon name="hero-check" class="w-4 h-4 mr-1" /> Finish Setup
-                </button>
+                </.button>
               <% end %>
             </div>
           </div>
-        </div>
-      </div>
+        </:body>
+      </.card>
     </div>
     """
   end

@@ -1,17 +1,17 @@
 <div class="admin-page">
   <div class="mb-6">
     <div class="flex items-center mb-2">
-      <.link href={~p"/pripyat/subscriptions"} class="btn btn-ghost btn-sm mr-4">
+      <.button href={~p"/pripyat/subscriptions"} variant="ghost" size="sm" class="mr-4">
         <.icon name="hero-arrow-left" class="h-4 w-4 mr-2" /> Back
-      </.link>
+      </.button>
       <h1 class="text-2xl font-bold">Edit Product: {@product.name}</h1>
     </div>
 
     <p class="opacity-70">Update product details and Stripe pricing.</p>
   </div>
 
-  <div class="card panel-card">
-    <div class="card-body">
+  <.card>
+    <:body>
       <.simple_form
         :let={f}
         for={@changeset}
@@ -214,13 +214,13 @@
 
         <:actions>
           <div class="flex gap-2">
-            <.button class="btn-primary">
+            <.button>
               <.icon name="hero-check" class="w-4 h-4 mr-2" /> Update Product
             </.button>
-            <.link href={~p"/pripyat/subscriptions"} class="btn btn-ghost"> Cancel </.link>
+            <.button href={~p"/pripyat/subscriptions"} variant="ghost">Cancel</.button>
           </div>
         </:actions>
       </.simple_form>
-    </div>
-  </div>
+    </:body>
+  </.card>
 </div>

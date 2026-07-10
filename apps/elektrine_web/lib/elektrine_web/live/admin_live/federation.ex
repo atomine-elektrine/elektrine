@@ -498,26 +498,26 @@ defmodule ElektrineWeb.AdminLive.Federation do
       >
         <:actions>
           <.action_toolbar>
-            <.link navigate={~p"/pripyat/messaging-federation"} class="btn btn-sm btn-ghost">
+            <.button navigate={~p"/pripyat/messaging-federation"} variant="ghost" size="sm">
               <.icon name="hero-chat-bubble-left-right" class="w-4 h-4" />
               <span class="hidden sm:inline ml-1">Chat Federation</span>
-            </.link>
-            <.link navigate={~p"/pripyat/bluesky-bridge"} class="btn btn-sm btn-ghost">
+            </.button>
+            <.button navigate={~p"/pripyat/bluesky-bridge"} variant="ghost" size="sm">
               <.icon name="hero-link" class="w-4 h-4" />
               <span class="hidden sm:inline ml-1">Bluesky Bridge</span>
-            </.link>
-            <.link navigate={~p"/pripyat/relays"} class="btn btn-sm btn-ghost">
+            </.button>
+            <.button navigate={~p"/pripyat/relays"} variant="ghost" size="sm">
               <.icon name="hero-signal" class="w-4 h-4" />
               <span class="hidden sm:inline ml-1">ActivityPub Relays</span>
-            </.link>
-            <button phx-click="show_add_block_modal" class="btn btn-sm btn-secondary">
+            </.button>
+            <.button variant="secondary" size="sm" phx-click="show_add_block_modal">
               <.icon name="hero-plus" class="w-4 h-4" />
               <span class="hidden sm:inline ml-1">Add Policy</span>
-            </button>
-            <button phx-click="refresh" class="btn btn-sm btn-ghost">
+            </.button>
+            <.button variant="ghost" size="sm" phx-click="refresh">
               <.icon name="hero-arrow-path" class="w-4 h-4" />
               <span class="hidden sm:inline ml-1">Refresh</span>
-            </button>
+            </.button>
           </.action_toolbar>
         </:actions>
       </.section_header>
@@ -532,78 +532,78 @@ defmodule ElektrineWeb.AdminLive.Federation do
       
     <!-- Stats Cards -->
       <div class="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-4 lg:grid-cols-8">
-        <div class="card panel-card shadow">
-          <div class="card-body p-3 sm:p-4">
+        <.card body_class="p-3 sm:p-4">
+          <:body>
             <div class="flex items-center gap-2">
               <.icon name="hero-globe-alt" class="w-4 h-4 text-primary opacity-70" />
               <span class="text-xs opacity-70">Domains</span>
             </div>
             <div class="text-lg sm:text-xl font-bold">{@stats.unique_domains}</div>
-          </div>
-        </div>
-        <div class="card panel-card shadow">
-          <div class="card-body p-3 sm:p-4">
+          </:body>
+        </.card>
+        <.card body_class="p-3 sm:p-4">
+          <:body>
             <div class="flex items-center gap-2">
               <.icon name="hero-users" class="w-4 h-4 text-info opacity-70" />
               <span class="text-xs opacity-70">Actors</span>
             </div>
             <div class="text-lg sm:text-xl font-bold">{@stats.total_actors}</div>
-          </div>
-        </div>
-        <div class="card panel-card shadow">
-          <div class="card-body p-3 sm:p-4">
+          </:body>
+        </.card>
+        <.card body_class="p-3 sm:p-4">
+          <:body>
             <div class="flex items-center gap-2">
               <.icon name="hero-user" class="w-4 h-4 text-success opacity-70" />
               <span class="text-xs opacity-70">People</span>
             </div>
             <div class="text-lg sm:text-xl font-bold">{@stats.person_actors}</div>
-          </div>
-        </div>
-        <div class="card panel-card shadow">
-          <div class="card-body p-3 sm:p-4">
+          </:body>
+        </.card>
+        <.card body_class="p-3 sm:p-4">
+          <:body>
             <div class="flex items-center gap-2">
               <.icon name="hero-user-group" class="w-4 h-4 text-accent opacity-70" />
               <span class="text-xs opacity-70">Groups</span>
             </div>
             <div class="text-lg sm:text-xl font-bold">{@stats.group_actors}</div>
-          </div>
-        </div>
-        <div class="card panel-card shadow">
-          <div class="card-body p-3 sm:p-4">
+          </:body>
+        </.card>
+        <.card body_class="p-3 sm:p-4">
+          <:body>
             <div class="flex items-center gap-2">
               <.icon name="hero-bolt" class="w-4 h-4 text-warning opacity-70" />
               <span class="text-xs opacity-70">Activities</span>
             </div>
             <div class="text-lg sm:text-xl font-bold">{@stats.total_activities}</div>
-          </div>
-        </div>
-        <div class="card panel-card shadow">
-          <div class="card-body p-3 sm:p-4">
+          </:body>
+        </.card>
+        <.card body_class="p-3 sm:p-4">
+          <:body>
             <div class="flex items-center gap-2">
               <.icon name="hero-no-symbol" class="w-4 h-4 text-error opacity-70" />
               <span class="text-xs opacity-70">Blocked</span>
             </div>
             <div class="text-lg sm:text-xl font-bold text-error">{@stats.blocked_instances}</div>
-          </div>
-        </div>
-        <div class="card panel-card shadow">
-          <div class="card-body p-3 sm:p-4">
+          </:body>
+        </.card>
+        <.card body_class="p-3 sm:p-4">
+          <:body>
             <div class="flex items-center gap-2">
               <.icon name="hero-adjustments-horizontal" class="w-4 h-4 text-warning opacity-70" />
               <span class="text-xs opacity-70">Limited</span>
             </div>
             <div class="text-lg sm:text-xl font-bold text-warning">{@stats.limited_instances}</div>
-          </div>
-        </div>
-        <div class="card panel-card shadow">
-          <div class="card-body p-3 sm:p-4">
+          </:body>
+        </.card>
+        <.card body_class="p-3 sm:p-4">
+          <:body>
             <div class="flex items-center gap-2">
               <.icon name="hero-clock" class="w-4 h-4 text-secondary opacity-70" />
               <span class="text-xs opacity-70">Pending</span>
             </div>
             <div class="text-lg sm:text-xl font-bold">{@stats.pending_deliveries}</div>
-          </div>
-        </div>
+          </:body>
+        </.card>
       </div>
       
     <!-- Tabs -->
@@ -657,23 +657,23 @@ defmodule ElektrineWeb.AdminLive.Federation do
               phx-debounce="300"
               disabled={@active_tab in ["domains", "activity"]}
             />
-            <button
+            <.button
               type="submit"
-              class="btn btn-primary join-item"
+              class="join-item"
               disabled={@active_tab in ["domains", "activity"]}
             >
               <.icon name="hero-magnifying-glass" class="w-4 h-4" />
-            </button>
+            </.button>
           </div>
           <%= if @search_query != "" && @active_tab not in ["domains", "activity"] do %>
-            <button
+            <.button
               type="button"
+              variant="ghost"
               phx-click="clear_search"
               data-search-clear="true"
-              class="btn btn-ghost"
             >
               <.icon name="hero-x-mark" class="w-4 h-4" />
-            </button>
+            </.button>
           <% end %>
         </form>
         <%= if @active_tab in ["domains", "activity"] do %>
@@ -723,8 +723,8 @@ defmodule ElektrineWeb.AdminLive.Federation do
 
   defp instances_table(assigns) do
     ~H"""
-    <div class="card panel-card shadow">
-      <div class="card-body p-3 sm:p-6">
+    <.card body_class="p-3 sm:p-6">
+      <:body>
         <h2 class="card-title text-base sm:text-lg mb-4">
           <.icon name="hero-server-stack" class="w-5 h-5" /> ActivityPub Instance Policies
           <span class="badge badge-neutral">{@total_count}</span>
@@ -769,33 +769,38 @@ defmodule ElektrineWeb.AdminLive.Federation do
                     </td>
                     <td>
                       <div class="flex gap-1">
-                        <button
+                        <.button
+                          variant="ghost"
+                          size="xs"
                           phx-click="show_policy_modal"
                           phx-value-id={instance.id}
-                          class="btn btn-xs btn-ghost"
                           title="Edit Policies"
                         >
                           <.icon name="hero-cog-6-tooth" class="w-3 h-3" />
-                        </button>
+                        </.button>
                         <%= if Instance.has_any_policy?(instance) do %>
-                          <button
+                          <.button
+                            variant="ghost"
+                            size="xs"
+                            class="btn-success"
                             phx-click="unblock_instance"
                             phx-value-id={instance.id}
-                            class="btn btn-xs btn-success btn-ghost"
                             title="Clear All Policies"
                           >
                             <.icon name="hero-check" class="w-3 h-3" />
-                          </button>
+                          </.button>
                         <% end %>
-                        <button
+                        <.button
+                          variant="ghost"
+                          size="xs"
+                          class="btn-error"
                           phx-click="delete_instance"
                           phx-value-id={instance.id}
                           data-confirm="Delete this instance record? This cannot be undone."
-                          class="btn btn-xs btn-error btn-ghost"
                           title="Delete"
                         >
                           <.icon name="hero-trash" class="w-3 h-3" />
-                        </button>
+                        </.button>
                       </div>
                     </td>
                   </tr>
@@ -807,20 +812,24 @@ defmodule ElektrineWeb.AdminLive.Federation do
             <div class="flex items-center justify-between mt-4">
               <span class="text-xs opacity-70">Page {@page} of {@total_pages}</span>
               <div class="join">
-                <button
+                <.button
+                  variant="default"
+                  size="sm"
+                  class="join-item"
                   phx-click="instances_prev_page"
-                  class="btn btn-sm join-item"
                   disabled={@page <= 1}
                 >
                   Previous
-                </button>
-                <button
+                </.button>
+                <.button
+                  variant="default"
+                  size="sm"
+                  class="join-item"
                   phx-click="instances_next_page"
-                  class="btn btn-sm join-item"
                   disabled={@page >= @total_pages}
                 >
                   Next
-                </button>
+                </.button>
               </div>
             </div>
           <% end %>
@@ -833,8 +842,8 @@ defmodule ElektrineWeb.AdminLive.Federation do
             </p>
           </div>
         <% end %>
-      </div>
-    </div>
+      </:body>
+    </.card>
     """
   end
 
@@ -868,8 +877,8 @@ defmodule ElektrineWeb.AdminLive.Federation do
           <!-- Policy toggles in categories -->
           <div class="space-y-4">
             <!-- Blocking -->
-            <div class="card bg-base-200">
-              <div class="card-body p-4">
+            <.card body_class="p-4">
+              <:body>
                 <h4 class="font-semibold text-error mb-2">Blocking</h4>
                 <.policy_toggle
                   field="blocked"
@@ -883,12 +892,12 @@ defmodule ElektrineWeb.AdminLive.Federation do
                   description="Also reject Delete activities (keeps content even if deleted upstream)"
                   value={@policy_form["reject_deletes"]}
                 />
-              </div>
-            </div>
+              </:body>
+            </.card>
             
     <!-- Visibility -->
-            <div class="card bg-base-200">
-              <div class="card-body p-4">
+            <.card body_class="p-4">
+              <:body>
                 <h4 class="font-semibold text-warning mb-2">Visibility Restrictions</h4>
                 <.policy_toggle
                   field="federated_timeline_removal"
@@ -908,12 +917,12 @@ defmodule ElektrineWeb.AdminLive.Federation do
                   description="Legacy option - prefer using specific visibility policies"
                   value={@policy_form["silenced"]}
                 />
-              </div>
-            </div>
+              </:body>
+            </.card>
             
     <!-- Media -->
-            <div class="card bg-base-200">
-              <div class="card-body p-4">
+            <.card body_class="p-4">
+              <:body>
                 <h4 class="font-semibold text-info mb-2">Media Handling</h4>
                 <.policy_toggle
                   field="media_removal"
@@ -939,12 +948,12 @@ defmodule ElektrineWeb.AdminLive.Federation do
                   description="Strip header/banner images from user profiles"
                   value={@policy_form["banner_removal"]}
                 />
-              </div>
-            </div>
+              </:body>
+            </.card>
             
     <!-- Moderation -->
-            <div class="card bg-base-200">
-              <div class="card-body p-4">
+            <.card body_class="p-4">
+              <:body>
                 <h4 class="font-semibold text-secondary mb-2">Moderation</h4>
                 <.policy_toggle
                   field="report_removal"
@@ -952,8 +961,8 @@ defmodule ElektrineWeb.AdminLive.Federation do
                   description="Ignore Flag (report) activities from this instance"
                   value={@policy_form["report_removal"]}
                 />
-              </div>
-            </div>
+              </:body>
+            </.card>
           </div>
           
     <!-- Reason and notes -->
@@ -983,12 +992,12 @@ defmodule ElektrineWeb.AdminLive.Federation do
           </div>
 
           <div class="modal-action">
-            <button type="button" phx-click="close_modal" class="btn">
+            <.button type="button" variant="default" phx-click="close_modal">
               Cancel
-            </button>
-            <button type="submit" class="btn btn-primary">
+            </.button>
+            <.button type="submit">
               Save Policies
-            </button>
+            </.button>
           </div>
         </form>
       </div>
@@ -1053,33 +1062,36 @@ defmodule ElektrineWeb.AdminLive.Federation do
               <span class="label-text">Quick Presets</span>
             </label>
             <div class="flex flex-wrap gap-2">
-              <button
+              <.button
                 type="button"
-                class="btn btn-xs btn-error"
+                variant="error"
+                size="xs"
                 phx-click="update_policy_form"
                 phx-value-field="blocked"
                 phx-value-value="true"
               >
                 Block
-              </button>
-              <button
+              </.button>
+              <.button
                 type="button"
-                class="btn btn-xs btn-warning"
+                variant="warning"
+                size="xs"
                 phx-click="update_policy_form"
                 phx-value-field="federated_timeline_removal"
                 phx-value-value="true"
               >
                 Hide from FTL
-              </button>
-              <button
+              </.button>
+              <.button
                 type="button"
-                class="btn btn-xs btn-info"
+                variant="info"
+                size="xs"
                 phx-click="update_policy_form"
                 phx-value-field="media_nsfw"
                 phx-value-value="true"
               >
                 Force NSFW
-              </button>
+              </.button>
             </div>
           </div>
           
@@ -1167,12 +1179,12 @@ defmodule ElektrineWeb.AdminLive.Federation do
           </div>
 
           <div class="modal-action">
-            <button type="button" phx-click="close_modal" class="btn">
+            <.button type="button" variant="default" phx-click="close_modal">
               Cancel
-            </button>
-            <button type="submit" class="btn btn-primary">
+            </.button>
+            <.button type="submit">
               Add Instance
-            </button>
+            </.button>
           </div>
         </form>
       </div>
@@ -1185,8 +1197,8 @@ defmodule ElektrineWeb.AdminLive.Federation do
 
   defp actors_table(assigns) do
     ~H"""
-    <div class="card panel-card shadow">
-      <div class="card-body p-3 sm:p-6">
+    <.card body_class="p-3 sm:p-6">
+      <:body>
         <h2 class="card-title text-base sm:text-lg mb-4">
           <.icon name="hero-users" class="w-5 h-5" /> Remote Actors
           <span class="badge badge-neutral">{@total_count}</span>
@@ -1259,20 +1271,24 @@ defmodule ElektrineWeb.AdminLive.Federation do
             <div class="flex items-center justify-between mt-4">
               <span class="text-xs opacity-70">Page {@page} of {@total_pages}</span>
               <div class="join">
-                <button
+                <.button
+                  variant="default"
+                  size="sm"
+                  class="join-item"
                   phx-click="actors_prev_page"
-                  class="btn btn-sm join-item"
                   disabled={@page <= 1}
                 >
                   Previous
-                </button>
-                <button
+                </.button>
+                <.button
+                  variant="default"
+                  size="sm"
+                  class="join-item"
                   phx-click="actors_next_page"
-                  class="btn btn-sm join-item"
                   disabled={@page >= @total_pages}
                 >
                   Next
-                </button>
+                </.button>
               </div>
             </div>
           <% end %>
@@ -1285,15 +1301,15 @@ defmodule ElektrineWeb.AdminLive.Federation do
             </p>
           </div>
         <% end %>
-      </div>
-    </div>
+      </:body>
+    </.card>
     """
   end
 
   defp domains_table(assigns) do
     ~H"""
-    <div class="card panel-card shadow">
-      <div class="card-body p-3 sm:p-6">
+    <.card body_class="p-3 sm:p-6">
+      <:body>
         <h2 class="card-title text-base sm:text-lg mb-4">
           <.icon name="hero-chart-bar" class="w-5 h-5" /> Top Domains by Actor Count
         </h2>
@@ -1314,15 +1330,17 @@ defmodule ElektrineWeb.AdminLive.Federation do
                   >
                   </progress>
                 </div>
-                <button
+                <.button
+                  variant="ghost"
+                  size="xs"
+                  class="btn-error"
                   phx-click="quick_block"
                   phx-value-domain={domain}
                   data-confirm="Block all activity from #{domain}?"
-                  class="btn btn-xs btn-ghost btn-error"
                   title="Quick Block"
                 >
                   <.icon name="hero-no-symbol" class="w-3 h-3" />
-                </button>
+                </.button>
               </div>
             <% end %>
           </div>
@@ -1332,15 +1350,15 @@ defmodule ElektrineWeb.AdminLive.Federation do
             <p class="opacity-70">No domain statistics available</p>
           </div>
         <% end %>
-      </div>
-    </div>
+      </:body>
+    </.card>
     """
   end
 
   defp activity_table(assigns) do
     ~H"""
-    <div class="card panel-card shadow">
-      <div class="card-body p-3 sm:p-6">
+    <.card body_class="p-3 sm:p-6">
+      <:body>
         <h2 class="card-title text-base sm:text-lg mb-4">
           <.icon name="hero-bolt" class="w-5 h-5" /> Recent Activity
           <span class="badge badge-neutral">{length(@activities)}</span>
@@ -1398,8 +1416,8 @@ defmodule ElektrineWeb.AdminLive.Federation do
             <p class="text-sm opacity-50 mt-1">Federation activity will appear here</p>
           </div>
         <% end %>
-      </div>
-    </div>
+      </:body>
+    </.card>
     """
   end
 end

@@ -15,8 +15,8 @@ defmodule ElektrineWeb.PageLive.Privacy do
       <div class="mx-auto max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
         <.e_nav active_tab="" class="mb-6" current_user={@current_user} />
 
-        <div id="privacy-card" class="card panel-card">
-          <div class="card-body">
+        <.card id="privacy-card">
+          <:body>
             <h1 class="card-title text-3xl mb-6">Privacy Policy</h1>
 
             <div class="prose prose-lg max-w-none">
@@ -237,8 +237,8 @@ defmodule ElektrineWeb.PageLive.Privacy do
                 </p>
               </section>
             </div>
-          </div>
-        </div>
+          </:body>
+        </.card>
       </div>
     </div>
     """

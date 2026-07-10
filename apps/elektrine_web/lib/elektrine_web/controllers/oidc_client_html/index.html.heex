@@ -6,8 +6,8 @@
 >
   <:sidebar><.developer_settings_sidebar selected_page="oidc-clients" /></:sidebar>
 
-  <div class="card panel-card">
-    <div class="card-body gap-6 p-4 sm:p-6">
+  <.card body_class="gap-6 p-4 sm:p-6">
+    <:body>
       <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div class="space-y-2">
           <p class="text-xs uppercase tracking-[0.3em] text-base-content/60">Identity Provider</p>
@@ -18,20 +18,17 @@
         </div>
 
         <div class="flex flex-wrap gap-3">
-          <.link href={~p"/account/developer/oidc/grants"} class="btn btn-ghost rounded-full">
+          <.button href={~p"/account/developer/oidc/grants"} variant="ghost" class="rounded-full">
             Granted Apps
-          </.link>
-          <.link
-            href={~p"/account/developer/oidc/clients/new"}
-            class="btn btn-primary rounded-full"
-          >
+          </.button>
+          <.button href={~p"/account/developer/oidc/clients/new"} class="rounded-full">
             New Client
-          </.link>
+          </.button>
         </div>
       </div>
 
       <%= if client_secret = Phoenix.Flash.get(@flash, :client_secret) do %>
-        <div class="rounded-2xl border border-warning/30 bg-warning/10 p-4">
+        <div class="rounded-box border border-warning/30 bg-warning/10 p-4">
           <p class="text-sm font-semibold text-warning-content">Copy this client secret now</p>
           <p class="mt-1 text-sm text-base-content/70">
             This is the only time the raw secret will be shown. Store it in the client app.
@@ -43,13 +40,13 @@
       <% end %>
 
       <%= if Enum.empty?(@apps) do %>
-        <div class="rounded-2xl border border-dashed border-base-300/70 bg-base-200/30 p-10 text-center text-base-content/60">
+        <div class="rounded-box border border-dashed border-base-300/70 bg-base-200/30 p-10 text-center text-base-content/60">
           No OAuth clients yet.
         </div>
       <% else %>
         <div class="space-y-4">
           <%= for app <- @apps do %>
-            <article class="rounded-2xl border border-base-300/60 bg-base-200/30 p-5">
+            <article class="rounded-box border border-base-300/60 bg-base-200/30 p-5">
               <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div class="min-w-0 space-y-3">
                   <div>
@@ -104,24 +101,26 @@
                 </div>
 
                 <div class="flex flex-wrap gap-2">
-                  <.link
+                  <.button
                     href={~p"/account/developer/oidc/clients/#{app.id}/edit"}
-                    class="btn btn-ghost rounded-full"
+                    variant="ghost"
+                    class="rounded-full"
                   >
                     Edit
-                  </.link>
+                  </.button>
                   <.form
                     for={%{}}
                     action={~p"/account/developer/oidc/clients/#{app.id}"}
                     method="delete"
                   >
-                    <button
+                    <.button
                       type="submit"
-                      class="btn btn-ghost text-error rounded-full"
+                      variant="ghost"
+                      class="text-error rounded-full"
                       data-confirm="Delete this OAuth client? Existing logins will stop working."
                     >
                       Delete
-                    </button>
+                    </.button>
                   </.form>
                 </div>
               </div>
@@ -129,6 +128,6 @@
           <% end %>
         </div>
       <% end %>
-    </div>
-  </div>
+    </:body>
+  </.card>
 </.account_page>

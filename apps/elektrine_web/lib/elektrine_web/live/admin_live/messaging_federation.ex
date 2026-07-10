@@ -195,18 +195,18 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
       >
         <:actions>
           <.action_toolbar>
-            <.link navigate={~p"/pripyat/federation"} class="btn btn-sm btn-ghost">
+            <.button navigate={~p"/pripyat/federation"} variant="ghost" size="sm">
               <.icon name="hero-globe-alt" class="w-4 h-4" />
               <span class="ml-1">ActivityPub Policies</span>
-            </.link>
-            <.link navigate={~p"/pripyat/bluesky-bridge"} class="btn btn-sm btn-ghost">
+            </.button>
+            <.button navigate={~p"/pripyat/bluesky-bridge"} variant="ghost" size="sm">
               <.icon name="hero-link" class="w-4 h-4" />
               <span class="ml-1">Bluesky Bridge</span>
-            </.link>
-            <button phx-click="refresh" class="btn btn-sm btn-ghost">
+            </.button>
+            <.button variant="ghost" size="sm" phx-click="refresh">
               <.icon name="hero-arrow-path" class="w-4 h-4" />
               <span class="ml-1">Refresh</span>
-            </button>
+            </.button>
           </.action_toolbar>
         </:actions>
       </.section_header>
@@ -221,28 +221,28 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
       </div>
 
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div class="card bg-base-200 shadow">
-          <div class="card-body p-4">
+        <.card body_class="p-4">
+          <:body>
             <div class="text-xs opacity-70">Blocked Peers</div>
             <div class="text-2xl font-semibold text-error">{@blocked_peer_count}</div>
-          </div>
-        </div>
-        <div class="card bg-base-200 shadow">
-          <div class="card-body p-4">
+          </:body>
+        </.card>
+        <.card body_class="p-4">
+          <:body>
             <div class="text-xs opacity-70">Incoming Denied</div>
             <div class="text-2xl font-semibold">{@incoming_denied_count}</div>
-          </div>
-        </div>
-        <div class="card bg-base-200 shadow">
-          <div class="card-body p-4">
+          </:body>
+        </.card>
+        <.card body_class="p-4">
+          <:body>
             <div class="text-xs opacity-70">Outgoing Denied</div>
             <div class="text-2xl font-semibold">{@outgoing_denied_count}</div>
-          </div>
-        </div>
+          </:body>
+        </.card>
       </div>
 
-      <div class="card panel-card shadow">
-        <div class="card-body p-4 sm:p-6">
+      <.card body_class="p-4 sm:p-6">
+        <:body>
           <h2 class="card-title text-base sm:text-lg mb-4">
             <.icon name="hero-no-symbol" class="w-5 h-5" /> Block Peer for Chat Federation
           </h2>
@@ -268,15 +268,15 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
               class="input input-bordered md:col-span-3"
               phx-input="update_new_reason"
             />
-            <button type="submit" class="btn btn-error md:col-span-1">
+            <.button type="submit" variant="error" class="md:col-span-1">
               <.icon name="hero-no-symbol" class="w-4 h-4" /> Block
-            </button>
+            </.button>
           </form>
-        </div>
-      </div>
+        </:body>
+      </.card>
 
-      <div class="card panel-card shadow">
-        <div class="card-body p-4 sm:p-6">
+      <.card body_class="p-4 sm:p-6">
+        <:body>
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <h2 class="card-title text-base sm:text-lg">
               <.icon name="hero-server-stack" class="w-5 h-5" /> Chat Peer Policy Grid
@@ -291,18 +291,19 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
                 placeholder="Search domain..."
                 class="input input-bordered input-sm"
               />
-              <button type="submit" class="btn btn-sm btn-primary">
+              <.button type="submit" size="sm">
                 <.icon name="hero-magnifying-glass" class="w-4 h-4" />
-              </button>
+              </.button>
               <%= if Elektrine.Strings.present?(@search_query) do %>
-                <button
+                <.button
                   type="button"
+                  variant="ghost"
+                  size="sm"
                   phx-click="clear_search"
                   data-search-clear="true"
-                  class="btn btn-sm btn-ghost"
                 >
                   <.icon name="hero-x-mark" class="w-4 h-4" />
-                </button>
+                </.button>
               <% end %>
             </form>
           </div>
@@ -462,45 +463,51 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
                       <td>
                         <div class="flex items-center gap-1">
                           <%= if peer.blocked do %>
-                            <button
+                            <.button
+                              variant="ghost"
+                              size="xs"
+                              class="btn-success"
                               phx-click="unblock_domain"
                               phx-value-domain={peer.domain}
-                              class="btn btn-xs btn-success btn-ghost"
                               title="Unblock peer"
                             >
                               <.icon name="hero-check" class="w-3 h-3" />
                               <span class="hidden lg:inline">Unblock</span>
-                            </button>
+                            </.button>
                           <% else %>
-                            <button
+                            <.button
+                              variant="ghost"
+                              size="xs"
+                              class="btn-error"
                               phx-click="block_domain"
                               phx-value-domain={peer.domain}
                               phx-value-reason={peer.reason || ""}
-                              class="btn btn-xs btn-error btn-ghost"
                               title="Block peer"
                             >
                               <.icon name="hero-no-symbol" class="w-3 h-3" />
                               <span class="hidden lg:inline">Block</span>
-                            </button>
+                            </.button>
                           <% end %>
-                          <button
+                          <.button
+                            variant="ghost"
+                            size="xs"
                             phx-click="clear_policy"
                             phx-value-domain={peer.domain}
-                            class="btn btn-xs btn-ghost"
                             title="Reset runtime overrides to configured defaults"
                           >
                             <.icon name="hero-arrow-path-rounded-square" class="w-3 h-3" />
                             <span class="hidden lg:inline">Reset</span>
-                          </button>
-                          <button
+                          </.button>
+                          <.button
+                            variant="ghost"
+                            size="xs"
                             phx-click="refresh_discovery"
                             phx-value-domain={peer.domain}
-                            class="btn btn-xs btn-ghost"
                             title="Refresh peer discovery metadata"
                           >
                             <.icon name="hero-arrow-path" class="w-3 h-3" />
                             <span class="hidden lg:inline">Discover</span>
-                          </button>
+                          </.button>
                         </div>
                       </td>
                     </tr>
@@ -514,22 +521,30 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
                   Page {@page} of {@total_pages}
                 </span>
                 <div class="join">
-                  <button phx-click="prev_page" class="btn btn-sm join-item" disabled={@page <= 1}>
+                  <.button
+                    variant="default"
+                    size="sm"
+                    class="join-item"
+                    phx-click="prev_page"
+                    disabled={@page <= 1}
+                  >
                     Previous
-                  </button>
-                  <button
+                  </.button>
+                  <.button
+                    variant="default"
+                    size="sm"
+                    class="join-item"
                     phx-click="next_page"
-                    class="btn btn-sm join-item"
                     disabled={@page >= @total_pages}
                   >
                     Next
-                  </button>
+                  </.button>
                 </div>
               </div>
             <% end %>
           <% end %>
-        </div>
-      </div>
+        </:body>
+      </.card>
     </div>
     """
   end

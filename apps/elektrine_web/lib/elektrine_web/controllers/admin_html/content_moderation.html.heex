@@ -33,28 +33,28 @@
   >
     <:actions>
       <.action_toolbar class="text-xs sm:text-sm">
-        <.link href={~p"/pripyat/reports"} class="btn btn-sm btn-ghost">
+        <.button href={~p"/pripyat/reports"} variant="ghost" size="sm">
           <.icon name="hero-flag" class="w-4 h-4" /> Reports
-        </.link>
+        </.button>
         <span class="badge badge-outline">Page {@current_page} / {@total_pages}</span>
       </.action_toolbar>
     </:actions>
   </.section_header>
 
   <div class="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-    <div class="surface-muted rounded-xl p-3 sm:p-4">
+    <div class="surface-muted rounded-box p-3 sm:p-4">
       <div class="text-xs uppercase tracking-wide opacity-60">{content_label} Queue</div>
       <div class="mt-1 text-xl font-semibold sm:text-2xl">{active_type_total}</div>
     </div>
-    <div class="surface-muted rounded-xl p-3 sm:p-4">
+    <div class="surface-muted rounded-box p-3 sm:p-4">
       <div class="text-xs uppercase tracking-wide opacity-60">Results</div>
       <div class="mt-1 text-xl font-semibold text-info sm:text-2xl">{@total_count}</div>
     </div>
-    <div class="surface-muted rounded-xl p-3 sm:p-4">
+    <div class="surface-muted rounded-box p-3 sm:p-4">
       <div class="text-xs uppercase tracking-wide opacity-60">On This Page</div>
       <div class="mt-1 text-xl font-semibold text-success sm:text-2xl">{current_page_count}</div>
     </div>
-    <div class="surface-muted rounded-xl p-3 sm:p-4">
+    <div class="surface-muted rounded-box p-3 sm:p-4">
       <div class="text-xs uppercase tracking-wide opacity-60">Mode</div>
       <div class="mt-1 text-xl font-semibold text-warning sm:text-2xl">{content_label}</div>
     </div>
@@ -84,8 +84,8 @@
     </div>
   </div>
 
-  <div class="card panel-card mb-6 shadow-xl">
-    <div class="card-body">
+  <.card class="mb-6">
+    <:body>
       <form
         method="get"
         action={~p"/pripyat/content-moderation"}
@@ -105,17 +105,17 @@
           />
         </div>
         <div class="lg:col-span-3 flex items-end gap-2">
-          <button type="submit" class="btn btn-primary flex-1">
+          <.button type="submit" class="flex-1">
             <.icon name="hero-magnifying-glass" class="w-4 h-4" /> Search
-          </button>
+          </.button>
           <%= if search_active do %>
-            <a
+            <.button
               href={~p"/pripyat/content-moderation?type=#{@content_type}"}
               data-search-clear="true"
-              class="btn btn-ghost"
+              variant="ghost"
             >
               Reset
-            </a>
+            </.button>
           <% end %>
         </div>
       </form>
@@ -125,11 +125,11 @@
           Showing results for <strong>{@search_query}</strong>
         </div>
       <% end %>
-    </div>
-  </div>
+    </:body>
+  </.card>
 
   <%= if Enum.empty?(@content) do %>
-    <div class="surface-muted rounded-xl p-8 text-center">
+    <div class="surface-muted rounded-box p-8 text-center">
       <.icon name="hero-shield-exclamation" class="mx-auto mb-3 h-10 w-10 text-base-content/30" />
       <h3 class="text-lg font-medium">No {String.downcase(content_label)} content found</h3>
       <p class="mt-1 text-sm opacity-70">
@@ -197,51 +197,59 @@
 
             <div class="flex shrink-0 flex-wrap items-center gap-1.5 sm:flex-nowrap lg:justify-end lg:pl-4">
               <%= if @content_type == "timeline" do %>
-                <.link
+                <.button
                   navigate={Elektrine.Paths.post_path(item.id)}
-                  class="btn btn-xs sm:btn-sm btn-ghost gap-1.5 whitespace-nowrap"
+                  variant="ghost"
+                  size="xs"
+                  class="sm:btn-sm gap-1.5 whitespace-nowrap"
                   target="_blank"
                   rel="noopener noreferrer"
                   title="View post"
                 >
                   <.icon name="hero-eye" class="w-3 h-3 sm:w-4 sm:h-4" />
                   <span class="hidden sm:inline">View</span>
-                </.link>
+                </.button>
               <% end %>
 
               <%= if @content_type == "discussions" && conversation_name do %>
-                <.link
+                <.button
                   navigate={Elektrine.Paths.discussion_post_path(conversation_name, item.id)}
-                  class="btn btn-xs sm:btn-sm btn-ghost gap-1.5 whitespace-nowrap"
+                  variant="ghost"
+                  size="xs"
+                  class="sm:btn-sm gap-1.5 whitespace-nowrap"
                   target="_blank"
                   rel="noopener noreferrer"
                   title="View post"
                 >
                   <.icon name="hero-eye" class="w-3 h-3 sm:w-4 sm:h-4" />
                   <span class="hidden sm:inline">View</span>
-                </.link>
+                </.button>
               <% end %>
 
               <%= if @content_type == "chat" do %>
-                <.link
+                <.button
                   href={~p"/pripyat/arblarg/messages/#{item.id}/view"}
-                  class="btn btn-xs sm:btn-sm btn-ghost gap-1.5 whitespace-nowrap"
+                  variant="ghost"
+                  size="xs"
+                  class="sm:btn-sm gap-1.5 whitespace-nowrap"
                   title="Review message"
                 >
                   <.icon name="hero-eye" class="w-3 h-3 sm:w-4 sm:h-4" />
                   <span class="hidden sm:inline">Review</span>
-                </.link>
+                </.button>
               <% end %>
 
               <%= if item.sender_id do %>
-                <.link
+                <.button
                   href={~p"/pripyat/users/#{item.sender_id}/edit"}
-                  class="btn btn-xs sm:btn-sm btn-ghost gap-1.5 whitespace-nowrap"
+                  variant="ghost"
+                  size="xs"
+                  class="sm:btn-sm gap-1.5 whitespace-nowrap"
                   title="Open user"
                 >
                   <.icon name="hero-user" class="w-3 h-3 sm:w-4 sm:h-4" />
                   <span class="hidden sm:inline">User</span>
-                </.link>
+                </.button>
               <% end %>
 
               <.form
@@ -252,14 +260,16 @@
               >
                 <input type="hidden" name="content_id" value={item.id} />
                 <input type="hidden" name="type" value={@content_type} />
-                <button
+                <.button
                   type="submit"
-                  class="btn btn-xs sm:btn-sm btn-ghost gap-1.5 whitespace-nowrap text-error hover:bg-error/10"
+                  variant="ghost"
+                  size="xs"
+                  class="sm:btn-sm gap-1.5 whitespace-nowrap text-error hover:bg-error/10"
                   data-confirm={"Delete this #{String.replace(@content_type, "discussions", "discussion")} item by @#{sender_handle}?"}
                 >
                   <.icon name="hero-trash" class="w-3 h-3 sm:w-4 sm:h-4" />
                   <span class="hidden sm:inline">Delete</span>
-                </button>
+                </.button>
               </.form>
             </div>
           </div>
@@ -270,7 +280,9 @@
     <%= if @total_pages > 1 do %>
       <div class="mt-6 flex justify-center gap-2">
         <%= if @current_page > 1 do %>
-          <a href={"#{base_path}&page=#{@current_page - 1}"} class="btn btn-sm">«</a>
+          <.button href={"#{base_path}&page=#{@current_page - 1}"} variant="default" size="sm">
+            «
+          </.button>
         <% end %>
 
         <div class="join">
@@ -289,7 +301,9 @@
         </div>
 
         <%= if @current_page < @total_pages do %>
-          <a href={"#{base_path}&page=#{@current_page + 1}"} class="btn btn-sm">»</a>
+          <.button href={"#{base_path}&page=#{@current_page + 1}"} variant="default" size="sm">
+            »
+          </.button>
         <% end %>
       </div>
 
@@ -301,8 +315,8 @@
   <% end %>
 
   <div class="mt-6">
-    <.link href={~p"/pripyat"} class="btn btn-ghost">
+    <.button href={~p"/pripyat"} variant="ghost">
       <.icon name="hero-arrow-left" class="w-4 h-4" /> Back to Admin Dashboard
-    </.link>
+    </.button>
   </div>
 </div>

@@ -77,9 +77,9 @@ defmodule ElektrineWeb.PortalLive.Reader do
           </div>
 
           <div class="flex gap-2 sm:justify-end">
-            <.link navigate={~p"/settings/rss"} class="btn btn-sm btn-secondary max-sm:flex-1">
+            <.button navigate={~p"/settings/rss"} variant="secondary" size="sm" class="max-sm:flex-1">
               Add feed
-            </.link>
+            </.button>
           </div>
         </div>
 
@@ -89,9 +89,9 @@ defmodule ElektrineWeb.PortalLive.Reader do
             <p class="mx-auto mt-2 max-w-md text-sm text-base-content/65">
               Add RSS feeds from settings. New items will appear here first.
             </p>
-            <.link navigate={~p"/settings/rss"} class="btn btn-sm btn-secondary mt-4">
+            <.button navigate={~p"/settings/rss"} variant="secondary" size="sm" class="mt-4">
               Manage feeds
-            </.link>
+            </.button>
           </div>
         <% else %>
           <% compact_reader? = @rss_list_density == "compact" %>
@@ -224,11 +224,11 @@ defmodule ElektrineWeb.PortalLive.Reader do
                 </div>
               </section>
 
-              <section class="order-1 rounded-2xl border border-base-300 bg-base-100/80 p-3 sm:p-4 lg:sticky lg:top-24 lg:order-2 lg:h-[34rem] lg:overflow-y-auto">
+              <section class="order-1 rounded-box border border-base-300 bg-base-100/80 p-3 sm:p-4 lg:sticky lg:top-24 lg:order-2 lg:h-[34rem] lg:overflow-y-auto">
                 <%= if selected_item do %>
                   <div
                     :if={rss_item_image(selected_item)}
-                    class="mb-4 aspect-[16/7] overflow-hidden rounded-xl bg-base-200"
+                    class="mb-4 aspect-[16/7] overflow-hidden rounded-lg bg-base-200"
                   >
                     <img
                       src={rss_item_image(selected_item)}
@@ -270,26 +270,27 @@ defmodule ElektrineWeb.PortalLive.Reader do
 
                   <div
                     :if={rss_item_body_html(selected_item)}
-                    class="mt-4 max-w-none break-words text-sm leading-7 text-base-content/80 [&_a]:text-primary [&_a]:underline [&_blockquote]:border-l-4 [&_blockquote]:border-base-300 [&_blockquote]:pl-4 [&_blockquote]:italic [&_h1]:text-xl [&_h1]:font-semibold [&_h2]:text-lg [&_h2]:font-semibold [&_h3]:font-semibold [&_img]:my-4 [&_img]:max-w-full [&_img]:rounded-xl [&_li]:ml-5 [&_li]:list-disc [&_ol_li]:list-decimal [&_p]:mb-3 [&_pre]:max-w-full [&_pre]:overflow-x-auto"
+                    class="mt-4 max-w-none break-words text-sm leading-7 text-base-content/80 [&_a]:text-primary [&_a]:underline [&_blockquote]:border-l-4 [&_blockquote]:border-base-300 [&_blockquote]:pl-4 [&_blockquote]:italic [&_h1]:text-xl [&_h1]:font-semibold [&_h2]:text-lg [&_h2]:font-semibold [&_h3]:font-semibold [&_img]:my-4 [&_img]:max-w-full [&_img]:rounded-lg [&_li]:ml-5 [&_li]:list-disc [&_ol_li]:list-decimal [&_p]:mb-3 [&_pre]:max-w-full [&_pre]:overflow-x-auto"
                   >
                     {raw(rss_item_body_html(selected_item))}
                   </div>
 
                   <div class="mt-4 flex flex-wrap gap-2">
-                    <a
+                    <.button
                       href={rss_item_href(selected_item)}
                       target="_blank"
                       rel="noopener"
-                      class="btn btn-sm btn-secondary"
+                      variant="secondary"
+                      size="sm"
                     >
                       Read original
-                    </a>
-                    <.link navigate={~p"/settings/rss"} class="btn btn-sm btn-ghost">
+                    </.button>
+                    <.button navigate={~p"/settings/rss"} variant="ghost" size="sm">
                       Manage feeds
-                    </.link>
+                    </.button>
                   </div>
                 <% else %>
-                  <div class="flex min-h-48 items-center justify-center rounded-xl border border-dashed border-base-300 p-6 text-center text-sm text-base-content/65">
+                  <div class="flex min-h-48 items-center justify-center rounded-box border border-dashed border-base-300 p-6 text-center text-sm text-base-content/65">
                     Select a feed item to preview it here.
                   </div>
                 <% end %>
@@ -628,7 +629,7 @@ defmodule ElektrineWeb.PortalLive.Reader do
   defp rss_item_button_class(item, selected_item_id, density) do
     base =
       case normalize_rss_list_density(density) do
-        "compact" -> "w-full rounded-md border px-2.5 py-2 text-left transition"
+        "compact" -> "w-full rounded-lg border px-2.5 py-2 text-left transition"
         _comfortable -> "w-full rounded-lg border p-3 text-left transition"
       end
 

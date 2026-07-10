@@ -130,8 +130,8 @@ defmodule ElektrineWeb.SettingsLive.AppPasswords do
       current_user={@current_user}
     >
       <!-- Information Card -->
-      <div class="card panel-card border border-base-300 shadow-lg">
-        <div class="card-body p-4 sm:p-6">
+      <.card class="border border-base-300" body_class="p-4 sm:p-6">
+        <:body>
           <div class="flex items-start gap-3">
             <.icon name="hero-information-circle" class="w-5 h-5 text-info mt-0.5" />
             <div class="text-sm text-base-content/70">
@@ -146,13 +146,13 @@ defmodule ElektrineWeb.SettingsLive.AppPasswords do
               </p>
             </div>
           </div>
-        </div>
-      </div>
+        </:body>
+      </.card>
 
       <div class="grid gap-6 lg:grid-cols-2">
         <!-- Create New App Password -->
-        <div class="card panel-card border border-base-300 shadow-lg">
-          <div class="card-body p-4 sm:p-6">
+        <.card class="border border-base-300" body_class="p-4 sm:p-6">
+          <:body>
             <h2 class="card-title text-lg mb-4">Create App Password</h2>
             <.form id={"create-app-password-form-#{@form_version}"} for={@form} phx-submit="create">
               <div class="form-control">
@@ -194,17 +194,17 @@ defmodule ElektrineWeb.SettingsLive.AppPasswords do
               </div>
 
               <div class="card-actions mt-4">
-                <button type="submit" class="btn btn-primary w-full">
+                <.button type="submit" class="w-full">
                   <.icon name="hero-plus" class="w-4 h-4" /> Create Password
-                </button>
+                </.button>
               </div>
             </.form>
-          </div>
-        </div>
+          </:body>
+        </.card>
         
     <!-- Usage Instructions -->
-        <div class="card panel-card border border-base-300 shadow-lg">
-          <div class="card-body p-4 sm:p-6">
+        <.card class="border border-base-300" body_class="p-4 sm:p-6">
+          <:body>
             <h2 class="card-title text-lg mb-4">How to Use</h2>
             <div class="space-y-3 text-sm text-base-content/70">
               <div class="flex items-start gap-2">
@@ -224,14 +224,14 @@ defmodule ElektrineWeb.SettingsLive.AppPasswords do
                 <p>Delete the app password when you no longer need it</p>
               </div>
             </div>
-          </div>
-        </div>
+          </:body>
+        </.card>
       </div>
       
     <!-- Newly created password -->
       <%= if @new_token do %>
-        <div class="card panel-card border border-success/40 shadow-lg">
-          <div class="card-body p-4 sm:p-6">
+        <.card class="border border-success/40" body_class="p-4 sm:p-6">
+          <:body>
             <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h2 class="text-lg font-bold flex items-center gap-2 text-success">
@@ -242,9 +242,9 @@ defmodule ElektrineWeb.SettingsLive.AppPasswords do
                 </p>
               </div>
 
-              <button phx-click="dismiss_token" class="btn btn-ghost btn-sm self-start">
+              <.button variant="ghost" size="sm" class="self-start" phx-click="dismiss_token">
                 <.icon name="hero-x-mark" class="w-4 h-4" /> Dismiss
-              </button>
+              </.button>
             </div>
 
             <div class="alert alert-warning mt-1">
@@ -262,10 +262,10 @@ defmodule ElektrineWeb.SettingsLive.AppPasswords do
                     {@new_token}
                   </code>
                 </div>
-                <button
+                <.button
                   type="button"
                   id="copy-new-app-password-token"
-                  class="btn btn-primary join-item h-auto px-4"
+                  class="join-item h-auto px-4"
                   phx-hook="CopyToClipboard"
                   data-content={@new_token}
                   title="Copy app password"
@@ -273,7 +273,7 @@ defmodule ElektrineWeb.SettingsLive.AppPasswords do
                 >
                   <.icon name="hero-clipboard-document" class="w-4 h-4" />
                   <span class="hidden sm:inline">Copy</span>
-                </button>
+                </.button>
               </div>
             </div>
 
@@ -282,17 +282,18 @@ defmodule ElektrineWeb.SettingsLive.AppPasswords do
                 <p class="text-xs text-base-content/70 font-semibold">
                   Email client configuration:
                 </p>
-                <button
+                <.button
                   type="button"
+                  variant="ghost"
+                  size="xs"
                   id="copy-email-client-configuration"
-                  class="btn btn-ghost btn-xs"
                   phx-hook="CopyToClipboard"
                   data-copy-target="email-client-configuration-copy-text"
                   title="Copy email client configuration"
                   aria-label="Copy email client configuration"
                 >
                   <.icon name="hero-clipboard-document" class="w-3 h-3" /> Copy
-                </button>
+                </.button>
               </div>
               <textarea id="email-client-configuration-copy-text" class="hidden" readonly><%= app_password_client_configuration(@current_user, @new_token, @imap_settings, @smtp_settings, @pop3_settings) %></textarea>
               <div class="text-xs text-base-content/60 space-y-3">
@@ -329,19 +330,18 @@ defmodule ElektrineWeb.SettingsLive.AppPasswords do
                 </div>
               </div>
             </div>
-
-            <div class="card-actions mt-4 justify-end">
-              <button phx-click="dismiss_token" class="btn btn-primary">
-                I saved it
-              </button>
-            </div>
-          </div>
-        </div>
+          </:body>
+          <:actions>
+            <.button phx-click="dismiss_token">
+              I saved it
+            </.button>
+          </:actions>
+        </.card>
       <% end %>
       
     <!-- Existing App Passwords -->
-      <div class="card panel-card border border-base-300 shadow-lg">
-        <div class="card-body p-4 sm:p-6">
+      <.card class="border border-base-300" body_class="p-4 sm:p-6">
+        <:body>
           <h2 class="card-title text-lg mb-4">Existing App Passwords</h2>
 
           <%= if @app_passwords == [] do %>
@@ -407,14 +407,16 @@ defmodule ElektrineWeb.SettingsLive.AppPasswords do
                         <% end %>
                       </td>
                       <td>
-                        <button
+                        <.button
+                          variant="ghost"
+                          size="sm"
+                          class="text-error"
                           phx-click="delete"
                           phx-value-id={app_password.id}
                           data-confirm="Delete this app password? Any apps using it will lose access."
-                          class="btn btn-ghost btn-sm text-error"
                         >
                           <.icon name="hero-trash" class="w-4 h-4" /> Delete
-                        </button>
+                        </.button>
                       </td>
                     </tr>
                   <% end %>
@@ -422,8 +424,8 @@ defmodule ElektrineWeb.SettingsLive.AppPasswords do
               </table>
             </div>
           <% end %>
-        </div>
-      </div>
+        </:body>
+      </.card>
     </.account_page>
     """
   end

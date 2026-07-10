@@ -11,8 +11,8 @@
     </p>
   </div>
 
-  <div class="card panel-card">
-    <div class="card-body">
+  <.card>
+    <:body>
       <.simple_form :let={f} for={@changeset} action={~p"/pripyat/users"}>
         <.error :if={@changeset.action}>
           Oops, something went wrong! Please check the errors below.
@@ -79,14 +79,14 @@
         </div>
 
         <div class="card-actions justify-end mt-6">
-          <.link href={~p"/pripyat/users"} class="btn btn-ghost">
+          <.button href={~p"/pripyat/users"} variant="ghost">
             <.icon name="hero-arrow-left" class="w-4 h-4 mr-2" /> Cancel
-          </.link>
-          <.button type="submit" class="btn btn-primary">
+          </.button>
+          <.button type="submit">
             <.icon name="hero-plus" class="w-4 h-4 mr-2" /> Create User
           </.button>
         </div>
       </.simple_form>
-    </div>
-  </div>
+    </:body>
+  </.card>
 </div>

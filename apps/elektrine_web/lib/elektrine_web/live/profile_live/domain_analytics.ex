@@ -56,28 +56,28 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
   def domain_analytics_skeleton(assigns) do
     ~H"""
     <div class="space-y-6" aria-busy="true" aria-label="Loading analytics">
-      <div class="card panel-card border border-base-300">
-        <div class="card-body p-4">
+      <.card class="border border-base-300" body_class="p-4">
+        <:body>
           <div class="flex items-center gap-3 text-sm text-base-content/60">
             <span class="loading loading-spinner loading-sm"></span>
             <span>Loading analytics{if @active_host, do: " for #{@active_host}"}...</span>
           </div>
-        </div>
-      </div>
+        </:body>
+      </.card>
 
       <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <%= for _index <- 1..5 do %>
-          <div class="card panel-card">
-            <div class="card-body p-4 space-y-3">
+          <.card body_class="p-4 space-y-3">
+            <:body>
               <.skeleton type="text" class="w-24" />
               <.skeleton type="text" class="h-8 w-32" />
-            </div>
-          </div>
+            </:body>
+          </.card>
         <% end %>
       </div>
 
-      <div class="card panel-card">
-        <div class="card-body p-6 space-y-5">
+      <.card body_class="p-6 space-y-5">
+        <:body>
           <div class="flex items-start justify-between gap-4">
             <div class="space-y-2">
               <.skeleton type="text" class="h-5 w-32" />
@@ -100,24 +100,24 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
           <div class="card bg-base-200/40">
             <div class="card-body p-6 space-y-4">
               <.skeleton type="text" class="h-5 w-32" />
-              <.skeleton type="text" class="h-72 w-full rounded-xl" />
+              <.skeleton type="text" class="h-72 w-full rounded-box" />
             </div>
           </div>
-        </div>
-      </div>
+        </:body>
+      </.card>
 
       <div class="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
-        <div class="card panel-card">
-          <div class="card-body p-6 space-y-4">
+        <.card body_class="p-6 space-y-4">
+          <:body>
             <.skeleton type="text" class="h-5 w-36" />
-            <.skeleton type="text" class="h-72 w-full rounded-xl" />
-          </div>
-        </div>
+            <.skeleton type="text" class="h-72 w-full rounded-box" />
+          </:body>
+        </.card>
 
         <div class="space-y-6">
           <%= for _index <- 1..2 do %>
-            <div class="card panel-card">
-              <div class="card-body p-6 space-y-4">
+            <.card body_class="p-6 space-y-4">
+              <:body>
                 <.skeleton type="text" class="h-5 w-32" />
                 <%= for _row <- 1..3 do %>
                   <div class="rounded-lg bg-base-200 px-4 py-3 space-y-2">
@@ -125,8 +125,8 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
                     <.skeleton type="text" class="w-2/5" />
                   </div>
                 <% end %>
-              </div>
-            </div>
+              </:body>
+            </.card>
           <% end %>
         </div>
       </div>

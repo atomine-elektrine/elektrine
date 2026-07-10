@@ -19,8 +19,8 @@ defmodule ElektrineWeb.ProfileLive.EffectsSections do
 
   defp typewriter_effect_card(assigns) do
     ~H"""
-    <div class="card panel-card">
-      <div class="card-body p-4 sm:p-6">
+    <.card body_class="p-4 sm:p-6">
+      <:body>
         <div class="mb-6">
           <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
             <.icon name="hero-pencil-square" class="w-6 h-6" /> Typewriter Effect
@@ -96,12 +96,12 @@ defmodule ElektrineWeb.ProfileLive.EffectsSections do
             </div>
           <% end %>
 
-          <button type="submit" class="btn btn-primary w-full">
+          <.button type="submit" class="w-full">
             Save Typewriter Settings
-          </button>
+          </.button>
         </.form>
-      </div>
-    </div>
+      </:body>
+    </.card>
     """
   end
 
@@ -109,8 +109,8 @@ defmodule ElektrineWeb.ProfileLive.EffectsSections do
 
   defp avatar_effects_card(assigns) do
     ~H"""
-    <div class="card panel-card">
-      <div class="card-body p-4 sm:p-6">
+    <.card body_class="p-4 sm:p-6">
+      <:body>
         <div class="mb-6">
           <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
             <.icon name="hero-photo" class="w-6 h-6" /> Avatar Effects
@@ -155,10 +155,10 @@ defmodule ElektrineWeb.ProfileLive.EffectsSections do
             </p>
           </div>
 
-          <button type="submit" class="btn btn-primary w-full"> Save Avatar Effects </button>
+          <.button type="submit" class="w-full">Save Avatar Effects</.button>
         </.form>
-      </div>
-    </div>
+      </:body>
+    </.card>
     """
   end
 
@@ -166,8 +166,8 @@ defmodule ElektrineWeb.ProfileLive.EffectsSections do
 
   defp username_effects_card(assigns) do
     ~H"""
-    <div class="card panel-card">
-      <div class="card-body p-4 sm:p-6">
+    <.card body_class="p-4 sm:p-6">
+      <:body>
         <div class="mb-6">
           <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
             <.icon name="hero-sparkles" class="w-6 h-6" /> Username Effects
@@ -318,12 +318,12 @@ defmodule ElektrineWeb.ProfileLive.EffectsSections do
             </div>
           <% end %>
 
-          <button type="submit" class="btn btn-primary w-full">
+          <.button type="submit" class="w-full">
             Save Username Effects
-          </button>
+          </.button>
         </.form>
-      </div>
-    </div>
+      </:body>
+    </.card>
     """
   end
 

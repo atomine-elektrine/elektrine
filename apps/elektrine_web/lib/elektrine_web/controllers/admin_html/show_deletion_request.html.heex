@@ -9,13 +9,13 @@
         Review the request details, user context, and moderation notes before approving or denying account removal.
       </p>
     </div>
-    <.link href={~p"/pripyat/deletion-requests"} class="btn btn-ghost">
+    <.button href={~p"/pripyat/deletion-requests"} variant="ghost">
       ← Back to Requests
-    </.link>
+    </.button>
   </div>
 
-  <div class="card panel-card">
-    <div class="card-body">
+  <.card>
+    <:body>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <!-- Request Details -->
         <div>
@@ -137,7 +137,7 @@
                     value=""
                   />
                   <:actions>
-                    <.button class="btn-success w-full">Approve & Delete Account</.button>
+                    <.button variant="success" class="w-full">Approve & Delete Account</.button>
                   </:actions>
                 </.simple_form>
               </div>
@@ -165,7 +165,7 @@
                     value=""
                   />
                   <:actions>
-                    <.button class="btn-secondary w-full">Deny Request</.button>
+                    <.button variant="secondary" class="w-full">Deny Request</.button>
                   </:actions>
                 </.simple_form>
               </div>
@@ -173,6 +173,6 @@
           </div>
         </div>
       <% end %>
-    </div>
-  </div>
+    </:body>
+  </.card>
 </div>

@@ -1,5 +1,5 @@
-<div class="card panel-card max-w-md mx-auto">
-  <div class="card-body text-center">
+<.card class="max-w-md mx-auto" body_class="text-center">
+  <:body>
     <div class="flex justify-center mb-4">
       <div class="w-16 h-16 rounded-full bg-success/20 flex items-center justify-center">
         <.icon name="hero-check-circle" class="w-10 h-10 text-success" />
@@ -31,10 +31,10 @@
     <% end %>
 
     <div class="space-y-2">
-      <.link href={~p"/"} class="btn btn-primary w-full"> Go to Home </.link>
-      <.link href={~p"/account?tab=security"} class="btn btn-ghost w-full">
+      <.button href={~p"/"} class="w-full">Go to Home</.button>
+      <.button href={~p"/account?tab=security"} variant="ghost" class="w-full">
         Account Settings
-      </.link>
+      </.button>
     </div>
-  </div>
-</div>
+  </:body>
+</.card>

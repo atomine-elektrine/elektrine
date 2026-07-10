@@ -119,17 +119,17 @@ defmodule ElektrineWeb.Components.ReportModal do
           <% end %>
 
           <div class="modal-action justify-center gap-3">
-            <button
+            <.button
               type="button"
               phx-click="close_report_modal"
-              class="btn btn-ghost"
+              variant="ghost"
               disabled={@submitting}
             >
               Cancel
-            </button>
-            <button
+            </.button>
+            <.button
               type="submit"
-              class="btn btn-secondary"
+              variant="secondary"
               disabled={@submitting || @reason == "" || @cooldown_remaining > 0}
             >
               <%= cond do %>
@@ -140,7 +140,7 @@ defmodule ElektrineWeb.Components.ReportModal do
                 <% true -> %>
                   <.icon name="hero-flag" class="w-4 h-4 mr-2" /> Submit Report
               <% end %>
-            </button>
+            </.button>
           </div>
         </form>
       </div>

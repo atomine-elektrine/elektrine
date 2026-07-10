@@ -79,59 +79,71 @@ defmodule ElektrineWeb.PageLive.Home do
 
           <div class="mt-7 flex flex-wrap items-center gap-3">
             <%= if @current_user do %>
-              <.link
+              <.button
                 href={~p"/portal"}
-                class="btn btn-primary btn-lg rounded-none font-mono text-xs uppercase tracking-[0.14em]"
+                size="lg"
+                class="rounded-none font-mono text-xs uppercase tracking-[0.14em]"
               >
                 {gettext("Portal")}
-              </.link>
+              </.button>
               <%= if Modules.enabled?(:email) do %>
-                <.link
+                <.button
                   href={~p"/email"}
-                  class="btn btn-lg rounded-none border-white/30 bg-transparent font-mono text-xs uppercase tracking-[0.14em] text-white hover:border-white/60 hover:bg-white/10"
+                  variant="default"
+                  size="lg"
+                  class="rounded-none border-white/30 bg-transparent font-mono text-xs uppercase tracking-[0.14em] text-white hover:border-white/60 hover:bg-white/10"
                 >
                   {gettext("Email")}
-                </.link>
+                </.button>
               <% end %>
               <%= if Modules.enabled?(:chat) do %>
-                <.link
+                <.button
                   href={~p"/chat"}
-                  class="btn btn-lg rounded-none border-white/30 bg-transparent font-mono text-xs uppercase tracking-[0.14em] text-white hover:border-white/60 hover:bg-white/10"
+                  variant="default"
+                  size="lg"
+                  class="rounded-none border-white/30 bg-transparent font-mono text-xs uppercase tracking-[0.14em] text-white hover:border-white/60 hover:bg-white/10"
                 >
                   {gettext("Chat")}
-                </.link>
+                </.button>
               <% end %>
-              <.link
+              <.button
                 href={~p"/account"}
-                class="btn btn-lg rounded-none border-white/30 bg-transparent font-mono text-xs uppercase tracking-[0.14em] text-white hover:border-white/60 hover:bg-white/10"
+                variant="default"
+                size="lg"
+                class="rounded-none border-white/30 bg-transparent font-mono text-xs uppercase tracking-[0.14em] text-white hover:border-white/60 hover:bg-white/10"
               >
                 {gettext("Account")}
-              </.link>
-              <.link
+              </.button>
+              <.button
                 href={~p"/logout"}
                 method="delete"
-                class="btn btn-error btn-lg rounded-none font-mono text-xs uppercase tracking-[0.14em]"
+                variant="error"
+                size="lg"
+                class="rounded-none font-mono text-xs uppercase tracking-[0.14em]"
               >
                 {gettext("Sign out")}
-              </.link>
+              </.button>
             <% else %>
-              <.link
+              <.button
                 href={~p"/register"}
-                class="btn btn-primary btn-lg rounded-none font-mono text-xs uppercase tracking-[0.14em]"
+                size="lg"
+                class="rounded-none font-mono text-xs uppercase tracking-[0.14em]"
               >
                 {gettext("Sign up")}
-              </.link>
-              <.link
+              </.button>
+              <.button
                 href={Elektrine.Paths.login_path()}
-                class="btn btn-lg rounded-none border-white/30 bg-transparent font-mono text-xs uppercase tracking-[0.14em] text-white hover:border-white/60 hover:bg-white/10"
+                variant="default"
+                size="lg"
+                class="rounded-none border-white/30 bg-transparent font-mono text-xs uppercase tracking-[0.14em] text-white hover:border-white/60 hover:bg-white/10"
               >
                 {gettext("Sign in")}
-              </.link>
+              </.button>
             <% end %>
           </div>
 
           <div class="mt-8 max-w-2xl border-t border-white/15 pt-4">
-            <div class="flex flex-wrap items-center gap-x-6 gap-y-2 font-mono text-[11px] uppercase tracking-[0.14em] text-white/45">
+            <div class="flex flex-wrap items-center gap-x-6 gap-y-2 font-mono text-2xs uppercase tracking-[0.14em] text-white/45">
               <span :if={@platform_stats.stats.users > 0}>
                 Users
                 <span class="font-pixel text-lg leading-none tabular-nums text-white/85">
@@ -217,7 +229,7 @@ defmodule ElektrineWeb.PageLive.Home do
             <div class="mt-8 space-y-10">
               <%= for group <- feature_groups() do %>
                 <div>
-                  <p class="font-mono text-[11px] uppercase tracking-[0.22em] text-white/30">
+                  <p class="font-mono text-2xs uppercase tracking-[0.22em] text-white/30">
                     {group.label}
                   </p>
                   <div class="mt-3 grid gap-px border border-white/10 bg-white/10 sm:grid-cols-2 lg:grid-cols-3">
@@ -226,7 +238,7 @@ defmodule ElektrineWeb.PageLive.Home do
                         "bg-[#05070a] px-4 py-3.5",
                         item[:wide] && "sm:col-span-2 lg:col-span-3"
                       ]}>
-                        <div class="font-mono text-[10px] uppercase tracking-[0.18em] text-white/35">
+                        <div class="font-mono text-3xs uppercase tracking-[0.18em] text-white/35">
                           {item.tag}
                         </div>
                         <div class="mt-1 text-sm font-medium text-white/90">{item.title}</div>
@@ -245,7 +257,7 @@ defmodule ElektrineWeb.PageLive.Home do
             </p>
             <div class="mt-6 grid gap-px border border-white/10 bg-white/10 sm:grid-cols-2 lg:grid-cols-3">
               <div class="bg-[#05070a] px-4 py-3.5">
-                <div class="font-mono text-[10px] uppercase tracking-[0.18em] text-white/35">
+                <div class="font-mono text-3xs uppercase tracking-[0.18em] text-white/35">
                   Email API
                 </div>
                 <div class="mt-1 text-sm font-medium text-white/90">
@@ -256,7 +268,7 @@ defmodule ElektrineWeb.PageLive.Home do
                 </div>
               </div>
               <div class="bg-[#05070a] px-4 py-3.5">
-                <div class="font-mono text-[10px] uppercase tracking-[0.18em] text-white/35">
+                <div class="font-mono text-3xs uppercase tracking-[0.18em] text-white/35">
                   JMAP
                 </div>
                 <div class="mt-1 text-sm font-medium text-white/90">
@@ -267,7 +279,7 @@ defmodule ElektrineWeb.PageLive.Home do
                 </div>
               </div>
               <div class="bg-[#05070a] px-4 py-3.5">
-                <div class="font-mono text-[10px] uppercase tracking-[0.18em] text-white/35">
+                <div class="font-mono text-3xs uppercase tracking-[0.18em] text-white/35">
                   Client API
                 </div>
                 <div class="mt-1 text-sm font-medium text-white/90">
@@ -278,7 +290,7 @@ defmodule ElektrineWeb.PageLive.Home do
                 </div>
               </div>
               <div class="bg-[#05070a] px-4 py-3.5">
-                <div class="font-mono text-[10px] uppercase tracking-[0.18em] text-white/35">
+                <div class="font-mono text-3xs uppercase tracking-[0.18em] text-white/35">
                   MCP
                 </div>
                 <div class="mt-1 text-sm font-medium text-white/90">
@@ -290,7 +302,7 @@ defmodule ElektrineWeb.PageLive.Home do
                 </div>
               </div>
               <div class="bg-[#05070a] px-4 py-3.5">
-                <div class="font-mono text-[10px] uppercase tracking-[0.18em] text-white/35">
+                <div class="font-mono text-3xs uppercase tracking-[0.18em] text-white/35">
                   OIDC
                 </div>
                 <div class="mt-1 text-sm font-medium text-white/90">
@@ -301,7 +313,7 @@ defmodule ElektrineWeb.PageLive.Home do
                 </div>
               </div>
               <div class="bg-[#05070a] px-4 py-3.5">
-                <div class="font-mono text-[10px] uppercase tracking-[0.18em] text-white/35">
+                <div class="font-mono text-3xs uppercase tracking-[0.18em] text-white/35">
                   Tokens
                 </div>
                 <div class="mt-1 text-sm font-medium text-white/90">
@@ -312,7 +324,7 @@ defmodule ElektrineWeb.PageLive.Home do
                 </div>
               </div>
               <div class="bg-[#05070a] px-4 py-3.5">
-                <div class="font-mono text-[10px] uppercase tracking-[0.18em] text-white/35">
+                <div class="font-mono text-3xs uppercase tracking-[0.18em] text-white/35">
                   Deploys
                 </div>
                 <div class="mt-1 text-sm font-medium text-white/90">

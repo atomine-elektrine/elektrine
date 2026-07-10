@@ -20,6 +20,14 @@
 }
 @config "../tailwind.config.mjs";
 
+/* Design tokens: extra type-scale steps below text-xs.
+   Font-size only (no line-height sub-token) so these behave exactly like the
+   text-[11px] / text-[10px] arbitrary values they replace. */
+@theme {
+  --text-2xs: 0.6875rem;
+  --text-3xs: 0.625rem;
+}
+
 /* Vendor styles */
 @import "../node_modules/uplot/dist/uPlot.min.css";
 

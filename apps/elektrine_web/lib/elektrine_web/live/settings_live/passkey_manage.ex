@@ -38,11 +38,8 @@ defmodule ElektrineWeb.SettingsLive.PasskeyManage do
       sidebar_tab="security"
       current_user={@current_user}
     >
-      <div
-        id="passkey-manage-card"
-        class="card panel-card border border-base-300"
-      >
-        <div class="card-body">
+      <.card id="passkey-manage-card" class="border border-base-300">
+        <:body>
           <.section_header
             title={gettext("Your Passkeys")}
             description={
@@ -68,10 +65,10 @@ defmodule ElektrineWeb.SettingsLive.PasskeyManage do
                 </button>
               <% else %>
                 <div class="tooltip" data-tip={gettext("Maximum passkeys reached")}>
-                  <button class="btn btn-primary" disabled>
+                  <.button disabled>
                     <.icon name="hero-plus" class="w-4 h-4" />
                     {gettext("Add Passkey")}
-                  </button>
+                  </.button>
                 </div>
               <% end %>
             </:actions>
@@ -81,9 +78,9 @@ defmodule ElektrineWeb.SettingsLive.PasskeyManage do
             <div class="alert alert-error mb-4">
               <.icon name="hero-exclamation-circle" class="w-5 h-5" />
               <span>{@error}</span>
-              <button type="button" phx-click="clear_error" class="btn btn-ghost btn-xs">
+              <.button type="button" variant="ghost" size="xs" phx-click="clear_error">
                 <.icon name="hero-x-mark" class="w-4 h-4" />
-              </button>
+              </.button>
             </div>
           <% end %>
 
@@ -118,12 +115,12 @@ defmodule ElektrineWeb.SettingsLive.PasskeyManage do
                             autofocus
                           />
                           <input type="hidden" name="passkey_id" value={passkey.id} />
-                          <button type="submit" class="btn btn-ghost btn-xs">
+                          <.button type="submit" variant="ghost" size="xs">
                             <.icon name="hero-check" class="w-4 h-4 text-success" />
-                          </button>
-                          <button type="button" phx-click="cancel_rename" class="btn btn-ghost btn-xs">
+                          </.button>
+                          <.button type="button" variant="ghost" size="xs" phx-click="cancel_rename">
                             <.icon name="hero-x-mark" class="w-4 h-4" />
-                          </button>
+                          </.button>
                         </form>
                       <% else %>
                         <p class="font-medium">{passkey.name}</p>
@@ -138,25 +135,28 @@ defmodule ElektrineWeb.SettingsLive.PasskeyManage do
                   </div>
                   <div class="flex items-center gap-2">
                     <%= if @renaming_id != passkey.id do %>
-                      <button
+                      <.button
                         type="button"
+                        variant="ghost"
+                        size="sm"
                         phx-click="start_rename"
                         phx-value-id={passkey.id}
-                        class="btn btn-ghost btn-sm"
                         title={gettext("Rename")}
                       >
                         <.icon name="hero-pencil" class="w-4 h-4" />
-                      </button>
-                      <button
+                      </.button>
+                      <.button
                         type="button"
+                        variant="ghost"
+                        size="sm"
+                        class="text-error"
                         phx-click="delete_passkey"
                         phx-value-id={passkey.id}
                         data-confirm={gettext("Are you sure you want to delete this passkey?")}
-                        class="btn btn-ghost btn-sm text-error"
                         title={gettext("Delete")}
                       >
                         <.icon name="hero-trash" class="w-4 h-4" />
-                      </button>
+                      </.button>
                     <% end %>
                   </div>
                 </div>
@@ -199,8 +199,8 @@ defmodule ElektrineWeb.SettingsLive.PasskeyManage do
               </ul>
             </div>
           </div>
-        </div>
-      </div>
+        </:body>
+      </.card>
     </.account_page>
     """
   end

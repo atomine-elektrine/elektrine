@@ -7,28 +7,28 @@
       </p>
     </div>
 
-    <.link href={~p"/pripyat"} class="btn btn-ghost">
+    <.button href={~p"/pripyat"} variant="ghost">
       <.icon name="hero-arrow-left" class="h-4 w-4" /> Dashboard
-    </.link>
+    </.button>
   </div>
 
   <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
     <div class="surface-muted rounded-box px-4 py-4 shadow-sm">
-      <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+      <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
         Queue Depth
       </div>
       <div class="mt-2 text-3xl font-semibold text-info">{@metrics.queue_depth}</div>
     </div>
 
     <div class="surface-muted rounded-box px-4 py-4 shadow-sm">
-      <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+      <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
         Stuck
       </div>
       <div class="mt-2 text-3xl font-semibold text-warning">{@metrics.stuck_count}</div>
     </div>
 
     <div class="surface-muted rounded-box px-4 py-4 shadow-sm">
-      <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+      <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
         Bounce Rate
       </div>
       <div class="mt-2 text-3xl font-semibold text-error">
@@ -37,7 +37,7 @@
     </div>
 
     <div class="surface-muted rounded-box px-4 py-4 shadow-sm">
-      <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+      <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
         Complaint Rate
       </div>
       <div class="mt-2 text-3xl font-semibold text-error">
@@ -63,7 +63,7 @@
       >
         <input class="input input-bordered" name="status" placeholder="status" value={@status} />
         <input class="input input-bordered" name="domain" placeholder="domain" value={@domain} />
-        <button class="btn btn-primary" type="submit">Filter</button>
+        <.button type="submit">Filter</.button>
       </.form>
     </div>
 
@@ -103,7 +103,7 @@
                   method="post"
                   class="inline"
                 >
-                  <button class="btn btn-xs btn-ghost" type="submit">Requeue</button>
+                  <.button variant="ghost" size="xs" type="submit">Requeue</.button>
                 </.form>
               </td>
             </tr>
@@ -165,13 +165,14 @@
                   method="post"
                   class="inline"
                 >
-                  <button
-                    class="btn btn-xs btn-ghost"
+                  <.button
+                    variant="ghost"
+                    size="xs"
                     type="submit"
                     disabled={delivery.status == "delivered"}
                   >
                     Requeue
-                  </button>
+                  </.button>
                 </.form>
               </td>
             </tr>
@@ -214,7 +215,7 @@
           placeholder="example.com or user id"
         />
         <input name="reason" class="input input-bordered" placeholder="reason" />
-        <button class="btn btn-warning" type="submit">Pause Delivery</button>
+        <.button variant="warning" type="submit">Pause Delivery</.button>
       </.form>
     </div>
 
@@ -239,7 +240,7 @@
             <span class="text-sm">
               <span class="font-semibold">{control.scope_type}</span>: {control.scope_value}
             </span>
-            <button class="btn btn-xs" type="submit">Resume</button>
+            <.button variant="default" size="xs" type="submit">Resume</.button>
           </.form>
         <% end %>
 
@@ -271,7 +272,7 @@
         <input name="user_id" class="input input-bordered" placeholder="user id" />
         <input name="email" class="input input-bordered" placeholder="recipient@example.com" />
         <input name="reason" class="input input-bordered" placeholder="reason" value="manual" />
-        <button class="btn btn-warning" type="submit">Suppress</button>
+        <.button variant="warning" type="submit">Suppress</.button>
       </.form>
 
       <.form
@@ -283,7 +284,7 @@
         <h3 class="font-semibold">Unsuppress Recipient</h3>
         <input name="user_id" class="input input-bordered" placeholder="user id" />
         <input name="email" class="input input-bordered" placeholder="recipient@example.com" />
-        <button class="btn" type="submit">Unsuppress</button>
+        <.button variant="default" type="submit">Unsuppress</.button>
       </.form>
     </div>
   </section>

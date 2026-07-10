@@ -46,8 +46,8 @@
       <%= if @selected_tab == "content" do %>
         <div class="space-y-4 sm:space-y-6">
           <!-- Link Display Style -->
-          <div class="card panel-card">
-            <div class="card-body p-4 sm:p-6">
+          <.card body_class="p-4 sm:p-6">
+            <:body>
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                   <.icon name="hero-squares-2x2" class="w-6 h-6" /> Link Display Style
@@ -144,13 +144,13 @@
                   </div>
                 </div>
 
-                <button type="submit" class="btn btn-primary w-full"> Save Link Settings </button>
+                <.button type="submit" class="w-full">Save Link Settings</.button>
               </.form>
-            </div>
-          </div>
+            </:body>
+          </.card>
           <!-- Add New Link -->
-          <div class="card panel-card">
-            <div class="card-body p-4 sm:p-6">
+          <.card body_class="p-4 sm:p-6">
+            <:body>
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                   <.icon name="hero-plus" class="w-6 h-6" /> Add New Link
@@ -177,7 +177,7 @@
                   />
                   <!-- Platform Selection Grid -->
                   <div class="space-y-2">
-                    <div class="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2 p-4 rounded-xl bg-base-50">
+                    <div class="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2 p-4 rounded-box bg-base-50">
                       <%= for platform <- ["youtube", "discord", "instagram", "twitter", "tiktok", "telegram", "soundcloud", "paypal", "github", "adobe", "vk", "threads", "twitch", "reddit", "spotify", "pinterest", "linkedin", "steam", "bitcoin", "ethereum", "gitlab", "facebook", "whatsapp", "signal", "litecoin", "snapchat", "email", "website", "custom"] do %>
                         <% platform_color =
                           Elektrine.Profiles.ProfileLink.get_platform_color(platform) %>
@@ -372,14 +372,14 @@
                 </label>
 
                 <div class="card-actions">
-                  <button type="submit" class="btn btn-primary w-full"> Add Link </button>
+                  <.button type="submit" class="w-full">Add Link</.button>
                 </div>
               </.form>
-            </div>
-          </div>
+            </:body>
+          </.card>
           <!-- Current Links -->
-          <div class="card panel-card">
-            <div class="card-body p-4 sm:p-6">
+          <.card body_class="p-4 sm:p-6">
+            <:body>
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                   <.icon name="hero-link" class="w-6 h-6" /> Your Links
@@ -420,7 +420,7 @@
                             />
                             <!-- Platform Selection Grid for Editing -->
                             <div class="space-y-2">
-                              <div class="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2 p-4 rounded-xl bg-base-50">
+                              <div class="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2 p-4 rounded-box bg-base-50">
                                 <%= for platform <- ["youtube", "discord", "instagram", "twitter", "tiktok", "telegram", "soundcloud", "paypal", "github", "adobe", "vk", "threads", "twitch", "reddit", "spotify", "pinterest", "linkedin", "steam", "bitcoin", "ethereum", "gitlab", "facebook", "whatsapp", "signal", "litecoin", "snapchat", "email", "website", "custom"] do %>
                                   <% platform_color =
                                     Elektrine.Profiles.ProfileLink.get_platform_color(platform) %>
@@ -661,7 +661,7 @@
                                 <img
                                   src={@editing_link_data["thumbnail_url"]}
                                   alt=""
-                                  class="h-14 w-14 rounded-md object-cover"
+                                  class="h-14 w-14 rounded-lg object-cover"
                                 />
                                 <div class="min-w-0 text-sm">
                                   <div class="truncate font-medium">
@@ -705,14 +705,15 @@
                           </div>
 
                           <div class="flex gap-2">
-                            <button type="submit" class="btn btn-primary btn-sm"> Save </button>
-                            <button
+                            <.button type="submit" size="sm">Save</.button>
+                            <.button
                               type="button"
                               phx-click="cancel_edit_link"
-                              class="btn btn-ghost btn-sm"
+                              variant="ghost"
+                              size="sm"
                             >
                               Cancel
-                            </button>
+                            </.button>
                           </div>
                         </.form>
                       </div>
@@ -732,24 +733,28 @@
                             >
                               <.icon name="hero-bars-3" class="w-3 h-3" />
                             </span>
-                            <button
+                            <.button
                               phx-click="reorder_link"
                               phx-value-id={link.id}
                               phx-value-direction="up"
-                              class="btn btn-ghost btn-xs p-0 h-4 min-h-4"
+                              variant="ghost"
+                              size="xs"
+                              class="p-0 h-4 min-h-4"
                               disabled={link.position == 0}
                             >
                               <.icon name="hero-chevron-up" class="w-3 h-3" />
-                            </button>
-                            <button
+                            </.button>
+                            <.button
                               phx-click="reorder_link"
                               phx-value-id={link.id}
                               phx-value-direction="down"
-                              class="btn btn-ghost btn-xs p-0 h-4 min-h-4"
+                              variant="ghost"
+                              size="xs"
+                              class="p-0 h-4 min-h-4"
                               disabled={link.position == length(@profile.links) - 1}
                             >
                               <.icon name="hero-chevron-down" class="w-3 h-3" />
-                            </button>
+                            </.button>
                           </div>
                           <% link_color =
                             Elektrine.Profiles.ProfileLink.get_platform_color(link.platform) %>
@@ -818,28 +823,32 @@
                           >
                             {format_profile_datetime(link.last_clicked_at)}
                           </span>
-                          <button
+                          <.button
                             phx-click="check_link_health"
                             phx-value-id={link.id}
-                            class="btn btn-ghost btn-xs"
+                            variant="ghost"
+                            size="xs"
                           >
                             Check
-                          </button>
-                          <button
+                          </.button>
+                          <.button
                             phx-click="edit_link"
                             phx-value-id={link.id}
-                            class="btn btn-ghost btn-xs"
+                            variant="ghost"
+                            size="xs"
                           >
                             Edit
-                          </button>
-                          <button
+                          </.button>
+                          <.button
                             phx-click="delete_link"
                             phx-value-id={link.id}
-                            class="btn btn-ghost btn-xs text-error"
+                            variant="ghost"
+                            size="xs"
+                            class="text-error"
                             data-confirm="Delete this link?"
                           >
                             Delete
-                          </button>
+                          </.button>
                         </div>
                       </div>
                     <% end %>
@@ -853,16 +862,16 @@
                   <p class="text-sm text-base-content/40">Add your first link above</p>
                 </div>
               <% end %>
-            </div>
-          </div>
+            </:body>
+          </.card>
         </div>
       <% end %>
       <!-- Widgets Tab -->
       <%= if @selected_tab == "content" do %>
         <div class="space-y-4 sm:space-y-6">
           <!-- Add New Widget -->
-          <div class="card panel-card">
-            <div class="card-body p-4 sm:p-6">
+          <.card body_class="p-4 sm:p-6">
+            <:body>
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                   <.icon name="hero-squares-plus" class="w-6 h-6" /> Add Widget
@@ -936,15 +945,15 @@
                   </div>
                 </div>
 
-                <button type="submit" class="btn btn-primary w-full">
+                <.button type="submit" class="w-full">
                   <.icon name="hero-plus" class="w-5 h-5 mr-2" /> Add Widget
-                </button>
+                </.button>
               </.form>
-            </div>
-          </div>
+            </:body>
+          </.card>
           <!-- Current Widgets -->
-          <div class="card panel-card">
-            <div class="card-body p-4 sm:p-6">
+          <.card body_class="p-4 sm:p-6">
+            <:body>
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                   <.icon name="hero-squares-2x2" class="w-6 h-6" /> Your Widgets
@@ -963,24 +972,28 @@
                       <div class="flex items-center justify-between">
                         <div class="flex items-center gap-3 flex-1">
                           <div class="flex flex-col gap-1">
-                            <button
+                            <.button
                               phx-click="reorder_widget"
                               phx-value-id={widget.id}
                               phx-value-direction="up"
-                              class="btn btn-ghost btn-xs p-0 h-4 min-h-4"
+                              variant="ghost"
+                              size="xs"
+                              class="p-0 h-4 min-h-4"
                               disabled={widget.position == 0}
                             >
                               <.icon name="hero-chevron-up" class="w-3 h-3" />
-                            </button>
-                            <button
+                            </.button>
+                            <.button
                               phx-click="reorder_widget"
                               phx-value-id={widget.id}
                               phx-value-direction="down"
-                              class="btn btn-ghost btn-xs p-0 h-4 min-h-4"
+                              variant="ghost"
+                              size="xs"
+                              class="p-0 h-4 min-h-4"
                               disabled={widget.position == length(@profile.widgets) - 1}
                             >
                               <.icon name="hero-chevron-down" class="w-3 h-3" />
-                            </button>
+                            </.button>
                           </div>
 
                           <div class="flex-1">
@@ -998,14 +1011,16 @@
                         </div>
 
                         <div class="flex items-center gap-2">
-                          <button
+                          <.button
                             phx-click="delete_widget"
                             phx-value-id={widget.id}
-                            class="btn btn-ghost btn-xs text-error"
+                            variant="ghost"
+                            size="xs"
+                            class="text-error"
                             data-confirm="Delete this widget?"
                           >
                             <.icon name="hero-trash" class="w-4 h-4" />
-                          </button>
+                          </.button>
                         </div>
                       </div>
                     </div>
@@ -1022,14 +1037,14 @@
                   <p class="text-sm text-base-content/40">Add your first widget above</p>
                 </div>
               <% end %>
-            </div>
-          </div>
+            </:body>
+          </.card>
         </div>
       <% end %>
       <!-- Badges Tab -->
       <%= if @selected_tab == "content" do %>
-        <div class="card panel-card">
-          <div class="card-body p-4 sm:p-6">
+        <.card body_class="p-4 sm:p-6">
+          <:body>
             <div class="mb-6">
               <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                 <.icon name="hero-check-badge" class="w-6 h-6" /> Manage Your Badges
@@ -1043,7 +1058,7 @@
             <%= if @user_badges && length(@user_badges) > 0 do %>
               <div class="space-y-3">
                 <%= for badge <- @user_badges do %>
-                  <div class="flex items-center justify-between p-4 bg-base-200/50 rounded-xl hover:bg-base-200 transition-all duration-300/50">
+                  <div class="flex items-center justify-between p-4 bg-base-200/50 rounded-lg hover:bg-base-200 transition-all duration-300/50">
                     <div class="flex items-center gap-3">
                       <span
                         class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full font-semibold text-xs"
@@ -1094,15 +1109,15 @@
                 </p>
               </div>
             <% end %>
-          </div>
-        </div>
+          </:body>
+        </.card>
       <% end %>
       <!-- Advanced Tab -->
       <%= if @selected_tab == "design" do %>
         <div class="space-y-4 sm:space-y-6">
           <!-- Text Fonts -->
-          <div class="card panel-card">
-            <div class="card-body p-4 sm:p-6">
+          <.card body_class="p-4 sm:p-6">
+            <:body>
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                   <.icon name="hero-document-text" class="w-6 h-6" /> Text Fonts
@@ -1269,13 +1284,13 @@
                     The quick brown fox jumps over the lazy dog
                   </p>
                 </div>
-                <button type="submit" class="btn btn-primary w-full"> Save Font </button>
+                <.button type="submit" class="w-full">Save Font</.button>
               </.form>
-            </div>
-          </div>
+            </:body>
+          </.card>
           <!-- Cursor Effects -->
-          <div class="card panel-card">
-            <div class="card-body p-4 sm:p-6">
+          <.card body_class="p-4 sm:p-6">
+            <:body>
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                   <.icon name="hero-cursor-arrow-rays" class="w-6 h-6" /> Cursor Effects
@@ -1422,13 +1437,13 @@
                     </span>
                   </p>
                 </div>
-                <button type="submit" class="btn btn-primary w-full"> Save Cursor </button>
+                <.button type="submit" class="w-full">Save Cursor</.button>
               </.form>
-            </div>
-          </div>
+            </:body>
+          </.card>
           <!-- Favicon -->
-          <div class="card panel-card">
-            <div class="card-body p-4 sm:p-6">
+          <.card body_class="p-4 sm:p-6">
+            <:body>
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                   <.icon name="hero-globe-alt" class="w-6 h-6" /> Favicon
@@ -1468,13 +1483,15 @@
                       </span>
                     </div>
 
-                    <button
+                    <.button
                       type="button"
                       phx-click="remove_favicon"
-                      class="absolute top-2 right-2 btn btn-secondary btn-xs"
+                      variant="secondary"
+                      size="xs"
+                      class="absolute top-2 right-2"
                     >
                       <.icon name="hero-trash" class="w-4 h-4" /> Remove
-                    </button>
+                    </.button>
                   </div>
                 <% end %>
                 <!-- Upload Progress -->
@@ -1492,14 +1509,15 @@
                       </progress>
                     </div>
 
-                    <button
-                      type="button"
+                    <.icon_button
+                      icon="hero-x-mark"
+                      variant="ghost"
+                      size="sm"
+                      label="Cancel favicon upload"
+                      class="flex-shrink-0"
                       phx-click="cancel_favicon_upload"
                       phx-value-ref={entry.ref}
-                      class="btn btn-ghost btn-sm btn-circle flex-shrink-0"
-                    >
-                      <.icon name="hero-x-mark" class="w-4 h-4" />
-                    </button>
+                    />
                   </div>
                 <% end %>
                 <!-- Upload Button -->
@@ -1512,10 +1530,10 @@
                     Accepts: PNG, ICO, SVG, JPG (max 1MB). Square images work best (16x16 to 512x512)
                   </span>
                 </div>
-                <button type="submit" class="btn btn-primary w-full"> Save Favicon </button>
+                <.button type="submit" class="w-full">Save Favicon</.button>
               </.form>
-            </div>
-          </div>
+            </:body>
+          </.card>
         </div>
       <% end %>
       <!-- Static Site Tab -->
@@ -1524,8 +1542,8 @@
           length(@static_site_files || []) %> <% has_static_files = static_file_count > 0 %> <% has_homepage =
           Enum.any?(@static_site_files || [], &(&1.path in ["index.html", "index.htm"])) %>
         <div class="space-y-4 sm:space-y-6">
-          <div class="card panel-card">
-            <div class="card-body p-4 sm:p-6 space-y-5">
+          <.card body_class="p-4 sm:p-6 space-y-5">
+            <:body>
               <.section_header
                 title="Publish a profile site"
                 description="Upload a ZIP and publish to your profile URL."
@@ -1569,17 +1587,17 @@
                     }
                   ]} />
                   <.action_toolbar>
-                    <a
+                    <.button
                       href={@static_site_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      class="btn btn-primary btn-sm"
+                      size="sm"
                     >
                       <.icon name="hero-arrow-top-right-on-square" class="h-4 w-4" /> Visit Site
-                    </a>
-                    <.link navigate={~p"/domains"} class="btn btn-ghost btn-sm">
+                    </.button>
+                    <.button navigate={~p"/domains"} variant="ghost" size="sm">
                       <.icon name="hero-globe-alt" class="h-4 w-4" /> Custom Domains
-                    </.link>
+                    </.button>
                   </.action_toolbar>
                 </div>
 
@@ -1682,12 +1700,12 @@
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
+            </:body>
+          </.card>
 
           <% github_form = @github_deploy_form || %{} %>
-          <div class="card panel-card">
-            <div class="card-body p-4 sm:p-6 space-y-5">
+          <.card body_class="p-4 sm:p-6 space-y-5">
+            <:body>
               <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <.section_header
                   title="Deploy from a repository"
@@ -1701,20 +1719,18 @@
                       Connected as {@github_connected_account.username}
                     </span>
                   <% else %>
-                    <.link
+                    <.button
                       navigate={
                         ~p"/account/connections/github/start?scope=static_site&return_to=#{"/account/profile/edit?tab=publish"}"
                       }
-                      class={[
-                        "btn btn-primary btn-sm",
-                        !github_oauth_configured?() && "pointer-events-none opacity-50"
-                      ]}
+                      size="sm"
+                      class={[!github_oauth_configured?() && "pointer-events-none opacity-50"]}
                     >
                       <.brand_icon name="github" class="h-4 w-4" />
                       {if @github_connected_account,
                         do: "Reconnect GitHub",
                         else: "Connect GitHub"}
-                    </.link>
+                    </.button>
                   <% end %>
                 </div>
               </div>
@@ -1797,9 +1813,9 @@
                       </div>
                     </details>
 
-                    <button type="submit" class="btn btn-secondary btn-sm">
+                    <.button type="submit" variant="secondary" size="sm">
                       <.icon name="hero-link" class="h-4 w-4" /> Link Repository
-                    </button>
+                    </.button>
                   </.form>
 
                   <%= if @static_site_deployment do %>
@@ -1933,7 +1949,7 @@
                         <%= if @static_site_deploys != [] do %>
                           <div class="space-y-2">
                             <%= for deploy <- @static_site_deploys do %>
-                              <div class="flex items-start justify-between gap-3 rounded-md bg-base-100/70 p-2">
+                              <div class="flex items-start justify-between gap-3 rounded-lg bg-base-100/70 p-2">
                                 <div class="min-w-0">
                                   <div class="flex flex-wrap items-center gap-2">
                                     <span class={[
@@ -1959,17 +1975,19 @@
                                   </div>
                                 </div>
 
-                                <button
+                                <.button
                                   :if={deploy.snapshot_storage_key}
                                   type="button"
                                   phx-click="rollback_static_site_deploy"
                                   phx-value-id={deploy.id}
                                   data-confirm="Rollback your static site to this deploy snapshot?"
-                                  class="btn btn-ghost btn-xs shrink-0"
+                                  variant="ghost"
+                                  size="xs"
+                                  class="shrink-0"
                                 >
                                   <.icon name="hero-arrow-uturn-left" class="h-3.5 w-3.5" />
                                   Rollback
-                                </button>
+                                </.button>
                               </div>
                             <% end %>
                           </div>
@@ -1981,13 +1999,13 @@
                       </div>
 
                       <div class="flex flex-wrap gap-2">
-                        <button
+                        <.button
                           type="button"
                           phx-click="deploy_static_site_from_github"
-                          class="btn btn-primary btn-sm"
+                          size="sm"
                         >
                           <.icon name="hero-rocket-launch" class="h-4 w-4" /> Deploy now
-                        </button>
+                        </.button>
                       </div>
                     </div>
                   <% else %>
@@ -1997,11 +2015,11 @@
                   <% end %>
                 </div>
               </div>
-            </div>
-          </div>
+            </:body>
+          </.card>
 
-          <div class="card panel-card">
-            <div class="card-body p-4 sm:p-6 space-y-4">
+          <.card body_class="p-4 sm:p-6 space-y-4">
+            <:body>
               <div class="space-y-1.5">
                 <h3 class="text-lg sm:text-xl font-semibold">Upload</h3>
 
@@ -2056,14 +2074,15 @@
                             />
                           </div>
 
-                          <button
-                            type="button"
+                          <.icon_button
+                            icon="hero-x-mark"
+                            variant="ghost"
+                            size="xs"
+                            label="Cancel site upload"
+                            class="flex-shrink-0"
                             phx-click="cancel_static_site_upload"
                             phx-value-ref={entry.ref}
-                            class="btn btn-ghost btn-xs btn-circle flex-shrink-0"
-                          >
-                            <.icon name="hero-x-mark" class="h-3 w-3" />
-                          </button>
+                          />
                         </div>
                       </div>
                     <% end %>
@@ -2075,13 +2094,13 @@
                       </div>
                     <% end %>
 
-                    <button
+                    <.button
                       type="submit"
-                      class="btn btn-primary w-full sm:w-auto"
+                      class="w-full sm:w-auto"
                       disabled={@uploads.static_site.entries == []}
                     >
                       <.icon name="hero-rocket-launch" class="h-4 w-4" /> Publish ZIP
-                    </button>
+                    </.button>
                   </.form>
                 </div>
 
@@ -2121,8 +2140,8 @@
                   </span>
                 </div>
               <% end %>
-            </div>
-          </div>
+            </:body>
+          </.card>
 
           <div class="card panel-card">
             <div class="p-4 sm:p-6 space-y-5">
@@ -2191,14 +2210,15 @@
                           />
                         </div>
 
-                        <button
-                          type="button"
+                        <.icon_button
+                          icon="hero-x-mark"
+                          variant="ghost"
+                          size="xs"
+                          label="Cancel file upload"
+                          class="flex-shrink-0"
                           phx-click="cancel_static_file_upload"
                           phx-value-ref={entry.ref}
-                          class="btn btn-ghost btn-xs btn-circle flex-shrink-0"
-                        >
-                          <.icon name="hero-x-mark" class="h-3 w-3" />
-                        </button>
+                        />
                       </div>
                     </div>
                   <% end %>
@@ -2210,13 +2230,13 @@
                     </div>
                   <% end %>
 
-                  <button
+                  <.button
                     type="submit"
-                    class="btn btn-secondary"
+                    variant="secondary"
                     disabled={@uploads.static_files.entries == []}
                   >
                     <.icon name="hero-arrow-up-tray" class="h-4 w-4" /> Upload Files
-                  </button>
+                  </.button>
                 </.form>
               </div>
 
@@ -2255,7 +2275,7 @@
                           String.ends_with?(filename, ".svg") or
                           String.ends_with?(filename, ".ico") %> <% is_editable =
                         is_html or is_css or is_js or is_json or is_text %>
-                      <div class="group flex items-center rounded px-1 py-1 hover:bg-base-300/70">
+                      <div class="group flex items-center rounded-lg px-1 py-1 hover:bg-base-300/70">
                         <div
                           class="flex min-w-0 flex-1 items-center gap-2"
                           style={"padding-left: #{(depth + 1) * 16}px"}
@@ -2300,36 +2320,43 @@
 
                         <div class="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                           <%= if is_editable do %>
-                            <button
+                            <.button
                               phx-click="edit_file"
                               phx-value-path={file.path}
-                              class="btn btn-ghost btn-xs text-info"
+                              variant="ghost"
+                              size="xs"
+                              class="text-info"
                               title="Edit file"
                             >
                               <.icon name="hero-pencil" class="h-3 w-3" />
-                            </button>
+                            </.button>
                           <% end %>
 
-                          <button
+                          <.button
                             phx-click="delete_static_file"
                             phx-value-path={file.path}
-                            class="btn btn-ghost btn-xs text-error"
+                            variant="ghost"
+                            size="xs"
+                            class="text-error"
                             title="Delete file"
                           >
                             <.icon name="hero-trash" class="h-3 w-3" />
-                          </button>
+                          </.button>
                         </div>
                       </div>
                     <% end %>
                   </div>
 
-                  <button
+                  <.button
                     phx-click="delete_all_static_files"
-                    class="btn btn-error btn-outline btn-sm w-full sm:w-auto"
+                    variant="error"
+                    outline
+                    size="sm"
+                    class="w-full sm:w-auto"
                     data-confirm="Are you sure? This will delete all your static site files."
                   >
                     <.icon name="hero-trash" class="h-4 w-4" /> Delete All Files
-                  </button>
+                  </.button>
                 <% else %>
                   <div class="rounded-lg border border-dashed border-base-content/15 bg-base-200/20 px-6 py-8 text-center text-sm text-base-content/60">
                     No files uploaded yet. Publish a ZIP above to get your site live quickly.
@@ -2352,9 +2379,13 @@
           <.icon name="hero-code-bracket" class="w-5 h-5" /> Editing: {@editing_file.path}
         </h3>
 
-        <button phx-click="close_editor" class="btn btn-ghost btn-sm btn-circle">
-          <.icon name="hero-x-mark" class="w-5 h-5" />
-        </button>
+        <.icon_button
+          icon="hero-x-mark"
+          variant="ghost"
+          size="sm"
+          label="Close editor"
+          phx-click="close_editor"
+        />
       </div>
 
       <form phx-submit="save_file" class="flex-1 flex flex-col">
@@ -2366,10 +2397,10 @@
           id="code-editor"
         >{@file_content}</textarea>
         <div class="modal-action">
-          <button type="button" phx-click="close_editor" class="btn btn-ghost">Cancel</button>
-          <button type="submit" class="btn btn-primary">
+          <.button type="button" phx-click="close_editor" variant="ghost">Cancel</.button>
+          <.button type="submit">
             <.icon name="hero-check" class="w-4 h-4" /> Save
-          </button>
+          </.button>
         </div>
       </form>
     </div>

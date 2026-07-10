@@ -1,5 +1,5 @@
-<div class="card panel-card max-w-md mx-auto">
-  <div class="card-body">
+<.card class="max-w-md mx-auto">
+  <:body>
     <h1 class="text-center text-3xl font-bold mb-6">{gettext("Reset Password")}</h1>
 
     <p class="text-center opacity-70 mb-6">
@@ -36,9 +36,9 @@
     <div class="divider mt-6">{gettext("OR")}</div>
 
     <div class="text-center">
-      <.link href={Elektrine.Paths.login_path()} class="btn btn-ghost btn-sm">
+      <.button href={Elektrine.Paths.login_path()} variant="ghost" size="sm">
         {gettext("Back to Login")}
-      </.link>
+      </.button>
     </div>
-  </div>
-</div>
+  </:body>
+</.card>

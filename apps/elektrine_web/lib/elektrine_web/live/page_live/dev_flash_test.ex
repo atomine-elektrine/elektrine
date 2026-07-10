@@ -29,24 +29,24 @@ defmodule ElektrineWeb.PageLive.DevFlashTest do
             <section class="space-y-3">
               <h2 class="text-xl font-semibold">LiveView Flash</h2>
               <div class="flex flex-wrap gap-2">
-                <button class="btn btn-success" phx-click="live_flash" phx-value-kind="info">
+                <.button variant="success" phx-click="live_flash" phx-value-kind="info">
                   Trigger LiveView Info
-                </button>
-                <button class="btn btn-error" phx-click="live_flash" phx-value-kind="error">
+                </.button>
+                <.button variant="error" phx-click="live_flash" phx-value-kind="error">
                   Trigger LiveView Error
-                </button>
+                </.button>
               </div>
             </section>
 
             <section class="space-y-3">
               <h2 class="text-xl font-semibold">Controller Redirect Flash</h2>
               <div class="flex flex-wrap gap-2">
-                <.link href="/dev/flash-test/controller/info" class="btn btn-success">
+                <.button href="/dev/flash-test/controller/info" variant="success">
                   Trigger Controller Info
-                </.link>
-                <.link href="/dev/flash-test/controller/error" class="btn btn-error">
+                </.button>
+                <.button href="/dev/flash-test/controller/error" variant="error">
                   Trigger Controller Error
-                </.link>
+                </.button>
               </div>
             </section>
 

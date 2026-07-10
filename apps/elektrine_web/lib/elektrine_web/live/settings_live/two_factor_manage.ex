@@ -27,8 +27,8 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorManage do
       sidebar_tab="security"
       current_user={@current_user}
     >
-      <div id="2fa-manage-card" class="card panel-card border border-base-300">
-        <div class="card-body p-4 sm:p-6">
+      <.card id="2fa-manage-card" class="border border-base-300" body_class="p-4 sm:p-6">
+        <:body>
           <.section_header
             title="Two-factor is enabled"
             description="Your account requires an authenticator code or backup code after password login."
@@ -50,13 +50,14 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorManage do
                     backup codes remaining. Generate a new set if these have been exposed or are running low.
                   </p>
                 </div>
-                <button
+                <.button
                   type="button"
+                  size="sm"
+                  class="shrink-0"
                   data-open-modal="regenerate_modal"
-                  class="btn btn-primary btn-sm shrink-0"
                 >
                   <.icon name="hero-arrow-path" class="w-4 h-4" /> Generate Codes
-                </button>
+                </.button>
               </div>
             </div>
 
@@ -69,13 +70,15 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorManage do
                     Disabling 2FA will make your account less secure. You need your current password and an authenticator app code to confirm.
                   </p>
                 </div>
-                <button
+                <.button
                   type="button"
+                  variant="ghost"
+                  size="sm"
+                  class="text-error shrink-0"
                   data-open-modal="disable_modal"
-                  class="btn btn-ghost btn-sm text-error shrink-0"
                 >
                   Disable 2FA
-                </button>
+                </.button>
               </div>
             </div>
           </div>
@@ -99,8 +102,8 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorManage do
               </ul>
             </div>
           </div>
-        </div>
-      </div>
+        </:body>
+      </.card>
 
       <dialog id="regenerate_modal" class="modal">
         <div class="modal-box modal-surface max-w-md w-full mx-4">
@@ -128,16 +131,16 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorManage do
             </div>
 
             <div class="modal-action">
-              <button
+              <.button
                 type="button"
+                variant="ghost"
                 data-close-modal="regenerate_modal"
-                class="btn btn-ghost"
               >
                 Cancel
-              </button>
-              <button type="submit" class="btn btn-primary">
+              </.button>
+              <.button type="submit">
                 Generate New Codes
-              </button>
+              </.button>
             </div>
           </.form>
         </div>
@@ -190,16 +193,16 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorManage do
             </div>
 
             <div class="modal-action">
-              <button
+              <.button
                 type="button"
+                variant="ghost"
                 data-close-modal="disable_modal"
-                class="btn btn-ghost"
               >
                 Cancel
-              </button>
-              <button type="submit" class="btn btn-secondary">
+              </.button>
+              <.button type="submit" variant="secondary">
                 Disable 2FA
-              </button>
+              </.button>
             </div>
           </.form>
         </div>

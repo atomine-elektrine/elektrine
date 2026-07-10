@@ -2,7 +2,7 @@
   <section class="card panel-card">
     <div class="flex flex-col gap-8 px-5 py-6 sm:px-8 sm:py-8 xl:flex-row xl:items-end xl:justify-between">
       <div class="max-w-3xl">
-        <div class="text-[11px] font-semibold uppercase tracking-[0.32em] text-info/80">
+        <div class="text-2xs font-semibold uppercase tracking-[0.32em] text-info/80">
           Overview
         </div>
 
@@ -56,7 +56,7 @@
             class="surface-interactive group rounded-box px-4 py-4 hover:-translate-y-0.5 hover:border-info/30"
           >
             <div class="flex items-center justify-between">
-              <span class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+              <span class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
                 Custom Domains
               </span>
               <.icon name="hero-globe-alt" class="h-5 w-5 text-info" />
@@ -77,7 +77,7 @@
           class="surface-interactive group rounded-box px-4 py-4 hover:-translate-y-0.5 hover:border-warning/30"
         >
           <div class="flex items-center justify-between">
-            <span class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            <span class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
               Reports
             </span>
             <.icon name="hero-flag" class="h-5 w-5 text-warning" />
@@ -94,7 +94,7 @@
           class="surface-interactive group rounded-box px-4 py-4 hover:-translate-y-0.5 hover:border-primary/30"
         >
           <div class="flex items-center justify-between">
-            <span class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            <span class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
               Users
             </span>
             <.icon name="hero-users" class="h-5 w-5 text-primary" />
@@ -112,7 +112,7 @@
           title="Refresh dashboard stats"
         >
           <div class="flex items-center justify-between">
-            <span class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            <span class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
               Refresh
             </span>
             <.icon name="hero-arrow-path" class="h-5 w-5 text-secondary" />
@@ -136,7 +136,7 @@
     <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
       <div class="flex items-center justify-between gap-4">
         <div>
-          <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+          <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
             Organization
           </div>
 
@@ -149,10 +149,10 @@
 
     <div class="grid gap-4 px-5 py-5 md:grid-cols-2 xl:grid-cols-4 sm:px-6">
       <%= for section <- Enum.reject(admin_nav_sections(), &(&1.label == "Main")) do %>
-        <div class="surface-subtle rounded-2xl p-4">
+        <div class="surface-subtle rounded-box p-4">
           <div class="flex items-start justify-between gap-3">
             <div>
-              <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
                 {section.label}
               </div>
 
@@ -193,7 +193,7 @@
   <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
     <div class="surface-muted rounded-box px-4 py-4 shadow-sm">
       <div class="flex items-center justify-between">
-        <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+        <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
           Users
         </div>
         <.icon name="hero-users" class="h-5 w-5 text-primary" />
@@ -207,7 +207,7 @@
     <%= if @email_available do %>
       <div class="surface-muted rounded-box px-4 py-4 shadow-sm">
         <div class="flex items-center justify-between">
-          <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+          <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
             Mailboxes
           </div>
           <.icon name="hero-envelope" class="h-5 w-5 text-success" />
@@ -220,7 +220,7 @@
 
       <div class="surface-muted rounded-box px-4 py-4 shadow-sm">
         <div class="flex items-center justify-between">
-          <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+          <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
             Messages
           </div>
           <.icon name="hero-chat-bubble-left-ellipsis" class="h-5 w-5 text-warning" />
@@ -235,7 +235,7 @@
 
       <div class="surface-muted rounded-box px-4 py-4 shadow-sm">
         <div class="flex items-center justify-between">
-          <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+          <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
             Aliases
           </div>
           <.icon name="hero-at-symbol" class="h-5 w-5 text-secondary" />
@@ -248,7 +248,7 @@
 
       <div class="surface-muted rounded-box px-4 py-4 shadow-sm">
         <div class="flex items-center justify-between">
-          <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+          <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
             Custom Domains
           </div>
           <.icon name="hero-globe-alt" class="h-5 w-5 text-info" />
@@ -268,7 +268,7 @@
       <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
         <div class="flex items-center justify-between gap-4">
           <div>
-            <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
               Quick Search
             </div>
 
@@ -283,7 +283,7 @@
           action={~p"/pripyat/users"}
           class="surface-muted rounded-box p-4"
         >
-          <label class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+          <label class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
             Users
           </label>
           <div class="mt-3 join w-full">
@@ -293,9 +293,9 @@
               placeholder="username or handle"
               class="input input-bordered join-item w-full"
             />
-            <button type="submit" class="btn btn-primary join-item">
+            <.button type="submit" class="join-item">
               <.icon name="hero-users" class="h-4 w-4" />
-            </button>
+            </.button>
           </div>
         </form>
 
@@ -305,7 +305,7 @@
             action={~p"/pripyat/mailboxes"}
             class="surface-muted rounded-box p-4"
           >
-            <label class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+            <label class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
               Mailboxes
             </label>
             <div class="mt-3 join w-full">
@@ -315,9 +315,9 @@
                 placeholder="address or username"
                 class="input input-bordered join-item w-full"
               />
-              <button type="submit" class="btn btn-success join-item">
+              <.button type="submit" variant="success" class="join-item">
                 <.icon name="hero-envelope" class="h-4 w-4" />
-              </button>
+              </.button>
             </div>
           </form>
 
@@ -326,7 +326,7 @@
             action={~p"/pripyat/messages"}
             class="surface-muted rounded-box p-4"
           >
-            <label class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+            <label class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
               Messages
             </label>
             <div class="mt-3 join w-full">
@@ -336,9 +336,9 @@
                 placeholder="subject, sender, recipient"
                 class="input input-bordered join-item w-full"
               />
-              <button type="submit" class="btn btn-warning join-item">
+              <.button type="submit" variant="warning" class="join-item">
                 <.icon name="hero-chat-bubble-left-ellipsis" class="h-4 w-4" />
-              </button>
+              </.button>
             </div>
           </form>
 
@@ -347,7 +347,7 @@
             action={~p"/pripyat/custom-domains"}
             class="surface-muted rounded-box p-4"
           >
-            <label class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+            <label class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
               Custom Domains
             </label>
             <div class="mt-3 join w-full">
@@ -357,9 +357,9 @@
                 placeholder="domain or owner"
                 class="input input-bordered join-item w-full"
               />
-              <button type="submit" class="btn btn-info join-item">
+              <.button type="submit" variant="info" class="join-item">
                 <.icon name="hero-globe-alt" class="h-4 w-4" />
-              </button>
+              </.button>
             </div>
           </form>
         <% end %>
@@ -368,7 +368,7 @@
 
     <div class="card panel-card">
       <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
-        <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+        <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
           Queues
         </div>
 
@@ -376,7 +376,7 @@
       </div>
 
       <div class="grid gap-3 px-5 py-5 sm:grid-cols-2 sm:px-6">
-        <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
+        <div class="rounded-box border border-base-content/10 bg-base-200/35 p-4">
           <div class="text-sm text-base-content/60">Pending Reports</div>
 
           <div class="mt-2 text-3xl font-semibold text-warning">{@stats.pending_reports}</div>
@@ -389,7 +389,7 @@
           </.link>
         </div>
 
-        <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
+        <div class="rounded-box border border-base-content/10 bg-base-200/35 p-4">
           <div class="text-sm text-base-content/60">Deletion Requests</div>
 
           <div class="mt-2 text-3xl font-semibold text-error">{@stats.pending_deletions}</div>
@@ -402,7 +402,7 @@
           </.link>
         </div>
 
-        <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
+        <div class="rounded-box border border-base-content/10 bg-base-200/35 p-4">
           <div class="text-sm text-base-content/60">Invite Codes</div>
 
           <div class="mt-2 text-3xl font-semibold text-info">{@stats.invite_codes_active}</div>
@@ -415,7 +415,7 @@
           </.link>
         </div>
 
-        <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
+        <div class="rounded-box border border-base-content/10 bg-base-200/35 p-4">
           <div class="text-sm text-base-content/60">Announcements</div>
 
           <div class="mt-2 text-3xl font-semibold text-secondary">
@@ -438,22 +438,22 @@
       <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
         <div class="flex items-center justify-between gap-4">
           <div>
-            <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
               Active Users
             </div>
 
             <h2 class="mt-1 text-xl font-semibold tracking-tight">Activity</h2>
           </div>
 
-          <.link navigate={~p"/pripyat/active-users"} class="btn btn-primary btn-sm">
+          <.button navigate={~p"/pripyat/active-users"} size="sm">
             View All
-          </.link>
+          </.button>
         </div>
       </div>
 
       <div class="grid gap-3 px-5 py-5 sm:grid-cols-2 sm:px-6">
-        <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
-          <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+        <div class="rounded-box border border-base-content/10 bg-base-200/35 p-4">
+          <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
             Last 24 Hours
           </div>
 
@@ -462,8 +462,8 @@
           </div>
         </div>
 
-        <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
-          <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+        <div class="rounded-box border border-base-content/10 bg-base-200/35 p-4">
+          <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
             Last 7 Days
           </div>
 
@@ -472,8 +472,8 @@
           </div>
         </div>
 
-        <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
-          <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+        <div class="rounded-box border border-base-content/10 bg-base-200/35 p-4">
+          <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
             Last 30 Days
           </div>
 
@@ -482,8 +482,8 @@
           </div>
         </div>
 
-        <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
-          <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+        <div class="rounded-box border border-base-content/10 bg-base-200/35 p-4">
+          <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
             Never Active
           </div>
 
@@ -495,7 +495,7 @@
 
       <div class="border-t border-base-content/10 px-5 py-5 sm:px-6">
         <div class="grid gap-3 sm:grid-cols-2">
-          <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
+          <div class="rounded-box border border-base-content/10 bg-base-200/35 p-4">
             <div class="text-sm text-base-content/60">IMAP Users</div>
 
             <div class="mt-2 text-2xl font-semibold text-primary">{@stats.imap_users}</div>
@@ -508,7 +508,7 @@
             </.link>
           </div>
 
-          <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
+          <div class="rounded-box border border-base-content/10 bg-base-200/35 p-4">
             <div class="text-sm text-base-content/60">POP3 Users</div>
 
             <div class="mt-2 text-2xl font-semibold text-success">{@stats.pop3_users}</div>
@@ -529,21 +529,21 @@
         <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
           <div class="flex items-center justify-between gap-4">
             <div>
-              <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+              <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
                 Custom Domains
               </div>
 
               <h2 class="mt-1 text-xl font-semibold tracking-tight">Domain Health</h2>
             </div>
 
-            <.link href={~p"/pripyat/custom-domains"} class="btn btn-info btn-sm">
+            <.button href={~p"/pripyat/custom-domains"} variant="info" size="sm">
               Open Console
-            </.link>
+            </.button>
           </div>
         </div>
 
         <div class="grid gap-3 px-5 py-5 sm:grid-cols-2 sm:px-6">
-          <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
+          <div class="rounded-box border border-base-content/10 bg-base-200/35 p-4">
             <div class="text-sm text-base-content/60">Verified</div>
 
             <div class="mt-2 text-3xl font-semibold text-success">
@@ -551,7 +551,7 @@
             </div>
           </div>
 
-          <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
+          <div class="rounded-box border border-base-content/10 bg-base-200/35 p-4">
             <div class="text-sm text-base-content/60">Pending</div>
 
             <div class="mt-2 text-3xl font-semibold text-secondary">
@@ -559,7 +559,7 @@
             </div>
           </div>
 
-          <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
+          <div class="rounded-box border border-base-content/10 bg-base-200/35 p-4">
             <div class="text-sm text-base-content/60">Attention</div>
 
             <div class="mt-2 text-3xl font-semibold text-warning">
@@ -567,7 +567,7 @@
             </div>
           </div>
 
-          <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
+          <div class="rounded-box border border-base-content/10 bg-base-200/35 p-4">
             <div class="text-sm text-base-content/60">Preferred</div>
 
             <div class="mt-2 text-3xl font-semibold text-info">
@@ -586,13 +586,13 @@
           </div>
 
           <%= if Enum.empty?(@stats.custom_domains.recent_domains) do %>
-            <div class="mt-4 rounded-2xl border border-dashed border-base-content/15 bg-base-200/45 px-4 py-8 text-center text-sm text-base-content/55">
+            <div class="mt-4 rounded-box border border-dashed border-base-content/15 bg-base-200/45 px-4 py-8 text-center text-sm text-base-content/55">
               No custom domains yet.
             </div>
           <% else %>
             <div class="mt-4 space-y-3">
               <%= for custom_domain <- @stats.custom_domains.recent_domains do %>
-                <div class="flex flex-col gap-3 rounded-2xl border border-base-content/10 bg-base-200/45 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div class="flex flex-col gap-3 rounded-box border border-base-content/10 bg-base-200/45 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
                   <div class="min-w-0">
                     <div class="flex flex-wrap items-center gap-2">
                       <div class="truncate font-semibold">{custom_domain.domain}</div>
@@ -639,7 +639,7 @@
   <section class="grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
     <div class="card panel-card">
       <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
-        <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+        <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
           Security
         </div>
 
@@ -647,7 +647,7 @@
       </div>
 
       <div class="grid gap-3 px-5 py-5 sm:grid-cols-2 sm:px-6">
-        <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
+        <div class="rounded-box border border-base-content/10 bg-base-200/35 p-4">
           <div class="text-sm text-base-content/60">2FA Users</div>
 
           <div class="mt-2 text-3xl font-semibold text-accent">{@stats.two_factor_users}</div>
@@ -660,7 +660,7 @@
           </.link>
         </div>
 
-        <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
+        <div class="rounded-box border border-base-content/10 bg-base-200/35 p-4">
           <div class="text-sm text-base-content/60">Active Subscriptions</div>
 
           <div class="mt-2 text-3xl font-semibold text-info">
@@ -681,7 +681,7 @@
       <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
         <div class="flex items-center justify-between gap-4">
           <div>
-            <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
               Federation
             </div>
 
@@ -689,23 +689,23 @@
           </div>
 
           <div class="flex flex-wrap gap-2">
-            <.link navigate={~p"/pripyat/messaging-federation"} class="btn btn-ghost btn-sm">
+            <.button navigate={~p"/pripyat/messaging-federation"} variant="ghost" size="sm">
               Chat
-            </.link>
-            <.link navigate={~p"/pripyat/bluesky-bridge"} class="btn btn-ghost btn-sm">
+            </.button>
+            <.button navigate={~p"/pripyat/bluesky-bridge"} variant="ghost" size="sm">
               Bluesky
-            </.link>
-            <.link navigate={~p"/pripyat/relays"} class="btn btn-ghost btn-sm"> Relays </.link>
-            <.link navigate={~p"/pripyat/federation"} class="btn btn-primary btn-sm">
+            </.button>
+            <.button navigate={~p"/pripyat/relays"} variant="ghost" size="sm">Relays</.button>
+            <.button navigate={~p"/pripyat/federation"} size="sm">
               ActivityPub
-            </.link>
+            </.button>
           </div>
         </div>
       </div>
 
       <div class="grid gap-3 px-5 py-5 sm:grid-cols-5 sm:px-6">
-        <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4 sm:col-span-1">
-          <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+        <div class="rounded-box border border-base-content/10 bg-base-200/35 p-4 sm:col-span-1">
+          <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
             Remote Actors
           </div>
 
@@ -714,8 +714,8 @@
           </div>
         </div>
 
-        <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4 sm:col-span-1">
-          <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+        <div class="rounded-box border border-base-content/10 bg-base-200/35 p-4 sm:col-span-1">
+          <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
             Unique Domains
           </div>
 
@@ -724,8 +724,8 @@
           </div>
         </div>
 
-        <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4 sm:col-span-1">
-          <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+        <div class="rounded-box border border-base-content/10 bg-base-200/35 p-4 sm:col-span-1">
+          <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
             Blocked Instances
           </div>
 
@@ -734,8 +734,8 @@
           </div>
         </div>
 
-        <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4 sm:col-span-1">
-          <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+        <div class="rounded-box border border-base-content/10 bg-base-200/35 p-4 sm:col-span-1">
+          <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
             Active Relays
           </div>
 
@@ -744,8 +744,8 @@
           </div>
         </div>
 
-        <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4 sm:col-span-1">
-          <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+        <div class="rounded-box border border-base-content/10 bg-base-200/35 p-4 sm:col-span-1">
+          <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
             Pending Relays
           </div>
 
@@ -757,7 +757,7 @@
 
       <div class="border-t border-base-content/10 px-5 py-5 sm:px-6">
         <div class="grid gap-4 md:grid-cols-2">
-          <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
+          <div class="rounded-box border border-base-content/10 bg-base-200/35 p-4">
             <div class="flex items-center justify-between">
               <h3 class="font-semibold">Chat Federation</h3>
 
@@ -804,7 +804,7 @@
             </div>
           </div>
 
-          <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
+          <div class="rounded-box border border-base-content/10 bg-base-200/35 p-4">
             <div class="flex items-center justify-between">
               <h3 class="font-semibold">Bluesky Bridge</h3>
 
@@ -854,13 +854,13 @@
     <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
       <div class="flex items-center justify-between gap-4">
         <div>
-          <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+          <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
             Accounts
           </div>
 
           <h2 class="mt-1 text-xl font-semibold tracking-tight">Recent Users</h2>
         </div>
-        <.link href={~p"/pripyat/users"} class="btn btn-primary btn-sm"> View All Users </.link>
+        <.button href={~p"/pripyat/users"} size="sm">View All Users</.button>
       </div>
     </div>
 
@@ -873,7 +873,7 @@
                 <td>
                   <div class="flex items-center gap-3">
                     <div class="avatar">
-                      <div class="h-10 w-10 rounded-2xl bg-info/85 text-info-content">
+                      <div class="h-10 w-10 rounded-lg bg-info/85 text-info-content">
                         <span class="flex h-full items-center justify-center text-sm font-bold">
                           {String.first(user.username) |> String.upcase()}
                         </span>

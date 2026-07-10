@@ -66,9 +66,9 @@
           </p>
         </div>
 
-        <a href={~p"/pripyat/media-proxy-cache"} class="btn btn-ghost btn-sm">
+        <.button href={~p"/pripyat/media-proxy-cache"} variant="ghost" size="sm">
           <.icon name="hero-code-bracket-square" class="h-4 w-4" />
-        </a>
+        </.button>
       </div>
     </div>
 
@@ -101,9 +101,9 @@
               <span class="label-text text-sm">Ban after purge</span>
             </label>
 
-            <button type="submit" class="btn btn-warning btn-sm">
+            <.button type="submit" variant="warning" size="sm">
               <.icon name="hero-no-symbol" class="h-4 w-4" /> Purge
-            </button>
+            </.button>
           </div>
         </form>
 
@@ -123,9 +123,9 @@
             ></textarea>
           </label>
 
-          <button type="submit" class="btn btn-success btn-sm">
+          <.button type="submit" variant="success" size="sm">
             <.icon name="hero-check-circle" class="h-4 w-4" /> Unban
-          </button>
+          </.button>
         </form>
       </div>
 
@@ -229,32 +229,32 @@
       </div>
 
       <div class="grid gap-3 p-4 sm:grid-cols-2">
-        <div class="rounded-md bg-base-200 p-3">
+        <div class="rounded-lg bg-base-200 p-3">
           <div class="text-xs text-base-content/60">Skipped federation jobs</div>
           <div class="mt-1 text-xl font-semibold">{@live.federation.skipped_jobs}</div>
         </div>
 
-        <div class="rounded-md bg-base-200 p-3">
+        <div class="rounded-lg bg-base-200 p-3">
           <div class="text-xs text-base-content/60">Latest federation depth</div>
           <div class="mt-1 text-xl font-semibold">{@live.federation.queue_depth}</div>
         </div>
 
-        <div class="rounded-md bg-base-200 p-3">
+        <div class="rounded-lg bg-base-200 p-3">
           <div class="text-xs text-base-content/60">Home feed inserts</div>
           <div class="mt-1 text-xl font-semibold">{@live.home_feed.fanout_insert}</div>
         </div>
 
-        <div class="rounded-md bg-base-200 p-3">
+        <div class="rounded-lg bg-base-200 p-3">
           <div class="text-xs text-base-content/60">Home feed removals</div>
           <div class="mt-1 text-xl font-semibold">{@live.home_feed.fanout_remove}</div>
         </div>
 
-        <div class="rounded-md bg-base-200 p-3">
+        <div class="rounded-lg bg-base-200 p-3">
           <div class="text-xs text-base-content/60">Home feed cache hits</div>
           <div class="mt-1 text-xl font-semibold">{@live.home_feed.cache_hit}</div>
         </div>
 
-        <div class="rounded-md bg-base-200 p-3">
+        <div class="rounded-lg bg-base-200 p-3">
           <div class="text-xs text-base-content/60">Home feed cache misses</div>
           <div class="mt-1 text-xl font-semibold">{@live.home_feed.cache_miss}</div>
         </div>

@@ -15,8 +15,8 @@
     <div class="text-xs opacity-60 sm:text-sm">{@total_count} users</div>
   </div>
   <!-- Timeframe Filter -->
-  <div class="card panel-card mb-6">
-    <div class="card-body">
+  <.card class="mb-6">
+    <:body>
       <div class="tabs tabs-bordered">
         <%= for {value, label} <- [ {"1h", "Last Hour"}, {"24h", "Last 24 Hours"}, {"7d", "Last 7 Days"}, {"30d", "Last 30 Days"}, {"never", "Never Active"} ] do %>
           <.link
@@ -27,11 +27,11 @@
           </.link>
         <% end %>
       </div>
-    </div>
-  </div>
+    </:body>
+  </.card>
   <!-- Active Users Table -->
-  <div class="card panel-card">
-    <div class="card-body p-3 sm:p-6">
+  <.card body_class="p-3 sm:p-6">
+    <:body>
       <div class="overflow-x-auto">
         <table class="table table-zebra w-full">
           <thead>
@@ -110,20 +110,21 @@
                 </td>
 
                 <td>
-                  <.link
+                  <.button
                     navigate={~p"/pripyat/users/#{user.id}/edit"}
-                    class="btn btn-ghost btn-xs"
+                    variant="ghost"
+                    size="xs"
                   >
                     <.icon name="hero-pencil" class="w-3 h-3" /> View
-                  </.link>
+                  </.button>
                 </td>
               </tr>
             <% end %>
           </tbody>
         </table>
       </div>
-    </div>
-  </div>
+    </:body>
+  </.card>
   <!-- Pagination -->
   <%= if @total_pages > 1 do %>
     <div class="flex items-center justify-between mt-6">
@@ -131,34 +132,42 @@
 
       <div class="join">
         <%= if @page > 1 do %>
-          <.link
+          <.button
             navigate={~p"/pripyat/active-users?page=#{@page - 1}&timeframe=#{@timeframe}"}
-            class="join-item btn btn-sm"
+            variant="default"
+            size="sm"
+            class="join-item"
           >
             <.icon name="hero-chevron-left" class="w-4 h-4" />
-          </.link>
+          </.button>
         <% end %>
 
         <%= for page_num <- max(1, @page - 2)..min(@total_pages, @page + 2) do %>
           <%= if page_num == @page do %>
-            <button class="join-item btn btn-sm btn-active">{page_num}</button>
+            <.button variant="default" size="sm" class="join-item btn-active">
+              {page_num}
+            </.button>
           <% else %>
-            <.link
+            <.button
               navigate={~p"/pripyat/active-users?page=#{page_num}&timeframe=#{@timeframe}"}
-              class="join-item btn btn-sm"
+              variant="default"
+              size="sm"
+              class="join-item"
             >
               {page_num}
-            </.link>
+            </.button>
           <% end %>
         <% end %>
 
         <%= if @page < @total_pages do %>
-          <.link
+          <.button
             navigate={~p"/pripyat/active-users?page=#{@page + 1}&timeframe=#{@timeframe}"}
-            class="join-item btn btn-sm"
+            variant="default"
+            size="sm"
+            class="join-item"
           >
             <.icon name="hero-chevron-right" class="w-4 h-4" />
-          </.link>
+          </.button>
         <% end %>
       </div>
     </div>

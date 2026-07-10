@@ -2,21 +2,39 @@
   <div class="mx-auto max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
     <.e_nav active_tab="" class="mb-6" current_user={@current_user} />
 
-    <div id="canary-card" class="card panel-card">
-      <div class="card-body">
+    <.card id="canary-card">
+      <:body>
         <div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <h1 class="card-title text-3xl">Warrant Canary</h1>
 
           <div class="flex flex-wrap gap-2 lg:justify-end">
-            <a class="btn btn-outline btn-sm h-9 min-h-9" href={~p"/canary/current.md"}>
+            <.button
+              href={~p"/canary/current.md"}
+              variant="default"
+              outline
+              size="sm"
+              class="h-9 min-h-9"
+            >
               current.md
-            </a>
-            <a class="btn btn-outline btn-sm h-9 min-h-9" href={~p"/canary/current.md.asc"}>
+            </.button>
+            <.button
+              href={~p"/canary/current.md.asc"}
+              variant="default"
+              outline
+              size="sm"
+              class="h-9 min-h-9"
+            >
               current.md.asc
-            </a>
-            <a class="btn btn-outline btn-sm h-9 min-h-9" href={~p"/canary-key.asc"}>
+            </.button>
+            <.button
+              href={~p"/canary-key.asc"}
+              variant="default"
+              outline
+              size="sm"
+              class="h-9 min-h-9"
+            >
               canary-key.asc
-            </a>
+            </.button>
           </div>
         </div>
 
@@ -28,7 +46,7 @@
 
           <section class="mb-8">
             <h2 class="text-2xl font-semibold mb-4">Current Statement</h2>
-            <div class="rounded-box border border-base-300/60 bg-base-100/50 p-4 leading-7 [&_h1]:mb-4 [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:mb-3 [&_h2]:mt-6 [&_h2]:text-xl [&_h2]:font-semibold [&_p]:mb-3 [&_ul]:mb-4 [&_ul]:mt-2 [&_li]:mb-1 [&_code]:rounded [&_code]:bg-base-200 [&_code]:px-1 [&_code]:py-0.5">
+            <div class="rounded-box border border-base-300/60 bg-base-100/50 p-4 leading-7 [&_h1]:mb-4 [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:mb-3 [&_h2]:mt-6 [&_h2]:text-xl [&_h2]:font-semibold [&_p]:mb-3 [&_ul]:mb-4 [&_ul]:mt-2 [&_li]:mb-1 [&_code]:rounded-lg [&_code]:bg-base-200 [&_code]:px-1 [&_code]:py-0.5">
               <%= if @canary_html != "" do %>
                 {raw(@canary_html)}
               <% else %>
@@ -76,7 +94,7 @@
             </details>
           </section>
         </div>
-      </div>
-    </div>
+      </:body>
+    </.card>
   </div>
 </div>

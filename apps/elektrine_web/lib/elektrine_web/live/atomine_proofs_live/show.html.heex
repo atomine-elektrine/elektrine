@@ -2,8 +2,8 @@
   <% @search_mode -> %>
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-6">
       <div class="space-y-4">
-        <div class="card panel-card">
-          <div class="card-body gap-4">
+        <.card body_class="gap-4">
+          <:body>
             <div>
               <div class="badge badge-ghost mb-2">Atomine Proofs</div>
               <h1 class="text-2xl font-bold">Find public proofs</h1>
@@ -26,24 +26,25 @@
                     autocomplete="off"
                   />
 
-                  <button
+                  <.button
                     type="button"
                     phx-click="clear_search"
                     data-search-clear="true"
                     aria-label="Clear search"
-                    class={[
-                      "btn btn-ghost btn-xs",
+                    variant="ghost"
+                    size="xs"
+                    class={
                       if(@search_query == "", do: "pointer-events-none invisible", else: nil)
-                    ]}
+                    }
                   >
                     <.icon name="hero-x-mark" class="h-4 w-4" />
-                  </button>
+                  </.button>
                 </label>
-                <button type="submit" class="btn btn-neutral join-item">Search</button>
+                <.button type="submit" variant="neutral" class="join-item">Search</.button>
               </div>
             </form>
-          </div>
-        </div>
+          </:body>
+        </.card>
 
         <%= cond do %>
           <% @search_query == "" -> %>
@@ -59,8 +60,8 @@
               <p class="text-sm opacity-70">Nothing public matched "{@search_query}".</p>
             </div>
           <% true -> %>
-            <div class="card panel-card">
-              <div class="card-body gap-3">
+            <.card body_class="gap-3">
+              <:body>
                 <div class="flex items-center justify-between gap-3">
                   <h2 class="card-title text-lg">Results</h2>
                   <span class="badge badge-ghost">{length(@search_results)} shown</span>
@@ -99,38 +100,38 @@
                     </.link>
                   <% end %>
                 </div>
-              </div>
-            </div>
+              </:body>
+            </.card>
         <% end %>
       </div>
     </div>
   <% @not_found -> %>
     <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-12">
-      <div class="card panel-card">
-        <div class="card-body text-center gap-4">
+      <.card body_class="text-center gap-4">
+        <:body>
           <div class="mx-auto badge badge-ghost">Atomine Proofs</div>
           <h1 class="text-2xl font-bold">Proofs unavailable</h1>
           <p class="text-sm opacity-70">That account could not be found.</p>
           <div class="flex items-center justify-center gap-3">
-            <.link href={~p"/proofs"} class="btn btn-neutral">Search</.link>
-            <.link href={~p"/"} class="btn btn-ghost">Home</.link>
+            <.button href={~p"/proofs"} variant="neutral">Search</.button>
+            <.button href={~p"/"} variant="ghost">Home</.button>
           </div>
-        </div>
-      </div>
+        </:body>
+      </.card>
     </div>
   <% @private_graph -> %>
     <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-12">
-      <div class="card panel-card">
-        <div class="card-body text-center gap-4">
+      <.card body_class="text-center gap-4">
+        <:body>
           <div class="mx-auto badge badge-ghost">Atomine Proofs</div>
           <h1 class="text-2xl font-bold">This account is not public</h1>
           <p class="text-sm opacity-70">Public proof pages follow profile visibility.</p>
           <div class="flex items-center justify-center gap-3">
-            <.link href={~p"/proofs"} class="btn btn-neutral">Search</.link>
-            <.link href={~p"/"} class="btn btn-ghost">Home</.link>
+            <.button href={~p"/proofs"} variant="neutral">Search</.button>
+            <.button href={~p"/"} variant="ghost">Home</.button>
           </div>
-        </div>
-      </div>
+        </:body>
+      </.card>
     </div>
   <% true -> %>
     <% subject = @proof_graph.subject
@@ -138,8 +139,8 @@
     avatar_initial = String.first(subject.display_name || subject.handle || "?") || "?" %>
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-6">
       <div class="space-y-4">
-        <div class="card panel-card">
-          <div class="card-body gap-4">
+        <.card body_class="gap-4">
+          <:body>
             <div class="flex items-start justify-between gap-4 flex-wrap">
               <div class="min-w-0">
                 <div class="flex items-center gap-2 flex-wrap">
@@ -192,16 +193,16 @@
             </div>
 
             <div class="flex items-center gap-2 flex-wrap">
-              <a href={subject.atomine_url} target="_blank" class="btn btn-sm btn-neutral">
+              <.button href={subject.atomine_url} target="_blank" variant="neutral" size="sm">
                 View Proof Bundle
-              </a>
-              <a href={subject.own_root_url} target="_blank" class="btn btn-sm btn-ghost">
+              </.button>
+              <.button href={subject.own_root_url} target="_blank" variant="ghost" size="sm">
                 OwnRoot
-              </a>
-              <.link href={~p"/proofs"} class="btn btn-sm btn-ghost">Search Another</.link>
+              </.button>
+              <.button href={~p"/proofs"} variant="ghost" size="sm">Search Another</.button>
             </div>
-          </div>
-        </div>
+          </:body>
+        </.card>
 
         <div class="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_320px]">
           <div
@@ -235,8 +236,8 @@
                 "--proof-shadow: color-mix(in srgb, var(--color-base-100) 16%, transparent);"
             }
           >
-            <div class="card panel-card">
-              <div class="card-body gap-4">
+            <.card body_class="gap-4">
+              <:body>
                 <div class="flex items-center justify-between gap-3 flex-wrap">
                   <div>
                     <h2 class="card-title text-lg">Graph</h2>
@@ -273,13 +274,13 @@
                   >
                   </div>
                 </div>
-              </div>
-            </div>
+              </:body>
+            </.card>
           </div>
 
           <div class="space-y-4">
-            <div class="card panel-card">
-              <div class="card-body gap-3">
+            <.card body_class="gap-3">
+              <:body>
                 <div class="flex items-center justify-between gap-3">
                   <h2 class="card-title text-lg">Summary</h2>
                   <span class="text-xs font-mono opacity-60">/proofs/{subject.handle}</span>
@@ -295,8 +296,8 @@
                     </div>
                   <% end %>
                 </div>
-              </div>
-            </div>
+              </:body>
+            </.card>
           </div>
         </div>
       </div>

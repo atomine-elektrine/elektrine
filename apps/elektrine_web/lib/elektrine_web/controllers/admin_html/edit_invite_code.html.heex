@@ -1,14 +1,14 @@
 <div class="space-y-6">
   <div class="flex flex-wrap items-center gap-3">
-    <.link href={~p"/pripyat/invite-codes"} class="btn btn-ghost btn-sm">
+    <.button href={~p"/pripyat/invite-codes"} variant="ghost" size="sm">
       <.icon name="hero-arrow-left" class="h-4 w-4" /> <span>Back to Invite Codes</span>
-    </.link>
+    </.button>
     <div class="text-sm text-base-content/50">Invite Codes</div>
   </div>
 
   <section class="card panel-card">
     <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
-      <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+      <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
         Existing Invite
       </div>
 
@@ -23,7 +23,7 @@
   <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
     <section class="card panel-card">
       <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
-        <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+        <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
           Settings
         </div>
 
@@ -44,7 +44,7 @@
 
           <div class="grid gap-4 md:grid-cols-2">
             <div class="surface-muted rounded-box p-4">
-              <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
                 Code
               </div>
 
@@ -52,13 +52,14 @@
                 <code class="rounded-box border border-base-content/10 bg-base-200/70 px-3 py-2 font-mono text-sm font-semibold tracking-[0.2em] text-primary">
                   {@invite_code.code}
                 </code>
-                <button
+                <.button
                   type="button"
-                  class="btn btn-xs btn-ghost"
+                  variant="ghost"
+                  size="xs"
                   data-copy-to-clipboard={@invite_code.code}
                 >
                   Copy
-                </button>
+                </.button>
               </div>
 
               <p class="mt-3 text-sm leading-6 text-base-content/60">
@@ -67,7 +68,7 @@
             </div>
 
             <div class="surface-muted rounded-box p-4">
-              <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
                 Current Usage
               </div>
 
@@ -77,7 +78,7 @@
               </div>
 
               <div class="mt-3">
-                <div class="mb-2 flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                <div class="mb-2 flex items-center justify-between text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
                   <span>Usage</span> <span>{invite_code_usage_percent(@invite_code)}%</span>
                 </div>
 
@@ -136,7 +137,7 @@
           </div>
 
           <div class="surface-muted rounded-box p-4">
-            <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+            <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
               Availability
             </div>
 
@@ -156,10 +157,10 @@
 
           <:actions>
             <div class="flex flex-col gap-3 border-t border-base-content/10 pt-4 sm:flex-row sm:items-center">
-              <.button class="btn-primary">
+              <.button>
                 <.icon name="hero-check" class="h-4 w-4" /> <span>Update Invite Code</span>
               </.button>
-              <.link href={~p"/pripyat/invite-codes"} class="btn btn-ghost"> Cancel </.link>
+              <.button href={~p"/pripyat/invite-codes"} variant="ghost">Cancel</.button>
             </div>
           </:actions>
         </.simple_form>
@@ -169,7 +170,7 @@
     <aside class="space-y-4">
       <section class={["card panel-card border", invite_code_card_class(@invite_code)]}>
         <div class="border-b border-base-content/10 px-5 py-5">
-          <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+          <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
             Current Status
           </div>
 
@@ -191,7 +192,7 @@
           </p>
 
           <div class="surface-soft rounded-box p-4">
-            <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+            <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
               Created
             </div>
 
@@ -206,7 +207,7 @@
           </div>
 
           <div class="surface-soft rounded-box p-4">
-            <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+            <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
               Created By
             </div>
 
@@ -216,7 +217,7 @@
           </div>
 
           <div class="surface-soft rounded-box p-4">
-            <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+            <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
               Expiration
             </div>
 
@@ -238,7 +239,7 @@
 
       <section class="card panel-card">
         <div class="border-b border-base-content/10 px-5 py-5">
-          <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+          <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
             Editing Rules
           </div>
 

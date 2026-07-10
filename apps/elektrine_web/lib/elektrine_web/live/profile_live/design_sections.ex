@@ -14,8 +14,8 @@ defmodule ElektrineWeb.ProfileLive.DesignSections do
 
   defp theme_presets_card(assigns) do
     ~H"""
-    <div class="card panel-card border-2 border-primary/20">
-      <div class="card-body p-4 sm:p-6">
+    <.card class="border-2 border-primary/20" body_class="p-4 sm:p-6">
+      <:body>
         <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
@@ -26,14 +26,15 @@ defmodule ElektrineWeb.ProfileLive.DesignSections do
               Start with a complete look, then fine-tune the details below.
             </p>
           </div>
-          <button
+          <.button
             type="button"
             phx-click="reset_design_section"
             phx-value-section="all"
-            class="btn btn-ghost btn-sm"
+            variant="ghost"
+            size="sm"
           >
             Reset all design
-          </button>
+          </.button>
         </div>
 
         <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -42,15 +43,15 @@ defmodule ElektrineWeb.ProfileLive.DesignSections do
               type="button"
               phx-click="apply_design_preset"
               phx-value-preset={preset_id}
-              class="rounded-xl border border-base-content/10 bg-base-100 p-4 text-left transition hover:border-primary/40 hover:bg-primary/5"
+              class="rounded-box border border-base-content/10 bg-base-100 p-4 text-left transition hover:border-primary/40 hover:bg-primary/5"
             >
               <div class="font-semibold">{preset_name}</div>
               <p class="mt-1 text-sm text-base-content/60">{preset_description}</p>
             </button>
           <% end %>
         </div>
-      </div>
-    </div>
+      </:body>
+    </.card>
     """
   end
 
@@ -58,8 +59,8 @@ defmodule ElektrineWeb.ProfileLive.DesignSections do
 
   defp quick_color_palette_card(assigns) do
     ~H"""
-    <div class="card panel-card">
-      <div class="card-body p-4 sm:p-6">
+    <.card body_class="p-4 sm:p-6">
+      <:body>
         <div class="mb-6">
           <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
             <.icon name="hero-sparkles" class="w-6 h-6" /> Quick Color Palette
@@ -79,7 +80,7 @@ defmodule ElektrineWeb.ProfileLive.DesignSections do
                 @profile.accent_color ||
                   Elektrine.Profiles.UserProfile.default(:accent_color)
               }
-              class="w-24 h-24 border-0 rounded-xl cursor-pointer"
+              class="w-24 h-24 border-0 rounded-lg cursor-pointer"
             />
             <div class="flex-1">
               <p class="font-semibold text-lg">Base Color</p>
@@ -90,12 +91,12 @@ defmodule ElektrineWeb.ProfileLive.DesignSections do
             </div>
           </div>
 
-          <button type="submit" class="btn btn-primary w-full btn-lg">
+          <.button type="submit" size="lg" class="w-full">
             <.icon name="hero-sparkles" class="w-5 h-5 mr-2" /> Generate Matching Palette
-          </button>
+          </.button>
         </.form>
-      </div>
-    </div>
+      </:body>
+    </.card>
     """
   end
 
@@ -105,8 +106,8 @@ defmodule ElektrineWeb.ProfileLive.DesignSections do
   def design_background_upload_card(assigns) do
     ~H"""
     <%= if @profile.background_type in ["image", "video"] do %>
-      <div class="card panel-card">
-        <div class="card-body p-4 sm:p-6">
+      <.card body_class="p-4 sm:p-6">
+        <:body>
           <h2 class="card-title text-lg sm:text-xl mb-4 flex items-center gap-2">
             <.icon name="hero-photo" class="w-5 h-5" /> Upload Background
           </h2>
@@ -137,13 +138,15 @@ defmodule ElektrineWeb.ProfileLive.DesignSections do
                     </div>
                   </div>
 
-                  <button
+                  <.button
                     type="button"
                     phx-click="remove_background"
-                    class="btn btn-outline btn-error btn-sm"
+                    variant="error"
+                    outline
+                    size="sm"
                   >
                     <.icon name="hero-trash" class="w-4 h-4" /> Remove
-                  </button>
+                  </.button>
                 </div>
 
                 <div class="relative overflow-hidden rounded-lg border border-base-content/10">
@@ -189,19 +192,20 @@ defmodule ElektrineWeb.ProfileLive.DesignSections do
                     </progress>
                   </div>
 
-                  <button
-                    type="button"
+                  <.icon_button
+                    icon="hero-x-mark"
+                    variant="ghost"
+                    size="sm"
+                    label="Cancel upload"
+                    class="flex-shrink-0"
                     phx-click="cancel_background_upload"
                     phx-value-ref={entry.ref}
-                    class="btn btn-ghost btn-sm btn-circle flex-shrink-0"
-                  >
-                    <.icon name="hero-x-mark" class="w-4 h-4" />
-                  </button>
+                  />
                 </div>
 
                 <div
                   :if={upload_size_notice(entry)}
-                  class="rounded-md border border-warning/25 bg-warning/10 p-2 text-xs text-warning"
+                  class="rounded-lg border border-warning/25 bg-warning/10 p-2 text-xs text-warning"
                 >
                   {upload_size_notice(entry)}
                 </div>
@@ -297,12 +301,12 @@ defmodule ElektrineWeb.ProfileLive.DesignSections do
               Replace with {if @profile.background_type == "video", do: "Video", else: "Image"}
               <.live_file_input upload={@uploads.background} class="hidden" />
             </label>
-            <button type="submit" class="btn btn-primary w-full">
+            <.button type="submit" class="w-full">
               Save Background
-            </button>
+            </.button>
           </.form>
-        </div>
-      </div>
+        </:body>
+      </.card>
     <% end %>
     """
   end
@@ -329,8 +333,8 @@ defmodule ElektrineWeb.ProfileLive.DesignSections do
 
   def design_motion_card(assigns) do
     ~H"""
-    <div class="card panel-card">
-      <div class="card-body p-4 sm:p-6">
+    <.card body_class="p-4 sm:p-6">
+      <:body>
         <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
@@ -341,14 +345,15 @@ defmodule ElektrineWeb.ProfileLive.DesignSections do
               Adjust transparency, blur, and pattern strength.
             </p>
           </div>
-          <button
+          <.button
             type="button"
             phx-click="reset_design_section"
             phx-value-section="motion"
-            class="btn btn-ghost btn-sm"
+            variant="ghost"
+            size="sm"
           >
             Reset motion
-          </button>
+          </.button>
         </div>
 
         <.form for={%{}} phx-submit="update_profile" multipart class="space-y-4 sm:space-y-6">
@@ -447,10 +452,10 @@ defmodule ElektrineWeb.ProfileLive.DesignSections do
               </div>
             <% end %>
           </div>
-          <button type="submit" class="btn btn-primary w-full"> Save motion </button>
+          <.button type="submit" class="w-full">Save motion</.button>
         </.form>
-      </div>
-    </div>
+      </:body>
+    </.card>
     """
   end
 

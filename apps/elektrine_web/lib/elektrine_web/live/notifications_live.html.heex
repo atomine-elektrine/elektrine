@@ -23,9 +23,9 @@
               <.icon name="hero-envelope" class="mr-2 h-4 w-4" /> Email
             </.link>
             <%= if @unread_count > 0 do %>
-              <button phx-click="mark_all_as_read" class="btn btn-secondary btn-sm">
+              <.button phx-click="mark_all_as_read" variant="secondary" size="sm">
                 <.icon name="hero-check-circle" class="mr-2 h-4 w-4" /> Mark all read
-              </button>
+              </.button>
             <% end %>
             <%= if @notification_stats.total_groups > 0 do %>
               <button
@@ -88,21 +88,24 @@
 
           <%= case @web_push_state do %>
             <% :enabled -> %>
-              <button
+              <.button
                 phx-click="disable_web_push"
                 disabled={@web_push_busy}
-                class="btn btn-sm btn-surface"
+                variant="default"
+                size="sm"
+                class="btn-surface"
               >
                 <.icon name="hero-bell-slash" class="mr-2 h-4 w-4" /> Disable
-              </button>
+              </.button>
             <% :disabled -> %>
-              <button
+              <.button
                 phx-click="enable_web_push"
                 disabled={@web_push_busy}
-                class="btn btn-secondary btn-sm"
+                variant="secondary"
+                size="sm"
               >
                 <.icon name="hero-bell-alert" class="mr-2 h-4 w-4" /> Enable
-              </button>
+              </.button>
             <% :denied -> %>
               <span class="badge badge-warning badge-sm">Blocked</span>
             <% :unknown -> %>
@@ -188,9 +191,9 @@
               <div class="flex gap-3">
                 <div class="h-10 w-10 rounded-lg bg-base-300"></div>
                 <div class="flex-1 space-y-2">
-                  <div class="h-4 w-40 rounded bg-base-300"></div>
-                  <div class="h-3 w-72 rounded bg-base-300"></div>
-                  <div class="h-3 w-28 rounded bg-base-300"></div>
+                  <div class="h-4 w-40 rounded-lg bg-base-300"></div>
+                  <div class="h-3 w-72 rounded-lg bg-base-300"></div>
+                  <div class="h-3 w-28 rounded-lg bg-base-300"></div>
                 </div>
               </div>
             </div>
@@ -341,7 +344,7 @@
                           <%= if notif.actor do %>
                             <.user_avatar user={notif.actor} size="xs" class="mt-0.5 shrink-0" />
                           <% else %>
-                            <div class="mt-0.5 rounded-md border border-base-300 bg-base-200 p-1.5">
+                            <div class="mt-0.5 rounded-lg border border-base-300 bg-base-200 p-1.5">
                               <.icon
                                 name={notif.icon || notification_icon(notif.type)}
                                 class="h-4 w-4 text-base-content/70"

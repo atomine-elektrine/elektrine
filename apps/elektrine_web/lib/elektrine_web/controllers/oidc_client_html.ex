@@ -21,7 +21,7 @@ defmodule ElektrineWeb.OIDCClientHTML do
       class="space-y-6"
     >
       <div class="space-y-6">
-        <section class="rounded-2xl border border-base-300/60 bg-base-200/40 p-4 sm:p-5">
+        <section class="rounded-box border border-base-300/60 bg-base-200/40 p-4 sm:p-5">
           <div class="space-y-1">
             <p class="text-xs font-semibold uppercase tracking-[0.22em] text-base-content/50">
               Client Details
@@ -42,7 +42,7 @@ defmodule ElektrineWeb.OIDCClientHTML do
           </div>
         </section>
 
-        <section class="rounded-2xl border border-base-300/60 bg-base-200/40 p-4 sm:p-5">
+        <section class="rounded-box border border-base-300/60 bg-base-200/40 p-4 sm:p-5">
           <div class="space-y-1">
             <p class="text-xs font-semibold uppercase tracking-[0.22em] text-base-content/50">
               Redirect URIs
@@ -69,7 +69,7 @@ defmodule ElektrineWeb.OIDCClientHTML do
               Local development URLs are allowed. Include the full scheme, host, port, and path.
             </p>
 
-            <div class="rounded-xl border border-dashed border-base-300/70 bg-base-100/70 px-4 py-3 text-xs text-base-content/65">
+            <div class="rounded-lg border border-dashed border-base-300/70 bg-base-100/70 px-4 py-3 text-xs text-base-content/65">
               Example: `http://localhost:4000/auth/callback`
             </div>
 
@@ -79,7 +79,7 @@ defmodule ElektrineWeb.OIDCClientHTML do
           </div>
         </section>
 
-        <section class="rounded-2xl border border-base-300/60 bg-base-200/40 p-4 sm:p-5">
+        <section class="rounded-box border border-base-300/60 bg-base-200/40 p-4 sm:p-5">
           <div class="space-y-1">
             <p class="text-xs font-semibold uppercase tracking-[0.22em] text-base-content/50">
               Permissions
@@ -92,7 +92,7 @@ defmodule ElektrineWeb.OIDCClientHTML do
           <div class="mt-5 grid gap-3 sm:grid-cols-2">
             <label
               :for={scope <- @scope_options}
-              class="flex items-start gap-3 rounded-2xl border border-base-300/70 bg-base-100/70 px-4 py-3 transition-colors hover:border-base-300 hover:bg-base-100"
+              class="flex items-start gap-3 rounded-box border border-base-300/70 bg-base-100/70 px-4 py-3 transition-colors hover:border-base-300 hover:bg-base-100"
             >
               <input
                 type="checkbox"
@@ -117,9 +117,9 @@ defmodule ElektrineWeb.OIDCClientHTML do
 
       <:actions>
         <div class="flex w-full flex-col gap-3 border-t border-base-300/60 pt-6 sm:flex-row sm:justify-end">
-          <.link href={@cancel_path} class="btn btn-ghost rounded-full">
+          <.button href={@cancel_path} variant="ghost" class="rounded-full">
             Cancel
-          </.link>
+          </.button>
           <.button class="rounded-full">{@submit_label}</.button>
         </div>
       </:actions>

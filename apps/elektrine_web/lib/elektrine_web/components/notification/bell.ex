@@ -12,13 +12,15 @@ defmodule ElektrineWeb.Components.Notification.Bell do
           {if @count > 99, do: "99+", else: @count}
         </span>
       <% end %>
-      <.link
+      <.button
         href="/notifications"
-        class="btn btn-ghost notification-bell-btn btn-circle btn-sm"
+        variant="ghost"
+        size="sm"
+        class="notification-bell-btn btn-circle"
         title={gettext("Notifications")}
       >
         <.icon name="hero-bell" class="w-5 h-5" />
-      </.link>
+      </.button>
     </div>
     """
   end
@@ -31,9 +33,11 @@ defmodule ElektrineWeb.Components.Notification.Bell do
           {if @count > 99, do: "99+", else: @count}
         </span>
       <% end %>
-      <.link
+      <.button
         href="/notifications"
-        class="btn btn-ghost notification-bell-btn btn-circle btn-sm"
+        variant="ghost"
+        size="sm"
+        class="notification-bell-btn btn-circle"
         title={gettext("Notifications") <> if(@count > 0, do: " (#{@count})", else: "")}
       >
         <%= if @count > 0 do %>
@@ -41,7 +45,7 @@ defmodule ElektrineWeb.Components.Notification.Bell do
         <% else %>
           <.icon name="hero-bell" class="w-5 h-5" />
         <% end %>
-      </.link>
+      </.button>
     </div>
     """
   end

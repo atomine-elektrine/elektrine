@@ -9,8 +9,8 @@
 
   <div class="space-y-4 sm:space-y-6">
     <!-- Step 1: Install Authenticator App -->
-    <div class="card panel-card">
-      <div class="card-body p-4 sm:p-6">
+    <.card body_class="p-4 sm:p-6">
+      <:body>
         <h2 class="card-title text-lg sm:text-xl mb-4 sm:mb-6 flex items-center gap-2">
           <span class="badge badge-primary badge-lg">1</span>
           <.icon name="hero-device-phone-mobile" class="w-5 h-5" /> Install an authenticator app
@@ -21,8 +21,8 @@
         </p>
 
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-          <div class="card panel-card hover:bg-base-300/50 transition-colors">
-            <div class="card-body p-3 sm:p-4">
+          <.card class="hover:bg-base-300/50 transition-colors" body_class="p-3 sm:p-4">
+            <:body>
               <div class="flex items-center gap-3">
                 <.brand_icon name="google" class="w-8 h-8 shrink-0" />
                 <div>
@@ -31,11 +31,11 @@
                   <p class="text-xs text-base-content/60">iOS & Android</p>
                 </div>
               </div>
-            </div>
-          </div>
+            </:body>
+          </.card>
 
-          <div class="card panel-card hover:bg-base-300/50 transition-colors">
-            <div class="card-body p-3 sm:p-4">
+          <.card class="hover:bg-base-300/50 transition-colors" body_class="p-3 sm:p-4">
+            <:body>
               <div class="flex items-center gap-3">
                 <.brand_icon name="authy" class="w-8 h-8 shrink-0" />
                 <div>
@@ -44,11 +44,11 @@
                   <p class="text-xs text-base-content/60">iOS & Android</p>
                 </div>
               </div>
-            </div>
-          </div>
+            </:body>
+          </.card>
 
-          <div class="card panel-card hover:bg-base-300/50 transition-colors">
-            <div class="card-body p-3 sm:p-4">
+          <.card class="hover:bg-base-300/50 transition-colors" body_class="p-3 sm:p-4">
+            <:body>
               <div class="flex items-center gap-3">
                 <.brand_icon name="microsoft" class="w-8 h-8 shrink-0" />
                 <div>
@@ -57,14 +57,14 @@
                   <p class="text-xs text-base-content/60">iOS & Android</p>
                 </div>
               </div>
-            </div>
-          </div>
+            </:body>
+          </.card>
         </div>
-      </div>
-    </div>
+      </:body>
+    </.card>
     <!-- Step 2: Scan QR Code -->
-    <div class="card panel-card">
-      <div class="card-body p-4 sm:p-6">
+    <.card body_class="p-4 sm:p-6">
+      <:body>
         <h2 class="card-title text-lg sm:text-xl mb-4 sm:mb-6 flex items-center gap-2">
           <span class="badge badge-primary badge-lg">2</span>
           <.icon name="hero-qr-code" class="w-5 h-5" /> Scan the QR code
@@ -93,12 +93,14 @@
             Open your authenticator app and scan this QR code
           </p>
 
-          <a
+          <.button
             href={~p"/account/two_factor/setup?refresh=true"}
-            class="btn btn-secondary btn-sm mt-2"
+            variant="secondary"
+            size="sm"
+            class="mt-2"
           >
             <.icon name="hero-arrow-path" class="h-4 w-4 mr-1" /> Generate New QR Code
-          </a>
+          </.button>
           <div class="alert alert-warning mt-4 max-w-md">
             <.icon name="hero-exclamation-triangle" class="h-5 w-5" />
             <div>
@@ -125,7 +127,7 @@
                 <div class="space-y-2 text-xs">
                   <div>
                     <span class="font-medium text-base-content/70">Secret:</span>
-                    <div class="font-medium text-sm bg-base-200 p-2 rounded mt-1 break-all">
+                    <div class="font-medium text-sm bg-base-200 p-2 rounded-lg mt-1 break-all">
                       {Elektrine.Accounts.TwoFactor.secret_to_base32(@secret)}
                     </div>
                   </div>
@@ -139,11 +141,11 @@
             </div>
           </div>
         </div>
-      </div>
-    </div>
+      </:body>
+    </.card>
     <!-- Step 3: Backup Codes -->
-    <div class="card panel-card">
-      <div class="card-body p-4 sm:p-6">
+    <.card body_class="p-4 sm:p-6">
+      <:body>
         <h2 class="card-title text-lg sm:text-xl mb-4 sm:mb-6 flex items-center gap-2">
           <span class="badge badge-primary badge-lg">3</span>
           <.icon name="hero-document-text" class="w-5 h-5" /> Save your backup codes
@@ -169,11 +171,11 @@
             <% end %>
           </div>
         </div>
-      </div>
-    </div>
+      </:body>
+    </.card>
     <!-- Step 4: Verify -->
-    <div class="card panel-card">
-      <div class="card-body p-4 sm:p-6">
+    <.card body_class="p-4 sm:p-6">
+      <:body>
         <h2 class="card-title text-lg sm:text-xl mb-4 sm:mb-6 flex items-center gap-2">
           <span class="badge badge-primary badge-lg">4</span>
           <.icon name="hero-shield-check" class="w-5 h-5" /> Verify your setup
@@ -206,15 +208,15 @@
           </div>
 
           <div class="card-actions justify-between mt-4 sm:mt-6">
-            <.link href={~p"/account"} class="btn btn-secondary btn-sm sm:btn-md">
+            <.button href={~p"/account"} variant="secondary" size="sm" class="sm:btn-md">
               <.icon name="hero-arrow-left" class="w-4 h-4" /> Back to settings
-            </.link>
-            <button type="submit" class="btn btn-primary btn-sm sm:btn-md">
+            </.button>
+            <.button type="submit" size="sm" class="sm:btn-md">
               Enable Two-Factor Authentication
-            </button>
+            </.button>
           </div>
         </.form>
-      </div>
-    </div>
+      </:body>
+    </.card>
   </div>
 </div>

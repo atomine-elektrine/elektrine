@@ -6,8 +6,8 @@
 >
   <:sidebar><.developer_settings_sidebar selected_page="oidc-clients" /></:sidebar>
 
-  <div class="card panel-card">
-    <div class="card-body gap-6 p-4 sm:p-6">
+  <.card body_class="gap-6 p-4 sm:p-6">
+    <:body>
       <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div class="space-y-2">
           <p class="text-xs uppercase tracking-[0.3em] text-base-content/60">Identity Provider</p>
@@ -22,13 +22,15 @@
           action={~p"/account/developer/oidc/clients/#{@app.id}/rotate-secret"}
           method="post"
         >
-          <button
+          <.button
             type="submit"
-            class="btn btn-outline rounded-full"
+            variant="default"
+            outline
+            class="rounded-full"
             data-confirm="Rotate this client secret? Existing integrations will need the new secret."
           >
             Rotate Secret
-          </button>
+          </.button>
         </.form>
       </div>
 
@@ -62,6 +64,6 @@
         scope_options={@scope_options}
         submit_label="Save changes"
       />
-    </div>
-  </div>
+    </:body>
+  </.card>
 </.account_page>

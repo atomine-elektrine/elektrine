@@ -13,8 +13,8 @@
 
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
     <!-- User Search -->
-    <div class="card panel-card">
-      <div class="card-body">
+    <.card>
+      <:body>
         <h2 class="card-title mb-4">
           <.icon name="hero-magnifying-glass" class="w-5 h-5" /> Search User
         </h2>
@@ -31,18 +31,20 @@
               autocomplete="off"
             />
 
-            <button
+            <.button
               type="button"
+              variant="ghost"
+              size="xs"
               phx-click="clear_search"
               data-search-clear="true"
               aria-label="Clear search"
               class={[
-                "btn btn-ghost btn-xs absolute right-2 top-1/2 -translate-y-1/2",
+                "absolute right-2 top-1/2 -translate-y-1/2",
                 if(@search_query == "", do: "pointer-events-none invisible", else: nil)
               ]}
             >
               <.icon name="hero-x-mark" class="h-4 w-4" />
-            </button>
+            </.button>
           </div>
         </.form>
 
@@ -71,11 +73,11 @@
             <% end %>
           </div>
         <% end %>
-      </div>
-    </div>
+      </:body>
+    </.card>
     <!-- Selected User Badges -->
-    <div class="card panel-card">
-      <div class="card-body">
+    <.card>
+      <:body>
         <h2 class="card-title mb-4"><.icon name="hero-star" class="w-5 h-5" /> User Badges</h2>
 
         <%= if @selected_user do %>
@@ -100,14 +102,15 @@
 
             <div class="grid grid-cols-2 gap-2">
               <%= for badge_type <- ["staff", "verified", "supporter", "developer", "admin", "moderator", "contributor", "beta_tester"] do %>
-                <button
+                <.button
+                  variant="ghost"
+                  size="sm"
                   phx-click="grant_badge"
                   phx-value-user_id={@selected_user.id}
                   phx-value-badge_type={badge_type}
-                  class="btn btn-sm btn-ghost"
                 >
                   {String.capitalize(String.replace(badge_type, "_", " "))}
-                </button>
+                </.button>
               <% end %>
             </div>
           </div>
@@ -133,14 +136,16 @@
                     <% end %>
                   </div>
 
-                  <button
+                  <.button
+                    variant="ghost"
+                    size="xs"
+                    class="text-error"
                     phx-click="revoke_badge"
                     phx-value-badge_id={badge.id}
-                    class="btn btn-ghost btn-xs text-error"
                     data-confirm="Revoke this badge?"
                   >
                     <.icon name="hero-trash" class="w-4 h-4" />
-                  </button>
+                  </.button>
                 </div>
               <% end %>
             </div>
@@ -158,12 +163,12 @@
             <p class="text-base-content/60">Search for a user to manage their badges</p>
           </div>
         <% end %>
-      </div>
-    </div>
+      </:body>
+    </.card>
   </div>
   <!-- Badge Reference -->
-  <div class="card panel-card mt-6">
-    <div class="card-body">
+  <.card class="mt-6">
+    <:body>
       <h2 class="card-title mb-4">
         <.icon name="hero-information-circle" class="w-5 h-5" /> Available Badges
       </h2>
@@ -249,6 +254,6 @@
           <span class="text-xs text-base-content/60">Beta tester</span>
         </div>
       </div>
-    </div>
-  </div>
+    </:body>
+  </.card>
 </div>

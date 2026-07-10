@@ -86,8 +86,8 @@
       </div>
     </div>
 
-    <div class="card panel-card">
-      <div class="card-body p-4 sm:p-5">
+    <.card body_class="p-4 sm:p-5">
+      <:body>
         <%= if @current_tab in ["friends", "suggestions"] do %>
           <div class="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <.form
@@ -167,20 +167,20 @@
           <%= if @loading_friends do %>
             <div class="space-y-2 animate-pulse">
               <%= for _i <- 1..4 do %>
-                <div class="rounded-xl p-4">
+                <div class="rounded-box p-4">
                   <div class="flex items-center gap-4">
                     <div class="h-12 w-12 rounded-full bg-base-300"></div>
 
                     <div class="flex-1">
-                      <div class="mb-2 h-4 w-32 rounded bg-base-300"></div>
+                      <div class="mb-2 h-4 w-32 rounded-lg bg-base-300"></div>
 
-                      <div class="h-3 w-24 rounded bg-base-300"></div>
+                      <div class="h-3 w-24 rounded-lg bg-base-300"></div>
                     </div>
 
                     <div class="flex gap-2">
-                      <div class="h-8 w-16 rounded bg-base-300"></div>
+                      <div class="h-8 w-16 rounded-lg bg-base-300"></div>
 
-                      <div class="h-8 w-12 rounded bg-base-300"></div>
+                      <div class="h-8 w-12 rounded-lg bg-base-300"></div>
                     </div>
                   </div>
                 </div>
@@ -197,7 +197,7 @@
             </div>
 
             <%= if visible_friends != [] do %>
-              <div id="friend-roster" class="overflow-hidden rounded-xl">
+              <div id="friend-roster" class="overflow-hidden rounded-box">
                 <%= for friend <- visible_friends do %>
                   <% presence = friend_presence(friend, @user_statuses) %> <% status =
                     Map.get(@friend_follow_status, friend.id, %{}) %>
@@ -237,30 +237,35 @@
                     </div>
 
                     <div class="flex flex-wrap gap-2 sm:shrink-0">
-                      <.link
+                      <.button
                         href={~p"/#{friend.handle || friend.username}"}
-                        class="btn btn-ghost btn-xs"
+                        variant="ghost"
+                        size="xs"
                       >
                         Profile
-                      </.link>
-                      <button
+                      </.button>
+                      <.button
                         phx-click="start_dm"
                         phx-value-user_id={friend.id}
-                        class="btn btn-secondary btn-xs sm:btn-sm"
+                        variant="secondary"
+                        size="xs"
+                        class="sm:btn-sm"
                         title="Message"
                       >
                         <.icon name="hero-chat-bubble-left-right" class="h-4 w-4" />
                         <span>Message</span>
-                      </button>
-                      <button
+                      </.button>
+                      <.button
                         phx-click="initiate_call"
                         phx-value-user_id={friend.id}
                         phx-value-call_type="audio"
-                        class="btn btn-ghost btn-xs sm:btn-sm"
+                        variant="ghost"
+                        size="xs"
+                        class="sm:btn-sm"
                         title="Call"
                       >
                         <.icon name="hero-phone" class="h-4 w-4" /> <span>Call</span>
-                      </button>
+                      </.button>
                       <div class="dropdown dropdown-end">
                         <div tabindex="0" role="button" class="btn btn-ghost btn-xs sm:btn-sm">
                           <.icon name="hero-ellipsis-horizontal" class="h-4 w-4" />
@@ -288,23 +293,25 @@
                 <%= if @search_query != "" do %>
                   <h3 class="mb-3 text-lg font-semibold">No friends match "{@search_query}"</h3>
 
-                  <button
+                  <.button
                     phx-click="clear_search"
                     data-search-clear="true"
-                    class="btn btn-ghost btn-sm"
+                    variant="ghost"
+                    size="sm"
                   >
                     Clear search
-                  </button>
+                  </.button>
                 <% else %>
                   <h3 class="mb-3 text-lg font-semibold">No friends yet</h3>
 
-                  <button
+                  <.button
                     phx-click="change_tab"
                     phx-value-tab="suggestions"
-                    class="btn btn-secondary btn-sm"
+                    variant="secondary"
+                    size="sm"
                   >
                     Open Suggestions
-                  </button>
+                  </.button>
                 <% end %>
               </div>
             <% end %>
@@ -322,8 +329,11 @@
 
               <div class="space-y-3">
                 <%= for request <- @pending_follow_requests do %>
-                  <div class="card panel-card border border-primary/30 transition-colors">
-                    <div class="card-body p-3 sm:p-4">
+                  <.card
+                    class="border border-primary/30 transition-colors"
+                    body_class="p-3 sm:p-4"
+                  >
+                    <:body>
                       <div class="flex items-start gap-3">
                         <.link
                           navigate={"/remote/#{request.remote_actor.username}@#{request.remote_actor.domain}"}
@@ -371,27 +381,31 @@
                           <% end %>
 
                           <div class="flex gap-2 mt-3">
-                            <button
+                            <.button
                               phx-click="accept_follow_request"
                               phx-value-follow-id={request.id}
-                              class="btn btn-xs sm:btn-sm btn-success flex-1"
+                              variant="success"
+                              size="xs"
+                              class="sm:btn-sm flex-1"
                             >
                               <.icon name="hero-check" class="w-3 h-3 sm:w-4 sm:h-4" />
                               <span class="text-xs sm:text-sm">Accept</span>
-                            </button>
-                            <button
+                            </.button>
+                            <.button
                               phx-click="reject_follow_request"
                               phx-value-follow-id={request.id}
-                              class="btn btn-xs sm:btn-sm btn-ghost flex-1"
+                              variant="ghost"
+                              size="xs"
+                              class="sm:btn-sm flex-1"
                             >
                               <.icon name="hero-x-mark" class="w-3 h-3 sm:w-4 sm:h-4" />
                               <span class="text-xs sm:text-sm">Decline</span>
-                            </button>
+                            </.button>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  </div>
+                    </:body>
+                  </.card>
                 <% end %>
               </div>
             </div>
@@ -400,8 +414,11 @@
           <%= if length(@pending_requests) > 0 do %>
             <div class="space-y-4">
               <%= for request <- @pending_requests do %>
-                <div class="card panel-card hover:border-error/20 transition-colors">
-                  <div class="card-body p-3 sm:p-4 overflow-visible">
+                <.card
+                  class="hover:border-error/20 transition-colors"
+                  body_class="p-3 sm:p-4 overflow-visible"
+                >
+                  <:body>
                     <div class="flex items-start gap-3">
                       <.link
                         href={~p"/#{request.requester.handle || request.requester.username}"}
@@ -441,27 +458,31 @@
                         <% end %>
 
                         <div class="flex gap-2 mt-3">
-                          <button
+                          <.button
                             phx-click="accept_request"
                             phx-value-request_id={request.id}
-                            class="btn btn-xs sm:btn-sm btn-success flex-1"
+                            variant="success"
+                            size="xs"
+                            class="sm:btn-sm flex-1"
                           >
                             <.icon name="hero-check" class="w-3 h-3 sm:w-4 sm:h-4" />
                             <span class="text-xs sm:text-sm">Accept</span>
-                          </button>
-                          <button
+                          </.button>
+                          <.button
                             phx-click="reject_request"
                             phx-value-request_id={request.id}
-                            class="btn btn-xs sm:btn-sm btn-ghost flex-1"
+                            variant="ghost"
+                            size="xs"
+                            class="sm:btn-sm flex-1"
                           >
                             <.icon name="hero-x-mark" class="w-3 h-3 sm:w-4 sm:h-4" />
                             <span class="text-xs sm:text-sm">Decline</span>
-                          </button>
+                          </.button>
                         </div>
                       </div>
                     </div>
-                  </div>
-                </div>
+                  </:body>
+                </.card>
               <% end %>
             </div>
           <% else %>
@@ -478,8 +499,11 @@
           <%= if length(@sent_requests) > 0 do %>
             <div class="space-y-4">
               <%= for request <- @sent_requests do %>
-                <div class="card panel-card hover:border-error/20 transition-colors">
-                  <div class="card-body p-3 sm:p-4 overflow-visible">
+                <.card
+                  class="hover:border-error/20 transition-colors"
+                  body_class="p-3 sm:p-4 overflow-visible"
+                >
+                  <:body>
                     <div class="flex items-start gap-3">
                       <.link
                         href={~p"/#{request.recipient.handle || request.recipient.username}"}
@@ -506,18 +530,20 @@
                           <span class="badge badge-xs badge-warning">Pending</span>
                         </div>
 
-                        <button
+                        <.button
                           phx-click="cancel_request"
                           phx-value-request_id={request.id}
-                          class="btn btn-xs sm:btn-sm btn-ghost w-full mt-3"
+                          variant="ghost"
+                          size="xs"
+                          class="sm:btn-sm w-full mt-3"
                         >
                           <.icon name="hero-x-mark" class="w-3 h-3 sm:w-4 sm:h-4" />
                           <span class="text-xs sm:text-sm">Cancel Request</span>
-                        </button>
+                        </.button>
                       </div>
                     </div>
-                  </div>
-                </div>
+                  </:body>
+                </.card>
               <% end %>
             </div>
           <% else %>
@@ -532,8 +558,11 @@
           <%= if length(@suggested_friends) > 0 do %>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
               <%= for user <- @suggested_friends do %>
-                <div class="card panel-card hover:border-error/20 transition-colors">
-                  <div class="card-body p-3 sm:p-4 overflow-visible">
+                <.card
+                  class="hover:border-error/20 transition-colors"
+                  body_class="p-3 sm:p-4 overflow-visible"
+                >
+                  <:body>
                     <div class="flex items-start gap-3">
                       <.link
                         href={~p"/#{user.handle || user.username}"}
@@ -554,18 +583,20 @@
                           <span class="badge badge-xs badge-success">Mutual Follow</span>
                         </div>
 
-                        <button
+                        <.button
                           phx-click="send_friend_request"
                           phx-value-user_id={user.id}
-                          class="btn btn-xs sm:btn-sm btn-secondary w-full mt-3"
+                          variant="secondary"
+                          size="xs"
+                          class="sm:btn-sm w-full mt-3"
                         >
                           <.icon name="hero-user-plus" class="w-3 h-3 sm:w-4 sm:h-4" />
                           <span class="text-xs sm:text-sm">Add Friend</span>
-                        </button>
+                        </.button>
                       </div>
                     </div>
-                  </div>
-                </div>
+                  </:body>
+                </.card>
               <% end %>
             </div>
           <% else %>
@@ -580,8 +611,11 @@
           <%= if length(@blocked_users) > 0 do %>
             <div class="space-y-2">
               <%= for user <- @blocked_users do %>
-                <div class="card panel-card border border-error/30 hover:bg-base-200/50 transition-colors">
-                  <div class="card-body p-3 sm:p-4 overflow-visible">
+                <.card
+                  class="border border-error/30 hover:bg-base-200/50 transition-colors"
+                  body_class="p-3 sm:p-4 overflow-visible"
+                >
+                  <:body>
                     <div class="flex items-center gap-3 sm:gap-4">
                       <!-- Avatar -->
                       <div class="opacity-50 flex-shrink-0">
@@ -600,19 +634,21 @@
                       </div>
                       <!-- Actions -->
                       <div class="flex gap-2 flex-shrink-0">
-                        <button
+                        <.button
                           phx-click="unblock_user"
                           phx-value-user_id={user.id}
-                          class="btn btn-xs sm:btn-sm btn-ghost"
+                          variant="ghost"
+                          size="xs"
+                          class="sm:btn-sm"
                           title="Unblock"
                         >
                           <.icon name="hero-lock-open" class="w-3 h-3 sm:w-4 sm:h-4" />
                           <span class="hidden sm:inline">Unblock</span>
-                        </button>
+                        </.button>
                       </div>
                     </div>
-                  </div>
-                </div>
+                  </:body>
+                </.card>
               <% end %>
             </div>
           <% else %>
@@ -622,8 +658,8 @@
             </div>
           <% end %>
         <% end %>
-      </div>
-    </div>
+      </:body>
+    </.card>
   </div>
   <%!-- Unfriend Confirmation Modal --%>
   <%= if @show_unfriend_modal && @unfriend_user do %>
@@ -637,8 +673,8 @@
         </p>
 
         <div class="modal-action">
-          <button phx-click="cancel_unfriend" class="btn btn-ghost"> Cancel </button>
-          <button phx-click="confirm_unfriend" class="btn btn-secondary"> Remove Friend </button>
+          <.button phx-click="cancel_unfriend" variant="ghost">Cancel</.button>
+          <.button phx-click="confirm_unfriend" variant="secondary">Remove Friend</.button>
         </div>
       </div>
     </div>
