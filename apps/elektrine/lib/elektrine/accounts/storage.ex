@@ -187,6 +187,13 @@ defmodule Elektrine.Accounts.Storage do
 
   defp size_to_integer(size) when is_integer(size) and size > 0, do: size
 
+  defp size_to_integer(%Decimal{} = size) do
+    size
+    |> Decimal.round(0, :down)
+    |> Decimal.to_integer()
+    |> size_to_integer()
+  end
+
   defp size_to_integer(size) when is_binary(size) do
     case Integer.parse(size) do
       {size, ""} when size > 0 -> size
@@ -304,6 +311,10 @@ defmodule Elektrine.Accounts.Storage do
   end
 
   defp calculate_kairo_sources_storage(user_id) do
+    calculate_kairo_source_rows_storage(user_id) + calculate_kairo_upload_blobs_storage(user_id)
+  end
+
+  defp calculate_kairo_source_rows_storage(user_id) do
     from(source in "kairo_sources",
       where: field(source, :user_id) == ^user_id,
       select:
@@ -336,6 +347,35 @@ defmodule Elektrine.Accounts.Storage do
     )
     |> Repo.one()
     |> size_to_integer()
+  end
+
+  defp calculate_kairo_upload_blobs_storage(user_id) do
+    upload_key_prefix = "kairo-sources/#{user_id}/%"
+
+    from(source in "kairo_sources",
+      where: field(source, :user_id) == ^user_id,
+      where:
+        fragment(
+          "COALESCE(?->>'storage_key', ?->>'key') LIKE ?",
+          field(source, :metadata),
+          field(source, :metadata),
+          ^upload_key_prefix
+        ),
+      where:
+        fragment(
+          "COALESCE(?->>'size', '') ~ '^[0-9]{1,12}$'",
+          field(source, :metadata)
+        ),
+      group_by:
+        fragment(
+          "COALESCE(?->>'storage_key', ?->>'key')",
+          field(source, :metadata),
+          field(source, :metadata)
+        ),
+      select: fragment("MAX((?->>'size')::bigint)", field(source, :metadata))
+    )
+    |> Repo.all()
+    |> Enum.reduce(0, &(size_to_integer(&1) + &2))
   end
 
   @doc """

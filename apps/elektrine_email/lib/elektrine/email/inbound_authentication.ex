@@ -30,7 +30,14 @@ defmodule Elektrine.Email.InboundAuthentication do
 
   def authenticated?(results) do
     normalized = normalize(results)
-    normalized.spf == :pass or normalized.dkim == :pass or normalized.dmarc == :pass
+
+    cond do
+      normalized.dmarc == :pass -> true
+      normalized.dmarc == :fail -> false
+      normalized.arc == :pass -> true
+      normalized.aligned? -> normalized.spf == :pass or normalized.dkim == :pass
+      true -> false
+    end
   end
 
   def policy_decision(results) do

@@ -18,14 +18,21 @@ defmodule ElektrineWeb.Features.ProfileTest do
   end
 
   feature "profile page renders themed grid and profile styles", %{session: session} do
-    {session, user} =
-      create_and_login_user(session, %{
+    {session, user} = create_and_login_user(session)
+
+    # Registration does not cast theme_overrides, so persist them after
+    # signup and drop the login-warmed user cache so the next request
+    # renders with the fresh overrides.
+    {:ok, user} =
+      Elektrine.Accounts.update_user(user, %{
         theme_overrides: %{
           "color_base_100" => "#203040",
           "color_base_200" => "#26394a",
           "color_primary" => "#7c9ad0"
         }
       })
+
+    Elektrine.Accounts.Cached.invalidate_user_cache(user.id)
 
     style_snapshot =
       session
@@ -52,8 +59,10 @@ defmodule ElektrineWeb.Features.ProfileTest do
     assert style_snapshot["bodyBg"] in ["rgb(32, 48, 64)", "rgba(32, 48, 64, 1)"]
     assert style_snapshot["bodyGrid"] != "none"
     assert style_snapshot["gridColor"] != ""
-    assert style_snapshot["profileAccent"] == "var(--color-primary)"
-    assert style_snapshot["profileBg"] == "var(--color-base-100)"
+    # Chrome substitutes var() in computed custom properties, so these
+    # resolve all the way down to the user's theme overrides.
+    assert style_snapshot["profileAccent"] == "#7c9ad0"
+    assert style_snapshot["profileBg"] == "#203040"
     assert style_snapshot["profileBackground"] =~ "linear-gradient"
   end
 

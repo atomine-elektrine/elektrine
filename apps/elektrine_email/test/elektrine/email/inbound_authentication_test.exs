@@ -32,4 +32,28 @@ defmodule Elektrine.Email.InboundAuthenticationTest do
 
     assert %{action: :quarantine} = InboundAuthentication.policy_decision(%{"spf" => "fail"})
   end
+
+  test "does not authenticate SPF or DKIM when DMARC explicitly fails" do
+    refute InboundAuthentication.authenticated?(%{
+             "spf" => "pass",
+             "dkim" => "pass",
+             "dmarc" => "fail",
+             "aligned" => true
+           })
+  end
+
+  test "requires alignment when DMARC is absent" do
+    refute InboundAuthentication.authenticated?(%{"spf" => "pass", "dmarc" => "none"})
+
+    assert InboundAuthentication.authenticated?(%{
+             "dkim" => "pass",
+             "dmarc" => "none",
+             "aligned" => true
+           })
+  end
+
+  test "accepts DMARC and ARC passes" do
+    assert InboundAuthentication.authenticated?(%{"dmarc" => "pass"})
+    assert InboundAuthentication.authenticated?(%{"arc" => "pass", "dmarc" => "none"})
+  end
 end

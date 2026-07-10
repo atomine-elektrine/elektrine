@@ -19,8 +19,7 @@ defmodule ElektrineWeb.KairoLiveTest do
     |> Plug.Conn.put_session(:user_token, token)
   end
 
-  defp mount_kairo(conn) do
-    user = AccountsFixtures.user_fixture()
+  defp mount_kairo(conn, user \\ AccountsFixtures.user_fixture()) do
     {:ok, view, _html} = conn |> log_in_user(user) |> live(~p"/kairo")
     {user, view}
   end
@@ -72,6 +71,59 @@ defmodule ElektrineWeb.KairoLiveTest do
     assert source.source_type == "url"
     assert source.url == "https://example.com/article"
     assert source.status == "received"
+  end
+
+  test "retries a failed URL source", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+
+    assert {:ok, source} =
+             Kairo.create_source(user, %{
+               "source_type" => "url",
+               "url" => "https://example.com/retry",
+               "status" => "failed",
+               "error_message" => "timeout"
+             })
+
+    {_user, view} = mount_kairo(conn, user)
+    render_click(view, "select_source", %{"id" => to_string(source.id)})
+    assert has_element?(view, "button[phx-click='retry_url_fetch']", "Retry fetch")
+
+    render_click(view, "retry_url_fetch", %{"id" => to_string(source.id)})
+
+    retried = Kairo.get_source(user, source.id)
+    assert retried.status == "received"
+    assert retried.error_message == nil
+  end
+
+  test "only renders HTTP and HTTPS source URLs as links", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+
+    unsafe_source =
+      Elektrine.Repo.insert!(%Kairo.Source{
+        user_id: user.id,
+        source_type: "url",
+        title: "Unsafe legacy URL",
+        url: "javascript:alert(document.domain)",
+        status: "failed",
+        tags: [],
+        metadata: %{},
+        ingested_at: DateTime.utc_now() |> DateTime.truncate(:second)
+      })
+
+    {:ok, safe_source} =
+      Kairo.create_source(user, %{
+        "source_type" => "url",
+        "title" => "Safe URL",
+        "url" => "https://example.com/article"
+      })
+
+    {_user, view} = mount_kairo(conn, user)
+
+    render_click(view, "select_source", %{"id" => to_string(unsafe_source.id)})
+    refute has_element?(view, "a[href^='javascript:']")
+
+    render_click(view, "select_source", %{"id" => to_string(safe_source.id)})
+    assert has_element?(view, "a[href='https://example.com/article']")
   end
 
   test "uploads a file source from the explorer", %{conn: conn} do

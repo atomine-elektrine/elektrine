@@ -328,7 +328,7 @@ defmodule Elektrine.SMTP.Server do
 
   defp handle_ehlo(_domain, state) do
     send_response(state.socket, "250-#{Domains.mail_hostname()}")
-    send_response(state.socket, "250-SIZE 52428800")
+    send_response(state.socket, "250-SIZE #{max_data_size()}")
     send_response(state.socket, "250-8BITMIME")
 
     if starttls_available?(state) do
@@ -698,7 +698,7 @@ defmodule Elektrine.SMTP.Server do
 
   defp handle_mail(args, state) when state.authenticated do
     case parse_mail_from(args) do
-      {:ok, from} ->
+      {:ok, from, _params} ->
         case verify_from_address(from, state.user_id) do
           :ok ->
             send_response(state.socket, "250 OK")
@@ -709,7 +709,15 @@ defmodule Elektrine.SMTP.Server do
             {:continue, state}
         end
 
-      {:error, _} ->
+      {:error, :message_too_large} ->
+        send_response(state.socket, "552 Declared message size exceeds maximum")
+        {:continue, state}
+
+      {:error, :unsupported_parameter} ->
+        send_response(state.socket, "555 MAIL FROM parameter not recognized")
+        {:continue, state}
+
+      {:error, _reason} ->
         send_response(state.socket, "501 Syntax error in parameters")
         {:continue, state}
     end
@@ -720,12 +728,74 @@ defmodule Elektrine.SMTP.Server do
     {:continue, state}
   end
 
-  defp parse_mail_from(args) do
-    case Regex.run(~r/FROM:\s*<?([^>]+)>?/i, args || "") do
-      [_, email] -> {:ok, String.trim(email)}
-      _ -> {:error, :invalid_format}
+  defp parse_mail_from(args) when is_binary(args) do
+    with {:ok, address, raw_params} <- parse_reverse_path(String.trim(args)),
+         {:ok, params} <- parse_mail_parameters(raw_params),
+         :ok <- validate_declared_size(params) do
+      {:ok, address, params}
     end
   end
+
+  defp parse_mail_from(_args), do: {:error, :invalid_format}
+
+  defp parse_reverse_path(args) do
+    case Regex.run(~r/\AFROM:\s*<([^>]*)>(?:\s+(.*))?\z/i, args) do
+      [_, address] ->
+        {:ok, String.trim(address), ""}
+
+      [_, address, params] ->
+        {:ok, String.trim(address), String.trim(params)}
+
+      nil ->
+        case Regex.run(~r/\AFROM:\s*([^\s<>]+)(?:\s+(.*))?\z/i, args) do
+          [_, address] -> {:ok, String.trim(address), ""}
+          [_, address, params] -> {:ok, String.trim(address), String.trim(params)}
+          nil -> {:error, :invalid_format}
+        end
+    end
+  end
+
+  defp parse_mail_parameters(""), do: {:ok, %{}}
+
+  defp parse_mail_parameters(raw_params) do
+    raw_params
+    |> String.split(~r/\s+/, trim: true)
+    |> Enum.reduce_while({:ok, %{}}, fn parameter, {:ok, params} ->
+      case String.split(parameter, "=", parts: 2) do
+        [key, value] ->
+          parse_mail_parameter(String.upcase(key), value, params)
+
+        _ ->
+          {:halt, {:error, :unsupported_parameter}}
+      end
+    end)
+  end
+
+  defp parse_mail_parameter("SIZE", value, params) do
+    case Integer.parse(value) do
+      {size, ""} when size >= 0 -> {:cont, {:ok, Map.put(params, :size, size)}}
+      _ -> {:halt, {:error, :invalid_format}}
+    end
+  end
+
+  defp parse_mail_parameter("BODY", value, params) do
+    case String.upcase(value) do
+      body when body in ["7BIT", "8BITMIME"] ->
+        {:cont, {:ok, Map.put(params, :body, body)}}
+
+      _ ->
+        {:halt, {:error, :unsupported_parameter}}
+    end
+  end
+
+  defp parse_mail_parameter(_key, _value, _params),
+    do: {:halt, {:error, :unsupported_parameter}}
+
+  defp validate_declared_size(%{size: size}) do
+    if size > max_data_size(), do: {:error, :message_too_large}, else: :ok
+  end
+
+  defp validate_declared_size(_params), do: :ok
 
   defp verify_from_address(from, user_id) do
     case Elektrine.Email.verify_email_ownership(from, user_id) do

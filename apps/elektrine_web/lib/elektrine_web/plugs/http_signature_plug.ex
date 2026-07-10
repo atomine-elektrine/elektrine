@@ -26,14 +26,35 @@ defmodule ElektrineWeb.Plugs.HTTPSignaturePlug do
   def call(%{assigns: %{valid_signature: true}} = conn, _opts), do: conn
 
   def call(conn, _opts) do
-    case get_req_header(conn, "signature") do
-      [signature_header] when is_binary(signature_header) and byte_size(signature_header) > 0 ->
+    case request_signature_header(conn) do
+      signature_header when is_binary(signature_header) and byte_size(signature_header) > 0 ->
         validate_signature(conn, signature_header)
 
-      _ ->
+      nil ->
         Logger.debug("No signature header present")
         conn
     end
+  end
+
+  defp request_signature_header(conn) do
+    case get_req_header(conn, "signature") do
+      [signature_header | _] when is_binary(signature_header) and signature_header != "" ->
+        signature_header
+
+      _ ->
+        authorization_signature_header(conn)
+    end
+  end
+
+  defp authorization_signature_header(conn) do
+    conn
+    |> get_req_header("authorization")
+    |> Enum.find_value(fn value ->
+      case Regex.run(~r/^\s*Signature\s+(.+)$/i, value, capture: :all_but_first) do
+        [signature_header] -> String.trim(signature_header)
+        _ -> nil
+      end
+    end)
   end
 
   defp validate_signature(conn, signature_header) do
@@ -286,16 +307,13 @@ defmodule ElektrineWeb.Plugs.HTTPSignaturePlug do
     end
   end
 
-  defp validate_required_signed_headers(%Plug.Conn{method: method}, headers_list)
-       when method in ["POST", "PUT", "PATCH"] do
+  defp validate_required_signed_headers(_conn, headers_list) do
     cond do
       "(request-target)" not in headers_list -> {:error, :missing_signed_request_target}
       "host" not in headers_list -> {:error, :missing_signed_host}
       true -> :ok
     end
   end
-
-  defp validate_required_signed_headers(_conn, _headers_list), do: :ok
 
   defp validate_signature_timing(conn, headers_list, signature_params) do
     cond do

@@ -176,6 +176,44 @@ defmodule Elektrine.Email.SenderPipelineTest do
       assert sent_message.message_id == received_message.message_id
     end
 
+    test "hides BCC recipients from every internal recipient copy", %{
+      sender: sender,
+      sender_mailbox: sender_mailbox,
+      recipient_mailbox: recipient_mailbox
+    } do
+      {:ok, blind_recipient} =
+        Accounts.create_user(%{
+          username: unique_username("blind"),
+          password: "BlindRecipient123!",
+          password_confirmation: "BlindRecipient123!"
+        })
+
+      {:ok, blind_mailbox} = Email.ensure_user_has_mailbox(blind_recipient)
+
+      assert {:ok, sent_message} =
+               Sender.send_email(sender.id, %{
+                 from: sender_mailbox.email,
+                 to: recipient_mailbox.email,
+                 bcc: blind_mailbox.email,
+                 subject: "Private blind recipient",
+                 text_body: "The BCC list must remain private"
+               })
+
+      regular_copy =
+        recipient_mailbox.id
+        |> Email.list_messages(50, 0)
+        |> Enum.find(&(&1.subject == "Private blind recipient" && &1.status == "received"))
+
+      blind_copy =
+        blind_mailbox.id
+        |> Email.list_messages(50, 0)
+        |> Enum.find(&(&1.subject == "Private blind recipient" && &1.status == "received"))
+
+      assert sent_message.bcc == blind_mailbox.email
+      assert regular_copy.bcc == nil
+      assert blind_copy.bcc == nil
+    end
+
     test "deduplicates internal recipients with different display names", %{
       sender: sender,
       sender_mailbox: sender_mailbox,

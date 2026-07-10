@@ -1691,6 +1691,7 @@ defmodule ElektrineWeb.Router do
     put("/projects/:id", KairoController, :update_project)
     delete("/projects/:id", KairoController, :delete_project)
     post("/sources", KairoController, :create_source)
+    post("/sources/:id/retry", KairoController, :retry_source)
     patch("/sources/:id", KairoController, :update_source)
     put("/sources/:id", KairoController, :update_source)
     delete("/sources/:id", KairoController, :delete_source)

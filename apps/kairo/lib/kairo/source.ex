@@ -4,6 +4,15 @@ defmodule Kairo.Source do
 
   @source_types ~w(url text markdown html json file image pdf email rss_item timeline_post webhook)
   @statuses ~w(received stored processing compiled needs_review failed)
+  @max_title_length 255
+  @max_url_length 2_048
+  @max_content_length 1_000_000
+  @max_encrypted_content_bytes @max_content_length + 16
+  @max_content_format_length 64
+  @max_raw_hash_length 255
+  @max_error_message_length 2_000
+  @max_tags 100
+  @max_tag_length 100
 
   schema "kairo_sources" do
     belongs_to :user, Elektrine.Accounts.User
@@ -66,6 +75,14 @@ defmodule Kairo.Source do
     |> validate_required([:user_id, :source_type, :status, :tags, :metadata, :ingested_at])
     |> validate_inclusion(:source_type, @source_types)
     |> validate_inclusion(:status, @statuses)
+    |> validate_length(:title, max: @max_title_length)
+    |> validate_length(:url, max: @max_url_length)
+    |> validate_length(:content, max: @max_content_length)
+    |> validate_length(:content_format, max: @max_content_format_length)
+    |> validate_length(:raw_hash, max: @max_raw_hash_length)
+    |> validate_length(:error_message, max: @max_error_message_length)
+    |> validate_tag_lengths()
+    |> validate_http_url()
     |> validate_source_payload()
     |> put_raw_hash()
     |> encrypt_content_at_rest()
@@ -122,14 +139,22 @@ defmodule Kairo.Source do
   defp encrypt_content_at_rest(changeset) do
     user_id = get_field(changeset, :user_id)
     content = get_field(changeset, :content)
+    content_changed? = Map.has_key?(changeset.changes, :content)
 
-    if changeset.valid? and not get_field(changeset, :encrypted) and is_integer(user_id) and
-         is_binary(content) and content != "" do
-      changeset
-      |> put_change(:content_encrypted, Elektrine.Encryption.encrypt(content, user_id))
-      |> put_change(:content, nil)
-    else
-      changeset
+    cond do
+      not changeset.valid? or get_field(changeset, :encrypted) or not content_changed? ->
+        changeset
+
+      is_integer(user_id) and is_binary(content) and String.trim(content) != "" ->
+        changeset
+        |> put_change(:content_encrypted, Elektrine.Encryption.encrypt(content, user_id))
+        |> put_change(:content, nil)
+
+      content in [nil, ""] ->
+        put_change(changeset, :content_encrypted, nil)
+
+      true ->
+        changeset
     end
   end
 
@@ -139,6 +164,7 @@ defmodule Kairo.Source do
     if get_field(changeset, :encrypted) do
       changeset
       |> put_change(:content, nil)
+      |> put_change(:content_encrypted, nil)
       |> put_change(:status, "stored")
       |> validate_required([:encrypted_content])
       |> validate_encrypted_payload(:encrypted_content)
@@ -162,12 +188,13 @@ defmodule Kairo.Source do
   end
 
   defp valid_encrypted_payload?(payload) do
+    version = payload["version"] || payload[:version]
     algorithm = payload["algorithm"] || payload[:algorithm]
     iv = payload["iv"] || payload[:iv]
     ciphertext = payload["ciphertext"] || payload[:ciphertext]
 
-    algorithm == "AES-GCM" and valid_base64_bytes?(iv, exact_size: 12) and
-      valid_base64_bytes?(ciphertext, min_size: 1)
+    version == 2 and algorithm == "AES-GCM" and valid_base64_bytes?(iv, exact_size: 12) and
+      valid_base64_bytes?(ciphertext, min_size: 16, max_size: @max_encrypted_content_bytes)
   end
 
   defp valid_base64_bytes?(value, opts) when is_binary(value) do
@@ -176,6 +203,7 @@ defmodule Kairo.Source do
         size = byte_size(bytes)
 
         size >= Keyword.get(opts, :min_size, 0) and
+          (is_nil(Keyword.get(opts, :max_size)) or size <= Keyword.get(opts, :max_size)) and
           (is_nil(Keyword.get(opts, :exact_size)) or size == Keyword.get(opts, :exact_size))
 
       :error ->
@@ -196,6 +224,34 @@ defmodule Kairo.Source do
       |> Enum.uniq()
 
     put_change(changeset, :tags, tags)
+  end
+
+  defp validate_tag_lengths(changeset) do
+    validate_change(changeset, :tags, fn :tags, tags ->
+      cond do
+        length(tags) > @max_tags ->
+          [tags: "must contain at most #{@max_tags} tags"]
+
+        Enum.any?(tags, &(String.length(&1) > @max_tag_length)) ->
+          [tags: "must contain tags of at most #{@max_tag_length} characters"]
+
+        true ->
+          []
+      end
+    end)
+  end
+
+  defp validate_http_url(changeset) do
+    validate_change(changeset, :url, fn :url, url ->
+      case URI.new(url) do
+        {:ok, %URI{scheme: scheme, host: host, userinfo: nil}}
+        when scheme in ["http", "https"] and is_binary(host) and host != "" ->
+          []
+
+        _other ->
+          [url: "must be a valid HTTP(S) URL"]
+      end
+    end)
   end
 
   defp split_tag(tag) when is_binary(tag), do: String.split(tag, ",")

@@ -3,6 +3,9 @@ defmodule Kairo.Project do
   import Ecto.Changeset
 
   @statuses ~w(active archived)
+  @max_name_length 255
+  @max_slug_length 255
+  @max_description_length 20_000
 
   schema "kairo_projects" do
     belongs_to :user, Elektrine.Accounts.User
@@ -25,6 +28,9 @@ defmodule Kairo.Project do
     |> cast(attrs, [:user_id, :name, :slug, :description, :status, :autonomy_level])
     |> maybe_put_slug()
     |> validate_required([:user_id, :name, :slug, :status, :autonomy_level])
+    |> validate_length(:name, max: @max_name_length)
+    |> validate_length(:slug, max: @max_slug_length)
+    |> validate_length(:description, max: @max_description_length)
     |> validate_inclusion(:status, @statuses)
     |> validate_number(:autonomy_level, greater_than_or_equal_to: 0, less_than_or_equal_to: 5)
     |> unique_constraint(:slug, name: :kairo_projects_user_id_slug_index)

@@ -226,6 +226,7 @@ defmodule Elektrine.Uploads do
   def upload_kairo_source(%Plug.Upload{} = upload, user_id) do
     result =
       with {:ok, %File.Stat{size: file_size}} <- File.stat(upload.path),
+           :ok <- check_user_storage_limit(user_id, file_size),
            :ok <- validate_kairo_source_upload(upload, user_id) do
         store_upload_with_metadata(upload, user_id, "kairo-sources", file_size)
       else

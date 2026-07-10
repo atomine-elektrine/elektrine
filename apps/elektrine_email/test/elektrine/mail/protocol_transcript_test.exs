@@ -573,6 +573,48 @@ defmodule Elektrine.Mail.ProtocolTranscriptTest do
     :ok = close_socket(socket)
   end
 
+  test "SMTP accepts supported MAIL FROM parameters and preflights SIZE" do
+    {user, password, mailbox} = create_user_with_messages(0)
+    clear_auth_limits(:smtp, user.username)
+
+    {:ok, socket} = connect_tcp(smtp_port())
+    assert String.starts_with?(recv_line!(socket), "220 ")
+    assert String.starts_with?(smtp_command(socket, "STARTTLS"), "220 ")
+    {:ok, socket} = upgrade_socket_to_tls(socket)
+
+    ehlo_lines = smtp_multiline_command(socket, "EHLO localhost")
+    assert "250-SIZE #{Elektrine.Constants.smtp_max_data_size()}" in ehlo_lines
+    assert "250-8BITMIME" in ehlo_lines
+
+    plain_cred = Base.encode64("\0#{user.username}\0#{password}")
+    assert String.starts_with?(smtp_command(socket, "AUTH PLAIN #{plain_cred}"), "235 ")
+
+    assert String.starts_with?(
+             smtp_command(
+               socket,
+               "MAIL FROM:<#{mailbox.email}> SIZE=1024 BODY=8BITMIME"
+             ),
+             "250 "
+           )
+
+    assert String.starts_with?(smtp_command(socket, "RSET"), "250 ")
+
+    oversized = Elektrine.Constants.smtp_max_data_size() + 1
+
+    assert String.starts_with?(
+             smtp_command(socket, "MAIL FROM:<#{mailbox.email}> SIZE=#{oversized}"),
+             "552 "
+           )
+
+    assert String.starts_with?(
+             smtp_command(socket, "MAIL FROM:<#{mailbox.email}> RET=FULL"),
+             "555 "
+           )
+
+    assert String.starts_with?(smtp_command(socket, "QUIT"), "221 ")
+    :ok = close_socket(socket)
+  end
+
   test "IMAP and SMTP accept generated app passwords with displayed separators" do
     {user, _password, mailbox} = create_user_with_messages(0)
     {:ok, app_password} = Elektrine.Accounts.create_app_password(user.id, %{name: "Thunderbird"})

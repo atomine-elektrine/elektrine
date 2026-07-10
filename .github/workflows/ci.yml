@@ -63,6 +63,11 @@ jobs:
       - name: Install JavaScript dependencies
         run: npm --prefix apps/elektrine/assets ci
 
+      - name: Build assets
+        # Feature (Wallaby) tests exercise the app in a real browser and need
+        # the compiled CSS/JS bundle in priv/static.
+        run: cd apps/elektrine && mix assets.setup && mix assets.build
+
       - name: Verify formatting
         id: format_check
         continue-on-error: ${{ inputs.allow_format_failure }}

@@ -1662,7 +1662,7 @@ defmodule Elektrine.Email.Sender do
       from: email_params[:from],
       to: email_params[:to],
       cc: email_params[:cc],
-      bcc: if(recipient_type == "bcc", do: nil, else: email_params[:bcc]),
+      bcc: nil,
       subject: email_params[:subject],
       text_body: email_params[:text_body],
       html_body: email_params[:html_body],

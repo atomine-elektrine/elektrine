@@ -14,8 +14,13 @@ const AAD = { purpose: "elektrine-kairo-source" }
 
 export const KairoVault = {
   mounted() {
+    this.encryptSavePending = false
+    this.unlockPending = false
     this.unsubscribe = vaultSession.subscribe(() => this.renderLockState())
-    this.el.addEventListener("click", (event) => this.onClick(event))
+    this.onRootClick = (event) => this.onClick(event)
+    this.onRootKeydown = (event) => this.onKeydown(event)
+    this.el.addEventListener("click", this.onRootClick)
+    this.el.addEventListener("keydown", this.onRootKeydown)
     this.renderLockState()
   },
 
@@ -27,6 +32,8 @@ export const KairoVault = {
 
   destroyed() {
     this.unsubscribe && this.unsubscribe()
+    this.el.removeEventListener("click", this.onRootClick)
+    this.el.removeEventListener("keydown", this.onRootKeydown)
   },
 
   renderLockState() {
@@ -52,11 +59,19 @@ export const KairoVault = {
     const encryptSave = event.target.closest("[data-kairo-encrypt-save]")
     if (encryptSave) {
       event.preventDefault()
-      this.saveEncryptedNote()
+      this.saveEncryptedNote(encryptSave)
     }
   },
 
+  onKeydown(event) {
+    if (event.key !== "Enter" || !event.target.closest("[data-kairo-master-unlock-input]")) return
+    event.preventDefault()
+    this.unlockMaster()
+  },
+
   async unlockMaster() {
+    if (this.unlockPending) return
+
     const input = this.el.querySelector("[data-kairo-master-unlock-input]")
     const error = this.el.querySelector("[data-kairo-master-error]")
     const wrapped = this.wrappedDek()
@@ -74,6 +89,13 @@ export const KairoVault = {
       return setError("Enter your account password.")
     }
 
+    const button = this.el.querySelector("[data-kairo-master-unlock]")
+    this.unlockPending = true
+    if (button) {
+      button.disabled = true
+      button.setAttribute("aria-busy", "true")
+    }
+
     try {
       const mdk = await unwrapWithSecret(wrapped, input.value)
       vaultSession.unlock(mdk)
@@ -84,6 +106,12 @@ export const KairoVault = {
       setError(
         "Incorrect account password. If you just reset it, recover encrypted data at /account/encrypted-data."
       )
+    } finally {
+      this.unlockPending = false
+      if (button) {
+        button.disabled = false
+        button.removeAttribute("aria-busy")
+      }
     }
   },
 
@@ -97,7 +125,9 @@ export const KairoVault = {
     }
   },
 
-  async saveEncryptedNote() {
+  async saveEncryptedNote(button) {
+    if (this.encryptSavePending) return
+
     const form = this.el.querySelector("#kairo-note-form")
     if (!form) return
 
@@ -123,6 +153,10 @@ export const KairoVault = {
       return setError("Add a title or some content first.")
     }
 
+    this.encryptSavePending = true
+    button.disabled = true
+    button.setAttribute("aria-busy", "true")
+
     try {
       const key = await vaultSession.featureKey(FEATURE)
       const payload = await encryptValue(content, key, AAD)
@@ -134,6 +168,7 @@ export const KairoVault = {
           payload
         },
         (reply) => {
+          this.finishEncryptedSave()
           if (reply && reply.ok) {
             setError("")
           } else {
@@ -142,8 +177,17 @@ export const KairoVault = {
         }
       )
     } catch (_error) {
+      this.finishEncryptedSave()
       setError("Encryption failed in this browser.")
     }
+  },
+
+  finishEncryptedSave() {
+    this.encryptSavePending = false
+    const button = this.el.querySelector("[data-kairo-encrypt-save]")
+    if (!button) return
+    button.disabled = false
+    button.removeAttribute("aria-busy")
   },
 
   async decryptRow(button) {

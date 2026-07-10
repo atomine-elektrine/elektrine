@@ -264,6 +264,13 @@ defmodule ElektrineWeb.API.MetaController do
         platform_module: :kairo
       },
       %{
+        method: "POST",
+        path: "/api/ext/v1/kairo/sources/:id/retry",
+        summary: "Retry ingestion for a failed Kairo URL source",
+        required_scopes: ["write:kairo"],
+        platform_module: :kairo
+      },
+      %{
         method: "PATCH",
         path: "/api/ext/v1/kairo/projects/:id",
         summary: "Update a Kairo project (rename, archive)",

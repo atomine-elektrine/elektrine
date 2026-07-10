@@ -212,13 +212,21 @@ defmodule ElektrineWeb.MCP.ToolRegistry do
       required_scopes: ["write:kairo"],
       input_schema: %{
         "type" => "object",
-        "required" => ["source_type", "title"],
+        "required" => ["source_type"],
         "properties" => %{
           "source_type" => %{"type" => "string"},
           "title" => %{"type" => "string"},
           "url" => %{"type" => "string"},
           "content" => %{"type" => "string"},
           "content_format" => %{"type" => "string"},
+          "encrypted" => %{
+            "type" => "boolean",
+            "description" => "Whether content is a client-encrypted payload."
+          },
+          "encrypted_content" => %{
+            "type" => "object",
+            "description" => "Client-encrypted AES-GCM content envelope."
+          },
           "project_id" => %{"type" => ["integer", "string"]},
           "tags" => %{"type" => "array", "items" => %{"type" => "string"}},
           "metadata" => %{"type" => "object"}
@@ -226,6 +234,18 @@ defmodule ElektrineWeb.MCP.ToolRegistry do
         "additionalProperties" => true
       },
       handler: &Tools.kairo_sources_create/2
+    },
+    %{
+      name: "kairo.sources.retry",
+      description: "Retry ingestion for a failed Kairo URL source.",
+      required_scopes: ["write:kairo"],
+      input_schema: %{
+        "type" => "object",
+        "required" => ["id"],
+        "properties" => %{"id" => %{"type" => ["integer", "string"]}},
+        "additionalProperties" => false
+      },
+      handler: &Tools.kairo_sources_retry/2
     },
     %{
       name: "nerve.entries.list",

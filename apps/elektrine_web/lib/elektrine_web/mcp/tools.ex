@@ -94,23 +94,32 @@ defmodule ElektrineWeb.MCP.Tools do
   end
 
   def kairo_sources_list(conn, arguments) do
-    opts =
-      []
-      |> maybe_put(
-        :limit,
-        parse_positive_int(arguments["limit"], @default_limit) |> min(@max_limit)
-      )
-      |> maybe_put(:offset, parse_non_negative_int(arguments["offset"], 0))
-      |> maybe_put(:status, string_value(arguments["status"]))
-      |> maybe_put(:source_type, string_value(arguments["source_type"]))
-      |> maybe_put(:project_id, parse_optional_id(arguments["project_id"]))
+    with {:ok, project_id} <- parse_optional_id(arguments["project_id"]) do
+      opts =
+        []
+        |> maybe_put(
+          :limit,
+          parse_positive_int(arguments["limit"], @default_limit) |> min(@max_limit)
+        )
+        |> maybe_put(:offset, parse_non_negative_int(arguments["offset"], 0))
+        |> maybe_put(:status, string_value(arguments["status"]))
+        |> maybe_put(:source_type, string_value(arguments["source_type"]))
+        |> maybe_put(:project_id, project_id)
 
-    sources =
-      conn.assigns.current_user
-      |> Kairo.list_sources(opts)
-      |> Enum.map(&source_payload(&1, false))
+      sources = Kairo.list_sources(conn.assigns.current_user, opts)
+      total = Kairo.count_sources(conn.assigns.current_user, opts)
 
-    {:ok, %{sources: sources, pagination: %{limit: opts[:limit], offset: opts[:offset]}}}
+      {:ok,
+       %{
+         sources: Enum.map(sources, &source_payload(&1, false)),
+         pagination: %{
+           limit: opts[:limit],
+           offset: opts[:offset],
+           total: total,
+           has_more: opts[:offset] + length(sources) < total
+         }
+       }}
+    end
   end
 
   def kairo_sources_get(conn, %{"id" => id}) do
@@ -130,6 +139,16 @@ defmodule ElektrineWeb.MCP.Tools do
       {:error, changeset} -> {:error, %{validation_errors: errors_on(changeset)}}
     end
   end
+
+  def kairo_sources_retry(conn, %{"id" => id}) do
+    case Kairo.retry_url_source(conn.assigns.current_user, id) do
+      {:ok, source} -> {:ok, %{source: source_payload(source, true), retry_queued: true}}
+      {:error, reason} when reason in [:not_found, :not_retryable] -> {:error, reason}
+      {:error, changeset} -> {:error, %{validation_errors: errors_on(changeset)}}
+    end
+  end
+
+  def kairo_sources_retry(_conn, _arguments), do: {:error, :missing_id}
 
   def nerve_entries_list(conn, _arguments) do
     entries =
@@ -235,6 +254,8 @@ defmodule ElektrineWeb.MCP.Tools do
       url: source.url,
       content_format: source.content_format,
       status: source.status,
+      error_message: source.error_message,
+      encrypted: source.encrypted == true,
       tags: source.tags || [],
       metadata: source.metadata || %{},
       raw_hash: source.raw_hash,
@@ -243,14 +264,20 @@ defmodule ElektrineWeb.MCP.Tools do
       inserted_at: source.inserted_at,
       updated_at: source.updated_at
     }
-    |> maybe_put_content(source.content, include_content?)
+    |> maybe_put_content(source, include_content?)
   end
 
   defp loaded_project_payload(%Kairo.Project{} = project), do: project_payload(project)
   defp loaded_project_payload(_project), do: nil
 
-  defp maybe_put_content(payload, content, true), do: Map.put(payload, :content, content)
-  defp maybe_put_content(payload, _content, false), do: payload
+  defp maybe_put_content(payload, source, true) do
+    Map.merge(payload, %{
+      content: source.content,
+      encrypted_content: source.encrypted_content
+    })
+  end
+
+  defp maybe_put_content(payload, _source, false), do: payload
 
   defp nerve_entry_payload(entry, include_ciphertext?) do
     %{
@@ -274,18 +301,18 @@ defmodule ElektrineWeb.MCP.Tools do
   defp string_value(value) when is_binary(value) and value != "", do: value
   defp string_value(_value), do: nil
 
-  defp parse_optional_id(nil), do: nil
-  defp parse_optional_id(""), do: nil
-  defp parse_optional_id(value) when is_integer(value), do: value
+  defp parse_optional_id(nil), do: {:ok, nil}
+  defp parse_optional_id(""), do: {:ok, nil}
+  defp parse_optional_id(value) when is_integer(value) and value > 0, do: {:ok, value}
 
   defp parse_optional_id(value) when is_binary(value) do
     case Integer.parse(value) do
-      {id, ""} -> id
-      _ -> nil
+      {id, ""} when id > 0 -> {:ok, id}
+      _ -> {:error, :invalid_project_id}
     end
   end
 
-  defp parse_optional_id(_value), do: nil
+  defp parse_optional_id(_value), do: {:error, :invalid_project_id}
 
   defp parse_id(value) when is_integer(value) and value > 0, do: {:ok, value}
 

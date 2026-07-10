@@ -30,6 +30,74 @@ defmodule ElektrineWeb.Plugs.HTTPSignaturePlugTest do
   end
 
   describe "call/2" do
+    test "accepts Authorization Signature credentials", %{conn: conn} do
+      {public_key, private_key} = SigningKey.generate_key_pair()
+      actor = remote_signing_actor_fixture(public_key)
+      body = Jason.encode!(%{"type" => "Follow", "actor" => actor.uri})
+      date = Calendar.strftime(DateTime.utc_now(), "%a, %d %b %Y %H:%M:%S GMT")
+      digest = digest(body)
+
+      signing_string =
+        [
+          "(request-target): post /inbox",
+          "host: #{conn.host}",
+          "date: #{date}",
+          "digest: #{digest}"
+        ]
+        |> Enum.join("\n")
+
+      signature_header =
+        [
+          ~s(keyId="#{actor.uri}#main-key"),
+          ~s(algorithm="rsa-sha256"),
+          ~s|headers="(request-target) host date digest"|,
+          ~s(signature="#{rsa_sign(signing_string, private_key)}")
+        ]
+        |> Enum.join(",")
+
+      conn =
+        conn
+        |> Map.put(:method, "POST")
+        |> Map.put(:request_path, "/inbox")
+        |> Map.put(:query_string, "")
+        |> Plug.Conn.assign(:raw_body, body)
+        |> put_req_header("date", date)
+        |> put_req_header("digest", digest)
+        |> put_req_header("authorization", "Signature #{signature_header}")
+        |> HTTPSignaturePlug.call([])
+
+      assert conn.assigns.valid_signature == true
+      assert conn.assigns.signature_actor.id == actor.id
+    end
+
+    test "rejects GET signatures that do not bind the request target and host", %{conn: conn} do
+      {public_key, private_key} = SigningKey.generate_key_pair()
+      actor = remote_signing_actor_fixture(public_key)
+      date = Calendar.strftime(DateTime.utc_now(), "%a, %d %b %Y %H:%M:%S GMT")
+      signing_string = "date: #{date}"
+
+      signature_header =
+        [
+          ~s(keyId="#{actor.uri}#main-key"),
+          ~s(algorithm="rsa-sha256"),
+          ~s(headers="date"),
+          ~s(signature="#{rsa_sign(signing_string, private_key)}")
+        ]
+        |> Enum.join(",")
+
+      conn =
+        conn
+        |> Map.put(:method, "GET")
+        |> Map.put(:request_path, "/users/alice")
+        |> Map.put(:query_string, "")
+        |> put_req_header("date", date)
+        |> put_req_header("signature", signature_header)
+        |> HTTPSignaturePlug.call([])
+
+      assert conn.assigns.valid_signature == false
+      assert conn.assigns.signature_error == :missing_signed_request_target
+    end
+
     test "verifies hs2019 signatures that include created, expires, and digest", %{conn: conn} do
       {public_key, private_key} = SigningKey.generate_key_pair()
       actor_uri = "https://8.8.8.8/users/alice"
@@ -393,5 +461,33 @@ defmodule ElektrineWeb.Plugs.HTTPSignaturePlugTest do
 
   defp digest(body) do
     "SHA-256=" <> Base.encode64(:crypto.hash(:sha256, body))
+  end
+
+  defp remote_signing_actor_fixture(public_key) do
+    unique = System.unique_integer([:positive])
+    actor_uri = "https://8.8.4.4/users/signature#{unique}"
+
+    actor =
+      %Actor{}
+      |> Actor.changeset(%{
+        uri: actor_uri,
+        username: "signature#{unique}",
+        domain: "8.8.4.4",
+        inbox_url: "https://8.8.4.4/inbox",
+        public_key: public_key,
+        last_fetched_at: DateTime.utc_now() |> DateTime.truncate(:second),
+        metadata: %{}
+      })
+      |> Repo.insert!()
+
+    %SigningKey{}
+    |> SigningKey.remote_changeset(%{
+      key_id: "#{actor_uri}#main-key",
+      remote_actor_id: actor.id,
+      public_key: public_key
+    })
+    |> Repo.insert!()
+
+    actor
   end
 end

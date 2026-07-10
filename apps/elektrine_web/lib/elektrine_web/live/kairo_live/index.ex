@@ -12,6 +12,8 @@ defmodule ElektrineWeb.KairoLive.Index do
         {:ok, redirect(socket, to: Elektrine.Paths.login_path())}
 
       user ->
+        if connected?(socket), do: Phoenix.PubSub.subscribe(Elektrine.PubSub, "kairo:#{user.id}")
+
         {:ok,
          socket
          |> assign(:query, "")
@@ -247,7 +249,7 @@ defmodule ElektrineWeb.KairoLive.Index do
   end
 
   def handle_event("toggle_view", %{"mode" => mode}, socket) when mode in ~w(reader graph) do
-    {:noreply, assign(socket, :view_mode, mode)}
+    {:noreply, socket |> assign(:view_mode, mode) |> assign_view()}
   end
 
   def handle_event("select_source", %{"id" => id}, socket) do
@@ -389,6 +391,33 @@ defmodule ElektrineWeb.KairoLive.Index do
     end
   end
 
+  def handle_event("retry_url_fetch", %{"id" => id}, socket) do
+    user = socket.assigns.current_user
+
+    case Kairo.retry_url_source(user, id) do
+      {:ok, source} ->
+        {:noreply,
+         socket
+         |> assign(:selected_id, source.id)
+         |> put_flash(:info, "Link fetch queued again")
+         |> load_kairo(user)}
+
+      {:error, :not_found} ->
+        {:noreply, put_flash(socket, :error, "Source not found")}
+
+      _error ->
+        {:noreply, put_flash(socket, :error, "This source cannot be retried")}
+    end
+  end
+
+  @impl true
+  def handle_info({:kairo_source_updated, _source_id}, socket) do
+    {:noreply, load_kairo(socket, socket.assigns.current_user)}
+  end
+
+  def handle_info({:storage_updated, _storage}, socket), do: {:noreply, socket}
+  def handle_info(_message, socket), do: {:noreply, socket}
+
   defp empty_compose,
     do: %{"title" => "", "content" => "", "project_id" => "", "tags" => "", "encrypt" => ""}
 
@@ -441,11 +470,18 @@ defmodule ElektrineWeb.KairoLive.Index do
   end
 
   defp load_kairo(socket, user) do
+    sources = Kairo.list_sources(user, limit: socket.assigns.source_limit)
+    sources_total = Kairo.count_sources(user)
+
     socket
     |> assign(:page_title, "Kairo")
     |> assign(:projects, Kairo.list_projects(user))
-    |> assign(:sources, Kairo.list_sources(user, limit: socket.assigns.source_limit))
-    |> assign(:sources_total, Kairo.count_sources(user))
+    |> assign(:sources, sources)
+    |> assign(:sources_total, sources_total)
+    |> assign(
+      :source_cap_reached,
+      socket.assigns.source_limit >= @max_sources and sources_total > length(sources)
+    )
     |> assign(:master_vault, Elektrine.Vault.get(user.id))
     |> assign(:project_form, to_form(%{"name" => "", "description" => ""}, as: :project))
     |> assign_view()
@@ -477,7 +513,13 @@ defmodule ElektrineWeb.KairoLive.Index do
     |> assign(:editing_source, editing_source)
     |> assign(:related, related_sources(sources, selected))
     |> assign(:has_encrypted_sources, Enum.any?(sources, & &1.encrypted))
-    |> assign(:graph, build_graph(visible, socket.assigns.projects))
+    |> assign(
+      :graph,
+      if(socket.assigns.view_mode == "graph",
+        do: build_graph(visible, socket.assigns.projects),
+        else: empty_graph()
+      )
+    )
   end
 
   # Palette for project-colored source nodes. Inbox (no project) falls back to a
@@ -489,12 +531,17 @@ defmodule ElektrineWeb.KairoLive.Index do
   # graph sparse and readable (and cheap to animate) even when many sources share
   # a common tag, which would otherwise produce a near-complete graph.
   @max_edges_per_source 5
+  @max_graph_sources 200
+
+  defp empty_graph, do: %{nodes: [], edges: [], total: 0, truncated: false}
 
   # Graph: one node per source (file), with an edge between two
   # sources that share tags. Edge weight is the number of shared tags. To avoid a
   # hairball, each source only links to its strongest few neighbors. Sources are
   # colored by project; untagged or unconnected sources appear as lone nodes.
   defp build_graph(sources, projects) do
+    total = length(sources)
+    sources = Enum.take(sources, @max_graph_sources)
     colors = project_colors(projects)
 
     nodes =
@@ -528,7 +575,7 @@ defmodule ElektrineWeb.KairoLive.Index do
         %{source: "s-#{id_a}", target: "s-#{id_b}", weight: weight}
       end)
 
-    %{nodes: nodes, edges: edges}
+    %{nodes: nodes, edges: edges, total: total, truncated: total > length(sources)}
   end
 
   # Keeps, for each source, only its `max` highest-weight pairs, then unions
@@ -845,6 +892,7 @@ defmodule ElektrineWeb.KairoLive.Index do
                 </div>
 
                 <form id="kairo-search-form" phx-change="search" phx-submit="search" class="relative">
+                  <label for="kairo-search" class="sr-only">Search sources</label>
                   <input
                     id="kairo-search"
                     type="text"
@@ -898,7 +946,13 @@ defmodule ElektrineWeb.KairoLive.Index do
                     </span>
                   <% end %>
                 </div>
-                <p class="hidden text-xs text-error" data-kairo-master-error></p>
+                <p
+                  class="hidden text-xs text-error"
+                  role="alert"
+                  aria-live="polite"
+                  data-kairo-master-error
+                >
+                </p>
 
                 <div :if={@projects != []} class="space-y-1">
                   <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-base-content/50">
@@ -1052,7 +1106,7 @@ defmodule ElektrineWeb.KairoLive.Index do
                 </details>
 
                 <.button
-                  :if={length(@sources) < @sources_total}
+                  :if={length(@sources) < @sources_total and not @source_cap_reached}
                   type="button"
                   phx-click="load_more"
                   variant="default"
@@ -1061,6 +1115,13 @@ defmodule ElektrineWeb.KairoLive.Index do
                 >
                   Load more ({length(@sources)} of {@sources_total} loaded)
                 </.button>
+                <p
+                  :if={@source_cap_reached}
+                  class="px-2 py-2 text-xs text-base-content/50"
+                >
+                  Showing the newest {length(@sources)} of {@sources_total} sources. Use the API for
+                  deeper pagination.
+                </p>
               </nav>
 
               <div class="border-t border-base-300 p-2">
@@ -1111,6 +1172,7 @@ defmodule ElektrineWeb.KairoLive.Index do
                       @view_mode == "reader" && "btn-active"
                     ]}
                     aria-label="List view"
+                    aria-pressed={to_string(@view_mode == "reader")}
                     title="List view"
                   >
                     <.icon name="hero-list-bullet" class="h-4 w-4" />
@@ -1124,6 +1186,7 @@ defmodule ElektrineWeb.KairoLive.Index do
                       @view_mode == "graph" && "btn-active"
                     ]}
                     aria-label="Graph view"
+                    aria-pressed={to_string(@view_mode == "graph")}
                     title="Graph view"
                   >
                     <.icon name="hero-share" class="h-4 w-4" />
@@ -1144,7 +1207,11 @@ defmodule ElektrineWeb.KairoLive.Index do
                 >
                 </div>
                 <div class="pointer-events-none absolute bottom-2 left-3 text-xs text-base-content/40">
-                  Connected sources share a tag
+                  <%= if @graph.truncated do %>
+                    Showing {length(@graph.nodes)} of {@graph.total} sources · connected sources share a tag
+                  <% else %>
+                    Connected sources share a tag
+                  <% end %>
                 </div>
               </div>
 
@@ -1203,6 +1270,8 @@ defmodule ElektrineWeb.KairoLive.Index do
                 <div role="tablist" class="tabs tabs-bordered">
                   <button
                     type="button"
+                    role="tab"
+                    aria-selected={to_string(@compose_tab == "write")}
                     phx-click="set_compose_tab"
                     phx-value-tab="write"
                     class={["tab", @compose_tab == "write" && "tab-active"]}
@@ -1211,6 +1280,8 @@ defmodule ElektrineWeb.KairoLive.Index do
                   </button>
                   <button
                     type="button"
+                    role="tab"
+                    aria-selected={to_string(@compose_tab == "preview")}
                     phx-click="set_compose_tab"
                     phx-value-tab="preview"
                     class={["tab", @compose_tab == "preview" && "tab-active"]}
@@ -1258,7 +1329,13 @@ defmodule ElektrineWeb.KairoLive.Index do
                     class="checkbox checkbox-xs"
                   /> Encrypt — the server never sees the content
                 </label>
-                <p class="hidden text-xs text-error" data-kairo-encrypt-error></p>
+                <p
+                  class="hidden text-xs text-error"
+                  role="alert"
+                  aria-live="polite"
+                  data-kairo-encrypt-error
+                >
+                </p>
 
                 <div class="flex justify-end gap-1.5">
                   <.button type="button" phx-click="cancel_note" variant="ghost" size="sm">
@@ -1336,16 +1413,34 @@ defmodule ElektrineWeb.KairoLive.Index do
                   >
                     Fetch failed: {@selected.error_message}
                   </p>
-                  <a
-                    :if={present_url?(@selected.url)}
-                    href={@selected.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="link link-primary inline-flex items-center gap-1 text-sm"
+                  <.button
+                    :if={
+                      @selected.source_type == "url" and @selected.status == "failed" and
+                        not @selected.encrypted
+                    }
+                    type="button"
+                    phx-click="retry_url_fetch"
+                    phx-value-id={@selected.id}
+                    variant="default"
+                    outline
+                    size="xs"
                   >
-                    <.icon name="hero-arrow-top-right-on-square" class="h-4 w-4" />
-                    {@selected.url}
-                  </a>
+                    <.icon name="hero-arrow-path" class="h-3.5 w-3.5" /> Retry fetch
+                  </.button>
+                  <%= if source_url = safe_http_url(@selected.url) do %>
+                    <a
+                      href={source_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="link link-primary inline-flex items-center gap-1 break-all text-sm"
+                    >
+                      <.icon
+                        name="hero-arrow-top-right-on-square"
+                        class="h-4 w-4 shrink-0"
+                      />
+                      {source_url}
+                    </a>
+                  <% end %>
                   <div :if={@selected.tags not in [nil, []]} class="flex flex-wrap gap-1">
                     <button
                       :for={tag <- @selected.tags}
@@ -1473,5 +1568,21 @@ defmodule ElektrineWeb.KairoLive.Index do
     """
   end
 
-  defp present_url?(url), do: is_binary(url) and String.trim(url) != ""
+  # Sources can also arrive through API and MCP clients, so browser-native URL
+  # inputs are not a sufficient safety boundary. Never turn non-web schemes into
+  # clickable links, even if malformed legacy data is present in the database.
+  defp safe_http_url(url) when is_binary(url) do
+    url = String.trim(url)
+
+    case URI.new(url) do
+      {:ok, %URI{scheme: scheme, host: host, userinfo: nil}}
+      when is_binary(scheme) and is_binary(host) and host != "" ->
+        if String.downcase(scheme) in ["http", "https"], do: url
+
+      _other ->
+        nil
+    end
+  end
+
+  defp safe_http_url(_url), do: nil
 end

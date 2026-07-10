@@ -2,6 +2,7 @@ defmodule Elektrine.UploadsTest do
   use Elektrine.DataCase, async: false
 
   alias Elektrine.AccountsFixtures
+  alias Elektrine.Repo
   alias Elektrine.Uploads
 
   setup do
@@ -105,6 +106,19 @@ defmodule Elektrine.UploadsTest do
 
     assert filename == "#{expected_hash}.txt"
     refute filename =~ "tax-return"
+  end
+
+  test "rejects Kairo uploads that would exceed the user's storage quota", %{
+    tmp_dir: tmp_dir,
+    user: user
+  } do
+    user
+    |> Ecto.Changeset.change(storage_limit_bytes: 1, storage_used_bytes: 0)
+    |> Repo.update!()
+
+    upload = upload_fixture(tmp_dir, "notes.txt", "text/plain", "larger than one byte")
+
+    assert {:error, :storage_limit_exceeded} = Uploads.upload_kairo_source(upload, user.id)
   end
 
   test "stores image attachment metadata before cleaning stripped temp file", %{

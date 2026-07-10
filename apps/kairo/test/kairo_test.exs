@@ -48,6 +48,33 @@ defmodule KairoTest do
       assert updated.user_id == user.id
     end
 
+    test "update_project/3 refreshes storage accounting" do
+      user = user_fixture()
+      {:ok, project} = Kairo.create_project(user, %{"name" => "Storage tracked"})
+
+      before_update =
+        Elektrine.Repo.get!(Elektrine.Accounts.User, user.id).storage_used_bytes
+
+      assert {:ok, _updated} =
+               Kairo.update_project(user, project.id, %{
+                 "description" => String.duplicate("project details ", 20)
+               })
+
+      after_update = Elektrine.Repo.get!(Elektrine.Accounts.User, user.id).storage_used_bytes
+
+      assert after_update > before_update
+      assert after_update == Elektrine.Accounts.Storage.calculate_user_storage(user.id)
+    end
+
+    test "create_project/2 validates database-backed string lengths" do
+      user = user_fixture()
+
+      assert {:error, changeset} =
+               Kairo.create_project(user, %{"name" => String.duplicate("x", 256)})
+
+      assert %{name: _message, slug: _slug_message} = errors_on(changeset)
+    end
+
     test "list_projects/2 filters by status" do
       user = user_fixture()
       {:ok, active} = Kairo.create_project(user, %{"name" => "Active"})
@@ -167,6 +194,140 @@ defmodule KairoTest do
       assert is_nil(row.encrypted_content)
     end
 
+    test "update_source/3 only replaces at-rest ciphertext when content changes" do
+      user = user_fixture()
+
+      assert {:ok, source} =
+               Kairo.create_source(user, %{
+                 "source_type" => "markdown",
+                 "title" => "Original title",
+                 "content" => "body to keep"
+               })
+
+      row_before = Elektrine.Repo.get!(Kairo.Source, source.id)
+
+      assert {:ok, renamed} =
+               Kairo.update_source(user, source.id, %{"title" => "Renamed"})
+
+      row_after_rename = Elektrine.Repo.get!(Kairo.Source, source.id)
+      assert renamed.content == "body to keep"
+      assert row_after_rename.content_encrypted == row_before.content_encrypted
+
+      assert {:ok, cleared} = Kairo.update_source(user, source.id, %{"content" => nil})
+      row_after_clear = Elektrine.Repo.get!(Kairo.Source, source.id)
+
+      assert cleared.content == nil
+      assert row_after_clear.content == nil
+      assert row_after_clear.content_encrypted == nil
+    end
+
+    test "update_source/3 keeps encryption and ingest identity immutable" do
+      user = user_fixture()
+
+      payload = %{
+        "version" => 2,
+        "algorithm" => "AES-GCM",
+        "iv" => Base.encode64(:crypto.strong_rand_bytes(12)),
+        "ciphertext" => Base.encode64(:crypto.strong_rand_bytes(64))
+      }
+
+      replacement_payload = %{
+        "version" => 2,
+        "algorithm" => "AES-GCM",
+        "iv" => Base.encode64(:crypto.strong_rand_bytes(12)),
+        "ciphertext" => Base.encode64(:crypto.strong_rand_bytes(64))
+      }
+
+      assert {:ok, source} =
+               Kairo.create_source(user, %{
+                 "source_type" => "text",
+                 "title" => "Immutable envelope",
+                 "encrypted" => true,
+                 "encrypted_content" => payload,
+                 "raw_hash" => "blind-hash"
+               })
+
+      assert {:ok, updated} =
+               Kairo.update_source(user, source.id, %{
+                 "encrypted" => false,
+                 "encrypted_content" => replacement_payload,
+                 "raw_hash" => "replacement-hash",
+                 "ingested_at" => ~U[2035-01-01 00:00:00Z]
+               })
+
+      assert updated.encrypted
+      assert updated.encrypted_content == payload
+      assert updated.raw_hash == "blind-hash"
+      assert updated.ingested_at == source.ingested_at
+    end
+
+    test "create_source/2 requires valid HTTP(S) URLs" do
+      user = user_fixture()
+
+      for url <- [
+            "javascript:alert(1)",
+            "data:text/html,hello",
+            "ftp://example.com/file",
+            "https://user:password@example.com/private",
+            "https://"
+          ] do
+        assert {:error, changeset} =
+                 Kairo.create_source(user, %{"source_type" => "url", "url" => url})
+
+        assert %{url: _message} = errors_on(changeset)
+      end
+
+      assert {:ok, source} =
+               Kairo.create_source(user, %{
+                 "source_type" => "url",
+                 "url" => "https://example.com/article"
+               })
+
+      assert source.url == "https://example.com/article"
+    end
+
+    test "retry_url_source/2 resets an owned failed URL source" do
+      user = user_fixture()
+      other_user = user_fixture()
+
+      assert {:ok, source} =
+               Kairo.create_source(user, %{
+                 "source_type" => "url",
+                 "url" => "https://example.com/retry",
+                 "status" => "failed",
+                 "error_message" => "timeout",
+                 "processed_at" => DateTime.utc_now() |> DateTime.truncate(:second)
+               })
+
+      assert {:error, :not_found} = Kairo.retry_url_source(other_user, source.id)
+      assert {:ok, retried} = Kairo.retry_url_source(user, source.id)
+      assert retried.status == "received"
+      assert retried.error_message == nil
+      assert retried.processed_at == nil
+      assert {:error, :not_retryable} = Kairo.retry_url_source(user, source.id)
+    end
+
+    test "create_source/2 validates database-backed string and tag lengths" do
+      user = user_fixture()
+
+      assert {:error, title_changeset} =
+               Kairo.create_source(user, %{
+                 "source_type" => "text",
+                 "title" => String.duplicate("x", 256)
+               })
+
+      assert %{title: _message} = errors_on(title_changeset)
+
+      assert {:error, tag_changeset} =
+               Kairo.create_source(user, %{
+                 "source_type" => "text",
+                 "title" => "Tagged",
+                 "tags" => [String.duplicate("x", 101)]
+               })
+
+      assert %{tags: _message} = errors_on(tag_changeset)
+    end
+
     test "create_source/2 rejects an encrypted source without a ciphertext payload" do
       user = user_fixture()
 
@@ -174,6 +335,25 @@ defmodule KairoTest do
                Kairo.create_source(user, %{
                  "source_type" => "text",
                  "encrypted" => true
+               })
+
+      assert %{encrypted_content: _} = errors_on(changeset)
+    end
+
+    test "create_source/2 rejects malformed encrypted payloads" do
+      user = user_fixture()
+
+      assert {:error, changeset} =
+               Kairo.create_source(user, %{
+                 "source_type" => "text",
+                 "title" => "Malformed secret",
+                 "encrypted" => true,
+                 "encrypted_content" => %{
+                   "version" => 1,
+                   "algorithm" => "AES-GCM",
+                   "iv" => Base.encode64(:crypto.strong_rand_bytes(12)),
+                   "ciphertext" => Base.encode64(<<1>>)
+                 }
                })
 
       assert %{encrypted_content: _} = errors_on(changeset)
@@ -233,6 +413,86 @@ defmodule KairoTest do
              )
     end
 
+    test "create_upload_source/3 includes stored blob bytes in storage accounting" do
+      user = user_fixture()
+      bytes = <<208, 207, 17, 224, 161, 177, 26, 225>> <> :binary.copy(<<0>>, 4_096)
+      upload = temp_upload("archive.doc", bytes, "application/msword")
+
+      before = Elektrine.Accounts.Storage.calculate_kairo_storage(user.id)
+      assert {:ok, source} = Kairo.create_upload_source(user, upload)
+      after_first = Elektrine.Accounts.Storage.calculate_kairo_storage(user.id)
+
+      assert source.metadata["size"] == byte_size(bytes)
+      assert after_first - before >= byte_size(bytes)
+
+      duplicate_upload = temp_upload("archive.doc", bytes, "application/msword")
+
+      assert {:ok, duplicate} =
+               Kairo.create_upload_source(user, duplicate_upload, %{"tags" => "copy"})
+
+      after_duplicate = Elektrine.Accounts.Storage.calculate_kairo_storage(user.id)
+
+      assert duplicate.metadata["storage_key"] == source.metadata["storage_key"]
+      assert after_duplicate > after_first
+      assert after_duplicate - after_first < byte_size(bytes)
+    end
+
+    test "delete_source/2 only removes owned, unreferenced Kairo uploads" do
+      user = user_fixture()
+      other_user = user_fixture()
+      content = "shared Kairo upload"
+
+      first_upload = temp_upload("shared.txt", content, "text/plain")
+      second_upload = temp_upload("shared.txt", content, "text/plain")
+
+      assert {:ok, first} =
+               Kairo.create_upload_source(user, first_upload, %{"tags" => "first"})
+
+      assert {:ok, second} =
+               Kairo.create_upload_source(user, second_upload, %{"tags" => "second"})
+
+      assert first.id != second.id
+      assert first.metadata["key"] == second.metadata["key"]
+
+      assert {:ok, protected} =
+               Kairo.update_source(user, first.id, %{
+                 "metadata" => %{
+                   "storage_key" => "kairo-sources/#{other_user.id}/stolen.txt",
+                   "capture_label" => "editable"
+                 }
+               })
+
+      assert protected.metadata["storage_key"] == first.metadata["storage_key"]
+      assert protected.metadata["key"] == first.metadata["key"]
+      assert protected.metadata["capture_label"] == "editable"
+
+      assert {:ok, stored_path} =
+               Elektrine.Uploads.private_attachment_local_path(first.metadata["key"])
+
+      assert File.exists?(stored_path)
+      assert {:ok, _deleted} = Kairo.delete_source(user, first.id)
+      assert File.exists?(stored_path)
+
+      foreign_key = "kairo-sources/#{other_user.id}/aa/bb/cc/foreign.txt"
+      foreign_path = Path.join(["tmp/test_uploads", foreign_key])
+      File.mkdir_p!(Path.dirname(foreign_path))
+      File.write!(foreign_path, "other user's upload")
+      on_exit(fn -> File.rm(foreign_path) end)
+
+      assert {:ok, pointer} =
+               Kairo.create_source(user, %{
+                 "source_type" => "file",
+                 "title" => "Untrusted metadata",
+                 "metadata" => %{"storage_key" => foreign_key}
+               })
+
+      assert {:ok, _deleted} = Kairo.delete_source(user, pointer.id)
+      assert File.exists?(foreign_path)
+
+      assert {:ok, _deleted} = Kairo.delete_source(user, second.id)
+      refute File.exists?(stored_path)
+    end
+
     test "update_source/3 edits an owned source" do
       user = user_fixture()
 
@@ -256,6 +516,28 @@ defmodule KairoTest do
       assert updated.tags == ["new", "edited"]
       assert updated.raw_hash != source.raw_hash
       assert Kairo.get_source(user, source.id).content == "second body"
+    end
+
+    test "update_source/3 reloads the project association after moving a source" do
+      user = user_fixture()
+      {:ok, first_project} = Kairo.create_project(user, %{"name" => "First"})
+      {:ok, second_project} = Kairo.create_project(user, %{"name" => "Second"})
+
+      {:ok, source} =
+        Kairo.create_source(user, %{
+          "source_type" => "text",
+          "title" => "Move me",
+          "project_id" => first_project.id
+        })
+
+      assert source.project_id == first_project.id
+
+      assert {:ok, moved} =
+               Kairo.update_source(user, source.id, %{"project_id" => second_project.id})
+
+      assert moved.project_id == second_project.id
+      assert moved.project.id == second_project.id
+      assert moved.project.name == "Second"
     end
 
     test "update_source/3 and delete_source/2 enforce ownership" do

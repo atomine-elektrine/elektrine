@@ -271,7 +271,7 @@
     >
     </script>
   </head>
-  <body class="antialiased">
+  <body class="bg-base-100 antialiased" data-grid={grid_color(assigns)}>
     <.flash_group flash={assigns[:flash] || %{}} />
     <main>
       {@inner_content}

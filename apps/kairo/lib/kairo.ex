@@ -14,6 +14,7 @@ defmodule Kairo do
   @default_source_limit 50
   @max_source_limit 1000
   @max_extracted_content_chars 200_000
+  @managed_upload_metadata_keys ~w(key storage_key url size sha256 filename original_filename content_type)
 
   def list_projects(user_or_id, opts \\ [])
 
@@ -73,6 +74,7 @@ defmodule Kairo do
         project
         |> Project.changeset(strip_owner_attrs(normalize_attrs(attrs)))
         |> Repo.update()
+        |> tap_storage_update(user_id)
 
       nil ->
         {:error, :not_found}
@@ -177,6 +179,7 @@ defmodule Kairo do
 
       case %Source{} |> Source.changeset(attrs) |> Repo.insert() |> tap_storage_update(user_id) do
         {:ok, source} ->
+          source = Repo.preload(source, :project)
           maybe_enqueue_url_fetch(source)
           {:ok, decrypt_at_rest_content(source)}
 
@@ -217,21 +220,23 @@ defmodule Kairo do
                  |> Repo.insert()
                  |> tap_storage_update(user_id) do
               {:ok, source} ->
+                source = Repo.preload(source, :project)
                 {:ok, decrypt_at_rest_content(source)}
 
               {:error, %Ecto.Changeset{} = changeset} = error ->
                 case existing_duplicate(user_id, changeset) do
                   %Source{} = source ->
+                    delete_uploaded_source_file(upload_metadata, user_id)
                     {:ok, source}
 
                   nil ->
-                    delete_uploaded_source_file(upload_metadata)
+                    delete_uploaded_source_file(upload_metadata, user_id)
                     error
                 end
             end
 
           error ->
-            delete_uploaded_source_file(upload_metadata)
+            delete_uploaded_source_file(upload_metadata, user_id)
             error
         end
 
@@ -446,16 +451,57 @@ defmodule Kairo do
   def update_source(user_id, id, attrs) do
     case get_source(user_id, id) do
       %Source{} = source ->
-        attrs = strip_owner_attrs(normalize_attrs(attrs))
+        attrs =
+          attrs
+          |> normalize_attrs()
+          |> strip_source_immutable_attrs()
+          |> preserve_managed_upload_metadata(source)
 
         with {:ok, attrs} <- resolve_project_id(user_id, attrs) do
           case source
                |> Source.changeset(attrs)
                |> Repo.update()
                |> tap_storage_update(user_id) do
-            {:ok, source} -> {:ok, decrypt_at_rest_content(source)}
-            other -> other
+            {:ok, source} ->
+              source = Repo.preload(source, :project, force: true)
+              {:ok, decrypt_at_rest_content(source)}
+
+            other ->
+              other
           end
+        end
+
+      nil ->
+        {:error, :not_found}
+    end
+  end
+
+  def retry_url_source(%User{id: user_id}, id), do: retry_url_source(user_id, id)
+
+  def retry_url_source(user_id, id) do
+    case get_source(user_id, id) do
+      %Source{} = source ->
+        if retryable_url_source?(source) do
+          result =
+            source
+            |> Source.changeset(%{
+              "status" => "received",
+              "error_message" => nil,
+              "processed_at" => nil
+            })
+            |> Repo.update()
+            |> tap_storage_update(user_id)
+
+          case result do
+            {:ok, updated} ->
+              maybe_enqueue_url_fetch(updated)
+              {:ok, decrypt_at_rest_content(updated)}
+
+            other ->
+              other
+          end
+        else
+          {:error, :not_retryable}
         end
 
       nil ->
@@ -487,30 +533,73 @@ defmodule Kairo do
   def project_statuses, do: Project.statuses()
 
   defp delete_uploaded_source_file(%Source{} = source) do
-    source
-    |> source_file_key()
-    |> delete_uploaded_source_file()
+    delete_uploaded_source_file(source_file_key(source), source.user_id)
   end
 
-  defp delete_uploaded_source_file(%{} = upload_metadata) do
+  defp delete_uploaded_source_file(%{} = upload_metadata, user_id) do
     upload_metadata
     |> Map.get(:key)
-    |> delete_uploaded_source_file()
+    |> delete_uploaded_source_file(user_id)
   end
 
-  defp delete_uploaded_source_file(key) when is_binary(key) do
-    _ = Uploads.delete_uploaded_file(key)
+  defp delete_uploaded_source_file(key, user_id)
+       when is_binary(key) and is_integer(user_id) do
+    key = normalize_private_upload_key(key)
+
+    if owned_kairo_upload_key?(key, user_id) and
+         not uploaded_source_file_referenced?(key, user_id) do
+      _ = Uploads.delete_uploaded_file(key)
+    end
+
     :ok
   end
 
-  defp delete_uploaded_source_file(_key), do: :ok
+  defp delete_uploaded_source_file(_key, _user_id), do: :ok
+
+  defp owned_kairo_upload_key?(key, user_id) when is_binary(key) do
+    String.starts_with?(key, "kairo-sources/#{user_id}/")
+  end
+
+  defp owned_kairo_upload_key?(_key, _user_id), do: false
+
+  defp uploaded_source_file_referenced?(key, user_id) do
+    upload_path = "/uploads/#{key}"
+
+    Source
+    |> where(
+      [source],
+      source.user_id == ^user_id and
+        (fragment("?->>'storage_key' = ?", source.metadata, ^key) or
+           fragment("?->>'key' IN (?, ?)", source.metadata, ^key, ^upload_path))
+    )
+    |> Repo.exists?()
+  end
 
   defp source_file_key(%Source{metadata: metadata}) when is_map(metadata) do
-    metadata["storage_key"] || metadata[:storage_key] || metadata["key"] || metadata[:key] ||
-      metadata["url"] || metadata[:url]
+    metadata["storage_key"] || metadata[:storage_key] || metadata["key"] || metadata[:key]
   end
 
   defp source_file_key(_source), do: nil
+
+  defp preserve_managed_upload_metadata(%{"metadata" => metadata} = attrs, source) do
+    key = source_file_key(source)
+
+    if owned_kairo_upload_key?(normalize_private_upload_key(key), source.user_id) do
+      managed_metadata = Map.take(source.metadata || %{}, @managed_upload_metadata_keys)
+      metadata = metadata |> normalize_metadata() |> Map.merge(managed_metadata)
+      Map.put(attrs, "metadata", metadata)
+    else
+      attrs
+    end
+  end
+
+  defp preserve_managed_upload_metadata(attrs, _source), do: attrs
+
+  defp retryable_url_source?(%Source{} = source) do
+    source.source_type == "url" and source.status == "failed" and not source.encrypted and
+      is_binary(source.url) and is_nil(source.content_encrypted) and
+      (is_nil(source.content) or String.trim(source.content) == "")
+  end
 
   defp normalize_attrs(attrs) when is_map(attrs) do
     Map.new(attrs, fn {key, value} ->
@@ -579,6 +668,20 @@ defmodule Kairo do
   # Attrs that clients must never set on an existing record - ownership is
   # fixed at create time.
   defp strip_owner_attrs(attrs), do: Map.drop(attrs, ["user_id", "id"])
+
+  # Encryption mode and ingest identity are fixed when a source is created.
+  # Allowing public updates to change them can retain stale server ciphertext,
+  # replace a zero-knowledge payload, or forge the source's ingest history.
+  defp strip_source_immutable_attrs(attrs) do
+    Map.drop(attrs, [
+      "user_id",
+      "id",
+      "encrypted",
+      "encrypted_content",
+      "raw_hash",
+      "ingested_at"
+    ])
+  end
 
   defp clamp_offset(offset) when is_binary(offset) do
     case Integer.parse(offset) do

@@ -39,6 +39,9 @@ function parsePayload(el) {
 export const KairoGraph = {
   mounted() {
     this.lastPayload = null
+    this.loop = this.loop.bind(this)
+    this.frame = null
+    this.drawFrame = null
     this.render()
   },
 
@@ -195,6 +198,15 @@ export const KairoGraph = {
       this.canvas.style.cursor = "grab"
     }
 
+    this.onPointerCancel = (event) => {
+      if (this.canvas.hasPointerCapture(event.pointerId)) {
+        this.canvas.releasePointerCapture(event.pointerId)
+      }
+      this.dragNode = null
+      this.panning = false
+      this.canvas.style.cursor = "grab"
+    }
+
     this.onWheel = (event) => {
       event.preventDefault()
       const rect = this.canvas.getBoundingClientRect()
@@ -211,6 +223,7 @@ export const KairoGraph = {
     this.canvas.addEventListener("pointerdown", this.onPointerDown)
     this.canvas.addEventListener("pointermove", this.onPointerMove)
     this.canvas.addEventListener("pointerup", this.onPointerUp)
+    this.canvas.addEventListener("pointercancel", this.onPointerCancel)
     this.canvas.addEventListener("wheel", this.onWheel, { passive: false })
 
     this.resizeObserver = new ResizeObserver(() => {
@@ -250,26 +263,27 @@ export const KairoGraph = {
     this.temp = Math.max(this.temp, Math.min(this.width, this.height) * 0.06)
     if (!this.running) {
       this.running = true
-      this.loop = this.loop.bind(this)
-      window.requestAnimationFrame(this.loop)
+      this.frame = window.requestAnimationFrame(this.loop)
     }
   },
 
   // One-off repaint when the simulation is settled (hover, pan, zoom).
   requestDraw() {
-    if (this.running) return
-    window.requestAnimationFrame(() => {
+    if (this.running || this.drawFrame !== null) return
+    this.drawFrame = window.requestAnimationFrame(() => {
+      this.drawFrame = null
       if (!this.running) this.draw()
     })
   },
 
   loop() {
+    this.frame = null
     if (!this.ctx) return
     this.simulate()
     this.draw()
     this.temp *= COOLING
     if (this.temp > MIN_TEMP || this.dragNode) {
-      window.requestAnimationFrame(this.loop)
+      this.frame = window.requestAnimationFrame(this.loop)
     } else {
       this.running = false
       this.draw() // final frame with labels
@@ -413,6 +427,10 @@ export const KairoGraph = {
 
   teardown() {
     this.running = false
+    if (this.frame !== null) window.cancelAnimationFrame(this.frame)
+    if (this.drawFrame !== null) window.cancelAnimationFrame(this.drawFrame)
+    this.frame = null
+    this.drawFrame = null
     if (this.resizeObserver) this.resizeObserver.disconnect()
     this.resizeObserver = null
     this.dragNode = null

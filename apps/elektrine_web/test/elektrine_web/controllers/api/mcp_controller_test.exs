@@ -18,6 +18,15 @@ defmodule ElektrineWeb.API.MCPControllerTest do
     token.token
   end
 
+  defp encrypted_payload do
+    %{
+      "version" => 2,
+      "algorithm" => "AES-GCM",
+      "iv" => Base.encode64(:crypto.strong_rand_bytes(12)),
+      "ciphertext" => Base.encode64(:crypto.strong_rand_bytes(48))
+    }
+  end
+
   defp mcp_post(conn, token, payload) do
     conn
     |> put_req_header("authorization", "Bearer #{token}")
@@ -234,6 +243,135 @@ defmodule ElektrineWeb.API.MCPControllerTest do
 
     assert [%{"type" => "text", "text" => text}] = get_in(response, ["result", "content"])
     assert text =~ "MCP note"
+  end
+
+  test "Kairo MCP tools round-trip encrypted source envelopes without listing ciphertext", %{
+    conn: conn
+  } do
+    user = user_fixture()
+    token = token_for(user, ["read:kairo", "write:kairo"])
+    payload = encrypted_payload()
+
+    create_conn =
+      mcp_post(conn, token, %{
+        "jsonrpc" => "2.0",
+        "id" => "encrypted-create",
+        "method" => "tools/call",
+        "params" => %{
+          "name" => "kairo.sources.create",
+          "arguments" => %{
+            "source_type" => "markdown",
+            "title" => "Encrypted MCP note",
+            "encrypted" => true,
+            "encrypted_content" => payload
+          }
+        }
+      })
+
+    created =
+      create_conn
+      |> json_response(200)
+      |> get_in(["result", "structuredContent", "source"])
+
+    assert %{
+             "id" => id,
+             "content" => nil,
+             "encrypted" => true,
+             "encrypted_content" => ^payload
+           } = created
+
+    list_conn =
+      build_conn()
+      |> mcp_post(token, %{
+        "jsonrpc" => "2.0",
+        "id" => "encrypted-list",
+        "method" => "tools/call",
+        "params" => %{"name" => "kairo.sources.list", "arguments" => %{}}
+      })
+
+    list_response = json_response(list_conn, 200)
+
+    assert [summary] = get_in(list_response, ["result", "structuredContent", "sources"])
+
+    assert %{"limit" => 25, "offset" => 0, "total" => 1, "has_more" => false} =
+             get_in(list_response, ["result", "structuredContent", "pagination"])
+
+    assert summary["id"] == id
+    assert summary["encrypted"] == true
+    refute Map.has_key?(summary, "content")
+    refute Map.has_key?(summary, "encrypted_content")
+
+    get_conn =
+      build_conn()
+      |> mcp_post(token, %{
+        "jsonrpc" => "2.0",
+        "id" => "encrypted-get",
+        "method" => "tools/call",
+        "params" => %{"name" => "kairo.sources.get", "arguments" => %{"id" => id}}
+      })
+
+    assert %{
+             "id" => ^id,
+             "content" => nil,
+             "encrypted" => true,
+             "encrypted_content" => ^payload
+           } =
+             get_conn
+             |> json_response(200)
+             |> get_in(["result", "structuredContent", "source"])
+  end
+
+  test "Kairo MCP list rejects an invalid project filter", %{conn: conn} do
+    user = user_fixture()
+    token = token_for(user, ["read:kairo"])
+
+    conn =
+      mcp_post(conn, token, %{
+        "jsonrpc" => "2.0",
+        "id" => "invalid-kairo-project",
+        "method" => "tools/call",
+        "params" => %{
+          "name" => "kairo.sources.list",
+          "arguments" => %{"project_id" => "not-an-id"}
+        }
+      })
+
+    response = json_response(conn, 200)
+    assert get_in(response, ["result", "isError"]) == true
+
+    assert response |> get_in(["result", "content"]) |> List.first() |> Map.fetch!("text") =~
+             "invalid_project_id"
+  end
+
+  test "Kairo MCP retries a failed URL source", %{conn: conn} do
+    user = user_fixture()
+    token = token_for(user, ["write:kairo"])
+
+    assert {:ok, source} =
+             Kairo.create_source(user, %{
+               "source_type" => "url",
+               "url" => "https://example.com/retry-mcp",
+               "status" => "failed",
+               "error_message" => "timeout"
+             })
+
+    conn =
+      mcp_post(conn, token, %{
+        "jsonrpc" => "2.0",
+        "id" => "retry-kairo-source",
+        "method" => "tools/call",
+        "params" => %{
+          "name" => "kairo.sources.retry",
+          "arguments" => %{"id" => source.id}
+        }
+      })
+
+    assert %{"retry_queued" => true, "source" => %{"id" => source_id, "status" => "received"}} =
+             conn
+             |> json_response(200)
+             |> get_in(["result", "structuredContent"])
+
+    assert source_id == source.id
   end
 
   test "returns a tool error when scopes are insufficient", %{conn: conn} do
