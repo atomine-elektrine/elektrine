@@ -29,9 +29,9 @@ defmodule Kairo.MixProject do
   defp deps do
     [
       internal_dep(:elektrine),
-      {:oban, "== 2.22.1"},
-      {:finch, "== 0.22.0"},
-      {:floki, "== 0.38.3"}
+      {:oban, "== 2.23.0"},
+      {:finch, "== 0.23.0"},
+      {:floki, "== 0.38.4"}
     ]
   end
 
