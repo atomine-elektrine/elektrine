@@ -7,6 +7,36 @@ defmodule ElektrineWeb.ProfileLive.EditSecurityTest do
   alias Elektrine.AccountsFixtures
   alias Elektrine.Profiles
 
+  test "matches the account settings treatment for active sidebar tabs", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+
+    {:ok, _view, account_html} =
+      conn |> log_in_user(user) |> live(~p"/account?tab=profile")
+
+    {:ok, _view, profile_html} =
+      conn |> log_in_user(user) |> live(~p"/account/profile/edit")
+
+    account_classes =
+      account_html
+      |> Floki.parse_document!()
+      |> Floki.find(~s(a[href="/account?tab=profile"]))
+      |> Floki.attribute("class")
+      |> List.first()
+      |> String.split()
+      |> MapSet.new()
+
+    profile_classes =
+      profile_html
+      |> Floki.parse_document!()
+      |> Floki.find(~s(button[phx-value-tab="profile"]))
+      |> Floki.attribute("class")
+      |> List.first()
+      |> String.split()
+      |> MapSet.new()
+
+    assert profile_classes == account_classes
+  end
+
   test "renders extracted effects tab sections", %{conn: conn} do
     user = AccountsFixtures.user_fixture()
     {:ok, _view, html} = conn |> log_in_user(user) |> live(~p"/account/profile/edit?tab=effects")

@@ -321,7 +321,7 @@ defmodule ElektrineWeb.CoreComponents do
                   type="button"
                   phx-click="change_tab"
                   phx-value-tab={section_id}
-                  class={account_setting_secondary_link_class(@selected_section, section_id)}
+                  class={account_setting_link_class(@selected_section, section_id, :default)}
                 >
                   <.icon name={section_icon} class="w-4 h-4" /> {section_label}
                 </button>
