@@ -657,8 +657,10 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
       if Map.get(assigns, :current_user) do
         upvote_class =
           if user_vote == "up",
-            do: "bg-secondary/20 text-secondary hover:bg-secondary/30",
-            else: "btn-ghost hover:bg-secondary/20 hover:text-secondary"
+            do:
+              "bg-secondary/20 text-secondary hover:bg-secondary/30 phx-click-loading:bg-transparent phx-click-loading:text-base-content/70",
+            else:
+              "btn-ghost hover:bg-secondary/20 hover:text-secondary phx-click-loading:bg-secondary/20 phx-click-loading:text-secondary"
 
         downvote_class =
           if user_vote == "down",
@@ -672,6 +674,13 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
             else:
               ~s(<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg>)
 
+        pending_upvote_svg =
+          if user_vote == "up",
+            do:
+              ~s(<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg>),
+            else:
+              ~s(<svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 4l-8 8h5v8h6v-8h5z"></path></svg>)
+
         downvote_svg =
           if user_vote == "down",
             do:
@@ -679,17 +688,22 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
             else:
               ~s(<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>)
 
+        pending_score =
+          score + if(user_vote == "up", do: -1, else: if(user_vote == "down", do: 2, else: 1))
+
         """
         <button
           phx-click="vote"
           phx-value-message_id="#{reply.id}"
           phx-value-type="up"
-          class="inline-flex h-6 w-6 items-center justify-center rounded-md border border-transparent p-1 transition-none #{upvote_class}"
+          class="vote-up-button inline-flex h-6 w-6 items-center justify-center rounded-md border border-transparent p-1 transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait #{upvote_class}"
         >
-          #{upvote_svg}
+          <span class="inline-flex phx-click-loading:hidden">#{upvote_svg}</span>
+          <span class="hidden phx-click-loading:inline-flex" aria-hidden="true">#{pending_upvote_svg}</span>
         </button>
-        <span class="text-sm font-medium #{score_class}">
-          #{score}
+        <span class="vote-score text-sm font-medium #{score_class}">
+          <span class="vote-score-current">#{score}</span>
+          <span class="vote-score-pending" aria-hidden="true">#{pending_score}</span>
         </span>
         <button
           phx-click="vote"

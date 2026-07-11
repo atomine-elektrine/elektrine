@@ -205,12 +205,70 @@ paige_brave_api_key =
 
 paige_github_token = present_env.(["PAIGE_GITHUB_TOKEN"])
 
+paige_index_enabled = config_env() != :test and parse_bool_env.("PAIGE_INDEX_ENABLED", true)
+
+paige_index_seeds =
+  System.get_env("PAIGE_INDEX_SEEDS", "")
+  |> String.split(",", trim: true)
+  |> Enum.map(&String.trim/1)
+  |> Enum.reject(&(&1 == ""))
+  |> Enum.uniq()
+
+config :elektrine, :web_index,
+  enabled: paige_index_enabled,
+  seeds: paige_index_seeds,
+  max_depth: parse_int_env.("PAIGE_INDEX_MAX_DEPTH", 2),
+  recrawl_seconds: parse_int_env.("PAIGE_INDEX_RECRAWL_SECONDS", 7 * 24 * 60 * 60),
+  schedule_batch_size: parse_int_env.("PAIGE_INDEX_BATCH_SIZE", 100)
+
+paige_scraper_names =
+  if config_env() == :test do
+    []
+  else
+    System.get_env("PAIGE_SCRAPERS", "wiby")
+    |> String.split(",", trim: true)
+    |> Enum.map(&(&1 |> String.trim() |> String.downcase()))
+    |> Enum.uniq()
+  end
+
+paige_scraper_providers =
+  Enum.flat_map(paige_scraper_names, fn
+    "wiby" ->
+      [
+        {Paige.Providers.Wiby,
+         [
+           kinds: [:web],
+           scoring: :rank,
+           score_offset: -3,
+           max_results: 12,
+           page_size: 12,
+           paginated: true
+         ]}
+      ]
+
+    "duckduckgo" ->
+      [
+        {Paige.Providers.DuckDuckGo,
+         [
+           kinds: [:web],
+           scoring: :rank,
+           score_offset: -2,
+           max_results: 20,
+           page_size: 20,
+           paginated: true
+         ]}
+      ]
+
+    _unknown ->
+      []
+  end)
+
 # Supplementary sources blend a handful of results into web searches below the
 # top Brave hits. They are rank-scored so native scores (stars, points, page
 # sizes) can't dominate the blend. GitHub search is heavily rate-limited
 # without a token, so it stays off unless one is configured.
 paige_web_blend = fn extra ->
-  Keyword.merge([kinds: [:web], scoring: :rank, max_results: 3], extra)
+  Keyword.merge([kinds: [:web], scoring: :rank, max_results: 3, paginated: true], extra)
 end
 
 paige_supplementary_providers =
@@ -226,7 +284,22 @@ paige_supplementary_providers =
   end
 
 paige_providers =
-  [paige_brave_api_key && {Paige.Providers.Brave, [api_key: paige_brave_api_key]}]
+  [
+    paige_index_enabled &&
+      {Elektrine.WebIndex.Provider,
+       [
+         kinds: [:web],
+         scoring: :rank,
+         score_offset: 2,
+         max_results: 10,
+         page_size: 10,
+         paginated: true
+       ]},
+    paige_brave_api_key &&
+      {Paige.Providers.Brave,
+       [api_key: paige_brave_api_key, paginated_kinds: [:web, :videos, :news]]}
+  ]
+  |> Enum.concat(paige_scraper_providers)
   |> Enum.concat(paige_supplementary_providers)
   |> Enum.filter(& &1)
 
@@ -250,7 +323,8 @@ oban_queues =
         federation: oban_queue_override.("OBAN_QUEUE_FEDERATION", 1),
         messaging_federation: oban_queue_override.("OBAN_QUEUE_MESSAGING_FEDERATION", 1),
         uptime: oban_queue_override.("OBAN_QUEUE_UPTIME", 1),
-        kairo: oban_queue_override.("OBAN_QUEUE_KAIRO", 1)
+        kairo: oban_queue_override.("OBAN_QUEUE_KAIRO", 1),
+        crawler: oban_queue_override.("OBAN_QUEUE_CRAWLER", 1)
       ]
 
     oban_db_pool_size <= 10 ->
@@ -267,7 +341,8 @@ oban_queues =
         federation: oban_queue_override.("OBAN_QUEUE_FEDERATION", 2),
         messaging_federation: oban_queue_override.("OBAN_QUEUE_MESSAGING_FEDERATION", 2),
         uptime: oban_queue_override.("OBAN_QUEUE_UPTIME", 2),
-        kairo: oban_queue_override.("OBAN_QUEUE_KAIRO", 1)
+        kairo: oban_queue_override.("OBAN_QUEUE_KAIRO", 1),
+        crawler: oban_queue_override.("OBAN_QUEUE_CRAWLER", 1)
       ]
 
     true ->
@@ -284,7 +359,8 @@ oban_queues =
         federation: oban_queue_override.("OBAN_QUEUE_FEDERATION", 2),
         messaging_federation: oban_queue_override.("OBAN_QUEUE_MESSAGING_FEDERATION", 4),
         uptime: oban_queue_override.("OBAN_QUEUE_UPTIME", 4),
-        kairo: oban_queue_override.("OBAN_QUEUE_KAIRO", 2)
+        kairo: oban_queue_override.("OBAN_QUEUE_KAIRO", 2),
+        crawler: oban_queue_override.("OBAN_QUEUE_CRAWLER", 2)
       ]
   end
 

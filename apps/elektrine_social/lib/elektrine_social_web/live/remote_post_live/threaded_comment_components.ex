@@ -88,20 +88,30 @@ defmodule ElektrineSocialWeb.RemotePostLive.ThreadedCommentComponents do
                   phx-value-activitypub_id={reply_view.activitypub_id}
                   phx-value-type="up"
                   class={[
-                    "inline-flex h-6 w-6 items-center justify-center rounded-md border border-transparent p-1 transition-none phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
+                    "vote-up-button inline-flex h-6 w-6 items-center justify-center rounded-md border border-transparent p-1 transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
                     if(user_vote == "up",
-                      do: "bg-secondary/20 text-secondary hover:bg-secondary/30",
-                      else: "text-base-content/50 hover:bg-secondary/20 hover:text-secondary"
+                      do:
+                        "bg-secondary/20 text-secondary hover:bg-secondary/30 phx-click-loading:bg-transparent phx-click-loading:text-base-content/70",
+                      else:
+                        "text-base-content/50 hover:bg-secondary/20 hover:text-secondary phx-click-loading:bg-secondary/20 phx-click-loading:text-secondary"
                     )
                   ]}
                   aria-label={if user_vote == "up", do: "Remove upvote", else: "Upvote"}
                   aria-pressed={user_vote == "up"}
                   type="button"
                 >
-                  <.icon
-                    name={if user_vote == "up", do: "hero-arrow-up-solid", else: "hero-arrow-up"}
-                    class="w-3 h-3 sm:w-4 sm:h-4 transition-none"
-                  />
+                  <span class="inline-flex phx-click-loading:hidden">
+                    <.icon
+                      name={if user_vote == "up", do: "hero-arrow-up-solid", else: "hero-arrow-up"}
+                      class="w-3 h-3 sm:w-4 sm:h-4"
+                    />
+                  </span>
+                  <span class="hidden phx-click-loading:inline-flex" aria-hidden="true">
+                    <.icon
+                      name={if user_vote == "up", do: "hero-arrow-up", else: "hero-arrow-up-solid"}
+                      class="w-3 h-3 sm:w-4 sm:h-4"
+                    />
+                  </span>
                 </button>
               <% else %>
                 <div class="inline-flex h-6 w-6 items-center justify-center rounded-md border border-transparent p-1 opacity-50 cursor-not-allowed">
@@ -110,7 +120,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.ThreadedCommentComponents do
               <% end %>
               <span
                 class={[
-                  "text-xs font-bold",
+                  "vote-score text-xs font-bold",
                   cond do
                     user_vote == "up" -> "text-secondary"
                     user_vote == "down" -> "text-error"
@@ -121,11 +131,16 @@ defmodule ElektrineSocialWeb.RemotePostLive.ThreadedCommentComponents do
               >
                 <span
                   id={"#{reply_view.card_dom_id}-vote-count"}
+                  class="vote-score-current"
                   phx-hook="AnimatedCount"
                   phx-update="ignore"
                   data-count={reply_like_count}
                 >
                   {reply_like_count}
+                </span>
+                <span class="vote-score-pending" aria-hidden="true">
+                  {reply_like_count +
+                    if(user_vote == "up", do: -1, else: if(user_vote == "down", do: 2, else: 1))}
                 </span>
               </span>
               <%= if @current_user do %>

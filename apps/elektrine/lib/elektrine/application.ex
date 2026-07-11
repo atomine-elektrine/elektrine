@@ -48,6 +48,7 @@ defmodule Elektrine.Application do
       Elektrine.API.ImportRateLimiter,
       Elektrine.API.WriteRateLimiter,
       Elektrine.Search.RateLimiter,
+      Elektrine.Search.PaigeRateLimiter,
       Elektrine.HTTP.Backoff,
       Elektrine.MailAuth.RateLimiter,
       Elektrine.JobQueueMonitor

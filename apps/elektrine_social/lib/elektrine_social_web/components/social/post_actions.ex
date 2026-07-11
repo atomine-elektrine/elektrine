@@ -785,20 +785,30 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
           phx-value-type="up"
           class={[
             @btn_class,
-            "transition-none phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
+            "vote-up-button transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
             if(@is_upvoted,
-              do: "bg-secondary/20 text-secondary hover:bg-secondary/30",
-              else: "text-base-content/50 hover:bg-secondary/20 hover:text-secondary"
+              do:
+                "bg-secondary/20 text-secondary hover:bg-secondary/30 phx-click-loading:bg-transparent phx-click-loading:text-base-content/70",
+              else:
+                "text-base-content/50 hover:bg-secondary/20 hover:text-secondary phx-click-loading:bg-secondary/20 phx-click-loading:text-secondary"
             )
           ]}
           aria-label={if @is_upvoted, do: "Remove upvote", else: "Upvote"}
           aria-pressed={@is_upvoted}
           type="button"
         >
-          <.icon
-            name={if @is_upvoted, do: "hero-arrow-up-solid", else: "hero-arrow-up"}
-            class={@icon_class}
-          />
+          <span class="inline-flex phx-click-loading:hidden">
+            <.icon
+              name={if @is_upvoted, do: "hero-arrow-up-solid", else: "hero-arrow-up"}
+              class={@icon_class}
+            />
+          </span>
+          <span class="hidden phx-click-loading:inline-flex" aria-hidden="true">
+            <.icon
+              name={if @is_upvoted, do: "hero-arrow-up", else: "hero-arrow-up-solid"}
+              class={@icon_class}
+            />
+          </span>
         </button>
       <% else %>
         <div class={"#{@btn_class} opacity-50 cursor-not-allowed"}>
@@ -806,21 +816,24 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
         </div>
       <% end %>
 
-      <%= if @show_score do %>
-        <span
-          class={[
-            @score_class,
-            cond do
-              @is_upvoted -> "text-secondary"
-              @is_downvoted -> "text-error"
-              true -> ""
-            end
-          ]}
-          aria-label={"Score: #{@score}"}
-        >
-          {@score}
+      <span
+        class={[
+          "vote-score",
+          !@show_score && "vote-score--empty",
+          @score_class,
+          cond do
+            @is_upvoted -> "text-secondary"
+            @is_downvoted -> "text-error"
+            true -> ""
+          end
+        ]}
+        aria-label={if @show_score, do: "Score: #{@score}"}
+      >
+        <span class="vote-score-current">{@score}</span>
+        <span class="vote-score-pending" aria-hidden="true">
+          {@score + if(@is_upvoted, do: -1, else: if(@is_downvoted, do: 2, else: 1))}
         </span>
-      <% end %>
+      </span>
 
       <%= if @current_user do %>
         <button

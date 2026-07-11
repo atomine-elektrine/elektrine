@@ -49,6 +49,40 @@ defmodule Elektrine.MediaProxy do
   end
 
   @doc """
+  Returns a signed local proxy URL for remote media regardless of the global
+  proxy preference.
+
+  This is intended for privacy-sensitive surfaces such as search thumbnails,
+  where the browser must never contact the result host directly. Obvious
+  private targets are rejected synchronously; the proxy controller performs
+  full DNS and redirect validation again before fetching.
+  """
+  def signed_url(nil), do: nil
+  def signed_url(""), do: nil
+
+  def signed_url(url) when is_binary(url) do
+    url = String.trim(url)
+
+    case URI.parse(url) do
+      %URI{scheme: scheme, host: host, userinfo: userinfo}
+      when scheme in ["http", "https"] and is_binary(host) and host != "" and
+             userinfo in [nil, ""] ->
+        cond do
+          String.match?(url, ~r/[\x00-\x20\x7F]/u) -> nil
+          URLValidator.private_ip?(host) -> nil
+          URLValidator.is_private_domain?(host) -> nil
+          blocklisted?(url) -> nil
+          true -> encode_url(url)
+        end
+
+      _uri ->
+        nil
+    end
+  end
+
+  def signed_url(_url), do: nil
+
+  @doc """
   Converts a list of URLs to proxied URLs.
   """
   def urls(urls) when is_list(urls) do

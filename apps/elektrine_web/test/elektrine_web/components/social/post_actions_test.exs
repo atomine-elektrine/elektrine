@@ -109,4 +109,62 @@ defmodule ElektrineWeb.Components.Social.PostActionsTest do
     assert non_zero_html =~ ~s(aria-label="Score: 2")
     assert active_vote_html =~ ~s(aria-label="Score: 0")
   end
+
+  test "upvotes show the optimistic like-style loading animation" do
+    inactive_html =
+      render_component(&PostActions.vote_buttons/1,
+        post_id: 123,
+        current_user: %{id: 1},
+        score: 2,
+        is_upvoted: false
+      )
+
+    active_html =
+      render_component(&PostActions.vote_buttons/1,
+        post_id: 123,
+        current_user: %{id: 1},
+        score: 3,
+        is_upvoted: true
+      )
+
+    downvoted_html =
+      render_component(&PostActions.vote_buttons/1,
+        post_id: 123,
+        current_user: %{id: 1},
+        score: -1,
+        is_downvoted: true
+      )
+
+    inactive_button = upvote_button(inactive_html)
+    active_button = upvote_button(active_html)
+
+    assert inactive_button =~ "phx-click-loading:scale-95"
+    assert inactive_button =~ "phx-click-loading:opacity-80"
+    assert inactive_button =~ ~s(class="inline-flex phx-click-loading:hidden")
+    assert inactive_button =~ "hero-arrow-up-solid"
+
+    assert active_button =~ ~s(class="hidden phx-click-loading:inline-flex")
+    assert active_button =~ "phx-click-loading:text-base-content/70"
+    assert active_button =~ "hero-arrow-up-solid"
+    assert active_button =~ "hero-arrow-up"
+
+    assert pending_score(inactive_html) == "3"
+    assert pending_score(active_html) == "2"
+    assert pending_score(downvoted_html) == "1"
+  end
+
+  defp upvote_button(html) do
+    html
+    |> Floki.parse_fragment!()
+    |> Floki.find(~s(button[phx-value-type="up"]))
+    |> Floki.raw_html()
+  end
+
+  defp pending_score(html) do
+    html
+    |> Floki.parse_fragment!()
+    |> Floki.find(".vote-score-pending")
+    |> Floki.text()
+    |> String.trim()
+  end
 end

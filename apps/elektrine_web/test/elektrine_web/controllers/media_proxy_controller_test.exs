@@ -10,6 +10,15 @@ defmodule ElektrineSocialWeb.MediaProxyControllerTest do
     assert {:error, :invalid_url} = MediaProxy.decode_url("short/#{encoded_url}")
   end
 
+  test "signs extensionless remote thumbnails and rejects private targets" do
+    signed = MediaProxy.signed_url("https://images.example/thumbnail?id=42")
+
+    assert is_binary(signed)
+    assert signed =~ "/media_proxy/"
+    assert is_nil(MediaProxy.signed_url("http://127.0.0.1/private"))
+    assert is_nil(MediaProxy.signed_url("https://user:secret@images.example/thumbnail"))
+  end
+
   test "does not treat svg content as inline-safe" do
     assert MediaProxyController.inline_safe_content_type?("image/png")
     assert MediaProxyController.inline_safe_content_type?("image/png; charset=utf-8")

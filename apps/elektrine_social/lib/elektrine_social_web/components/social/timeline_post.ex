@@ -2167,17 +2167,21 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
               phx-click={if @is_liked, do: @on_unlike, else: @on_like}
               phx-value-post_id={@post.id}
               class={[
-                "inline-flex h-7 w-7 items-center justify-center rounded-md border border-transparent p-1 transition-none sm:h-9 sm:w-9 sm:p-2 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
+                "vote-up-button inline-flex h-7 w-7 items-center justify-center rounded-md border border-transparent p-1 transition-all duration-150 sm:h-9 sm:w-9 sm:p-2 phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
                 if(@is_liked,
                   do:
                     if(@like_only_mode,
-                      do: "bg-error/20 text-error hover:bg-error/30",
-                      else: "bg-secondary/20 text-secondary hover:bg-secondary/30"
+                      do:
+                        "bg-error/20 text-error hover:bg-error/30 phx-click-loading:bg-transparent phx-click-loading:text-base-content/70",
+                      else:
+                        "bg-secondary/20 text-secondary hover:bg-secondary/30 phx-click-loading:bg-transparent phx-click-loading:text-base-content/70"
                     ),
                   else:
                     if(@like_only_mode,
-                      do: "text-base-content/50 hover:bg-error/20 hover:text-error",
-                      else: "text-base-content/50 hover:bg-secondary/20 hover:text-secondary"
+                      do:
+                        "text-base-content/50 hover:bg-error/20 hover:text-error phx-click-loading:bg-error/20 phx-click-loading:text-error",
+                      else:
+                        "text-base-content/50 hover:bg-secondary/20 hover:text-secondary phx-click-loading:bg-secondary/20 phx-click-loading:text-secondary"
                     )
                 )
               ]}
@@ -2189,14 +2193,26 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
               aria-pressed={@is_liked}
               type="button"
             >
-              <.icon
-                name={
-                  if @like_only_mode,
-                    do: if(@is_liked, do: "hero-heart-solid", else: "hero-heart"),
-                    else: if(@is_liked, do: "hero-arrow-up-solid", else: "hero-arrow-up")
-                }
-                class="w-4 h-4 sm:w-5 sm:h-5 transition-none"
-              />
+              <span class="inline-flex phx-click-loading:hidden">
+                <.icon
+                  name={
+                    if @like_only_mode,
+                      do: if(@is_liked, do: "hero-heart-solid", else: "hero-heart"),
+                      else: if(@is_liked, do: "hero-arrow-up-solid", else: "hero-arrow-up")
+                  }
+                  class="w-4 h-4 sm:w-5 sm:h-5"
+                />
+              </span>
+              <span class="hidden phx-click-loading:inline-flex" aria-hidden="true">
+                <.icon
+                  name={
+                    if @like_only_mode,
+                      do: if(@is_liked, do: "hero-heart", else: "hero-heart-solid"),
+                      else: if(@is_liked, do: "hero-arrow-up", else: "hero-arrow-up-solid")
+                  }
+                  class="w-4 h-4 sm:w-5 sm:h-5"
+                />
+              </span>
             </button>
           <% else %>
             <div class="inline-flex h-7 w-7 items-center justify-center rounded-md border border-transparent p-1 opacity-50 cursor-not-allowed sm:h-9 sm:w-9 sm:p-2">
@@ -2208,6 +2224,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
           <% end %>
           <span
             class={[
+              "vote-score",
               cond do
                 @is_liked and !@like_only_mode -> "text-secondary"
                 @is_downvoted -> "text-error"
@@ -2218,13 +2235,19 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
           >
             <span
               id={"#{@unique_id}-score-count"}
-              class="text-sm sm:text-lg font-bold"
+              class="vote-score-current text-sm sm:text-lg font-bold"
               phx-hook="AnimatedCount"
               phx-update="ignore"
               data-count={@score}
               aria-hidden="true"
             >
               {@score}
+            </span>
+            <span
+              class="vote-score-pending text-sm sm:text-lg font-bold"
+              aria-hidden="true"
+            >
+              {@score + if(@is_liked, do: -1, else: if(@is_downvoted, do: 2, else: 1))}
             </span>
           </span>
           <%= if !@like_only_mode and @current_user do %>

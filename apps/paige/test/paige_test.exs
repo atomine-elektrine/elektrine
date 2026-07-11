@@ -1,4 +1,4 @@
-defmodule MaidTest do
+defmodule PaigeTest do
   use ExUnit.Case, async: true
 
   alias Paige.Result
@@ -115,6 +115,33 @@ defmodule MaidTest do
     end
   end
 
+  defmodule MalformedProvider do
+    @behaviour Paige.Provider
+
+    @impl true
+    def search(_query, _opts) do
+      {:ok,
+       [
+         %{
+           "title" => "Still valid",
+           "url" => "https://example.com/valid",
+           "metadata" => "not a map",
+           "published_at" => "not a datetime"
+         },
+         %{title: "Missing URL"},
+         %{title: "Credentials", url: "https://user:secret@example.com/private"},
+         :not_a_result
+       ]}
+    end
+  end
+
+  defmodule ExitProvider do
+    @behaviour Paige.Provider
+
+    @impl true
+    def search(_query, _opts), do: exit(:provider_crashed)
+  end
+
   test "rejects empty queries" do
     assert Paige.search("   ") == {:error, :empty_query}
   end
@@ -142,6 +169,7 @@ defmodule MaidTest do
     assert_received {:provider_opts, opts}
     assert opts[:kind] == :images
     assert opts[:limit] == 12
+    assert opts[:page] == 1
   end
 
   test "search runs providers concurrently" do
@@ -206,7 +234,16 @@ defmodule MaidTest do
   end
 
   test "search_detailed errors when every provider fails" do
-    assert Paige.search_detailed("elektrine", providers: [BrokenProvider]) ==
+    assert {:error, {:providers_unavailable, meta}} =
+             Paige.search_detailed("elektrine", providers: [BrokenProvider])
+
+    assert meta.available?
+    assert meta.degraded?
+    assert meta.failed_providers == [{BrokenProvider, :offline}]
+
+    # The simple API remains backwards-compatible for callers that do not
+    # need provider diagnostics.
+    assert Paige.search("elektrine", providers: [BrokenProvider]) ==
              {:error, :providers_unavailable}
   end
 
@@ -225,5 +262,65 @@ defmodule MaidTest do
     assert {:ok, results} = Paige.search("halo", providers: [MediaProvider], limit: 10)
 
     assert Enum.map(results, & &1.title) == ["Video one", "Video two", "Image one", "Image two"]
+  end
+
+  test "search exposes availability, provider stats, provenance, and pagination metadata" do
+    assert {:ok, [result, _other], meta} =
+             Paige.search_detailed("elektrine",
+               providers: [
+                 {FirstProvider, [paginated_kinds: [:web]]},
+                 SecondProvider,
+                 BrokenProvider
+               ],
+               kind: :web,
+               limit: 2,
+               page: 1
+             )
+
+    assert meta.available?
+    assert meta.degraded?
+    assert meta.has_more?
+    assert meta.result_count == 2
+    assert Enum.any?(meta.provider_stats, &(&1.provider == FirstProvider and &1.status == :ok))
+    assert result.metadata.source_count == 2
+    assert Enum.sort(result.metadata.sources) == ["FirstProvider", "SecondProvider"]
+  end
+
+  test "search distinguishes an unavailable vertical from an empty healthy search" do
+    assert {:ok, [], meta} =
+             Paige.search_detailed("elektrine",
+               providers: [{FirstProvider, [kinds: [:web]]}],
+               kind: :images
+             )
+
+    refute meta.available?
+    refute meta.degraded?
+    refute meta.has_more?
+    assert meta.provider_stats == []
+  end
+
+  test "one malformed result does not discard its valid siblings" do
+    assert {:ok, [%Result{} = result], %{degraded?: false}} =
+             Paige.search_detailed("elektrine", providers: [MalformedProvider])
+
+    assert result.title == "Still valid"
+    assert result.metadata.provider_index == 0
+    assert is_nil(result.published_at)
+  end
+
+  test "provider exits are isolated and classified" do
+    assert {:ok, results, meta} =
+             Paige.search_detailed("elektrine", providers: [ExitProvider, FirstProvider])
+
+    assert results != []
+    assert meta.failed_providers == [{ExitProvider, :provider_exit}]
+  end
+
+  test "rejects oversized queries before invoking providers" do
+    assert Paige.search(String.duplicate("a", 401), providers: [FirstProvider]) ==
+             {:error, :query_too_long}
+
+    assert Paige.search(Enum.join(List.duplicate("word", 51), " "), providers: [FirstProvider]) ==
+             {:error, :query_too_long}
   end
 end

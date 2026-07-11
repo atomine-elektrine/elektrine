@@ -86,7 +86,9 @@ config :elektrine, Oban,
     # Uptime monitor probes
     uptime: 3,
     # Kairo source hydration (URL fetching)
-    kairo: 2
+    kairo: 2,
+    # Paige's polite independent web crawler
+    crawler: 2
   ],
   plugins: [
     # High-volume federation jobs add up quickly; keep only a short completed-job window.
@@ -161,6 +163,8 @@ config :elektrine, Oban,
        {"*/2 * * * *", Elektrine.Bluesky.InboundPollWorker},
        # Archive/prune federation event/outbox data daily
        {"20 2 * * *", Elektrine.Messaging.FederationRetentionWorker},
+       # Seed configured sites and schedule due Paige index refreshes
+       {"*/5 * * * *", Elektrine.WebIndex.SchedulerWorker},
        # Renew wildcard certificates through acme.sh when enabled
        {"35 2 * * *", Elektrine.ACME.WildcardRenewalWorker},
        # Sync IFTAS CARIAD denylist daily for ActivityPub instance blocking

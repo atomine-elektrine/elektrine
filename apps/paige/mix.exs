@@ -17,7 +17,7 @@ defmodule Paige.MixProject do
   end
 
   def application do
-    [extra_applications: [:logger]]
+    [extra_applications: [:logger], mod: {Paige.Application, []}]
   end
 
   defp elixirc_paths(:test), do: ["lib", "test/support"]
@@ -26,6 +26,7 @@ defmodule Paige.MixProject do
   defp deps do
     [
       {:finch, "== 0.22.0"},
+      {:floki, "== 0.38.3"},
       {:jason, "== 1.4.5"}
     ]
   end

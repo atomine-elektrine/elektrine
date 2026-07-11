@@ -108,6 +108,56 @@ defmodule ElektrineWeb.Components.Social.TimelinePostTest do
     refute html =~ ">...<"
   end
 
+  test "lemmy upvote uses the optimistic like-style loading state" do
+    html =
+      render_component(&TimelinePost.timeline_post/1,
+        post:
+          remote_post(%{
+            id: 457,
+            activitypub_id: "https://lemmy.world/post/457",
+            activitypub_url: "https://lemmy.world/post/457",
+            media_metadata: %{
+              "community_actor_uri" => "https://lemmy.world/c/test",
+              "type" => "Page"
+            }
+          }),
+        layout: :lemmy,
+        source: "remote_profile",
+        current_user: %{id: 1},
+        user_likes: %{},
+        user_downvotes: %{},
+        post_interactions: %{},
+        post_reactions_map: %{},
+        reactions: [],
+        lemmy_counts: %{},
+        interaction_mode: :vote,
+        clickable: false,
+        on_image_click: nil,
+        replies: []
+      )
+
+    upvote_button =
+      html
+      |> Floki.parse_fragment!()
+      |> Floki.find(~s(button[aria-label="Upvote"]))
+      |> Floki.raw_html()
+
+    assert upvote_button =~ "phx-click-loading:scale-95"
+    assert upvote_button =~ "phx-click-loading:bg-secondary/20"
+    assert upvote_button =~ ~s(class="inline-flex phx-click-loading:hidden")
+    assert upvote_button =~ ~s(class="hidden phx-click-loading:inline-flex")
+    assert upvote_button =~ "hero-arrow-up-solid"
+
+    pending_score =
+      html
+      |> Floki.parse_fragment!()
+      |> Floki.find(".vote-score-pending")
+      |> Floki.text()
+      |> String.trim()
+
+    assert pending_score == "1"
+  end
+
   test "timeline layout suppresses unsafe legacy remote URLs" do
     post =
       remote_post(%{

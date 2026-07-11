@@ -12,7 +12,7 @@ defmodule Paige.Providers.Wikipedia do
 
   def search(query, opts) when is_binary(query) do
     case Paige.HTTP.get_json(url(query, opts), headers(), opts) do
-      {:ok, payload} -> {:ok, parse_results(payload)}
+      {:ok, payload} -> parse_results(payload)
       {:error, reason} -> {:error, reason}
     end
   end
@@ -21,6 +21,7 @@ defmodule Paige.Providers.Wikipedia do
 
   defp url(query, opts) do
     limit = opts |> Keyword.get(:limit, 5) |> clamp_limit(20)
+    offset = (normalize_page(Keyword.get(opts, :page, 1)) - 1) * limit
 
     query_string =
       URI.encode_query(%{
@@ -29,6 +30,7 @@ defmodule Paige.Providers.Wikipedia do
         list: "search",
         srsearch: query,
         srlimit: limit,
+        sroffset: offset,
         utf8: 1
       })
 
@@ -38,25 +40,28 @@ defmodule Paige.Providers.Wikipedia do
   defp headers, do: [{"Accept", "application/json"}, {"User-Agent", user_agent()}]
 
   defp parse_results(%{"query" => %{"search" => results}}) when is_list(results) do
-    Enum.flat_map(results, &parse_result/1)
+    {:ok, Enum.flat_map(results, &parse_result/1)}
   end
 
-  defp parse_results(_payload), do: []
+  defp parse_results(_payload), do: {:error, :invalid_response}
 
-  defp parse_result(%{"title" => title} = result) do
+  defp parse_result(%{"title" => title} = result) when is_binary(title) do
     [
       %Result{
         title: title,
         url: "https://en.wikipedia.org/wiki/" <> URI.encode(String.replace(title, " ", "_")),
         snippet: result |> Map.get("snippet") |> strip_html(),
         source: "Wikipedia",
-        score: Map.get(result, "size", 0),
+        score: numeric_value(Map.get(result, "size")),
         metadata: %{provider: :wikipedia, page_id: Map.get(result, "pageid")}
       }
     ]
   end
 
   defp parse_result(_result), do: []
+
+  defp numeric_value(value) when is_number(value), do: value
+  defp numeric_value(_value), do: 0
 
   defp strip_html(nil), do: nil
 
@@ -66,6 +71,8 @@ defmodule Paige.Providers.Wikipedia do
     |> String.replace(~r/<[^>]*>/, "")
     |> html_unescape()
   end
+
+  defp strip_html(_value), do: nil
 
   defp html_unescape(value) do
     value
@@ -78,6 +85,17 @@ defmodule Paige.Providers.Wikipedia do
 
   defp clamp_limit(limit, max) when is_integer(limit), do: limit |> max(1) |> min(max)
   defp clamp_limit(_limit, _max), do: 5
+
+  defp normalize_page(page) when is_integer(page), do: page |> max(1) |> min(10)
+
+  defp normalize_page(page) when is_binary(page) do
+    case Integer.parse(String.trim(page)) do
+      {parsed, ""} -> normalize_page(parsed)
+      _error -> 1
+    end
+  end
+
+  defp normalize_page(_page), do: 1
 
   defp user_agent, do: Application.get_env(:paige, :user_agent, "Paige/0.1")
 end
