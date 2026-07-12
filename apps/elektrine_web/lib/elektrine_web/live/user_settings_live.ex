@@ -8,6 +8,7 @@ defmodule ElektrineWeb.UserSettingsLive do
   alias Elektrine.Platform.Modules
   alias Elektrine.Profiles
   alias Elektrine.RSS
+  alias Elektrine.Theme
   alias Elektrine.Utils.SafeConvert
   alias ElektrineWeb.Platform.Integrations
   alias ElektrineWeb.UserAuth
@@ -317,6 +318,7 @@ defmodule ElektrineWeb.UserSettingsLive do
          |> assign(:current_user, updated_user)
          |> assign(:user, updated_user)
          |> assign(:changeset, Accounts.change_user(updated_user))
+         |> apply_theme_overrides(updated_user)
          |> notify_info("Theme reset to defaults")}
 
       {:error, %Ecto.Changeset{} = changeset} ->
@@ -1113,6 +1115,7 @@ defmodule ElektrineWeb.UserSettingsLive do
          |> assign(:mailboxes, mailboxes)
          |> assign(:aliases, aliases)
          |> assign(:profile_notice, message)
+         |> maybe_apply_theme_overrides(final_user, final_params)
          |> notify_info(message)}
 
       {:error, %Ecto.Changeset{} = changeset} ->
@@ -1146,6 +1149,28 @@ defmodule ElektrineWeb.UserSettingsLive do
       _ ->
         :ok
     end
+  end
+
+  defp maybe_apply_theme_overrides(socket, user, %{"theme_overrides" => _overrides}) do
+    apply_theme_overrides(socket, user)
+  end
+
+  defp maybe_apply_theme_overrides(socket, _user, _params), do: socket
+
+  defp apply_theme_overrides(socket, user) do
+    overrides = user.theme_overrides || %{}
+
+    preference =
+      case Theme.preferred_scheme(overrides) do
+        :light -> "light"
+        :dark -> "dark"
+        nil -> "system"
+      end
+
+    push_event(socket, "apply-theme-overrides", %{
+      style: Theme.style_attribute(overrides),
+      preference: preference
+    })
   end
 
   defp bluesky_managed_error_message(:invalid_credentials) do

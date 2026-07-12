@@ -143,6 +143,58 @@ defmodule ElektrineWeb.UserSettingsLiveTest do
     end
   end
 
+  describe "theme preferences" do
+    test "persists and immediately applies a saved custom theme", %{conn: conn, user: user} do
+      {:ok, view, _html} =
+        conn
+        |> log_in_user(user)
+        |> live(~p"/account?tab=preferences")
+
+      view
+      |> form("#preferences-form",
+        user: %{
+          theme_overrides: %{
+            color_base_100: "#101820",
+            color_primary: "#f5d90a"
+          }
+        }
+      )
+      |> render_submit()
+
+      assert_push_event(view, "apply-theme-overrides", payload)
+      assert payload.preference == "dark"
+      assert payload.style =~ "--theme-override-color-base-100: #101820"
+      assert payload.style =~ "--theme-override-color-primary: #f5d90a"
+
+      assert Map.take(Accounts.get_user!(user.id).theme_overrides, [
+               "color_base_100",
+               "color_primary"
+             ]) == %{
+               "color_base_100" => "#101820",
+               "color_primary" => "#f5d90a"
+             }
+    end
+
+    test "immediately clears active overrides when resetting the theme", %{conn: conn, user: user} do
+      {:ok, user} =
+        Accounts.update_user(user, %{
+          "theme_overrides" => %{"color_base_100" => "#101820"}
+        })
+
+      {:ok, view, _html} =
+        conn
+        |> log_in_user(user)
+        |> live(~p"/account?tab=preferences")
+
+      view
+      |> form("#preferences-form", user: %{})
+      |> render_submit(%{"action" => "reset_theme_defaults"})
+
+      assert_push_event(view, "apply-theme-overrides", %{preference: "system", style: ""})
+      assert Accounts.get_user!(user.id).theme_overrides == %{}
+    end
+  end
+
   describe "encryption coverage" do
     test "shows optional chat E2EE and server-side encrypted-at-rest coverage", %{
       conn: conn,
