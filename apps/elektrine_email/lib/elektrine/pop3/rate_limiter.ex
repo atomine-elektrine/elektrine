@@ -3,16 +3,16 @@ defmodule Elektrine.POP3.RateLimiter do
   Rate limiter for POP3 authentication attempts.
 
   Limits:
-  - 5 attempts per minute
-  - 30 attempts per hour
+  - 10 attempts per minute
+  - 60 attempts per hour
   - 10-minute block after exceeding limit
   """
 
   use Elektrine.RateLimiter,
     table: :pop3_rate_limiter,
     limits: [
-      {:minute, 5},
-      {:hour, 30}
+      {:minute, 10},
+      {:hour, 60}
     ],
     lockout: {:minutes, 10},
     cleanup_interval: {:minutes, 1}

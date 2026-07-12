@@ -22,7 +22,7 @@ defmodule Elektrine.MailAuth.RateLimiterTest do
   end
 
   test "locks an identifier after repeated failures", %{identifier: identifier} do
-    Enum.each(1..6, fn _ ->
+    Enum.each(1..12, fn _ ->
       :ok = RateLimiter.record_failure(:imap, identifier)
     end)
 
@@ -32,13 +32,24 @@ defmodule Elektrine.MailAuth.RateLimiterTest do
   test "rate limiting applies across imap, pop3, and smtp for the same identifier", %{
     identifier: identifier
   } do
-    Enum.each(1..6, fn _ ->
+    Enum.each(1..12, fn _ ->
       :ok = RateLimiter.record_failure(:imap, identifier)
     end)
 
     assert {:error, :blocked} = RateLimiter.check_attempt(:imap, identifier)
     assert {:error, :blocked} = RateLimiter.check_attempt(:pop3, identifier)
     assert {:error, :blocked} = RateLimiter.check_attempt(:smtp, identifier)
+  end
+
+  test "allows a normal multi-protocol client setup retry burst", %{identifier: identifier} do
+    Enum.each([:imap, :smtp, :pop3], fn protocol ->
+      Enum.each(1..3, fn _ ->
+        :ok = RateLimiter.record_failure(protocol, identifier)
+      end)
+    end)
+
+    assert {:ok, 3} = RateLimiter.check_attempt(:imap, identifier)
+    assert {:ok, 3} = RateLimiter.check_attempt(:smtp, identifier)
   end
 
   test "username and mailbox email resolve to the same account subject" do
@@ -58,7 +69,7 @@ defmodule Elektrine.MailAuth.RateLimiterTest do
       RateLimiter.clear_attempts(:smtp, mailbox.email)
     end)
 
-    Enum.each(1..6, fn _ ->
+    Enum.each(1..12, fn _ ->
       :ok = RateLimiter.record_failure(:imap, username)
     end)
 

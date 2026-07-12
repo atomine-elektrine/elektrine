@@ -850,8 +850,6 @@ defmodule Elektrine.Notifications do
       )
       |> Repo.all()
 
-    sync_notification_sources_as_read(user_id, unread_notifications)
-
     from(n in Notification,
       where: n.user_id == ^user_id and is_nil(n.read_at)
     )
@@ -859,6 +857,10 @@ defmodule Elektrine.Notifications do
 
     # Invalidate notification cache
     Elektrine.AppCache.invalidate_notification_cache(user_id)
+
+    # Mark the notification rows first so linked source updates cannot emit a
+    # sequence of intermediate unread totals while this bulk action runs.
+    sync_notification_sources_as_read(user_id, unread_notifications)
 
     Phoenix.PubSub.broadcast(
       Elektrine.PubSub,

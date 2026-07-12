@@ -10,10 +10,10 @@ defmodule Elektrine.MailAuth.RateLimiter do
   use Elektrine.RateLimiter,
     table: :mail_auth_account_rate_limiter,
     limits: [
-      {:minute, 6},
-      {:hour, 30}
+      {:minute, 12},
+      {:hour, 60}
     ],
-    lockout: {:minutes, 20},
+    lockout: {:minutes, 10},
     cleanup_interval: {:minutes, 1}
 
   @spec check_attempt(atom(), String.t() | nil) :: {:ok, non_neg_integer()} | {:error, atom()}

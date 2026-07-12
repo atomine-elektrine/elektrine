@@ -12,6 +12,13 @@
 } .btn-success { --btn-color: color-mix(in srgb, var(--color-base-300) 72%, var(--color-success) 28%); --btn-fg: var(--color-success-content);
 } .btn-warning { --btn-color: color-mix(in srgb, var(--color-base-300) 72%, var(--color-warning) 28%); --btn-fg: var(--color-warning-content);
 } .btn-error { --btn-color: color-mix(in srgb, var(--color-base-300) 72%, var(--color-error) 28%); --btn-fg: var(--color-error-content);
+} html[data-theme="light"] .btn-primary:not(.btn-outline) { --btn-color: var(--color-primary);
+} html[data-theme="light"] .btn-secondary:not(.btn-outline) { --btn-color: var(--color-secondary);
+} html[data-theme="light"] .btn-accent:not(.btn-outline) { --btn-color: var(--color-accent);
+} html[data-theme="light"] .btn-info:not(.btn-outline) { --btn-color: var(--color-info);
+} html[data-theme="light"] .btn-success:not(.btn-outline) { --btn-color: var(--color-success);
+} html[data-theme="light"] .btn-warning:not(.btn-outline) { --btn-color: var(--color-warning);
+} html[data-theme="light"] .btn-error:not(.btn-outline) { --btn-color: var(--color-error);
 } .btn-ghost { --btn-color: var(--theme-btn-ghost-bg); --btn-fg: var(--theme-btn-ghost-text);
 } .btn-outline { --btn-color: var(--theme-btn-outline-border); --btn-fg: var(--color-base-content);
 }
@@ -89,7 +96,7 @@ html[data-theme="dark"] .btn:focus-visible,
 } .btn-loading .btn-spinner { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
 } /* -------------------------------------------------------------------------- INPUTS & FORMS -------------------------------------------------------------------------- */ .input,
 .textarea,
-.select { border: 1px solid var(--theme-input-border) !important; background-color: color-mix(in srgb, var(--color-base-200) 78%, var(--color-base-100) 22%) !important; color: var(--color-base-content) !important; box-shadow: var(--theme-input-inset-shadow) !important;
+.select { border: 1px solid var(--theme-input-border) !important; background-color: var(--theme-input-bg, color-mix(in srgb, var(--color-base-200) 78%, var(--color-base-100) 22%)) !important; color: var(--color-base-content) !important; box-shadow: var(--theme-input-inset-shadow) !important;
 } .input:focus,
 .textarea:focus,
 .select:focus { outline: 2px solid var(--theme-input-highlight) !important; outline-offset: 2px !important; border-color: var(--theme-input-highlight-strong) !important; box-shadow: 0 0 0 1px var(--theme-input-highlight-shadow) !important;
@@ -103,6 +110,10 @@ html[data-theme="dark"] .btn:focus-visible,
 } .input:hover,
 .textarea:hover,
 .select:hover { border-color: color-mix(in srgb, var(--color-base-300) 55%, white 45%) !important;
+} html[data-theme="light"] .input:hover,
+html[data-theme="light"] .textarea:hover,
+html[data-theme="light"] .select:hover { border-color: color-mix(in srgb, var(--color-base-300) 52%, var(--color-primary) 48%) !important;
+} html[data-theme="light"] :is(.checkbox, .radio, .toggle):not(:checked) { border-color: color-mix(in srgb, var(--color-base-300) 68%, var(--color-base-content) 32%);
 } .input::placeholder,
 .textarea::placeholder { color: color-mix(in srgb, var(--color-base-content) 48%, transparent 52%) !important;
 } .select option { background-color: var(--color-base-200); color: var(--color-base-content);

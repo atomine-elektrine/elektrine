@@ -38,7 +38,7 @@ defmodule ElektrineWeb.Layouts do
   def site_theme_style(assigns) do
     assigns
     |> current_user_theme_overrides()
-    |> Theme.effective_style_attribute()
+    |> Theme.style_attribute()
   end
 
   def site_theme_color(assigns) do
@@ -48,6 +48,24 @@ defmodule ElektrineWeb.Layouts do
   end
 
   def site_theme_name(_assigns), do: "dark"
+
+  def theme_boot_script do
+    """
+    (() => {
+      try {
+        const savedTheme = window.localStorage.getItem("elektrine:theme");
+        const systemTheme = window.matchMedia("(prefers-color-scheme: light)").matches
+          ? "light"
+          : "dark";
+        document.documentElement.dataset.theme = ["light", "dark"].includes(savedTheme)
+          ? savedTheme
+          : systemTheme;
+      } catch (_error) {
+        document.documentElement.dataset.theme = "dark";
+      }
+    })();
+    """
+  end
 
   defp current_user_theme_overrides(assigns) do
     case assigns[:current_user] do

@@ -3,18 +3,18 @@ defmodule Elektrine.SMTP.RateLimiter do
   Rate limiter for SMTP authentication attempts.
 
   Limits:
-  - 3 attempts per minute
-  - 15 attempts per hour
-  - 15-minute block after exceeding limit (increased from 5)
+  - 8 attempts per minute
+  - 40 attempts per hour
+  - 10-minute block after exceeding limit
   """
 
   use Elektrine.RateLimiter,
     table: :smtp_rate_limiter,
     limits: [
-      {:minute, 3},
-      {:hour, 15}
+      {:minute, 8},
+      {:hour, 40}
     ],
-    lockout: {:minutes, 15},
+    lockout: {:minutes, 10},
     cleanup_interval: {:minutes, 1}
 
   # Backwards compatibility

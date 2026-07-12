@@ -38,6 +38,7 @@ import { initIpLookup } from "./ip_lookup"
 import { initTaglineCycler } from "./tagline_cycler"
 import { initProfileStatic } from "./profile_static"
 import { initAdminSecurity } from "./admin_security"
+import { initThemeToggle, syncThemeControls } from "./theme"
 
 // Import shared modules
 import { FlashMessageManager } from "./flash_message_manager"
@@ -133,7 +134,10 @@ window.addEventListener("phx:page-loading-stop", () => {
   syncCursorGlowForRoute()
   initAutoSearchClearButtons()
   initAdminSecurity()
+  syncThemeControls()
 })
+
+window.addEventListener("elektrine:theme-changed", syncTopbarTheme)
 
 // ============================================================================
 // Global Event Handlers
@@ -529,6 +533,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initIpLookup()
   initProfileStatic()
   initAdminSecurity()
+  initThemeToggle()
 
   // Auto-print functionality
   const body = document.querySelector('body[data-auto-print="true"]')

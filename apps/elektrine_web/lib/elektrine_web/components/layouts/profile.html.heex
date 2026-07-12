@@ -13,6 +13,9 @@
     />
     <meta name="csrf-token" content={get_csrf_token()} />
     <meta name="theme-color" content={site_theme_color(assigns)} />
+    <script nonce={ElektrineWeb.Plugs.SecurityHeaders.script_nonce()}>
+      <%= Phoenix.HTML.raw(theme_boot_script()) %>
+    </script>
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />

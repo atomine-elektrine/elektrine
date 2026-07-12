@@ -215,29 +215,35 @@ defmodule Elektrine.Email.MessageOperationsTest do
       assert ENav.notification_badge_counts(user)["email"] == 1
     end
 
-    test "notification mark_all_as_read clears linked email unread sources", %{
+    test "notification mark_all_as_read clears linked email sources with one final count", %{
       user: user,
       mailbox: mailbox
     } do
-      assert {:ok, _message} =
-               Email.create_message(%{
-                 mailbox_id: mailbox.id,
-                 from: "sender@example.com",
-                 to: mailbox.email,
-                 subject: "Portal read sync",
-                 text_body: "Unread from notification center",
-                 message_id: "portal-sync-#{System.unique_integer([:positive])}@example.com",
-                 status: "received",
-                 read: false
-               })
+      for subject <- ["Portal read sync one", "Portal read sync two"] do
+        assert {:ok, _message} =
+                 Email.create_message(%{
+                   mailbox_id: mailbox.id,
+                   from: "sender@example.com",
+                   to: mailbox.email,
+                   subject: subject,
+                   text_body: "Unread from notification center",
+                   message_id: "portal-sync-#{System.unique_integer([:positive])}@example.com",
+                   status: "received",
+                   read: false
+                 })
+      end
 
-      assert Email.unread_inbox_count(mailbox.id) == 1
-      assert Notifications.get_unread_count(user.id) == 1
+      assert Email.unread_inbox_count(mailbox.id) == 2
+      assert Notifications.get_unread_count(user.id) == 2
+
+      Phoenix.PubSub.subscribe(Elektrine.PubSub, "user:#{user.id}:notification_count")
 
       assert :ok = Notifications.mark_all_as_read(user.id)
 
       assert Email.unread_inbox_count(mailbox.id) == 0
       assert Notifications.get_unread_count(user.id) == 0
+      assert_receive {:notification_count_updated, 0}
+      refute_receive {:notification_count_updated, _count}, 50
     end
 
     test "mark_as_not_spam invalidates cached unread inbox counts", %{mailbox: mailbox} do

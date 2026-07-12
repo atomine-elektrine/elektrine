@@ -3,16 +3,16 @@ defmodule Elektrine.IMAP.RateLimiter do
   Rate limiter for IMAP authentication attempts.
 
   Limits:
-  - 12 attempts per minute
-  - 120 attempts per hour
+  - 20 attempts per minute
+  - 200 attempts per hour
   - 10-minute block after exceeding limit
   """
 
   use Elektrine.RateLimiter,
     table: :imap_rate_limiter,
     limits: [
-      {:minute, 12},
-      {:hour, 120}
+      {:minute, 20},
+      {:hour, 200}
     ],
     lockout: {:minutes, 10},
     cleanup_interval: {:minutes, 1}

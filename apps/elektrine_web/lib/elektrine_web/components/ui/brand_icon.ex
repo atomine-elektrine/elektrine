@@ -8,6 +8,32 @@ defmodule ElektrineWeb.Components.UI.BrandIcon do
   alias Elektrine.Theme
 
   @doc """
+  Renders the Elektrine mark using the surrounding text color.
+
+  Unlike the standalone SVG asset, this component follows app theme changes
+  immediately, including explicit light/dark overrides.
+  """
+  attr :class, :string, default: "h-7 w-auto"
+
+  def elektrine_logo(assigns) do
+    ~H"""
+    <svg
+      class={@class}
+      viewBox="0 0 72 66"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+      data-elektrine-logo
+    >
+      <path
+        d="M15.872 0V38.784L55.168 21.248V0H71.168V31.616L31.744 49.152H71.168V65.152H0V0H15.872Z"
+        fill="currentColor"
+      />
+    </svg>
+    """
+  end
+
+  @doc """
   Renders a brand icon.
 
   ## Examples

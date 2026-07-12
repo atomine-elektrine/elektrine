@@ -89,6 +89,18 @@ defmodule ElektrineWeb.LayoutsTest do
     refute html =~ ~s(phx-hook="TimezoneDetector")
   end
 
+  test "root layout boots from the system scheme unless a preference is saved" do
+    html =
+      render_component(&Layouts.root/1,
+        inner_content: "",
+        page_title: "Test"
+      )
+
+    assert html =~ ~s(data-theme="dark")
+    assert html =~ ~s|localStorage.getItem("elektrine:theme")|
+    assert html =~ ~s|matchMedia("(prefers-color-scheme: light)")|
+  end
+
   test "root layout respects assign-driven robots meta values" do
     html =
       render_component(&Layouts.root/1,
@@ -113,6 +125,7 @@ defmodule ElektrineWeb.LayoutsTest do
 
     assert html =~ ~s(--theme-override-color-base-100: #203040)
     assert html =~ ~s(--theme-override-color-info: #405060)
+    refute html =~ ~s(--theme-override-color-base-200: #edf1f5)
     assert html =~ ~s(data-grid="cyan")
   end
 
@@ -124,5 +137,19 @@ defmodule ElektrineWeb.LayoutsTest do
     assert css =~ "body.bg-base-100"
     assert css =~ "background-color: var(--color-base-100)"
     refute css =~ "background-color: oklch(var(--b1))"
+  end
+
+  test "light theme gives controls distinct filled surfaces" do
+    base_css =
+      Path.expand("../../../../elektrine/assets/css/base.css", __DIR__)
+      |> File.read!()
+
+    components_css =
+      Path.expand("../../../../elektrine/assets/css/components.css", __DIR__)
+      |> File.read!()
+
+    assert base_css =~ "--theme-input-bg:"
+    assert components_css =~ ~s|html[data-theme="light"] .btn-primary:not(.btn-outline)|
+    assert components_css =~ "background-color: var(--theme-input-bg"
   end
 end

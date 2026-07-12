@@ -49,7 +49,7 @@ defmodule ElektrineWeb.API.AuthControllerTest do
       assert String.starts_with?(response["token"], "ekt_")
       assert response["user"]["theme"]["overrides"]["color_primary"] == "#112233"
       assert response["user"]["theme"]["values"]["color_primary"] == "#112233"
-      assert response["user"]["theme"]["values"]["color_base_200"] == "#1a1a1d"
+      assert response["user"]["theme"]["values"]["color_base_200"] == "#edf1f5"
 
       conn =
         build_conn()

@@ -119,6 +119,7 @@ defmodule ElektrineWeb.CoreComponents do
 
   # Brand icon component
   defdelegate brand_icon(assigns), to: BrandIcon
+  defdelegate elektrine_logo(assigns), to: BrandIcon
 
   # Header component
   defdelegate header(assigns), to: Header

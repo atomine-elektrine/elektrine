@@ -82,6 +82,9 @@ defmodule ElektrineWeb.PortalLiveTest do
       |> live(~p"/portal?view=reader&filter=timeline")
 
     assert html =~ ~s(data-test="global-composer")
+    assert html =~ ~s(data-theme-toggle)
+    assert html =~ ~s(data-elektrine-logo)
+    refute html =~ ~s(src="/images/logo.svg")
     assert html =~ "Feed Reader"
     assert html =~ "/settings/rss"
     refute html =~ "Your activity"

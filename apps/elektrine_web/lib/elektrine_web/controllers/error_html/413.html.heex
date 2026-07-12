@@ -3,6 +3,9 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script nonce={ElektrineWeb.Plugs.SecurityHeaders.script_nonce()}>
+      <%= Phoenix.HTML.raw(ElektrineWeb.Layouts.theme_boot_script()) %>
+    </script>
     <title>Request Too Large - Elektrine</title>
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <link rel="stylesheet" href="/assets/app.css" />

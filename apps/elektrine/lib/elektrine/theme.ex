@@ -55,77 +55,77 @@ defmodule Elektrine.Theme do
       css_var: "--theme-override-color-primary",
       label: "Primary",
       description: "Main brand color for buttons, focus states, and accents",
-      default: "#5f87b8"
+      default: "#4f7098"
     },
     %{
       key: "color_secondary",
       css_var: "--theme-override-color-secondary",
       label: "Secondary",
       description: "Secondary accent used in gradients and supporting actions",
-      default: "#c9853f"
+      default: "#a8662d"
     },
     %{
       key: "color_accent",
       css_var: "--theme-override-color-accent",
       label: "Accent",
       description: "Extra accent color for highlights and decorative UI",
-      default: "#7d99bb"
+      default: "#62779f"
     },
     %{
       key: "color_base_100",
       css_var: "--theme-override-color-base-100",
       label: "Base 100",
       description: "Main page background",
-      default: "#121214"
+      default: "#f5f7fa"
     },
     %{
       key: "color_base_200",
       css_var: "--theme-override-color-base-200",
       label: "Base 200",
       description: "Panel and card background",
-      default: "#1a1a1d"
+      default: "#edf1f5"
     },
     %{
       key: "color_base_300",
       css_var: "--theme-override-color-base-300",
       label: "Base 300",
       description: "Borders and elevated surfaces",
-      default: "#2a2a31"
+      default: "#d2dae4"
     },
     %{
       key: "color_base_content",
       css_var: "--theme-override-color-base-content",
       label: "Text",
       description: "Primary text and foreground color",
-      default: "#e5e2e1"
+      default: "#17202a"
     },
     %{
       key: "color_info",
       css_var: "--theme-override-color-info",
       label: "Info",
       description: "Informational badges and alerts",
-      default: "#6f95c4"
+      default: "#3f6fa8"
     },
     %{
       key: "color_success",
       css_var: "--theme-override-color-success",
       label: "Success",
       description: "Success states and confirmation UI",
-      default: "#6f8b74"
+      default: "#3f7a52"
     },
     %{
       key: "color_warning",
       css_var: "--theme-override-color-warning",
       label: "Warning",
       description: "Warnings and caution states",
-      default: "#c99152"
+      default: "#9a5b18"
     },
     %{
       key: "color_error",
       css_var: "--theme-override-color-error",
       label: "Error",
       description: "Errors and destructive actions",
-      default: "#a56b68"
+      default: "#a34b48"
     }
   ]
 

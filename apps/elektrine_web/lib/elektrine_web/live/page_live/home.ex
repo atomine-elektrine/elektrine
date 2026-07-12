@@ -59,7 +59,8 @@ defmodule ElektrineWeb.PageLive.Home do
 
         <header class="relative z-10 mx-auto w-full max-w-7xl px-6 py-8 sm:px-8 lg:px-10">
           <.link navigate={~p"/"} class="inline-flex items-center">
-            <img src="/images/logo.svg" alt="Elektrine" class="h-8 w-auto sm:h-9" />
+            <.elektrine_logo class="h-8 w-auto text-white sm:h-9" />
+            <span class="sr-only">Elektrine</span>
           </.link>
         </header>
 
