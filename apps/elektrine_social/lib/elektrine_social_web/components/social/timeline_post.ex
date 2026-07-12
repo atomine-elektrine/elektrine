@@ -2244,7 +2244,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
               {@score}
             </span>
             <span
-              class="vote-score-pending text-sm sm:text-lg font-bold"
+              class="vote-score-pending hidden text-sm sm:text-lg font-bold"
               aria-hidden="true"
             >
               {@score + if(@is_liked, do: -1, else: if(@is_downvoted, do: 2, else: 1))}

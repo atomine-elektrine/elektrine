@@ -97,8 +97,34 @@ defmodule ElektrineWeb.LayoutsTest do
       )
 
     assert html =~ ~s(data-theme="dark")
+    assert html =~ ~s(data-theme-preference="system")
     assert html =~ ~s|localStorage.getItem("elektrine:theme")|
     assert html =~ ~s|matchMedia("(prefers-color-scheme: light)")|
+  end
+
+  test "root layout uses a custom palette's background to select its structural theme" do
+    dark_html =
+      render_component(&Layouts.root/1,
+        inner_content: "",
+        page_title: "Dark custom theme",
+        current_user: %{
+          theme_overrides: %{"color_base_100" => "#101820", "color_primary" => "#f5d90a"}
+        }
+      )
+
+    light_html =
+      render_component(&Layouts.root/1,
+        inner_content: "",
+        page_title: "Light custom theme",
+        current_user: %{theme_overrides: %{"color_base_100" => "#f4f1ea"}}
+      )
+
+    assert dark_html =~ ~s(data-theme="dark")
+    assert dark_html =~ ~s(data-theme-preference="dark")
+    assert dark_html =~ ~s(--theme-override-color-primary: #f5d90a)
+    assert dark_html =~ ~s(--theme-override-color-primary-content: #101317)
+    assert light_html =~ ~s(data-theme="light")
+    assert light_html =~ ~s(data-theme-preference="light")
   end
 
   test "root layout respects assign-driven robots meta values" do
@@ -149,7 +175,22 @@ defmodule ElektrineWeb.LayoutsTest do
       |> File.read!()
 
     assert base_css =~ "--theme-input-bg:"
+
+    assert base_css =~
+             "--color-primary-content: var(--theme-override-color-primary-content, #ffffff)"
+
     assert components_css =~ ~s|html[data-theme="light"] .btn-primary:not(.btn-outline)|
     assert components_css =~ "background-color: var(--theme-input-bg"
+  end
+
+  test "optimistic vote counts stay hidden outside the click loading state" do
+    css =
+      Path.expand("../../../../elektrine/assets/css/components.css", __DIR__)
+      |> File.read!()
+
+    assert css =~ ".vote-score-pending { display: none !important;"
+
+    assert css =~
+             ".vote-up-button.phx-click-loading + .vote-score .vote-score-pending { display: inline !important;"
   end
 end

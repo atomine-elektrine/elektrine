@@ -1,7 +1,7 @@
 /* ========================================================================== COMPONENTS - Buttons, Inputs, Cards, Navbar, etc. ========================================================================== */ /* Shared icon behavior for consistent look across pages. Explicit text-* / opacity-* icon classes keep full control. */
 .ui-icon { color: currentColor; vertical-align: middle; transition: color 0.15s ease, opacity 0.15s ease;
 } /* -------------------------------------------------------------------------- BUTTONS -------------------------------------------------------------------------- */ .btn-primary { --btn-color: color-mix(in srgb, var(--color-base-300) 72%, var(--color-primary) 28%); --btn-fg: var(--color-primary-content);
-} .vote-score-pending { display: none;
+} .vote-score-pending { display: none !important;
 } .vote-score--empty { display: none;
 } .vote-up-button.phx-click-loading + .vote-score .vote-score-current { display: none !important;
 } .vote-up-button.phx-click-loading + .vote-score .vote-score-pending { display: inline !important;

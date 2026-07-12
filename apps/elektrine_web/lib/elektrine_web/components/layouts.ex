@@ -47,19 +47,33 @@ defmodule ElektrineWeb.Layouts do
     |> Theme.effective_meta_theme_color()
   end
 
-  def site_theme_name(_assigns), do: "dark"
+  def site_theme_name(assigns) do
+    case site_theme_preference(assigns) do
+      "light" -> "light"
+      _ -> "dark"
+    end
+  end
+
+  def site_theme_preference(assigns) do
+    case assigns |> current_user_theme_overrides() |> Theme.preferred_scheme() do
+      :light -> "light"
+      :dark -> "dark"
+      nil -> "system"
+    end
+  end
 
   def theme_boot_script do
     """
     (() => {
       try {
         const savedTheme = window.localStorage.getItem("elektrine:theme");
+        const customTheme = document.documentElement.dataset.themePreference;
         const systemTheme = window.matchMedia("(prefers-color-scheme: light)").matches
           ? "light"
           : "dark";
         document.documentElement.dataset.theme = ["light", "dark"].includes(savedTheme)
           ? savedTheme
-          : systemTheme;
+          : (["light", "dark"].includes(customTheme) ? customTheme : systemTheme);
       } catch (_error) {
         document.documentElement.dataset.theme = "dark";
       }

@@ -138,7 +138,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.ThreadedCommentComponents do
                 >
                   {reply_like_count}
                 </span>
-                <span class="vote-score-pending" aria-hidden="true">
+                <span class="vote-score-pending hidden" aria-hidden="true">
                   {reply_like_count +
                     if(user_vote == "up", do: -1, else: if(user_vote == "down", do: 2, else: 1))}
                 </span>

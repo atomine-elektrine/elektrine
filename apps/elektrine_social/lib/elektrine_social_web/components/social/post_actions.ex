@@ -830,7 +830,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
         aria-label={if @show_score, do: "Score: #{@score}"}
       >
         <span class="vote-score-current">{@score}</span>
-        <span class="vote-score-pending" aria-hidden="true">
+        <span class="vote-score-pending hidden" aria-hidden="true">
           {@score + if(@is_upvoted, do: -1, else: if(@is_downvoted, do: 2, else: 1))}
         </span>
       </span>

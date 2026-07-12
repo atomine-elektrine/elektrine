@@ -1907,6 +1907,9 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
       |> rendered_to_string()
 
     assert html =~ ~r/>\s*4321\s*</
+    assert html =~ "hero-arrow-up"
+    assert html =~ "hero-arrow-down"
+    refute html =~ "hero-heart"
   end
 
   test "remote detail prefers updated local interaction state for display counts" do

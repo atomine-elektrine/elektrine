@@ -703,7 +703,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
         </button>
         <span class="vote-score text-sm font-medium #{score_class}">
           <span class="vote-score-current">#{score}</span>
-          <span class="vote-score-pending" aria-hidden="true">#{pending_score}</span>
+          <span class="vote-score-pending hidden" aria-hidden="true">#{pending_score}</span>
         </span>
         <button
           phx-click="vote"

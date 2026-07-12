@@ -486,6 +486,7 @@
                   }
                   is_saved={detail_message_saved?(@user_saves, @local_message)}
                   on_comment="toggle_reply_form"
+                  show_like={!@is_community_post}
                   show_quote={false}
                   size={:sm}
                   counts_loading={!is_nil(assigns[:platform_counts_load_ref])}
@@ -760,7 +761,7 @@
                           >
                             {score}
                           </span>
-                          <span class="vote-score-pending" aria-hidden="true">
+                          <span class="vote-score-pending hidden" aria-hidden="true">
                             {score +
                               if(user_vote == "up",
                                 do: -1,
@@ -1331,6 +1332,7 @@
                           like_count={like_count}
                           comment_count={loaded_reply_count}
                           boost_count={boost_count}
+                          show_like={!@is_community_post}
                           show_quote={false}
                           on_comment="toggle_reply_form"
                           size={:sm}

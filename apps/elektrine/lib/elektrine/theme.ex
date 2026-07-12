@@ -139,6 +139,23 @@ defmodule Elektrine.Theme do
 
   def default_value(key), do: Map.get(@default_overrides, key)
 
+  @doc """
+  Infers the appropriate light or dark structural theme from a user-selected
+  page background. Accent-only overrides leave the choice to the browser.
+  """
+  def preferred_scheme(overrides) when is_map(overrides) do
+    background = Map.get(overrides, "color_base_100") || Map.get(overrides, :color_base_100)
+
+    if is_binary(background) and Regex.match?(@hex_color_regex, background) do
+      {red, green, blue} = hex_to_rgb(background)
+      luminance = (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255
+
+      if luminance >= 0.55, do: :light, else: :dark
+    end
+  end
+
+  def preferred_scheme(_), do: nil
+
   def inverse_text_color, do: @light_text_color
 
   def dark_text_color, do: @dark_text_color
@@ -392,13 +409,13 @@ defmodule Elektrine.Theme do
 
   defp derived_content_css_vars(overrides) do
     [
-      {"color_primary", "--color-primary-content"},
-      {"color_secondary", "--color-secondary-content"},
-      {"color_accent", "--color-accent-content"},
-      {"color_info", "--color-info-content"},
-      {"color_success", "--color-success-content"},
-      {"color_warning", "--color-warning-content"},
-      {"color_error", "--color-error-content"}
+      {"color_primary", "--theme-override-color-primary-content"},
+      {"color_secondary", "--theme-override-color-secondary-content"},
+      {"color_accent", "--theme-override-color-accent-content"},
+      {"color_info", "--theme-override-color-info-content"},
+      {"color_success", "--theme-override-color-success-content"},
+      {"color_warning", "--theme-override-color-warning-content"},
+      {"color_error", "--theme-override-color-error-content"}
     ]
     |> Enum.reduce([], fn {override_key, css_var}, acc ->
       case Map.get(overrides, override_key) do

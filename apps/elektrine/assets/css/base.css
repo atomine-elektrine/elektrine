@@ -335,11 +335,11 @@ html[data-theme="dark"],
 [data-theme="dark"],
 [data-theme=dark] {
   --color-primary: oklch(63% 0.11 296) !important;
-  --color-primary-content: #ffffff !important;
+  --color-primary-content: var(--theme-override-color-primary-content, #ffffff) !important;
   --color-secondary: oklch(60% 0.14 22) !important;
-  --color-secondary-content: #ffffff !important;
+  --color-secondary-content: var(--theme-override-color-secondary-content, #ffffff) !important;
   --color-accent: oklch(66% 0.10 314) !important;
-  --color-accent-content: #ffffff !important;
+  --color-accent-content: var(--theme-override-color-accent-content, #ffffff) !important;
   --color-neutral: #171c22 !important;
   --color-neutral-content: #e4e7eb !important;
   --color-base-100: #101419 !important;
@@ -347,13 +347,13 @@ html[data-theme="dark"],
   --color-base-300: #202833 !important;
   --color-base-content: #e4e7eb !important;
   --color-info: oklch(61% 0.12 275) !important;
-  --color-info-content: #ffffff !important;
+  --color-info-content: var(--theme-override-color-info-content, #ffffff) !important;
   --color-success: oklch(65% 0.20 145) !important;
-  --color-success-content: #000000 !important;
+  --color-success-content: var(--theme-override-color-success-content, #000000) !important;
   --color-warning: oklch(68% 0.22 35) !important;
-  --color-warning-content: #000000 !important;
+  --color-warning-content: var(--theme-override-color-warning-content, #000000) !important;
   --color-error: oklch(58% 0.26 20) !important;
-  --color-error-content: #ffffff !important;
+  --color-error-content: var(--theme-override-color-error-content, #ffffff) !important;
   --surface-panel-bg-fallback: color-mix(in srgb, var(--color-base-200) 90%, #1d2630 10%);
   --surface-panel-bg: var(--color-base-200);
   --surface-panel-bg-no-blur: color-mix(in srgb, var(--color-base-200) 90%, #1d2630 10%);
@@ -538,11 +538,11 @@ html[data-theme="light"],
 [data-theme=light] {
   color-scheme: light;
   --color-primary: var(--theme-override-color-primary, #4f7098) !important;
-  --color-primary-content: #ffffff !important;
+  --color-primary-content: var(--theme-override-color-primary-content, #ffffff) !important;
   --color-secondary: var(--theme-override-color-secondary, #a8662d) !important;
-  --color-secondary-content: #ffffff !important;
+  --color-secondary-content: var(--theme-override-color-secondary-content, #ffffff) !important;
   --color-accent: var(--theme-override-color-accent, #62779f) !important;
-  --color-accent-content: #ffffff !important;
+  --color-accent-content: var(--theme-override-color-accent-content, #ffffff) !important;
   --color-neutral: #27313c !important;
   --color-neutral-content: #ffffff !important;
   --color-base-100: var(--theme-override-color-base-100, #f5f7fa) !important;
@@ -550,13 +550,13 @@ html[data-theme="light"],
   --color-base-300: var(--theme-override-color-base-300, #d2dae4) !important;
   --color-base-content: var(--theme-override-color-base-content, #17202a) !important;
   --color-info: var(--theme-override-color-info, #3f6fa8) !important;
-  --color-info-content: #ffffff !important;
+  --color-info-content: var(--theme-override-color-info-content, #ffffff) !important;
   --color-success: var(--theme-override-color-success, #3f7a52) !important;
-  --color-success-content: #ffffff !important;
+  --color-success-content: var(--theme-override-color-success-content, #ffffff) !important;
   --color-warning: var(--theme-override-color-warning, #9a5b18) !important;
-  --color-warning-content: #ffffff !important;
+  --color-warning-content: var(--theme-override-color-warning-content, #ffffff) !important;
   --color-error: var(--theme-override-color-error, #a34b48) !important;
-  --color-error-content: #ffffff !important;
+  --color-error-content: var(--theme-override-color-error-content, #ffffff) !important;
   --surface-panel-bg-fallback: color-mix(in srgb, var(--color-base-200) 72%, #ffffff 28%);
   --surface-panel-bg: color-mix(in srgb, var(--color-base-200) 72%, #ffffff 28%);
   --surface-panel-bg-no-blur: color-mix(in srgb, var(--color-base-200) 72%, #ffffff 28%);
@@ -649,13 +649,13 @@ html[data-theme="dark"],
   --theme-table-row-hover: color-mix(in srgb, var(--color-base-200) 88%, #26262d 12%);
   --theme-link-color: color-mix(in srgb, var(--color-primary) 88%, #f1f5f9 12%);
   --theme-link-color-hover: color-mix(in srgb, var(--color-primary) 92%, #ffffff 8%);
-  --color-primary-content: #ffffff !important;
-  --color-secondary-content: #ffffff !important;
-  --color-accent-content: #ffffff !important;
-  --color-info-content: #ffffff !important;
-  --color-success-content: #ffffff !important;
-  --color-warning-content: #ffffff !important;
-  --color-error-content: #ffffff !important;
+  --color-primary-content: var(--theme-override-color-primary-content, #ffffff) !important;
+  --color-secondary-content: var(--theme-override-color-secondary-content, #ffffff) !important;
+  --color-accent-content: var(--theme-override-color-accent-content, #ffffff) !important;
+  --color-info-content: var(--theme-override-color-info-content, #ffffff) !important;
+  --color-success-content: var(--theme-override-color-success-content, #ffffff) !important;
+  --color-warning-content: var(--theme-override-color-warning-content, #ffffff) !important;
+  --color-error-content: var(--theme-override-color-error-content, #ffffff) !important;
 }
 
 body[data-grid="purple"],

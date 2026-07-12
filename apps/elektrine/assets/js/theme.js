@@ -19,6 +19,11 @@ function systemTheme() {
   return window.matchMedia?.("(prefers-color-scheme: light)")?.matches ? "light" : "dark"
 }
 
+function customThemePreference() {
+  const theme = document.documentElement.dataset.themePreference
+  return VALID_THEMES.has(theme) ? theme : null
+}
+
 function syncThemeColor() {
   const themeColor = document.querySelector('meta[name="theme-color"]')
   if (!themeColor) return
@@ -71,7 +76,7 @@ export function initThemeToggle() {
 
   const colorScheme = window.matchMedia?.("(prefers-color-scheme: light)")
   colorScheme?.addEventListener?.("change", () => {
-    if (!storedTheme()) applyTheme(systemTheme())
+    if (!storedTheme() && !customThemePreference()) applyTheme(systemTheme())
   })
 
   document.addEventListener("click", (event) => {
