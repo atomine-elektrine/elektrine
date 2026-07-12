@@ -297,7 +297,7 @@ defmodule ElektrineEmailWeb.EmailLive.EmailHelpers do
   def truncate(text, max_length \\ 50), do: Elektrine.TextHelpers.truncate(text, max_length)
 
   @doc """
-  Generate a clean preview from email content, handling HTML and base64 encoding
+  Generate a clean preview from already-decoded email content.
   """
   def email_preview(message, max_length \\ 150) do
     if private_message?(message) do
@@ -308,8 +308,6 @@ defmodule ElektrineEmailWeb.EmailLive.EmailHelpers do
         cond do
           Elektrine.Strings.present?(message.text_body) ->
             message.text_body
-            # Decode quoted-printable encoding first
-            |> decode_body()
             |> Display.clean_plain_text_body()
             # Remove image URLs in square brackets like [https://...]
             |> String.replace(~r/\[https?:\/\/[^\]]+\]/i, "")
@@ -322,8 +320,6 @@ defmodule ElektrineEmailWeb.EmailLive.EmailHelpers do
           Elektrine.Strings.present?(message.html_body) ->
             # Simple HTML to text conversion
             message.html_body
-            # Decode quoted-printable encoding first
-            |> decode_body()
             # Remove script and style blocks entirely (with proper multiline matching)
             |> String.replace(~r/<script\b[^>]*>.*?<\/script>/ims, "")
             |> String.replace(~r/<style\b[^>]*>.*?<\/style>/ims, "")
@@ -743,23 +739,10 @@ defmodule ElektrineEmailWeb.EmailLive.EmailHelpers do
     end)
   end
 
-  @doc """
-  Decode Quoted-Printable encoding in email body text
-  Uses Mail library for robust decoding
-  """
+  @doc "Returns an already-ingested body unchanged. Transfer decoding happens during MIME parsing."
   def decode_body(nil), do: nil
   def decode_body(""), do: ""
-
-  def decode_body(text) when is_binary(text) do
-    # Check if text contains quoted-printable encoding markers
-    if Regex.match?(~r/=[0-9A-Fa-f]{2}|=\r?\n/, text) do
-      # Use Mail library's quoted-printable decoder (returns binary directly)
-      Mail.Encoders.QuotedPrintable.decode(text)
-    else
-      # Already decoded, return as-is
-      text
-    end
-  end
+  def decode_body(text) when is_binary(text), do: text
 
   defp maybe_put_email_return_param(params, _key, false, _value), do: params
   defp maybe_put_email_return_param(params, _key, _include?, nil), do: params

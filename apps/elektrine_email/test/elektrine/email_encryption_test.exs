@@ -117,6 +117,71 @@ defmodule Elektrine.EmailEncryptionTest do
       assert db_message.html_body == nil
     end
 
+    test "retains the exact original MIME source only as ciphertext", %{
+      mailbox: mailbox,
+      user: user
+    } do
+      raw_source =
+        "From: sender@example.com\r\n" <>
+          "To: #{mailbox.email}\r\n" <>
+          "Content-Transfer-Encoding: quoted-printable\r\n\r\n" <>
+          "Welcome=20aboard=2C=20Argonaut. token=3D84e4922a"
+
+      set_raw_source_limit(byte_size(raw_source))
+
+      {:ok, message} =
+        Email.create_message(%{
+          mailbox_id: mailbox.id,
+          message_id: "<raw-source@example.com>",
+          from: "sender@example.com",
+          to: mailbox.email,
+          subject: "Raw source",
+          text_body: "Welcome aboard, Argonaut. token=84e4922a",
+          raw_source: raw_source,
+          status: "received"
+        })
+
+      stored_message = Repo.get!(Message, message.id)
+
+      assert is_map(stored_message.encrypted_raw_source)
+      refute inspect(stored_message.encrypted_raw_source) =~ raw_source
+      assert {:ok, ^raw_source} = Message.decrypt_raw_source(stored_message, user.id)
+      assert is_nil(stored_message.raw_source)
+    end
+
+    test "omits oversized raw sources before storage and records the decision", %{
+      mailbox: mailbox
+    } do
+      limit = 64
+      raw_source = String.duplicate("x", limit + 1)
+      set_raw_source_limit(limit)
+
+      {:ok, message} =
+        Email.create_message(%{
+          "mailbox_id" => mailbox.id,
+          "message_id" => "<oversized-raw-source@example.com>",
+          "from" => "sender@example.com",
+          "to" => mailbox.email,
+          "subject" => "Oversized raw source",
+          "text_body" => "Display body remains available",
+          "raw_source" => raw_source,
+          "metadata" => %{"existing" => "preserved"},
+          "status" => "received"
+        })
+
+      stored_message = Repo.get!(Message, message.id)
+
+      assert is_nil(stored_message.encrypted_raw_source)
+      assert stored_message.metadata["existing"] == "preserved"
+      assert stored_message.metadata["raw_source_retained"] == false
+      assert stored_message.metadata["raw_source_original_bytes"] == limit + 1
+      assert stored_message.metadata["raw_source_retention_limit_bytes"] == limit
+      assert stored_message.metadata["raw_source_omitted_reason"] == "size_limit"
+
+      assert {:error, :raw_source_unavailable} =
+               Message.decrypt_raw_source(stored_message, mailbox.user_id)
+    end
+
     test "creates searchable index with keywords from email body", %{mailbox: mailbox, user: user} do
       text_body = "Meeting scheduled for #project deadline tomorrow"
 
@@ -459,5 +524,17 @@ defmodule Elektrine.EmailEncryptionTest do
       assert retrieved.text_body == text_body
       assert retrieved.read == true
     end
+  end
+
+  defp set_raw_source_limit(limit) do
+    previous_email_config = Application.get_env(:elektrine, :email, [])
+
+    Application.put_env(
+      :elektrine,
+      :email,
+      Keyword.put(previous_email_config, :max_retained_raw_source_bytes, limit)
+    )
+
+    on_exit(fn -> Application.put_env(:elektrine, :email, previous_email_config) end)
   end
 end

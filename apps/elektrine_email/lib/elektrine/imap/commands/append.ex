@@ -240,6 +240,7 @@ defmodule Elektrine.IMAP.Commands.Append do
           in_reply_to: Map.get(headers, "in-reply-to"),
           references: Map.get(headers, "references"),
           text_body: text_body,
+          raw_source: data,
           status: status,
           category: category,
           mailbox_id: mailbox.id,

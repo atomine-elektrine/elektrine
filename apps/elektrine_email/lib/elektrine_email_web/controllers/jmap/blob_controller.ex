@@ -206,7 +206,13 @@ defmodule ElektrineEmailWeb.JMAP.BlobController do
 
           message ->
             message = Email.Message.decrypt_content(message, user.id)
-            content = build_raw_message(message)
+
+            content =
+              case Email.Message.decrypt_raw_source(message, user.id) do
+                {:ok, raw_source} -> raw_source
+                {:error, _reason} -> build_raw_message(message)
+              end
+
             {:ok, content, "message/rfc822"}
         end
 

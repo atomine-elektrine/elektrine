@@ -311,7 +311,8 @@ defmodule Elektrine.Mail.ProtocolTranscriptTest do
       to: mailbox.email,
       from: "sender@example.com",
       subject: "POP3 framing",
-      text_body: "first line\n.starts with dot\nlast line",
+      text_body:
+        "first line\n.starts with dot\nhttps://argonauts.odysseylinux.org/setup.php?token=84e4922a&sig=20ab\nlast line",
       message_id: "pop3-framing-#{System.unique_integer([:positive])}@example.com"
     })
 
@@ -336,7 +337,13 @@ defmodule Elektrine.Mail.ProtocolTranscriptTest do
 
     assert retr_response =~ "+OK "
     assert retr_response =~ "\r\nFrom: sender@example.com\r\n"
-    assert retr_response =~ "\r\n\r\nfirst line\r\n..starts with dot\r\nlast line"
+    assert retr_response =~ "Content-Transfer-Encoding: 8bit\r\n"
+    assert retr_response =~ "\r\n\r\nfirst line\r\n..starts with dot\r\n"
+    assert retr_response =~ "\r\nlast line"
+
+    assert retr_response =~
+             "https://argonauts.odysseylinux.org/setup.php?token=84e4922a&sig=20ab"
+
     assert String.ends_with?(retr_response, "\r\n.\r\n")
     refute retr_response =~ ~r/(^|[^\r])\n/
 

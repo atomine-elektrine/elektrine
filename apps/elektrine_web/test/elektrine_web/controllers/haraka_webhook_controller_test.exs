@@ -233,6 +233,44 @@ defmodule ElektrineEmailWeb.HarakaWebhookControllerTest do
       assert message.mailbox_id == mailbox.id
     end
 
+    test "decodes using raw MIME metadata and retains the encrypted source", %{
+      conn: conn,
+      user: user,
+      mailbox: mailbox
+    } do
+      raw =
+        "From: sender@remote.test\r\n" <>
+          "To: #{mailbox.email}\r\n" <>
+          "Subject: MIME fidelity\r\n" <>
+          "Message-ID: <mime-fidelity@example.test>\r\n" <>
+          "Content-Type: text/plain; charset=UTF-8\r\n" <>
+          "Content-Transfer-Encoding: quoted-printable\r\n\r\n" <>
+          "Welcome=20aboard=2C=20Argonaut.\r\n" <>
+          "https://argonauts.odysseylinux.org/setup.php?token=3D84e4922a&sig=3D20ab"
+
+      params = %{
+        "from" => "sender@remote.test",
+        "to" => mailbox.email,
+        "rcpt_to" => mailbox.email,
+        "subject" => "MIME fidelity",
+        "text_body" => "upstream fallback must not win",
+        "message_id" => "mime-fidelity-#{System.unique_integer([:positive])}",
+        "raw" => raw
+      }
+
+      conn = conn |> auth_conn() |> post(~p"/api/haraka/inbound", params)
+      assert json_response(conn, 200)["status"] == "success"
+
+      [message] =
+        Enum.filter(Email.list_inbox_messages(mailbox.id), &(&1.subject == "MIME fidelity"))
+
+      assert message.text_body =~ "Welcome aboard, Argonaut."
+      assert message.text_body =~ "token=84e4922a&sig=20ab"
+
+      stored_message = Elektrine.Repo.get!(Message, message.id)
+      assert {:ok, ^raw} = Message.decrypt_raw_source(stored_message, user.id)
+    end
+
     test "delivers email when to header has local address", %{conn: conn, mailbox: mailbox} do
       # Normal direct email where To header has the local address
       params = %{
@@ -910,6 +948,7 @@ defmodule ElektrineEmailWeb.HarakaWebhookControllerTest do
         |> where(mailbox_id: ^mailbox.id)
         |> where([m], m.message_id == ^params["message_id"])
         |> Elektrine.Repo.one!()
+        |> Message.decrypt_content(mailbox.user_id)
 
       refute String.contains?(message.subject, <<0>>)
       refute String.contains?(message.text_body, <<0>>)

@@ -261,6 +261,9 @@ profile_host_scope =
 # Configure email settings
 config :elektrine, :email,
   domain: email_domain,
+  # Retaining raw RFC822 sources makes parser/sanitizer mistakes reversible, but
+  # duplicates attachment bytes. Keep only reasonably sized sources by default.
+  max_retained_raw_source_bytes: 10 * 1024 * 1024,
   # Legacy receiver webhook auth fallback:
   # keep permissive in dev/test, fail-closed in prod unless explicitly configured.
   allow_insecure_receiver_webhook: config_env() != :prod,

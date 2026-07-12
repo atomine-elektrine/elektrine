@@ -21,6 +21,8 @@ defmodule Elektrine.Email.MailboxPrivateStorageTest do
         subject: "Launch plans",
         text_body: "This should stay private",
         html_body: "<p>This should stay private</p>",
+        raw_source:
+          "From: sender@example.com\r\nTo: #{mailbox.email}\r\n\r\nPrivate original MIME",
         message_id: "<private-#{System.unique_integer([:positive])}@example.com>",
         metadata: %{
           "body_format" => "markdown",
@@ -48,11 +50,14 @@ defmodule Elektrine.Email.MailboxPrivateStorageTest do
     assert stored_message.to == "Encrypted recipients"
     assert is_nil(stored_message.text_body)
     assert is_nil(stored_message.html_body)
+    assert is_nil(stored_message.raw_source)
+    assert is_nil(stored_message.encrypted_raw_source)
     assert stored_message.search_index == []
     assert stored_message.metadata == %{"body_format" => "markdown", "private_storage" => true}
     refute inspect(stored_message.metadata) =~ "Launch plans"
     refute inspect(stored_message.metadata) =~ "launch details"
     refute inspect(stored_message.metadata) =~ "This should not be stored"
+    refute inspect(stored_message) =~ "Private original MIME"
     assert payload_value(stored_message.client_encrypted_payload, "ciphertext", :ciphertext)
     assert payload_value(stored_message.client_encrypted_payload, "encrypted_key", :encrypted_key)
     assert stored_attachment["filename"] == "Encrypted attachment"
@@ -122,6 +127,41 @@ defmodule Elektrine.Email.MailboxPrivateStorageTest do
     assert stored_attachment["filename"] == "Encrypted attachment"
     assert is_map(stored_attachment["private_encrypted_payload"])
     refute Map.has_key?(stored_attachment, "data")
+  end
+
+  test "oversized raw sources are omitted before private mailbox encryption" do
+    previous_email_config = Application.get_env(:elektrine, :email, [])
+
+    Application.put_env(
+      :elektrine,
+      :email,
+      Keyword.put(previous_email_config, :max_retained_raw_source_bytes, 16)
+    )
+
+    on_exit(fn -> Application.put_env(:elektrine, :email, previous_email_config) end)
+
+    user = AccountsFixtures.user_fixture()
+    mailbox = private_mailbox_fixture(user)
+
+    {:ok, message} =
+      Email.create_message(%{
+        mailbox_id: mailbox.id,
+        from: "sender@example.com",
+        to: mailbox.email,
+        subject: "Private raw retention",
+        text_body: "Display content",
+        raw_source: String.duplicate("x", 17),
+        message_id: "<private-raw-retention@example.com>"
+      })
+
+    stored_message = Repo.get!(Email.Message, message.id)
+
+    assert is_nil(stored_message.encrypted_raw_source)
+    assert stored_message.metadata["private_storage"] == true
+    assert stored_message.metadata["raw_source_retained"] == false
+    assert stored_message.metadata["raw_source_original_bytes"] == 17
+    assert stored_message.metadata["raw_source_retention_limit_bytes"] == 16
+    assert stored_message.metadata["raw_source_omitted_reason"] == "size_limit"
   end
 
   test "create_message protects sent-copy metadata for private mailboxes" do

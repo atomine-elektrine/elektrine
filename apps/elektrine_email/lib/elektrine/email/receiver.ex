@@ -505,6 +505,7 @@ defmodule Elektrine.Email.Receiver do
       "text_body" =>
         Elektrine.Email.Sanitizer.sanitize_utf8(params["plain_body"] || params["text_body"] || ""),
       "html_body" => Elektrine.Email.Sanitizer.sanitize_utf8(params["html_body"] || ""),
+      "raw_source" => params["raw"],
       "status" => "received",
       "read" => false,
       "spam" => spam?(params),
@@ -538,6 +539,8 @@ defmodule Elektrine.Email.Receiver do
       "html_body" => :html_body,
       "encrypted_text_body" => :encrypted_text_body,
       "encrypted_html_body" => :encrypted_html_body,
+      "encrypted_raw_source" => :encrypted_raw_source,
+      "raw_source" => :raw_source,
       "search_index" => :search_index,
       "status" => :status,
       "read" => :read,

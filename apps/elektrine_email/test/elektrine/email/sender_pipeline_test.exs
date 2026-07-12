@@ -67,7 +67,8 @@ defmodule Elektrine.Email.SenderPipelineTest do
       }
 
       assert {:ok, sent_message} = Sender.send_email(sender.id, params)
-      refute sent_message.subject =~ ~r/bcc:/i
+      assert sent_message.subject == "Hello Bcc: attacker@example.com"
+      refute sent_message.subject =~ ~r/[\r\n]/
 
       sanitized_body = sent_message.html_body || sent_message.text_body || ""
       refute sanitized_body =~ "<script"

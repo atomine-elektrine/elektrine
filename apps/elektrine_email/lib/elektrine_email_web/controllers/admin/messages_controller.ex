@@ -176,7 +176,7 @@ defmodule ElektrineEmailWeb.Admin.MessagesController do
         end
 
       # Get raw email content from metadata
-      raw_content = get_raw_email_content(decrypted_message)
+      raw_content = get_raw_email_content(decrypted_message, mailbox && mailbox.user_id)
 
       log_admin_email_view(conn, message, mailbox, "raw", "admin_messages")
 
@@ -201,7 +201,7 @@ defmodule ElektrineEmailWeb.Admin.MessagesController do
       decrypted_message = Elektrine.Email.Message.decrypt_content(message, mailbox.user_id)
 
       # Get raw email content from metadata
-      raw_content = get_raw_email_content(decrypted_message)
+      raw_content = get_raw_email_content(decrypted_message, mailbox.user_id)
 
       log_admin_email_view(conn, message, mailbox, "raw", "user_scoped")
 
@@ -469,13 +469,16 @@ defmodule ElektrineEmailWeb.Admin.MessagesController do
   defp truthy_param?(value) when value in [true, 1, "1", "true", "on", "yes"], do: true
   defp truthy_param?(_), do: false
 
-  defp get_raw_email_content(message) do
-    if message.metadata && Map.has_key?(message.metadata, "raw_email") do
-      # Check if raw email content is stored in metadata
-      message.metadata["raw_email"]
-    else
-      # Fall back to reconstructing from available fields
-      construct_raw_email_fallback(message)
+  defp get_raw_email_content(message, user_id) do
+    case Elektrine.Email.Message.decrypt_raw_source(message, user_id) do
+      {:ok, raw_source} ->
+        raw_source
+
+      {:error, _reason} ->
+        case message.metadata && message.metadata["raw_email"] do
+          raw_source when is_binary(raw_source) -> raw_source
+          _ -> construct_raw_email_fallback(message)
+        end
     end
   end
 

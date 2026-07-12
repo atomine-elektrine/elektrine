@@ -92,17 +92,12 @@ defmodule Elektrine.Email.HeaderSanitizer do
   end
 
   defp do_sanitize_subject(subject) when is_binary(subject) do
-    sanitized = sanitize_email_header(subject)
-
-    if String.contains?(sanitized, ["bcc:", "cc:", "to:", "from:", "reply-to:"]) do
-      Logger.warning(
-        "Suspicious header injection attempt detected in subject: #{inspect(subject)}"
-      )
-
-      sanitized |> String.replace(~r/(bcc|cc|to|from|reply-to):/i, "") |> String.trim()
-    else
-      sanitized
-    end
+    subject
+    |> ensure_valid_utf8()
+    |> String.replace(~r/[\r\n]+/, " ")
+    |> String.replace(~r/[\x00-\x09\x0B\x0C\x0E-\x1F\x7F-\x9F]/u, "")
+    |> String.trim()
+    |> String.slice(0, 500)
   end
 
   defp do_sanitize_subject(_) do

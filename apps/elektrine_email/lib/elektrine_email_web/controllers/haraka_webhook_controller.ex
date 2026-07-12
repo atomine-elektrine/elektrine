@@ -6,6 +6,7 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
   alias Elektrine.Email.HeaderSanitizer
   alias Elektrine.Email.InboundRouting
   alias Elektrine.Email.InternalOrigin
+  alias Elektrine.Email.MimeBodyExtractor
   alias Elektrine.Email.PayloadSanitizer
   alias Elektrine.Email.Sanitizer
   alias Elektrine.Email.Suppressions
@@ -421,6 +422,7 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
   end
 
   defp process_haraka_email(params, ingest_context) do
+    raw_source = params["raw"]
     params = PayloadSanitizer.strip_postgres_null_bytes(params)
 
     message_id =
@@ -454,15 +456,16 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
         _ -> :ok
       end
 
-      if params["raw"] do
-        case HeaderSanitizer.check_multiple_from_headers(params["raw"]) do
+      if raw_source do
+        case HeaderSanitizer.check_multiple_from_headers(raw_source) do
           {:error, reason} -> throw({:security_rejection, {:multiple_from_headers, reason}})
           _ -> :ok
         end
       end
 
-      raw_text_body = ensure_safe_utf8(params["text_body"] || "")
-      raw_html_body = ensure_safe_utf8(params["html_body"] || "")
+      {parsed_text_body, parsed_html_body} = decode_raw_mime_bodies(raw_source)
+      raw_text_body = ensure_safe_utf8(parsed_text_body || params["text_body"] || "")
+      raw_html_body = ensure_safe_utf8(parsed_html_body || params["html_body"] || "")
       raw_attachments = normalize_attachments_to_list(params["attachments"])
 
       {text_body, html_body, attachments} =
@@ -487,6 +490,7 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
                 "attachments" => attachments
               }
               |> sanitize_haraka_email_data()
+              |> maybe_put_raw_source(raw_source)
 
             forward_started_at = System.monotonic_time(:millisecond)
 
@@ -635,6 +639,7 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
                 }
               }
               |> sanitize_haraka_email_data()
+              |> maybe_put_raw_source(raw_source)
 
             case InboundRouting.validate_mailbox_route(to, rcpt_to, mailbox) do
               :ok ->
@@ -1865,6 +1870,24 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
   defp sanitize_haraka_email_data(email_data) when is_map(email_data) do
     email_data |> Sanitizer.sanitize_incoming_email() |> ensure_all_utf8_valid()
   end
+
+  defp maybe_put_raw_source(email_data, raw_source)
+       when is_map(email_data) and is_binary(raw_source) and byte_size(raw_source) > 0,
+       do: Map.put(email_data, "raw_source", raw_source)
+
+  defp maybe_put_raw_source(email_data, _raw_source), do: email_data
+
+  defp decode_raw_mime_bodies(raw_source)
+       when is_binary(raw_source) and byte_size(raw_source) > 0 do
+    message = Mail.Parsers.RFC2822.parse(raw_source)
+    {MimeBodyExtractor.text_body(message), MimeBodyExtractor.html_body(message)}
+  rescue
+    error ->
+      Logger.warning("Could not parse retained inbound MIME source: #{Exception.message(error)}")
+      {nil, nil}
+  end
+
+  defp decode_raw_mime_bodies(_raw_source), do: {nil, nil}
 
   defp ensure_all_utf8_valid(email_data) when is_map(email_data) do
     email_data

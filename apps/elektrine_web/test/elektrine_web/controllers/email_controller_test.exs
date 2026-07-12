@@ -268,7 +268,53 @@ defmodule ElektrineEmailWeb.EmailControllerTest do
     assert html =~ ~s(href="mailto:help@example.com")
   end
 
-  test "plain text iframe content removes broken CSS font import fragments", %{conn: conn} do
+  test "webmail and print preserve an exact plaintext link and layout", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+    mailbox = ensure_mailbox(user)
+
+    body =
+      "Mâine ne întâlnim.\n\n" <>
+        "https://argonauts.odysseylinux.org/setup.php?token=84e4922a3e0a524d2c7a529a58b0d6bd&sig=20ab\n" <>
+        "  total =\nnext_line"
+
+    {:ok, message} =
+      Email.create_message(%{
+        mailbox_id: mailbox.id,
+        from: "sender@example.com",
+        to: mailbox.email,
+        subject: "From: Argonaut onboarding",
+        text_body: body,
+        message_id: "<plain-roundtrip-#{System.unique_integer([:positive])}@example.com>"
+      })
+
+    iframe_html =
+      conn
+      |> recycle()
+      |> log_in_user(user)
+      |> get(~p"/email/#{message.id}/iframe_content")
+      |> html_response(200)
+
+    print_html =
+      conn
+      |> recycle()
+      |> log_in_user(user)
+      |> get(~p"/email/#{message.id}/print")
+      |> html_response(200)
+
+    assert iframe_html |> Floki.parse_document!() |> Floki.find("body") |> Floki.text() =~ body
+
+    print_text =
+      print_html
+      |> Floki.parse_document!()
+      |> Floki.find(".text-content")
+      |> Floki.text()
+
+    assert String.trim(print_text) == body
+
+    assert print_html =~ "From: Argonaut onboarding"
+  end
+
+  test "plain text iframe content preserves CSS-looking source text", %{conn: conn} do
     user = AccountsFixtures.user_fixture()
     mailbox = ensure_mailbox(user)
 
@@ -300,10 +346,10 @@ defmodule ElektrineEmailWeb.EmailControllerTest do
 
     body_text = html |> Floki.parse_document!() |> Floki.find("body") |> Floki.text()
 
-    refute body_text =~ "display=swap"
-    refute body_text =~ "iOS BLUE LINKS"
-    refute body_text =~ "x-apple-data-detectors"
-    refute body_text =~ "Noto Sans"
+    assert body_text =~ "display=swap"
+    assert body_text =~ "iOS BLUE LINKS"
+    assert body_text =~ "x-apple-data-detectors"
+    assert body_text =~ "Noto Sans"
     assert body_text =~ "Find immediate job opportunities"
     assert body_text =~ "Apply now to companies hiring fast"
   end

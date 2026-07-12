@@ -102,6 +102,7 @@ defmodule Elektrine.Email.MailboxEncryption do
     subject = get_attr(attrs, "subject", :subject)
     text_body = get_attr(attrs, "text_body", :text_body)
     html_body = get_attr(attrs, "html_body", :html_body)
+    raw_source = get_attr(attrs, "raw_source", :raw_source)
     attachments = get_attr(attrs, "attachments", :attachments) || %{}
     metadata = get_attr(attrs, "metadata", :metadata) || %{}
 
@@ -115,6 +116,7 @@ defmodule Elektrine.Email.MailboxEncryption do
              subject,
              text_body,
              html_body,
+             raw_source,
              attachments,
              public_key
            ),
@@ -131,6 +133,8 @@ defmodule Elektrine.Email.MailboxEncryption do
        |> put_attr(:search_index, [])
        |> put_attr(:encrypted_text_body, nil)
        |> put_attr(:encrypted_html_body, nil)
+       |> put_attr(:encrypted_raw_source, nil)
+       |> delete_attr(:raw_source)
        |> put_attr(:metadata, private_storage_metadata(metadata))
        |> put_attr(:attachments, encrypted_attachments)
        |> put_attr(:has_attachments, map_size(encrypted_attachments) > 0)
@@ -152,10 +156,12 @@ defmodule Elektrine.Email.MailboxEncryption do
          subject,
          text_body,
          html_body,
+         raw_source,
          attachments,
          public_key
        ) do
     if sensitive_content_blank?(from, to, cc, bcc, subject, text_body, html_body) and
+         blank?(raw_source) and
          attachments in [nil, %{}] do
       {:ok, nil}
     else
@@ -167,7 +173,8 @@ defmodule Elektrine.Email.MailboxEncryption do
           "bcc" => bcc,
           "subject" => subject,
           "text_body" => text_body,
-          "html_body" => html_body
+          "html_body" => html_body,
+          "raw_source_base64" => encode_raw_source(raw_source)
         },
         public_key,
         :message
@@ -247,6 +254,10 @@ defmodule Elektrine.Email.MailboxEncryption do
       original_message_id
       private_storage
       provider_message_id
+      raw_source_omitted_reason
+      raw_source_original_bytes
+      raw_source_retained
+      raw_source_retention_limit_bytes
       received_at
       sent_at
       spam_score
@@ -340,6 +351,17 @@ defmodule Elektrine.Email.MailboxEncryption do
       Map.put(attrs, Atom.to_string(key), value)
     end
   end
+
+  defp delete_attr(attrs, key) do
+    attrs
+    |> Map.delete(key)
+    |> Map.delete(Atom.to_string(key))
+  end
+
+  defp encode_raw_source(value) when is_binary(value) and byte_size(value) > 0,
+    do: Base.encode64(value)
+
+  defp encode_raw_source(_value), do: nil
 
   defp payload_value(payload, string_key, atom_key) do
     Map.get(payload, string_key) || Map.get(payload, atom_key)

@@ -217,7 +217,7 @@ defmodule Elektrine.Email.SanitizerTest do
 
       refute String.contains?(result["from"], "\n")
       refute String.contains?(result["subject"], "\r\n")
-      refute String.contains?(result["subject"], "Bcc:")
+      assert result["subject"] == "Test Bcc: another@hacker.com"
     end
 
     test "handles attachments map without modification" do
@@ -462,7 +462,7 @@ defmodule Elektrine.Email.SanitizerTest do
     end
   end
 
-  describe "fix common encoding issues (mojibake)" do
+  describe "valid UTF-8 fidelity" do
     test "preserves potential CJK characters to avoid corruption (ï½¿)" do
       # The sanitizer is conservative and doesn't aggressively replace patterns
       # that could be valid CJK text to avoid corrupting legitimate content
@@ -475,13 +475,11 @@ defmodule Elektrine.Email.SanitizerTest do
       assert String.contains?(result, "World")
     end
 
-    test "fixes smart quotes (â€™)" do
+    test "does not guess whether valid smart-quote mojibake was intentional" do
       corrupted = "Don't -> Donâ€™t"
       result = Sanitizer.sanitize_utf8(corrupted)
 
-      assert String.valid?(result)
-      refute String.contains?(result, "â€™")
-      assert String.contains?(result, "'")
+      assert result == corrupted
     end
 
     test "fixes em dash mojibake" do
@@ -492,6 +490,11 @@ defmodule Elektrine.Email.SanitizerTest do
       assert String.valid?(result)
       assert String.contains?(result, "Hello")
       assert String.contains?(result, "World")
+    end
+
+    test "removes NUL without changing any other valid bytes" do
+      value = "Mâine\0 ne întâlnim\n  total =\nnext_line"
+      assert Sanitizer.sanitize_utf8(value) == "Mâine ne întâlnim\n  total =\nnext_line"
     end
   end
 
@@ -714,7 +717,7 @@ defmodule Elektrine.Email.SanitizerTest do
 
       refute String.contains?(result.from, "\r\n")
       refute String.contains?(result.subject, "\n")
-      refute String.contains?(result.subject, "Bcc:")
+      assert result.subject == "Test Bcc: another@example.com"
     end
   end
 end

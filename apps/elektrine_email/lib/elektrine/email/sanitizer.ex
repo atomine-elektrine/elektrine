@@ -2,8 +2,6 @@ defmodule Elektrine.Email.Sanitizer do
   @moduledoc "Unified email sanitization module for all email paths (incoming, outgoing, forwarding).\n\nThis is the ONLY module you should use for email sanitization. It provides:\n- Permissive HTML filtering for email markup, styles, and layout attributes\n- Removal of active/dangerous content such as scripts, event handlers, and unsafe URL protocols\n- Header sanitization (prevents SMTP injection)\n- UTF-8 validation and fixing\n- Comprehensive protection across all email paths\n\n## Usage\n\n    # Incoming emails\n    sanitized = Sanitizer.sanitize_incoming_email(email_params)\n\n    # Outgoing emails\n    sanitized = Sanitizer.sanitize_outgoing_email(email_params)\n\n    # Just HTML content\n    safe_html = Sanitizer.sanitize_html_content(html_string)\n"
   alias Elektrine.Email.HeaderSanitizer
 
-  @literal_html_fragment_pattern ~r/<\/?(?:html|head|body|table|thead|tbody|tfoot|tr|th|td|div|p|span|br|a|img|style|section|article|h[1-6])\b/i
-  @encoded_html_fragment_pattern ~r/&lt;\s*(?:!doctype\b|\/?\s*(?:html|head|body|table|thead|tbody|tfoot|tr|th|td|div|p|span|br|a|img|style|section|article|h[1-6])\b)/i
   @dangerous_url_attribute_pattern ~r/\s((?:href|src|srcset|poster|background|cite|longdesc|xlink:href|action|formaction)\s*=\s*)(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i
 
   @doc "Sanitizes an incoming email before storage.\n\nApplies:\n- Header sanitization (from, to, cc, bcc, subject)\n- HTML content scrubbing\n- UTF-8 validation\n\nSpecial handling for PGP encrypted/signed emails:\n- Preserves PGP blocks intact (BEGIN/END markers and content)\n- Skips aggressive HTML sanitization for PGP content\n"
@@ -86,44 +84,13 @@ defmodule Elektrine.Email.Sanitizer do
   end
 
   defp fix_utf8_for_forwarding(content) when is_binary(content) do
-    case String.valid?(content) do
-      true ->
-        content |> remove_null_bytes() |> fix_common_encoding_issues()
-
-      false ->
-        case :unicode.characters_to_binary(content, :latin1, :utf8) do
-          result when is_binary(result) ->
-            if String.valid?(result) do
-              result |> remove_null_bytes() |> fix_common_encoding_issues()
-            else
-              force_valid_utf8(content)
-            end
-
-          _ ->
-            force_valid_utf8(content)
-        end
-    end
+    sanitize_utf8(content)
   end
 
   defp force_valid_utf8(content) when is_binary(content) do
-    result =
-      String.codepoints(content)
-      |> Enum.map_join("", fn codepoint ->
-        if String.valid?(codepoint) do
-          codepoint
-        else
-          "�"
-        end
-      end)
-      |> remove_null_bytes()
-
-    if String.valid?(result) do
-      fix_common_encoding_issues(result)
-    else
-      content
-      |> :binary.bin_to_list()
-      |> Enum.map_join("", fn byte -> "\\x#{Integer.to_string(byte, 16)}" end)
-    end
+    content
+    |> replace_invalid_utf8([])
+    |> remove_null_bytes()
   end
 
   @doc "Sanitizes email headers to prevent SMTP injection and other attacks.\n"
@@ -226,7 +193,6 @@ defmodule Elektrine.Email.Sanitizer do
   def sanitize_html_content(html_content) when is_binary(html_content) do
     html_content
     |> ensure_valid_utf8()
-    |> maybe_decode_entity_encoded_html()
     |> sanitize_email_markup()
   end
 
@@ -234,74 +200,7 @@ defmodule Elektrine.Email.Sanitizer do
     nil
   end
 
-  defp fix_common_encoding_issues(content) when is_binary(content) do
-    if has_clear_mojibake_pattern?(content) do
-      content
-      |> String.replace(<<195, 162, 226, 130, 172, 226, 132, 162>>, "’")
-      |> String.replace(<<195, 162, 226, 130, 172, 203, 156>>, "‘")
-      |> String.replace(<<195, 162, 226, 130, 172, 197, 147>>, "\"")
-      |> String.replace(<<195, 130, 194, 169>>, "©")
-      |> String.replace(<<195, 130, 194, 174>>, "®")
-    else
-      content
-    end
-  end
-
-  defp fix_common_encoding_issues(content) do
-    content
-  end
-
-  defp has_clear_mojibake_pattern?(content) do
-    String.contains?(content, <<195, 162, 226, 130, 172>>) ||
-      String.contains?(content, <<195, 130, 194, 169>>) ||
-      String.contains?(content, <<195, 130, 194, 174>>)
-  end
-
-  defp ensure_valid_utf8(content) do
-    case String.valid?(content) do
-      true ->
-        fix_common_encoding_issues(content)
-
-      false ->
-        case :unicode.characters_to_binary(content, :latin1, :utf8) do
-          binary when is_binary(binary) ->
-            if String.valid?(binary) do
-              fix_common_encoding_issues(binary)
-            else
-              force_valid_utf8(content)
-            end
-
-          {:error, good, _bad} when is_binary(good) ->
-            if String.valid?(good) do
-              fix_common_encoding_issues(good)
-            else
-              force_valid_utf8(content)
-            end
-
-          _ ->
-            force_valid_utf8(content)
-        end
-    end
-  end
-
-  defp maybe_decode_entity_encoded_html(content) do
-    if entity_encoded_html_fragment?(content) and not literal_html_fragment?(content) do
-      HtmlEntities.decode(content)
-    else
-      content
-    end
-  end
-
-  defp entity_encoded_html_fragment?(content) do
-    @encoded_html_fragment_pattern
-    |> Regex.scan(content)
-    |> length()
-    |> Kernel.>=(2)
-  end
-
-  defp literal_html_fragment?(content) do
-    Regex.match?(@literal_html_fragment_pattern, content)
-  end
+  defp ensure_valid_utf8(content), do: sanitize_utf8(content)
 
   defp remove_dangerous_tags(content) do
     content
@@ -491,36 +390,7 @@ defmodule Elektrine.Email.Sanitizer do
 
   @doc "Sanitizes UTF-8 content (for text bodies and other text fields).\nGUARANTEES valid UTF-8 output suitable for JSON encoding and PostgreSQL.\nRemoves null bytes which PostgreSQL does not allow in text fields.\n"
   def sanitize_utf8(content) when is_binary(content) do
-    case String.valid?(content) do
-      true ->
-        result = content |> remove_null_bytes() |> fix_common_encoding_issues()
-
-        if String.valid?(result) do
-          result
-        else
-          force_valid_utf8(content)
-        end
-
-      false ->
-        :unicode.characters_to_binary(content, :latin1, :utf8)
-        |> case do
-          result when is_binary(result) ->
-            if String.valid?(result) do
-              fixed = result |> remove_null_bytes() |> fix_common_encoding_issues()
-
-              if String.valid?(fixed) do
-                fixed
-              else
-                force_valid_utf8(content)
-              end
-            else
-              force_valid_utf8(content)
-            end
-
-          _ ->
-            force_valid_utf8(content)
-        end
-    end
+    if String.valid?(content), do: remove_null_bytes(content), else: force_valid_utf8(content)
   end
 
   def sanitize_utf8(nil) do
@@ -533,6 +403,19 @@ defmodule Elektrine.Email.Sanitizer do
 
   defp remove_null_bytes(content) do
     content
+  end
+
+  defp replace_invalid_utf8(content, acc) do
+    case :unicode.characters_to_binary(content, :utf8, :utf8) do
+      valid when is_binary(valid) ->
+        IO.iodata_to_binary(Enum.reverse([valid | acc]))
+
+      {:error, valid, <<_invalid, rest::binary>>} ->
+        replace_invalid_utf8(rest, ["�", valid | acc])
+
+      {:incomplete, valid, _rest} ->
+        IO.iodata_to_binary(Enum.reverse(["�", valid | acc]))
+    end
   end
 
   @doc "Validates and sanitizes email addresses.\nDelegates to HeaderSanitizer for actual validation.\n"

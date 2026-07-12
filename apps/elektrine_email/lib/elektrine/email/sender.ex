@@ -451,6 +451,7 @@ defmodule Elektrine.Email.Sender do
           params
           |> Map.delete(:raw_email)
           |> Map.delete("raw_email")
+          |> Map.put(:raw_source, raw_email)
           |> put_client_sender_header(raw_email)
           |> Map.put(:subject, subject)
           |> put_if_present(:message_id, extract_raw_header_from_email(raw_email, "Message-ID"))
@@ -501,6 +502,7 @@ defmodule Elektrine.Email.Sender do
     params
     |> Map.delete(:raw_email)
     |> Map.delete("raw_email")
+    |> Map.put(:raw_source, raw_email)
     |> put_client_sender_header(raw_email)
     |> Map.put(:subject, subject)
     |> put_if_present(:message_id, extract_raw_header_from_email(raw_email, "Message-ID"))
@@ -1284,6 +1286,7 @@ defmodule Elektrine.Email.Sender do
       subject: email_params[:subject],
       text_body: email_params[:text_body],
       html_body: email_params[:html_body],
+      raw_source: email_params[:raw_source] || email_params["raw_source"],
       in_reply_to: email_params[:in_reply_to],
       references: email_params[:references],
       attachments: attachments_to_store,
@@ -1340,6 +1343,7 @@ defmodule Elektrine.Email.Sender do
       subject: email_params[:subject],
       text_body: email_params[:text_body],
       html_body: email_params[:html_body],
+      raw_source: email_params[:raw_source] || email_params["raw_source"],
       in_reply_to: email_params[:in_reply_to],
       references: email_params[:references],
       # Use S3 metadata if provided

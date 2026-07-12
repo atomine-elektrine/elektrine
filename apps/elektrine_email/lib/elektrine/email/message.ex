@@ -19,6 +19,8 @@ defmodule Elektrine.Email.Message do
     field :html_body, :string
     field :encrypted_text_body, :map
     field :encrypted_html_body, :map
+    field :encrypted_raw_source, :map
+    field :raw_source, :binary, virtual: true
     field :client_encrypted_payload, :map
     field :search_index, {:array, :string}, default: []
     # received, sent, draft
@@ -85,6 +87,7 @@ defmodule Elektrine.Email.Message do
       :html_body,
       :encrypted_text_body,
       :encrypted_html_body,
+      :encrypted_raw_source,
       :client_encrypted_payload,
       :search_index,
       :status,
@@ -300,8 +303,9 @@ defmodule Elektrine.Email.Message do
   """
   def encrypt_content(attrs, user_id) do
     # Get original content before encryption (for search index)
-    original_text = Map.get(attrs, :text_body)
-    original_html = Map.get(attrs, :html_body)
+    original_text = get_attr(attrs, :text_body)
+    original_html = get_attr(attrs, :html_body)
+    original_raw_source = get_attr(attrs, :raw_source)
 
     # Encrypt text_body if present
     attrs =
@@ -316,9 +320,9 @@ defmodule Elektrine.Email.Message do
           encrypted = Elektrine.Encryption.encrypt(text_body, user_id)
 
           attrs
-          |> Map.put(:encrypted_text_body, encrypted)
+          |> put_attr(:encrypted_text_body, encrypted)
           # Clear plaintext
-          |> Map.put(:text_body, nil)
+          |> put_attr(:text_body, nil)
       end
 
     # Encrypt html_body if present
@@ -334,9 +338,29 @@ defmodule Elektrine.Email.Message do
           encrypted = Elektrine.Encryption.encrypt(html_body, user_id)
 
           attrs
-          |> Map.put(:encrypted_html_body, encrypted)
+          |> put_attr(:encrypted_html_body, encrypted)
           # Clear plaintext
-          |> Map.put(:html_body, nil)
+          |> put_attr(:html_body, nil)
+      end
+
+    # Preserve the exact RFC822 source as ciphertext only. This is deliberately
+    # separate from the display bodies so a parser or sanitizer mistake remains
+    # reversible without ever adding a plaintext raw-message column.
+    attrs =
+      case original_raw_source do
+        raw_source when is_binary(raw_source) and byte_size(raw_source) > 0 ->
+          encrypted = Elektrine.Encryption.encrypt(raw_source, user_id)
+
+          attrs = delete_attr(attrs, :raw_source)
+
+          if encrypted[:encrypted_data] || encrypted["encrypted_data"] do
+            put_attr(attrs, :encrypted_raw_source, encrypted)
+          else
+            attrs
+          end
+
+        _ ->
+          delete_attr(attrs, :raw_source)
       end
 
     # Create search index from text_body (prefer text over html for indexing)
@@ -344,11 +368,19 @@ defmodule Elektrine.Email.Message do
 
     if Elektrine.Strings.present?(search_content) do
       search_index = Elektrine.Encryption.index_content(search_content, user_id)
-      Map.put(attrs, :search_index, search_index)
+      put_attr(attrs, :search_index, search_index)
     else
       attrs
     end
   end
+
+  @doc "Decrypts the retained original RFC822 source without changing display fields."
+  def decrypt_raw_source(%__MODULE__{encrypted_raw_source: encrypted}, user_id)
+      when is_map(encrypted) and is_integer(user_id) do
+    Elektrine.Encryption.decrypt(encrypted, user_id)
+  end
+
+  def decrypt_raw_source(%__MODULE__{}, _user_id), do: {:error, :raw_source_unavailable}
 
   @doc """
   Decrypts email message content if encrypted.
@@ -509,6 +541,22 @@ defmodule Elektrine.Email.Message do
       _ ->
         add_error(changeset, :client_encrypted_payload, "must be a valid encrypted payload")
     end
+  end
+
+  defp get_attr(attrs, key), do: Map.get(attrs, key) || Map.get(attrs, Atom.to_string(key))
+
+  defp put_attr(attrs, key, value) do
+    if Enum.any?(Map.keys(attrs), &is_atom/1) do
+      Map.put(attrs, key, value)
+    else
+      Map.put(attrs, Atom.to_string(key), value)
+    end
+  end
+
+  defp delete_attr(attrs, key) do
+    attrs
+    |> Map.delete(key)
+    |> Map.delete(Atom.to_string(key))
   end
 
   # Generate a unique hash for the message if it doesn't have one

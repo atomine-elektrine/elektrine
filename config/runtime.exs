@@ -987,6 +987,9 @@ if config_env() == :prod do
 
   custom_domain_haraka_timeout = parse_int_env.("CUSTOM_DOMAIN_HARAKA_TIMEOUT_MS", 10_000)
 
+  max_retained_raw_source_bytes =
+    parse_int_env.("EMAIL_RAW_SOURCE_MAX_BYTES", 10 * 1024 * 1024)
+
   custom_domain_haraka_dkim_path =
     case System.get_env("CUSTOM_DOMAIN_HARAKA_DKIM_PATH") do
       nil -> "/api/v1/dkim/domains"
@@ -1024,6 +1027,7 @@ if config_env() == :prod do
 
   config :elektrine, :email,
     domain: email_domain,
+    max_retained_raw_source_bytes: max_retained_raw_source_bytes,
     allow_insecure_receiver_webhook: false,
     receiver_webhook_secret: derived_receiver_webhook_secret,
     internal_signing_secret: derived_haraka_signing_secret,

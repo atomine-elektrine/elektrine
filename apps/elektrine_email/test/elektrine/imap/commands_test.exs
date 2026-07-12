@@ -801,8 +801,10 @@ defmodule Elektrine.IMAP.CommandsTest do
         "MIME-Version: 1.0\r\n" <>
         "Content-Type: multipart/alternative; boundary=\"boundary-123\"\r\n\r\n" <>
         "--boundary-123\r\n" <>
-        "Content-Type: text/plain; charset=UTF-8\r\n\r\n" <>
-        "Hello plain body\r\n" <>
+        "Content-Type: text/plain; charset=UTF-8\r\n" <>
+        "Content-Transfer-Encoding: quoted-printable\r\n\r\n" <>
+        "Welcome=20aboard=2C=20Argonaut.\r\n" <>
+        "https://argonauts.odysseylinux.org/setup.php?token=3D84e4922a&sig=3D20ab\r\n" <>
         "--boundary-123\r\n" <>
         "Content-Type: text/html; charset=UTF-8\r\n\r\n" <>
         "<p>Hello <strong>HTML</strong> body</p>\r\n" <>
@@ -832,8 +834,15 @@ defmodule Elektrine.IMAP.CommandsTest do
       |> Enum.find(&(&1.subject == "Multipart sent copy"))
 
     assert sent_message
-    assert sent_message.text_body =~ "Hello plain body"
+    assert sent_message.text_body =~ "Welcome aboard, Argonaut."
+
+    assert sent_message.text_body =~
+             "https://argonauts.odysseylinux.org/setup.php?token=84e4922a&sig=20ab"
+
     assert sent_message.html_body =~ "Hello <strong>HTML</strong> body"
+
+    stored_message = Repo.get!(Email.Message, sent_message.id)
+    assert {:ok, ^email} = Email.Message.decrypt_raw_source(stored_message, user.id)
 
     :gen_tcp.close(client_socket)
     :gen_tcp.close(server_socket)

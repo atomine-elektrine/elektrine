@@ -959,13 +959,13 @@ defmodule Elektrine.POP3.Server do
 
         --#{boundary}
         Content-Type: text/plain; charset="UTF-8"
-        Content-Transfer-Encoding: quoted-printable
+        Content-Transfer-Encoding: 8bit
 
         #{message.text_body}
 
         --#{boundary}
         Content-Type: text/html; charset="UTF-8"
-        Content-Transfer-Encoding: quoted-printable
+        Content-Transfer-Encoding: 8bit
 
         #{message.html_body}
 
@@ -982,7 +982,7 @@ defmodule Elektrine.POP3.Server do
         Message-ID: <#{message.message_id}>
         MIME-Version: 1.0
         Content-Type: text/html; charset="UTF-8"
-        Content-Transfer-Encoding: quoted-printable
+        Content-Transfer-Encoding: 8bit
 
         #{message.html_body}
         """
@@ -997,7 +997,7 @@ defmodule Elektrine.POP3.Server do
         Message-ID: <#{message.message_id}>
         MIME-Version: 1.0
         Content-Type: text/plain; charset="UTF-8"
-        Content-Transfer-Encoding: quoted-printable
+        Content-Transfer-Encoding: 8bit
 
         #{message.text_body || ""}
         """
@@ -1040,13 +1040,13 @@ defmodule Elektrine.POP3.Server do
 
       --#{inner_boundary}
       Content-Type: text/plain; charset="UTF-8"
-      Content-Transfer-Encoding: quoted-printable
+      Content-Transfer-Encoding: 8bit
 
       #{message.text_body}
 
       --#{inner_boundary}
       Content-Type: text/html; charset="UTF-8"
-      Content-Transfer-Encoding: quoted-printable
+      Content-Transfer-Encoding: 8bit
 
       #{message.html_body}
 
@@ -1059,7 +1059,7 @@ defmodule Elektrine.POP3.Server do
       """
       --#{outer_boundary}
       Content-Type: #{content_type}; charset="UTF-8"
-      Content-Transfer-Encoding: quoted-printable
+      Content-Transfer-Encoding: 8bit
 
       #{body_content}
       """

@@ -54,6 +54,7 @@ Elektrine-side env values usually look like:
 PRIMARY_DOMAIN=example.com
 ELEKTRINE_MASTER_SECRET=<generate-a-long-random-secret>
 EMAIL_DOMAIN=example.com
+EMAIL_RAW_SOURCE_MAX_BYTES=10485760
 ELEKTRINE_ENABLED_MODULES=chat,social,email,nerve,atomine
 
 HARAKA_BASE_URL=https://mail.example.com
@@ -65,6 +66,11 @@ DATABASE_SSL_ENABLED=false
 addresses and built-in profile URLs under that host. Keep the mail server host in
 `HARAKA_BASE_URL`, and use `CUSTOM_DOMAIN_MX_HOST=mail.example.com` when custom
 domains should point their MX records at the Haraka host.
+
+`EMAIL_RAW_SOURCE_MAX_BYTES` limits how much original RFC822 source Elektrine
+retains per message. The default is 10 MiB (`10485760`). Messages larger than the
+limit are still delivered normally, but their duplicate raw source is omitted and
+the omission is recorded in message metadata.
 
 Same-server networking guidance:
 

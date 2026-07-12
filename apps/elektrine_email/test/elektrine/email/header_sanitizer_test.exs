@@ -103,10 +103,10 @@ defmodule Elektrine.Email.HeaderSanitizerTest do
       result = HeaderSanitizer.sanitize_subject_header(subject)
 
       refute result =~ "\r\n"
-      refute result =~ "Bcc:"
+      assert result == "Test Subject Bcc: attacker@evil.com"
     end
 
-    test "removes header injection keywords" do
+    test "preserves header-like words when they are not on a new header line" do
       subjects = [
         "Test bcc: hidden@evil.com",
         "Test cc: hidden@evil.com",
@@ -116,9 +116,7 @@ defmodule Elektrine.Email.HeaderSanitizerTest do
       ]
 
       for subject <- subjects do
-        result = HeaderSanitizer.sanitize_subject_header(subject)
-
-        refute result =~ ~r/(bcc|cc|to|from|reply-to):/i
+        assert HeaderSanitizer.sanitize_subject_header(subject) == subject
       end
     end
 

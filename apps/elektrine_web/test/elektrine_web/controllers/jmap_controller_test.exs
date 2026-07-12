@@ -62,12 +62,15 @@ defmodule ElektrineWeb.JMAPControllerTest do
       user: user,
       mailbox: mailbox
     } do
+      exact_body =
+        "Mâine\nhttps://argonauts.odysseylinux.org/setup.php?token=84e4922a&sig=20ab\n  total =\nnext_line"
+
       {:ok, message} =
         Email.create_message(%{
           from: "sender@example.com",
           to: mailbox.email,
           subject: "Encrypted fetch",
-          text_body: "Encrypted hello from JMAP",
+          text_body: exact_body,
           message_id: "<jmap-email-get-#{System.unique_integer([:positive])}@example.com>",
           mailbox_id: mailbox.id
         })
@@ -94,8 +97,8 @@ defmodule ElektrineWeb.JMAPControllerTest do
       [_method, body, _call_id] = hd(response["methodResponses"])
       [email] = body["list"]
 
-      assert get_in(email, ["textBody", Access.at(0), "value"]) == "Encrypted hello from JMAP"
-      assert email["preview"] =~ "Encrypted hello from JMAP"
+      assert get_in(email, ["textBody", Access.at(0), "value"]) == exact_body
+      assert email["preview"] =~ "Mâine"
     end
 
     test "Email/set applies mailboxIds patch moves", %{conn: conn, user: user, mailbox: mailbox} do
@@ -586,12 +589,21 @@ defmodule ElektrineWeb.JMAPControllerTest do
       user: user,
       mailbox: mailbox
     } do
+      raw_source =
+        "From: sender@example.com\r\n" <>
+          "To: #{mailbox.email}\r\n" <>
+          "Subject: Blob source\r\n" <>
+          "Content-Type: text/plain; charset=UTF-8\r\n" <>
+          "Content-Transfer-Encoding: quoted-printable\r\n\r\n" <>
+          "raw=20body token=3D84e4922a&sig=3D20ab"
+
       {:ok, message} =
         Email.create_message(%{
           from: "sender@example.com",
           to: mailbox.email,
           subject: "Blob source",
           text_body: "raw body",
+          raw_source: raw_source,
           message_id: "<jmap-blob-#{System.unique_integer([:positive])}@example.com>",
           mailbox_id: mailbox.id
         })
@@ -603,8 +615,7 @@ defmodule ElektrineWeb.JMAPControllerTest do
 
       body = response(conn, 200)
 
-      assert body =~ "Subject: Blob source"
-      assert body =~ "raw body"
+      assert body == raw_source
     end
 
     test "raw message blobs collapse control characters in generated headers", %{

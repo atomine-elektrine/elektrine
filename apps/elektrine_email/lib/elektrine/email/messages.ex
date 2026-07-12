@@ -13,6 +13,8 @@ defmodule Elektrine.Email.Messages do
   alias Elektrine.Repo
   alias Elektrine.Telemetry.Events
 
+  @default_max_retained_raw_source_bytes 10 * 1024 * 1024
+
   # Private helper to decrypt email messages
   defp decrypt_email_messages(messages, mailbox_id) when is_list(messages) do
     case Elektrine.Email.Mailboxes.get_mailbox(mailbox_id) do
@@ -382,6 +384,8 @@ defmodule Elektrine.Email.Messages do
   Creates a message.
   """
   def create_message(attrs \\ %{}) do
+    attrs = apply_raw_source_retention(attrs)
+
     # Calculate message size before creation
     message_size = calculate_message_size(attrs)
 
@@ -684,6 +688,8 @@ defmodule Elektrine.Email.Messages do
   end
 
   defp prepare_storage_attrs(attrs, %Mailbox{} = mailbox, mailbox_user_id) do
+    attrs = apply_raw_source_retention(attrs)
+
     cond do
       MailboxEncryption.enabled?(mailbox) ->
         MailboxEncryption.encrypt_message(attrs, mailbox)
@@ -697,10 +703,11 @@ defmodule Elektrine.Email.Messages do
   end
 
   defp prepare_storage_attrs(attrs, _mailbox, mailbox_user_id) when is_integer(mailbox_user_id) do
-    {:ok, Message.encrypt_content(attrs, mailbox_user_id)}
+    {:ok, attrs |> apply_raw_source_retention() |> Message.encrypt_content(mailbox_user_id)}
   end
 
-  defp prepare_storage_attrs(attrs, _mailbox, _mailbox_user_id), do: {:ok, attrs}
+  defp prepare_storage_attrs(attrs, _mailbox, _mailbox_user_id),
+    do: {:ok, apply_raw_source_retention(attrs)}
 
   defp email_notification_content(%Mailbox{} = mailbox, attrs) do
     if MailboxEncryption.enabled?(mailbox) do
@@ -1405,6 +1412,7 @@ defmodule Elektrine.Email.Messages do
     to_size = byte_size(get_field_value(message_attrs, "to", :to) || "")
     cc_size = byte_size(get_field_value(message_attrs, "cc", :cc) || "")
     bcc_size = byte_size(get_field_value(message_attrs, "bcc", :bcc) || "")
+    raw_source_size = byte_size(get_field_value(message_attrs, "raw_source", :raw_source) || "")
 
     # Calculate attachments size
     attachments = get_field_value(message_attrs, "attachments", :attachments) || %{}
@@ -1425,7 +1433,50 @@ defmodule Elektrine.Email.Messages do
       end
 
     subject_size + text_body_size + html_body_size + from_size + to_size + cc_size + bcc_size +
-      attachments_size
+      raw_source_size + attachments_size
+  end
+
+  @doc "Returns the maximum raw RFC822 source size retained with a message."
+  def max_retained_raw_source_bytes do
+    :elektrine
+    |> Application.get_env(:email, [])
+    |> Keyword.get(:max_retained_raw_source_bytes, @default_max_retained_raw_source_bytes)
+    |> case do
+      value when is_integer(value) and value > 0 -> value
+      _ -> @default_max_retained_raw_source_bytes
+    end
+  end
+
+  defp apply_raw_source_retention(attrs) when is_map(attrs) do
+    case get_attr(attrs, :raw_source) do
+      raw_source when is_binary(raw_source) and byte_size(raw_source) > 0 ->
+        source_size = byte_size(raw_source)
+        limit = max_retained_raw_source_bytes()
+
+        if source_size <= limit do
+          attrs
+        else
+          attrs
+          |> delete_attr(:raw_source)
+          |> put_raw_source_omission_metadata(source_size, limit)
+        end
+
+      _ ->
+        attrs
+    end
+  end
+
+  defp put_raw_source_omission_metadata(attrs, source_size, limit) do
+    metadata = get_attr(attrs, :metadata) || %{}
+
+    metadata =
+      metadata
+      |> Map.put("raw_source_retained", false)
+      |> Map.put("raw_source_original_bytes", source_size)
+      |> Map.put("raw_source_retention_limit_bytes", limit)
+      |> Map.put("raw_source_omitted_reason", "size_limit")
+
+    put_attr(attrs, :metadata, metadata)
   end
 
   defp normalize_mailbox_id(mailbox_id) when is_integer(mailbox_id), do: mailbox_id
@@ -1632,6 +1683,12 @@ defmodule Elektrine.Email.Messages do
       true ->
         Map.put(attrs, string_key, value)
     end
+  end
+
+  defp delete_attr(attrs, atom_key) when is_map(attrs) and is_atom(atom_key) do
+    attrs
+    |> Map.delete(atom_key)
+    |> Map.delete(Atom.to_string(atom_key))
   end
 
   defp maybe_put_attr(attrs, atom_key, value) do

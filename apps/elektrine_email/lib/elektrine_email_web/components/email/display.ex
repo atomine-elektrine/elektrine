@@ -1,11 +1,8 @@
 defmodule ElektrineEmailWeb.Components.Email.Display do
   @moduledoc "Email display and processing utilities for sanitizing and formatting email content.\n"
-  @doc "Processes email HTML content, handling various encodings and cleaning up display issues.\n"
+  @doc "Cleans already-decoded email HTML without guessing its transfer encoding.\n"
   def process_email_html(html_content) when is_binary(html_content) do
     html_content
-    |> ensure_valid_utf8()
-    |> decode_if_base64()
-    |> decode_if_quoted_printable()
     |> ensure_valid_utf8()
     |> String.replace(~r/^Subject:[^\r\n]*[\r\n]+/mi, "")
     |> String.replace(
@@ -21,157 +18,12 @@ defmodule ElektrineEmailWeb.Components.Email.Display do
     nil
   end
 
-  @doc "Removes email-client CSS artifacts from plain-text display bodies."
+  @doc "Makes stored plain text safe to render without interpreting or reformatting it."
   def clean_plain_text_body(text) when is_binary(text) do
-    text
-    |> ensure_valid_utf8()
-    |> decode_if_quoted_printable()
-    |> strip_leading_css_text()
-    |> HtmlEntities.decode()
-    |> remove_invisible_preheader_fillers()
-    |> normalize_plain_text_whitespace()
+    ensure_valid_utf8(text)
   end
 
   def clean_plain_text_body(nil), do: ""
-
-  defp strip_leading_css_text(text), do: do_strip_leading_css_text(String.trim_leading(text), 0)
-
-  defp do_strip_leading_css_text(text, attempts) when attempts >= 200, do: text
-
-  defp do_strip_leading_css_text(text, attempts) do
-    trimmed = String.trim_leading(text)
-
-    cond do
-      trimmed == "" ->
-        ""
-
-      String.starts_with?(trimmed, "/*") ->
-        case String.split(trimmed, "*/", parts: 2) do
-          [_comment, rest] -> do_strip_leading_css_text(rest, attempts + 1)
-          _ -> trimmed
-        end
-
-      stray_closing = leading_stray_css_closing_brace(trimmed) ->
-        do_strip_leading_css_text(String.replace_prefix(trimmed, stray_closing, ""), attempts + 1)
-
-      fragment = leading_css_fragment_line(trimmed) ->
-        do_strip_leading_css_text(String.replace_prefix(trimmed, fragment, ""), attempts + 1)
-
-      match = Regex.run(~r/^@(?:import|charset)\b[^;{]*;?/i, trimmed) ->
-        [directive | _] = match
-        do_strip_leading_css_text(String.replace_prefix(trimmed, directive, ""), attempts + 1)
-
-      css_block = leading_css_block(trimmed) ->
-        do_strip_leading_css_text(String.replace_prefix(trimmed, css_block, ""), attempts + 1)
-
-      true ->
-        trimmed
-    end
-  end
-
-  defp leading_stray_css_closing_brace(text) do
-    case Regex.run(~r/\A\}\s*/, text) do
-      [fragment] ->
-        rest = String.replace_prefix(text, fragment, "") |> String.trim_leading()
-        if css_start?(rest), do: fragment, else: nil
-
-      _ ->
-        nil
-    end
-  end
-
-  defp leading_css_fragment_line(text) do
-    case Regex.run(~r/\A([^\r\n]{1,500})(\r?\n|$)/, text) do
-      [fragment, line, _line_break] ->
-        rest = String.replace_prefix(text, fragment, "") |> String.trim_leading()
-
-        if css_start?(rest) and css_fragment_line?(line), do: fragment, else: nil
-
-      _ ->
-        nil
-    end
-  end
-
-  defp css_fragment_line?(line) do
-    line = String.trim(line)
-
-    line != "" and not String.contains?(line, "<") and
-      (String.ends_with?(line, [";", ");", "');", "\");"]) or
-         String.contains?(line, ["url(", "=", "&", "{"]))
-  end
-
-  defp css_start?(""), do: false
-
-  defp css_start?(text) do
-    String.starts_with?(text, ["/*", "@import", "@charset", "@media", ".", "#", "*", "["]) or
-      not is_nil(leading_css_block(text))
-  end
-
-  defp leading_css_block(text) do
-    with {brace_index, 1} <- :binary.match(text, "{"),
-         selector when selector != "" <- String.slice(text, 0, brace_index) |> String.trim(),
-         true <- css_selector_prefix?(selector),
-         block_end when is_integer(block_end) <- matching_css_block_end(text, brace_index) do
-      String.slice(text, 0, block_end + 1)
-    else
-      _ -> nil
-    end
-  end
-
-  defp css_selector_prefix?(selector) do
-    cond do
-      String.length(selector) > 600 ->
-        false
-
-      String.starts_with?(selector, ["@", ".", "#", "*", "["]) ->
-        true
-
-      Regex.match?(~r/^[a-zA-Z][\w\s,\.\#:\[\]=~"'\*\>\+\(\)\-\/]*$/u, selector) and
-          !String.contains?(selector, ["?", "!"]) ->
-        true
-
-      true ->
-        false
-    end
-  end
-
-  defp matching_css_block_end(text, opening_index) do
-    text
-    |> String.slice(opening_index..-1//1)
-    |> String.graphemes()
-    |> Enum.reduce_while({0, opening_index}, fn
-      "{", {depth, index} ->
-        {:cont, {depth + 1, index + 1}}
-
-      "}", {1, index} ->
-        {:halt, index}
-
-      "}", {depth, index} when depth > 1 ->
-        {:cont, {depth - 1, index + 1}}
-
-      _char, {depth, index} ->
-        {:cont, {depth, index + 1}}
-    end)
-    |> case do
-      index when is_integer(index) -> index
-      {_depth, _index} -> nil
-    end
-  end
-
-  defp remove_invisible_preheader_fillers(text) do
-    text
-    |> String.replace(~r/[\x{200B}-\x{200D}\x{FEFF}]+/u, " ")
-    |> String.replace(~r/(?:&zwnj;|&#8204;|&#x200c;|&nbsp;)+/i, " ")
-    |> String.replace(<<0xC2, 0xA0>>, " ")
-  end
-
-  defp normalize_plain_text_whitespace(text) do
-    text
-    |> String.replace(~r/[ \t\f\x0B]+/, " ")
-    |> String.replace(~r/ *\n */, "\n")
-    |> String.replace(~r/\n{3,}/, "\n\n")
-    |> String.trim()
-  end
 
   defp remove_css_before_html(content) do
     cond do
@@ -500,139 +352,28 @@ defmodule ElektrineEmailWeb.Components.Email.Display do
     ensure_valid_utf8(result)
   end
 
-  defp decode_if_base64(content) when is_binary(content) do
-    if String.match?(content, ~r/^[A-Za-z0-9+\/=\s]+$/) and String.length(content) > 100 and
-         rem(String.length(String.replace(content, ~r/\s/, "")), 4) == 0 do
-      case Base.decode64(String.replace(content, ~r/\s/, "")) do
-        {:ok, decoded} ->
-          decoded = ensure_valid_utf8(decoded)
-
-          if String.contains?(decoded, "<") and String.contains?(decoded, ">") do
-            decoded
-          else
-            content
-          end
-
-        :error ->
-          content
-      end
-    else
-      content
-    end
-  end
-
-  defp decode_if_base64(content) do
-    content
-  end
-
   defp ensure_valid_utf8(content) when is_binary(content) do
-    case String.valid?(content) do
-      true ->
-        fix_common_encoding_issues(content)
-
-      false ->
-        :unicode.characters_to_binary(content, :latin1, :utf8)
-        |> case do
-          result when is_binary(result) -> fix_common_encoding_issues(result)
-          {:error, _valid, _rest} -> scrub_invalid_utf8(content)
-          {:incomplete, _valid, _rest} -> scrub_invalid_utf8(content)
-        end
-    end
+    content
+    |> replace_invalid_utf8()
+    |> String.replace(<<0>>, "")
   end
 
   defp ensure_valid_utf8(content) do
     content
   end
 
-  defp fix_common_encoding_issues(content) when is_binary(content) do
-    content |> fix_encoding_patterns() |> String.replace("=\r\n", "") |> String.replace("=\n", "")
-  end
+  defp replace_invalid_utf8(content), do: replace_invalid_utf8(content, [])
 
-  defp fix_encoding_patterns(content) do
-    content
-    |> String.replace(~r/â€™/, "'")
-    |> String.replace(~r/â€œ/, "\"")
-    |> String.replace(~r/â€/, "\"")
-    |> String.replace(~r/â€"/, "-")
-    |> String.replace(~r/â€"/, "-")
-    |> String.replace(~r/â€¦/, "...")
-    |> String.replace(~r/Â©/, "©")
-    |> String.replace(~r/Â®/, "®")
-    |> String.replace(~r/Â /, " ")
-    |> String.replace(~r/Â/, " ")
-    |> String.replace(~r/â¯/, " ")
-    |> String.replace(~r/â/, "-")
-    |> String.replace(~r/â€ž/, "\"")
-  end
+  defp replace_invalid_utf8(content, acc) do
+    case :unicode.characters_to_binary(content, :utf8, :utf8) do
+      valid when is_binary(valid) ->
+        IO.iodata_to_binary(Enum.reverse([valid | acc]))
 
-  defp scrub_invalid_utf8(content) do
-    content
-    |> :binary.bin_to_list()
-    |> Enum.map(fn byte ->
-      if byte < 32 and byte not in ~c"\t\n\r" do
-        32
-      else
-        byte
-      end
-    end)
-    |> :binary.list_to_bin()
-    |> then(fn result ->
-      case String.valid?(result) do
-        true ->
-          result
+      {:error, valid, <<_invalid, rest::binary>>} ->
+        replace_invalid_utf8(rest, ["�", valid | acc])
 
-        false ->
-          for <<byte <- content>>,
-            into: "",
-            do:
-              (if byte >= 32 and byte <= 126 do
-                 <<byte>>
-               else
-                 "?"
-               end)
-      end
-    end)
-  end
-
-  defp decode_if_quoted_printable(content) when is_binary(content) do
-    has_hex_encoding = String.match?(content, ~r/=[0-9A-Fa-f]{2}/)
-    has_soft_breaks = String.match?(content, ~r/=\r?\n/)
-
-    has_common_qp =
-      String.contains?(content, "=3D") or String.contains?(content, "=20") or
-        String.contains?(content, "=E2=80") or String.contains?(content, "=C2=A0")
-
-    has_email_qp_indicators =
-      String.contains?(content, "href=3D") or String.contains?(content, "style=3D") or
-        String.contains?(content, "&amp;") or String.contains?(content, "=\r\n") or
-        String.contains?(content, "=\n")
-
-    if has_hex_encoding or has_soft_breaks or has_common_qp or has_email_qp_indicators do
-      decode_quoted_printable_full(content)
-    else
-      content
+      {:incomplete, valid, _rest} ->
+        IO.iodata_to_binary(Enum.reverse(["�", valid | acc]))
     end
-  end
-
-  defp decode_if_quoted_printable(content) do
-    content
-  end
-
-  defp decode_quoted_printable_full(content) when is_binary(content) do
-    result =
-      content
-      |> String.replace(~r/=\r?\n/, "")
-      |> String.replace(~r/=\r/, "")
-      |> String.replace(~r/=([0-9A-Fa-f]{2})/, fn match ->
-        hex = String.slice(match, 1, 2)
-
-        case Integer.parse(hex, 16) do
-          {value, ""} -> <<value>>
-          _ -> match
-        end
-      end)
-      |> String.replace(~r/=(?=\s*$)/m, "")
-
-    ensure_valid_utf8(result)
   end
 end

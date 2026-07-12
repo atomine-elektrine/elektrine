@@ -4,7 +4,7 @@ defmodule ElektrineEmailWeb.Components.Email.DisplayTest do
   alias ElektrineEmailWeb.Components.Email.Display
 
   describe "clean_plain_text_body/1" do
-    test "removes CSS-prefixed email template text" do
+    test "preserves CSS-looking plain text and invisible Unicode byte-for-byte" do
       zwnj = <<0xE2, 0x80, 0x8C>>
 
       body = """
@@ -16,15 +16,10 @@ defmodule ElektrineEmailWeb.Components.Email.DisplayTest do
       We'll help you get started #{zwnj} #{zwnj} Application submitted Operational Training Supervisor
       """
 
-      cleaned = Display.clean_plain_text_body(body)
-
-      refute String.contains?(cleaned, "@import")
-      refute String.contains?(cleaned, "display: none")
-      assert String.starts_with?(cleaned, "We'll help you get started")
-      assert String.contains?(cleaned, "Application submitted")
+      assert Display.clean_plain_text_body(body) == body
     end
 
-    test "removes single-letter selector and font import preambles" do
+    test "preserves indentation and CSS-like preambles" do
       body = """
       p { display:block;margin:13px 0; }
       @import url(https://fonts.googleapis.com/css2?family=Arvo);
@@ -35,15 +30,10 @@ defmodule ElektrineEmailWeb.Components.Email.DisplayTest do
       .emphasis-3 { color:#005cb9;font-weight:700; }Hi Maxfield We are excited you are interested in joining FHI.
       """
 
-      cleaned = Display.clean_plain_text_body(body)
-
-      refute String.contains?(cleaned, "display:block")
-      refute String.contains?(cleaned, "@import")
-      refute String.contains?(cleaned, ".emphasis")
-      assert cleaned == "Hi Maxfield We are excited you are interested in joining FHI."
+      assert Display.clean_plain_text_body(body) == body
     end
 
-    test "removes truncated font import fragments before CSS preambles" do
+    test "preserves text that resembles a truncated font import" do
       zwnj = <<0xE2, 0x80, 0x8C>>
 
       body = """
@@ -70,18 +60,37 @@ defmodule ElektrineEmailWeb.Components.Email.DisplayTest do
       Apply now to companies hiring fast
       """
 
-      cleaned = Display.clean_plain_text_body(body)
-
-      refute String.contains?(cleaned, "display=swap")
-      refute String.contains?(cleaned, "iOS BLUE LINKS")
-      refute String.contains?(cleaned, "x-apple-data-detectors")
-      refute String.contains?(cleaned, "Noto Sans")
-      assert String.starts_with?(cleaned, "Find immediate job opportunities")
-      assert String.contains?(cleaned, "Apply now to companies hiring fast")
+      assert Display.clean_plain_text_body(body) == body
     end
 
     test "preserves regular plain text" do
       assert Display.clean_plain_text_body("Hello\n\nWorld") == "Hello\n\nWorld"
+    end
+
+    test "preserves hexadecimal-looking URL query values byte-for-byte" do
+      body = """
+      Welcome aboard, Argonaut.
+
+      Set your password and step into the Argonauts area:
+      https://argonauts.odysseylinux.org/setup.php?token=84e4922a3e0a524d2c7a529a58b0d6bd712fe3f5c04e124d0f92b24f7bfb9e17
+
+      This link is personal.
+      """
+
+      cleaned = Display.clean_plain_text_body(body)
+
+      assert cleaned =~
+               "https://argonauts.odysseylinux.org/setup.php?token=84e4922a3e0a524d2c7a529a58b0d6bd712fe3f5c04e124d0f92b24f7bfb9e17"
+    end
+
+    test "does not guess quoted-printable after MIME ingestion" do
+      body = "Welcome=20aboard=2C=20Argonaut."
+      assert Display.clean_plain_text_body(body) == body
+    end
+
+    test "preserves valid Romanian text and removes only NUL bytes" do
+      body = "Mâine ne întâlnim în Târgu Mureș.\0"
+      assert Display.clean_plain_text_body(body) == "Mâine ne întâlnim în Târgu Mureș."
     end
   end
 end

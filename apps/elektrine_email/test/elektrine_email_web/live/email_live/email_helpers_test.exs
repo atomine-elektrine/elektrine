@@ -67,4 +67,16 @@ defmodule ElektrineEmailWeb.EmailLive.EmailHelpersTest do
              "devmailbox@mail.localhost"
            ]
   end
+
+  test "does not decode a hexadecimal-looking URL token in previews" do
+    url =
+      "https://argonauts.odysseylinux.org/setup.php?token=84e4922a3e0a524d2c7a529a58b0d6bd712fe3f5c04e124d0f92b24f7bfb9e17"
+
+    assert EmailHelpers.decode_body(url) == url
+  end
+
+  test "does not guess transfer encoding after MIME ingestion" do
+    body = "Welcome=20aboard=2C=20Argonaut."
+    assert EmailHelpers.decode_body(body) == body
+  end
 end
