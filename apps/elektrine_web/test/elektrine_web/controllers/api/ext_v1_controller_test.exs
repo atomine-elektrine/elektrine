@@ -380,6 +380,48 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
       assert is_binary(delivery["message_id"])
     end
 
+    test "email write endpoint sends from an owned alias", %{conn: conn} do
+      user = user_fixture()
+      {:ok, _mailbox} = Email.ensure_user_has_mailbox(user)
+
+      from =
+        "tarakan#{System.unique_integer([:positive])}@#{Elektrine.Domains.primary_email_domain()}"
+
+      assert {:ok, _alias} = Email.create_alias(%{alias_email: from, user_id: user.id})
+      assert {:ok, _ledger_entry} = Credits.grant(user.id, :atomine_credit, 1, "test_grant")
+
+      conn = with_pat(conn, user.id, ["write:email"])
+      recipient = "friend-#{System.unique_integer([:positive])}@example.com"
+
+      conn =
+        post(conn, "/api/ext/v1/email/messages", %{
+          "from" => from,
+          "to" => recipient,
+          "subject" => "PAT alias sender",
+          "text_body" => "Hello from an owned alias"
+        })
+
+      assert %{"data" => %{"email" => email}} = json_response(conn, 201)
+      assert email["from"] == from
+      assert email["to"] == recipient
+    end
+
+    test "email write endpoint rejects an unowned from address", %{conn: conn} do
+      user = user_fixture()
+      conn = with_pat(conn, user.id, ["write:email"])
+
+      conn =
+        post(conn, "/api/ext/v1/email/messages", %{
+          "from" => "someone-else@example.com",
+          "to" => "friend@example.com",
+          "subject" => "Unauthorized sender",
+          "text_body" => "This must not be sent"
+        })
+
+      assert %{"error" => error} = json_response(conn, 403)
+      assert error["code"] == "unauthorized_from_address"
+    end
+
     test "chat endpoints only expose member conversations", %{conn: conn} do
       user = user_fixture()
       friend = user_fixture()

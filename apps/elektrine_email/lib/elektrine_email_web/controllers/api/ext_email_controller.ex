@@ -132,6 +132,14 @@ defmodule ElektrineEmailWeb.API.ExtEmailController do
           "You need 1 Identity Credit to send external email. Earn credits from Account > Identity by running daily browser work or verifying a domain, web page, or social/profile proof."
         )
 
+      {:error, :unauthorized_from_address} ->
+        Response.error(
+          conn,
+          :forbidden,
+          "unauthorized_from_address",
+          "The from address is not owned by your account"
+        )
+
       {:error, :storage_limit_exceeded} ->
         Response.error(
           conn,
@@ -325,11 +333,19 @@ defmodule ElektrineEmailWeb.API.ExtEmailController do
 
   defp build_outbound_email(mailbox, params) do
     to = Map.get(params, "to")
+    requested_from = Map.get(params, "from")
+
+    from =
+      if Elektrine.Strings.present?(requested_from) do
+        requested_from
+      else
+        mailbox.email
+      end
 
     if Elektrine.Strings.present?(to) do
       {:ok,
        %{
-         from: mailbox.email,
+         from: from,
          reply_to: Map.get(params, "reply_to"),
          to: to,
          cc: Map.get(params, "cc"),

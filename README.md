@@ -10,7 +10,7 @@ product areas are split into their own umbrella apps.
 - `clients/`: client-side artifacts that are not shipped with the server release
 - `config/`: shared compile-time and runtime config
 - `deploy/`: Docker, Caddy, onion, and VPN deploy assets
-- `docs/`: architecture, protocol, and self-hosting docs
+- `docs/`: architecture, protocol, API, and self-hosting docs
 - `env/`: example environment files
 - `release_builder/`: module-aware release build project
 - `scripts/`: release, deploy, and ops helpers
@@ -142,6 +142,7 @@ The self-hosting docs are split by profile:
 
 Start with:
 
+- `docs/api/external-api.md`
 - `docs/self-hosting/README.md`
 - `docs/self-hosting/docker.md`
 - `docs/self-hosting/core.md`

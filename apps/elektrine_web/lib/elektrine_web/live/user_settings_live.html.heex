@@ -3182,12 +3182,8 @@
 
                 <div class="prose prose-sm max-w-none">
                   <p class="text-base-content/70">
-                    {gettext("Current external PAT endpoints (/api/ext/v1):")}
-                  </p>
-
-                  <p class="text-base-content/60">
                     {gettext(
-                      "Dedicated PAT endpoints are now available for email, chat, social, contacts, calendars, DNS, Kairo, exports, nerve access, and webhook management."
+                      "All external PAT endpoints, relative to /api/ext/v1. Request and response details are in the OpenAPI spec below."
                     )}
                   </p>
 
@@ -3214,229 +3210,20 @@
                       </thead>
 
                       <tbody>
-                        <tr>
-                          <td><code>GET /api/ext/v1/capabilities</code></td>
-
-                          <td><code>any PAT</code></td>
-
-                          <td>{gettext("Inspect scopes, presets, and allowed endpoints")}</td>
-                        </tr>
-
-                        <tr>
-                          <td><code>POST /api/ext/v1/mcp</code></td>
-
-                          <td><code>any PAT</code></td>
-
-                          <td>{gettext("JSON-RPC MCP endpoint for tool clients")}</td>
-                        </tr>
-
-                        <tr>
-                          <td><code>GET /api/ext/v1/me</code></td>
-
-                          <td><code>read:account</code></td>
-
-                          <td>{gettext("Inspect the authenticated user and token metadata")}</td>
-                        </tr>
-
-                        <tr>
-                          <td><code>GET /api/ext/v1/search</code></td>
-
-                          <td><code>read:* (any)</code></td>
-
-                          <td>
-                            {gettext(
-                              "Global search across only the resources your token can read"
-                            )}
-                          </td>
-                        </tr>
-
-                        <tr>
-                          <td><code>POST /api/ext/v1/search/actions/execute</code></td>
-
-                          <td><code>varies by action</code></td>
-
-                          <td>{gettext("Execute scoped actions")}</td>
-                        </tr>
-
-                        <tr>
-                          <td><code>GET /api/ext/v1/email/messages</code></td>
-
-                          <td><code>read:email</code></td>
-
-                          <td>{gettext("List email messages across your mailboxes")}</td>
-                        </tr>
-
-                        <tr>
-                          <td><code>GET /api/ext/v1/email/messages/:id</code></td>
-
-                          <td><code>read:email</code></td>
-
-                          <td>{gettext("Get a single email message")}</td>
-                        </tr>
-
-                        <tr>
-                          <td><code>GET /api/ext/v1/chat/conversations</code></td>
-
-                          <td><code>read:chat</code></td>
-
-                          <td>{gettext("List chat conversations")}</td>
-                        </tr>
-
-                        <tr>
-                          <td><code>GET /api/ext/v1/chat/conversations/:id/messages</code></td>
-
-                          <td><code>read:chat</code></td>
-
-                          <td>{gettext("List messages in a chat conversation")}</td>
-                        </tr>
-
-                        <tr>
-                          <td><code>GET /api/ext/v1/social/feed</code></td>
-
-                          <td><code>read:social</code></td>
-
-                          <td>{gettext("List your home feed or the public timeline")}</td>
-                        </tr>
-
-                        <tr>
-                          <td><code>GET /api/ext/v1/social/posts/:id</code></td>
-
-                          <td><code>read:social</code></td>
-
-                          <td>{gettext("Get a single visible social post")}</td>
-                        </tr>
-
-                        <tr>
-                          <td><code>GET /api/ext/v1/contacts</code></td>
-
-                          <td><code>read:contacts</code></td>
-
-                          <td>{gettext("List address book contacts")}</td>
-                        </tr>
-
-                        <tr>
-                          <td><code>GET /api/ext/v1/calendars</code></td>
-
-                          <td><code>read:calendar</code></td>
-
-                          <td>{gettext("List calendars")}</td>
-                        </tr>
-
-                        <tr>
-                          <td><code>POST /api/ext/v1/calendars/:id/events</code></td>
-
-                          <td><code>write:calendar</code></td>
-
-                          <td>{gettext("Create calendar events")}</td>
-                        </tr>
-
-                        <tr>
-                          <td><code>GET /api/ext/v1/nerve/entries</code></td>
-
-                          <td><code>read:nerve</code></td>
-
-                          <td>{gettext("List encrypted nerve entries")}</td>
-                        </tr>
-
-                        <tr>
-                          <td><code>DELETE /api/ext/v1/nerve</code></td>
-
-                          <td><code>write:nerve</code></td>
-
-                          <td>{gettext("Delete the encrypted nerve and all saved entries")}</td>
-                        </tr>
-
-                        <tr>
-                          <td><code>GET /api/ext/v1/kairo/projects</code></td>
-
-                          <td><code>read:kairo</code></td>
-
-                          <td>{gettext("List Kairo projects")}</td>
-                        </tr>
-
-                        <tr>
-                          <td><code>GET /api/ext/v1/kairo/sources</code></td>
-
-                          <td><code>read:kairo</code></td>
-
-                          <td>{gettext("List ingested Kairo sources")}</td>
-                        </tr>
-
-                        <tr>
-                          <td><code>GET /api/ext/v1/kairo/sources/:id</code></td>
-
-                          <td><code>read:kairo</code></td>
-
-                          <td>{gettext("Get a single Kairo source")}</td>
-                        </tr>
-
-                        <tr>
-                          <td><code>POST /api/ext/v1/kairo/projects</code></td>
-
-                          <td><code>write:kairo</code></td>
-
-                          <td>{gettext("Create a Kairo project")}</td>
-                        </tr>
-
-                        <tr>
-                          <td><code>POST /api/ext/v1/kairo/sources</code></td>
-
-                          <td><code>write:kairo</code></td>
-
-                          <td>{gettext("Ingest a Kairo source")}</td>
-                        </tr>
-
-                        <tr>
-                          <td><code>GET /api/ext/v1/dns/zones</code></td>
-
-                          <td><code>read:dns</code></td>
-
-                          <td>{gettext("List managed DNS zones and records")}</td>
-                        </tr>
-
-                        <tr>
-                          <td><code>POST /api/ext/v1/dns/zones/:id/verify</code></td>
-
-                          <td><code>write:dns</code></td>
-
-                          <td>{gettext("Verify delegation to Elektrine nameservers")}</td>
-                        </tr>
-
-                        <tr>
-                          <td><code>POST /api/ext/v1/dns/zones/:zone_id/records</code></td>
-
-                          <td><code>write:dns</code></td>
-
-                          <td>{gettext("Create a DNS record in a managed zone")}</td>
-                        </tr>
-
-                        <tr>
-                          <td><code>POST /api/ext/v1/exports</code></td>
-
-                          <td><code>export</code></td>
-
-                          <td>{gettext("Trigger data export")}</td>
-                        </tr>
-
-                        <tr>
-                          <td><code>GET /api/ext/v1/webhooks</code></td>
-
-                          <td><code>webhook</code></td>
-
-                          <td>{gettext("List and inspect webhooks + delivery history")}</td>
-                        </tr>
-
-                        <tr>
-                          <td>
-                            <code>
-                              POST /api/ext/v1/webhooks/:id/deliveries/:delivery_id/replay
-                            </code>
-                          </td>
-
-                          <td><code>webhook</code></td>
-
-                          <td>{gettext("Replay a failed or historical webhook delivery")}</td>
-                        </tr>
+                        <%= for section <- api_reference_sections() do %>
+                          <tr>
+                            <th colspan="3" class="bg-base-200/60">{section.title}</th>
+                          </tr>
+                          <%= for {endpoint, scope, description} <- section.rows do %>
+                            <tr>
+                              <td><code>{endpoint}</code></td>
+
+                              <td><code>{scope}</code></td>
+
+                              <td>{description}</td>
+                            </tr>
+                          <% end %>
+                        <% end %>
                       </tbody>
                     </table>
                   </div>

@@ -1988,4 +1988,171 @@ defmodule ElektrineWeb.UserSettingsLive do
       {:handled, updated_socket} -> updated_socket
     end
   end
+
+  defp api_reference_sections do
+    [
+      %{
+        title: gettext("Meta & search"),
+        rows: [
+          {"GET /capabilities", "any PAT",
+           gettext("Inspect scopes, presets, and allowed endpoints")},
+          {"POST /mcp", "any PAT", gettext("JSON-RPC MCP endpoint for tool clients")},
+          {"GET /me", "read:account",
+           gettext("Inspect the authenticated user and token metadata")},
+          {"GET /search", "read:* (any)",
+           gettext("Global search across only the resources your token can read")},
+          {"GET /search/actions", "read:* (any)",
+           gettext("List actions available to your token's scopes")},
+          {"POST /search/actions/execute", "varies by action", gettext("Execute scoped actions")}
+        ]
+      },
+      %{
+        title: gettext("Email"),
+        rows: [
+          {"GET /email/messages", "read:email",
+           gettext("List email messages across your mailboxes")},
+          {"GET /email/messages/:id", "read:email", gettext("Get a single email message")},
+          {"POST /email/messages", "write:email",
+           gettext("Send an email message from your primary address")}
+        ]
+      },
+      %{
+        title: gettext("Contacts"),
+        rows: [
+          {"GET /contacts", "read:contacts", gettext("List address book contacts")},
+          {"GET /contacts/:id", "read:contacts", gettext("Get a single contact")}
+        ]
+      },
+      %{
+        title: gettext("Chat"),
+        rows: [
+          {"GET /chat/conversations", "read:chat", gettext("List chat conversations")},
+          {"GET /chat/conversations/:id", "read:chat",
+           gettext("Get a conversation with recent messages")},
+          {"GET /chat/conversations/:id/messages", "read:chat",
+           gettext("List messages in a chat conversation")},
+          {"POST /chat/conversations/:id/messages", "write:chat", gettext("Send a chat message")}
+        ]
+      },
+      %{
+        title: gettext("Social"),
+        rows: [
+          {"GET /social/feed", "read:social",
+           gettext("List your home feed or the public timeline")},
+          {"GET /social/posts/:id", "read:social", gettext("Get a single visible social post")},
+          {"GET /social/users/:user_id/posts", "read:social",
+           gettext("List a user's visible posts")},
+          {"POST /social/posts", "write:social", gettext("Create a timeline post")}
+        ]
+      },
+      %{
+        title: gettext("Calendars"),
+        rows: [
+          {"GET /calendars", "read:calendar", gettext("List calendars")},
+          {"POST /calendars", "write:calendar", gettext("Create a calendar")},
+          {"GET /calendars/:id/events", "read:calendar", gettext("List events for a calendar")},
+          {"POST /calendars/:id/events", "write:calendar", gettext("Create calendar events")},
+          {"PUT /events/:id", "write:calendar", gettext("Update a calendar event")},
+          {"DELETE /events/:id", "write:calendar", gettext("Delete a calendar event")}
+        ]
+      },
+      %{
+        title: gettext("DNS"),
+        rows: [
+          {"GET /dns/zones", "read:dns", gettext("List managed DNS zones and records")},
+          {"POST /dns/zones", "write:dns", gettext("Create a DNS zone")},
+          {"GET /dns/zones/:id", "read:dns", gettext("Get a zone with its records")},
+          {"PUT /dns/zones/:id", "write:dns", gettext("Update a DNS zone")},
+          {"DELETE /dns/zones/:id", "write:dns", gettext("Delete a DNS zone")},
+          {"POST /dns/zones/:id/verify", "write:dns",
+           gettext("Verify delegation to Elektrine nameservers")},
+          {"POST /dns/zones/:id/services/:service/apply", "write:dns",
+           gettext("Apply managed records for a platform service")},
+          {"DELETE /dns/zones/:id/services/:service", "write:dns",
+           gettext("Disable a managed service on a zone")},
+          {"POST /dns/zones/:zone_id/records", "write:dns",
+           gettext("Create a DNS record in a managed zone")},
+          {"PUT /dns/zones/:zone_id/records/:id", "write:dns", gettext("Update a DNS record")},
+          {"DELETE /dns/zones/:zone_id/records/:id", "write:dns", gettext("Delete a DNS record")}
+        ]
+      },
+      %{
+        title: gettext("Kairo"),
+        rows: [
+          {"GET /kairo/projects", "read:kairo", gettext("List Kairo projects")},
+          {"POST /kairo/projects", "write:kairo", gettext("Create a Kairo project")},
+          {"PATCH /kairo/projects/:id", "write:kairo", gettext("Update a Kairo project")},
+          {"DELETE /kairo/projects/:id", "write:kairo", gettext("Delete a Kairo project")},
+          {"GET /kairo/sources", "read:kairo", gettext("List ingested Kairo sources")},
+          {"GET /kairo/sources/:id", "read:kairo", gettext("Get a single Kairo source")},
+          {"POST /kairo/sources", "write:kairo", gettext("Ingest a Kairo source")},
+          {"PATCH /kairo/sources/:id", "write:kairo", gettext("Update a Kairo source")},
+          {"POST /kairo/sources/:id/retry", "write:kairo",
+           gettext("Retry a failed source ingestion")},
+          {"DELETE /kairo/sources/:id", "write:kairo", gettext("Delete a Kairo source")}
+        ]
+      },
+      %{
+        title: gettext("Nerve"),
+        rows: [
+          {"GET /nerve/entries", "read:nerve", gettext("List encrypted nerve entries")},
+          {"GET /nerve/entries/:id", "read:nerve", gettext("Get an encrypted nerve entry")},
+          {"POST /nerve/entries", "write:nerve", gettext("Create an encrypted nerve entry")},
+          {"PUT /nerve/entries/:id", "write:nerve", gettext("Update an encrypted nerve entry")},
+          {"DELETE /nerve/entries/:id", "write:nerve", gettext("Delete an encrypted nerve entry")}
+        ]
+      },
+      %{
+        title: gettext("Identity proofs"),
+        rows: [
+          {"GET /proofs", "read:proofs",
+           gettext("List identity proofs and their verification status")},
+          {"GET /proofs/score", "read:proofs", gettext("Get your current proof score")},
+          {"GET /proofs/:id", "read:proofs", gettext("Get a single identity proof")},
+          {"POST /proofs", "write:proofs", gettext("Create an identity proof")},
+          {"POST /proofs/:id/check", "write:proofs",
+           gettext("Run the verification check for a proof")},
+          {"DELETE /proofs/:id", "write:proofs", gettext("Delete an identity proof")}
+        ]
+      },
+      %{
+        title: gettext("Static site"),
+        rows: [
+          {"GET /static-site", "read:static_site",
+           gettext("Inspect the current static site deployment")},
+          {"POST /static-site/deploy", "write:static_site",
+           gettext("Deploy a new version of your static site (ZIP upload)")},
+          {"POST /static-site/deploy/github", "GitHub OIDC",
+           gettext("Deploy from GitHub Actions")},
+          {"POST /static-site/deploy/github/webhook", "GitHub signature",
+           gettext("GitHub push webhook for linked deployments")}
+        ]
+      },
+      %{
+        title: gettext("Exports"),
+        rows: [
+          {"GET /exports", "export", gettext("List exports")},
+          {"POST /exports", "export", gettext("Trigger data export")},
+          {"GET /exports/:id", "export", gettext("Get export status")},
+          {"GET /exports/:id/download", "export", gettext("Download a completed export")},
+          {"DELETE /exports/:id", "export", gettext("Delete an export")}
+        ]
+      },
+      %{
+        title: gettext("Webhooks"),
+        rows: [
+          {"GET /webhooks", "webhook", gettext("List and inspect webhooks + delivery history")},
+          {"POST /webhooks", "webhook", gettext("Create a webhook subscription")},
+          {"GET /webhooks/:id", "webhook", gettext("Get a webhook and recent deliveries")},
+          {"DELETE /webhooks/:id", "webhook", gettext("Delete a webhook")},
+          {"POST /webhooks/:id/test", "webhook", gettext("Send a test webhook delivery")},
+          {"POST /webhooks/:id/rotate-secret", "webhook",
+           gettext("Rotate the webhook signing secret")},
+          {"GET /webhooks/:id/deliveries", "webhook", gettext("List webhook delivery history")},
+          {"POST /webhooks/:id/deliveries/:delivery_id/replay", "webhook",
+           gettext("Replay a failed or historical webhook delivery")}
+        ]
+      }
+    ]
+  end
 end

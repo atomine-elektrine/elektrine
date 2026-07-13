@@ -1,8 +1,13 @@
 openapi: 3.0.3
 info:
   title: Elektrine External API
-  version: "1.0.0"
-  description: Versioned external API for PAT-based integrations.
+  version: "1.1.0"
+  description: >-
+    Versioned external API for PAT-based integrations. Authenticate with
+    `Authorization: Bearer ekt_...` using a personal access token created in
+    Account settings (Developer tab). Successful responses wrap the payload as
+    `{"data": ..., "meta": {"request_id": ...}}`; errors return
+    `{"error": {"code", "message", "details?"}, "meta": ...}`.
 servers:
   - url: https://example.com
 security:
@@ -59,6 +64,27 @@ paths:
       responses:
         "200":
           description: Action executed
+  /api/ext/v1/mcp:
+    post:
+      summary: MCP JSON-RPC endpoint (streamable HTTP, stateless)
+      description: >-
+        Model Context Protocol endpoint for tool clients. Accepts one JSON-RPC
+        message per request; tool discovery and calls are filtered by the
+        token's scopes. Notifications return 202. GET and DELETE return 405 --
+        the server is stateless, with no server-initiated streams or sessions.
+        See docs/clients/mcp.md.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: A single JSON-RPC 2.0 message
+      responses:
+        "200":
+          description: JSON-RPC response
+        "202":
+          description: Notification accepted
   /api/ext/v1/email/messages:
     get:
       summary: List email messages across the authenticated user's mailboxes
@@ -94,6 +120,11 @@ paths:
             schema:
               type: object
               properties:
+                from:
+                  type: string
+                  description: >-
+                    Optional sender address owned by the authenticated account.
+                    Defaults to the primary mailbox address when omitted.
                 to:
                   type: string
                 subject:
@@ -106,9 +137,15 @@ paths:
                   type: string
                 bcc:
                   type: string
+                reply_to:
+                  type: string
+                encryption_mode:
+                  type: string
       responses:
         "201":
           description: Email sent
+        "403":
+          description: Sender address is not owned by the authenticated account
   /api/ext/v1/email/messages/{id}:
     get:
       summary: Get a single email message
@@ -364,6 +401,219 @@ paths:
       responses:
         "200":
           description: Event deleted
+  /api/ext/v1/dns/zones:
+    get:
+      summary: List managed DNS zones
+      responses:
+        "200":
+          description: Zone list
+    post:
+      summary: Create a DNS zone
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [domain]
+              properties:
+                domain:
+                  type: string
+                default_ttl:
+                  type: integer
+                  minimum: 1
+                  maximum: 86400
+                force_https:
+                  type: boolean
+      responses:
+        "201":
+          description: Zone created
+  /api/ext/v1/dns/zones/{id}:
+    get:
+      summary: Get a DNS zone with its records
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Zone detail
+    put:
+      summary: Update a DNS zone
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Zone updated
+    delete:
+      summary: Delete a DNS zone
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Zone deleted
+  /api/ext/v1/dns/zones/{id}/verify:
+    post:
+      summary: Verify delegation to Elektrine nameservers
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Zone with verification status and onboarding records
+  /api/ext/v1/dns/zones/{id}/services/{service}/apply:
+    post:
+      summary: Apply managed records for a platform service to a zone
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: service
+          required: true
+          schema:
+            type: string
+            enum: [mail, web, turn, dns, vpn, bluesky]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                service_config:
+                  type: object
+                  properties:
+                    settings:
+                      type: object
+                    enabled:
+                      type: boolean
+                    mode:
+                      type: string
+                      enum: [managed, manual]
+      responses:
+        "200":
+          description: Service config applied
+  /api/ext/v1/dns/zones/{id}/services/{service}:
+    delete:
+      summary: Disable a managed service on a zone
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: service
+          required: true
+          schema:
+            type: string
+            enum: [mail, web, turn, dns, vpn, bluesky]
+      responses:
+        "200":
+          description: Service disabled
+  /api/ext/v1/dns/zones/{zone_id}/records:
+    post:
+      summary: Create a DNS record in a managed zone
+      parameters:
+        - in: path
+          name: zone_id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, type, ttl, content]
+              properties:
+                name:
+                  type: string
+                type:
+                  type: string
+                  enum:
+                    - A
+                    - AAAA
+                    - ALIAS
+                    - CAA
+                    - CNAME
+                    - DNSKEY
+                    - DS
+                    - HTTPS
+                    - MX
+                    - NS
+                    - SRV
+                    - SSHFP
+                    - SVCB
+                    - TLSA
+                    - TXT
+                ttl:
+                  type: integer
+                  minimum: 1
+                  maximum: 86400
+                content:
+                  type: string
+                priority:
+                  type: integer
+                weight:
+                  type: integer
+                port:
+                  type: integer
+                proxied:
+                  type: boolean
+      responses:
+        "201":
+          description: Record created
+  /api/ext/v1/dns/zones/{zone_id}/records/{id}:
+    put:
+      summary: Update a DNS record
+      parameters:
+        - in: path
+          name: zone_id
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Record updated
+    delete:
+      summary: Delete a DNS record
+      parameters:
+        - in: path
+          name: zone_id
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Record deleted
   /api/ext/v1/nerve/entries:
     get:
       summary: List encrypted nerve entries
@@ -387,6 +637,37 @@ paths:
       responses:
         "200":
           description: Entry
+    put:
+      summary: Update encrypted nerve entry
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [encrypted_metadata, encrypted_password]
+              properties:
+                title:
+                  type: string
+                login_username:
+                  type: string
+                website:
+                  type: string
+                encrypted_metadata:
+                  type: string
+                encrypted_password:
+                  type: string
+                encrypted_notes:
+                  type: string
+      responses:
+        "200":
+          description: Entry updated
     delete:
       summary: Delete nerve entry
       parameters:
@@ -400,10 +681,155 @@ paths:
           description: Entry deleted
   /api/ext/v1/nerve/setup:
     post:
-      summary: Configure encrypted nerve verifier
+      summary: Configure encrypted nerve verifier (deprecated)
+      deprecated: true
+      description: >-
+        Nerve now derives its verifier from the account password; this
+        endpoint always returns 400.
+      responses:
+        "400":
+          description: Master password setup is no longer supported
+  /api/ext/v1/proofs:
+    get:
+      summary: List identity proofs and current proof score
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: Proof list with score
+    post:
+      summary: Create an identity proof
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subject]
+              properties:
+                kind:
+                  type: string
+                  enum: [dns, web, social]
+                claim_type:
+                  type: string
+                  enum: [positive, negative]
+                subject:
+                  type: string
+                evidence_url:
+                  type: string
+                proof_mode:
+                  type: string
+                  enum: [snapshot, live]
       responses:
         "201":
-          description: Nerve configured
+          description: Proof created, with verification instructions
+  /api/ext/v1/proofs/score:
+    get:
+      summary: Get the current proof score
+      responses:
+        "200":
+          description: Proof score
+  /api/ext/v1/proofs/{id}:
+    get:
+      summary: Get a single identity proof
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Proof
+    delete:
+      summary: Delete an identity proof
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Proof deleted
+  /api/ext/v1/proofs/{id}/check:
+    post:
+      summary: Run the verification check for a proof
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Check result with updated proof
+  /api/ext/v1/static-site:
+    get:
+      summary: Inspect the current static site deployment
+      responses:
+        "200":
+          description: Static site details and file list
+  /api/ext/v1/static-site/deploy:
+    post:
+      summary: Deploy a static site from a ZIP archive
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [site]
+              properties:
+                site:
+                  type: string
+                  format: binary
+                  description: ZIP archive of the site files
+                replace:
+                  type: string
+                  description: Replace the existing site (default "true")
+      responses:
+        "201":
+          description: Site deployed
+  /api/ext/v1/static-site/deploy/github:
+    post:
+      summary: Deploy a static site from GitHub Actions
+      description: >-
+        Authenticated with a GitHub Actions OIDC bearer token instead of a
+        PAT; repository and branch are resolved from the token claims. See
+        docs/clients/static-site-github-deploys.md.
+      security: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [site]
+              properties:
+                site:
+                  type: string
+                  format: binary
+                  description: ZIP archive of the site files
+      responses:
+        "201":
+          description: Site deployed
+  /api/ext/v1/static-site/deploy/github/webhook:
+    post:
+      summary: GitHub push webhook for linked deployments
+      description: >-
+        Called by GitHub on push. Verified with the X-Hub-Signature-256 HMAC
+        header against the linked deployment's webhook secret; not
+        PAT-authenticated.
+      security: []
+      responses:
+        "200":
+          description: Webhook received
   /api/ext/v1/kairo/projects:
     get:
       summary: List Kairo projects
@@ -412,9 +838,64 @@ paths:
           description: Project list
     post:
       summary: Create a Kairo project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                slug:
+                  type: string
+                description:
+                  type: string
+                status:
+                  type: string
+                  enum: [active, archived]
+                autonomy_level:
+                  type: integer
+                  minimum: 0
+                  maximum: 5
       responses:
         "201":
           description: Project created
+  /api/ext/v1/kairo/projects/{id}:
+    patch:
+      summary: Update a Kairo project
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Project updated
+    put:
+      summary: Update a Kairo project
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Project updated
+    delete:
+      summary: Delete a Kairo project
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Project deleted
   /api/ext/v1/kairo/sources:
     get:
       summary: List ingested Kairo sources
@@ -423,6 +904,54 @@ paths:
           description: Source list
     post:
       summary: Ingest a Kairo source
+      description: >-
+        Accepts a JSON body describing the source, or multipart/form-data with
+        a `file` upload.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                project_id:
+                  type: integer
+                source_type:
+                  type: string
+                  enum:
+                    - url
+                    - text
+                    - markdown
+                    - html
+                    - json
+                    - file
+                    - image
+                    - pdf
+                    - email
+                    - rss_item
+                    - timeline_post
+                    - webhook
+                title:
+                  type: string
+                url:
+                  type: string
+                content:
+                  type: string
+                content_format:
+                  type: string
+                tags:
+                  type: array
+                  items:
+                    type: string
+                metadata:
+                  type: object
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
       responses:
         "201":
           description: Source ingested
@@ -438,6 +967,51 @@ paths:
       responses:
         "200":
           description: Source
+    patch:
+      summary: Update a Kairo source
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Source updated
+    put:
+      summary: Update a Kairo source
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Source updated
+    delete:
+      summary: Delete a Kairo source
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Source deleted
+  /api/ext/v1/kairo/sources/{id}/retry:
+    post:
+      summary: Retry ingestion for a failed Kairo source
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "202":
+          description: Retry queued
   /api/ext/v1/exports:
     get:
       summary: List exports
@@ -492,9 +1066,42 @@ paths:
           description: Webhook list
     post:
       summary: Create webhook
+      description: >-
+        The signing secret is returned only in this response. Deliveries are
+        signed with an HMAC-SHA256 of the request body, sent as
+        `x-elektrine-signature: sha256=...` alongside `x-elektrine-event`,
+        `x-elektrine-delivery-id`, and `x-elektrine-timestamp` headers.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, url, events]
+              properties:
+                name:
+                  type: string
+                url:
+                  type: string
+                events:
+                  type: array
+                  minItems: 1
+                  maxItems: 20
+                  items:
+                    type: string
+                    enum:
+                      - email.received
+                      - email.sent
+                      - message.received
+                      - post.created
+                      - post.liked
+                      - follow.new
+                      - export.completed
+                enabled:
+                  type: boolean
       responses:
         "201":
-          description: Webhook created
+          description: Webhook created (response includes the signing secret)
   /api/ext/v1/webhooks/{id}:
     get:
       summary: Get webhook and recent deliveries

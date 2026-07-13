@@ -277,6 +277,28 @@ defmodule ElektrineWeb.UserSettingsLiveTest do
       assert html =~ "read:kairo"
     end
 
+    test "lists every API family in the API reference on the developer tab", %{
+      conn: conn,
+      user: user
+    } do
+      {:ok, view, _html} =
+        conn
+        |> log_in_user(user)
+        |> live(~p"/account?tab=developer")
+
+      html = render(view)
+
+      assert html =~ "POST /email/messages"
+      assert html =~ "POST /proofs"
+      assert html =~ "POST /static-site/deploy"
+      assert html =~ "DELETE /dns/zones/:zone_id/records/:id"
+      assert html =~ "POST /kairo/sources/:id/retry"
+      assert html =~ "PUT /nerve/entries/:id"
+      assert html =~ "POST /webhooks/:id/rotate-secret"
+      # The nerve-wide delete endpoint does not exist; only entries are deletable.
+      refute html =~ "DELETE /api/ext/v1/nerve<"
+    end
+
     test "shows webhook secret fingerprints without exposing stored secrets", %{
       conn: conn,
       user: user
