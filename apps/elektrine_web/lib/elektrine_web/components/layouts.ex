@@ -35,30 +35,47 @@ defmodule ElektrineWeb.Layouts do
     _ -> []
   end
 
-  def site_theme_style(assigns) do
-    assigns
-    |> current_user_theme_overrides()
-    |> Theme.style_attribute()
-  end
-
-  def site_theme_color(assigns) do
-    assigns
-    |> current_user_theme_overrides()
-    |> Theme.effective_meta_theme_color()
-  end
-
-  def site_theme_name(assigns) do
-    case site_theme_preference(assigns) do
-      "light" -> "light"
-      _ -> "dark"
+  @doc ~s|The signed-in user's explicit theme mode, or nil for anonymous\nvisitors (who keep a browser-local light/dark toggle).\n|
+  def site_theme_mode(assigns) do
+    case assigns[:current_user] do
+      %{theme_mode: mode} -> mode_or_default(mode)
+      _ -> nil
     end
   end
 
-  def site_theme_preference(assigns) do
-    case assigns |> current_user_theme_overrides() |> Theme.preferred_scheme() do
-      :light -> "light"
-      :dark -> "dark"
-      nil -> "system"
+  def site_theme_style(assigns) do
+    if site_theme_mode(assigns) == "custom" do
+      assigns
+      |> current_user_theme_overrides()
+      |> Theme.effective_style_attribute()
+    else
+      ""
+    end
+  end
+
+  def site_theme_color(assigns) do
+    case site_theme_mode(assigns) do
+      "custom" ->
+        assigns |> current_user_theme_overrides() |> Theme.effective_meta_theme_color()
+
+      "light" ->
+        Theme.effective_meta_theme_color()
+
+      _ ->
+        Theme.dark_meta_theme_color()
+    end
+  end
+
+  def site_theme_name(assigns) do
+    case site_theme_mode(assigns) do
+      "light" ->
+        "light"
+
+      "custom" ->
+        assigns |> current_user_theme_overrides() |> Theme.custom_scheme() |> to_string()
+
+      _ ->
+        "dark"
     end
   end
 
@@ -66,19 +83,32 @@ defmodule ElektrineWeb.Layouts do
     """
     (() => {
       try {
-        const savedTheme = window.localStorage.getItem("elektrine:theme");
-        const customTheme = document.documentElement.dataset.themePreference;
+        const root = document.documentElement;
+        const mode = root.dataset.themeMode;
         const systemTheme = window.matchMedia("(prefers-color-scheme: light)").matches
           ? "light"
           : "dark";
-        document.documentElement.dataset.theme = ["light", "dark"].includes(savedTheme)
-          ? savedTheme
-          : (["light", "dark"].includes(customTheme) ? customTheme : systemTheme);
+        if (mode === "light" || mode === "dark") {
+          root.dataset.theme = mode;
+        } else if (mode === "custom") {
+          // Keep the server-resolved scheme derived from the custom palette.
+        } else if (mode === "system") {
+          root.dataset.theme = systemTheme;
+        } else {
+          const savedTheme = window.localStorage.getItem("elektrine:theme");
+          root.dataset.theme = ["light", "dark"].includes(savedTheme)
+            ? savedTheme
+            : systemTheme;
+        }
       } catch (_error) {
         document.documentElement.dataset.theme = "dark";
       }
     })();
     """
+  end
+
+  defp mode_or_default(mode) do
+    if mode in Theme.modes(), do: mode, else: "system"
   end
 
   defp current_user_theme_overrides(assigns) do

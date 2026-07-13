@@ -89,7 +89,7 @@ defmodule ElektrineWeb.LayoutsTest do
     refute html =~ ~s(phx-hook="TimezoneDetector")
   end
 
-  test "root layout boots from the system scheme unless a preference is saved" do
+  test "root layout leaves anonymous visitors on the browser-local theme" do
     html =
       render_component(&Layouts.root/1,
         inner_content: "",
@@ -97,17 +97,18 @@ defmodule ElektrineWeb.LayoutsTest do
       )
 
     assert html =~ ~s(data-theme="dark")
-    assert html =~ ~s(data-theme-preference="system")
+    refute html =~ "data-theme-mode="
     assert html =~ ~s|localStorage.getItem("elektrine:theme")|
     assert html =~ ~s|matchMedia("(prefers-color-scheme: light)")|
   end
 
-  test "root layout uses a custom palette's background to select its structural theme" do
+  test "custom mode uses the palette's background to select its structural theme" do
     dark_html =
       render_component(&Layouts.root/1,
         inner_content: "",
         page_title: "Dark custom theme",
         current_user: %{
+          theme_mode: "custom",
           theme_overrides: %{"color_base_100" => "#101820", "color_primary" => "#f5d90a"}
         }
       )
@@ -116,15 +117,62 @@ defmodule ElektrineWeb.LayoutsTest do
       render_component(&Layouts.root/1,
         inner_content: "",
         page_title: "Light custom theme",
-        current_user: %{theme_overrides: %{"color_base_100" => "#f4f1ea"}}
+        current_user: %{
+          theme_mode: "custom",
+          theme_overrides: %{"color_base_100" => "#f4f1ea"}
+        }
       )
 
     assert dark_html =~ ~s(data-theme="dark")
-    assert dark_html =~ ~s(data-theme-preference="dark")
+    assert dark_html =~ ~s(data-theme-mode="custom")
     assert dark_html =~ ~s(--theme-override-color-primary: #f5d90a)
     assert dark_html =~ ~s(--theme-override-color-primary-content: #101317)
     assert light_html =~ ~s(data-theme="light")
-    assert light_html =~ ~s(data-theme-preference="light")
+    assert light_html =~ ~s(data-theme-mode="custom")
+  end
+
+  test "pinned day and night modes ignore the custom palette" do
+    light_html =
+      render_component(&Layouts.root/1,
+        inner_content: "",
+        page_title: "Day",
+        current_user: %{
+          theme_mode: "light",
+          theme_overrides: %{"color_base_100" => "#101820"}
+        }
+      )
+
+    dark_html =
+      render_component(&Layouts.root/1,
+        inner_content: "",
+        page_title: "Night",
+        current_user: %{
+          theme_mode: "dark",
+          theme_overrides: %{"color_base_100" => "#f4f1ea"}
+        }
+      )
+
+    assert light_html =~ ~s(data-theme="light")
+    assert light_html =~ ~s(data-theme-mode="light")
+    refute light_html =~ "--theme-override-color"
+    assert dark_html =~ ~s(data-theme="dark")
+    assert dark_html =~ ~s(data-theme-mode="dark")
+    refute dark_html =~ "--theme-override-color"
+  end
+
+  test "system mode follows the OS scheme and ignores the custom palette" do
+    html =
+      render_component(&Layouts.root/1,
+        inner_content: "",
+        page_title: "System",
+        current_user: %{
+          theme_mode: "system",
+          theme_overrides: %{"color_base_100" => "#f4f1ea"}
+        }
+      )
+
+    assert html =~ ~s(data-theme-mode="system")
+    refute html =~ "--theme-override-color"
   end
 
   test "root layout respects assign-driven robots meta values" do
@@ -138,12 +186,13 @@ defmodule ElektrineWeb.LayoutsTest do
     assert html =~ ~s(<meta name="robots" content="noindex, nofollow")
   end
 
-  test "root layout exposes user theme overrides to the grid background" do
+  test "custom mode emits the full effective palette for the grid background" do
     html =
       render_component(&Layouts.root/1,
         inner_content: "",
         page_title: "Test",
         current_user: %{
+          theme_mode: "custom",
           theme_overrides: %{"color_base_100" => "#203040", "color_info" => "#405060"}
         },
         current_url: "https://example.com/settings"
@@ -151,7 +200,7 @@ defmodule ElektrineWeb.LayoutsTest do
 
     assert html =~ ~s(--theme-override-color-base-100: #203040)
     assert html =~ ~s(--theme-override-color-info: #405060)
-    refute html =~ ~s(--theme-override-color-base-200: #edf1f5)
+    assert html =~ ~s(--theme-override-color-base-200: #edf1f5)
     assert html =~ ~s(data-grid="cyan")
   end
 

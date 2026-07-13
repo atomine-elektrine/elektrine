@@ -20,11 +20,12 @@ defmodule ElektrineWeb.Features.ProfileTest do
   feature "profile page renders themed grid and profile styles", %{session: session} do
     {session, user} = create_and_login_user(session)
 
-    # Registration does not cast theme_overrides, so persist them after
+    # Registration does not cast theme settings, so persist them after
     # signup and drop the login-warmed user cache so the next request
     # renders with the fresh overrides.
     {:ok, user} =
       Elektrine.Accounts.update_user(user, %{
+        theme_mode: "custom",
         theme_overrides: %{
           "color_base_100" => "#203040",
           "color_base_200" => "#26394a",

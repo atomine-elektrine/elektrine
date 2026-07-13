@@ -8,6 +8,8 @@ defmodule Elektrine.Theme do
   @hex_color_regex ~r/^#[0-9a-fA-F]{6}$/
   @light_text_color "#ffffff"
   @dark_text_color "#000000"
+  @modes ~w(system light dark custom)
+  @dark_meta_theme_color "#121214"
   @platform_brand_colors %{
     "youtube" => "#ff0000",
     "discord" => "#5865f2",
@@ -140,21 +142,24 @@ defmodule Elektrine.Theme do
   def default_value(key), do: Map.get(@default_overrides, key)
 
   @doc """
-  Infers the appropriate light or dark structural theme from a user-selected
-  page background. Accent-only overrides leave the choice to the browser.
+  The supported site theme modes. `system` follows the OS color scheme,
+  `light`/`dark` pin a structural theme, and `custom` applies the user's
+  personal palette from `theme_overrides`.
   """
-  def preferred_scheme(overrides) when is_map(overrides) do
-    background = Map.get(overrides, "color_base_100") || Map.get(overrides, :color_base_100)
+  def modes, do: @modes
 
-    if is_binary(background) and Regex.match?(@hex_color_regex, background) do
-      {red, green, blue} = hex_to_rgb(background)
-      luminance = (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255
+  @doc """
+  Picks the structural light or dark theme a custom palette renders on,
+  from the effective page background's luminance. Unlike the palette itself
+  this is deterministic: a custom theme never follows the OS or a toggle.
+  """
+  def custom_scheme(overrides) do
+    background = overrides |> effective_overrides() |> Map.fetch!("color_base_100")
+    {red, green, blue} = hex_to_rgb(background)
+    luminance = (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255
 
-      if luminance >= 0.55, do: :light, else: :dark
-    end
+    if luminance >= 0.55, do: :light, else: :dark
   end
-
-  def preferred_scheme(_), do: nil
 
   def inverse_text_color, do: @light_text_color
 
@@ -259,10 +264,13 @@ defmodule Elektrine.Theme do
     |> meta_theme_color()
   end
 
+  def dark_meta_theme_color, do: @dark_meta_theme_color
+
   def api_payload(source) do
     overrides = extract_overrides(source)
 
     %{
+      mode: extract_mode(source),
       overrides: overrides,
       values: effective_overrides(overrides)
     }
@@ -325,7 +333,7 @@ defmodule Elektrine.Theme do
   end
 
   def email_palette(source, variant \\ :default) do
-    overrides = extract_overrides(source)
+    overrides = active_overrides(source)
     primary = value(overrides, "color_primary")
     success = value(overrides, "color_success")
     warning = value(overrides, "color_warning")
@@ -446,4 +454,15 @@ defmodule Elektrine.Theme do
   defp extract_overrides(%{theme_overrides: overrides}) when is_map(overrides), do: overrides
   defp extract_overrides(overrides) when is_map(overrides), do: overrides
   defp extract_overrides(_), do: %{}
+
+  defp extract_mode(%{theme_mode: mode}) when mode in @modes, do: mode
+  defp extract_mode(_), do: "system"
+
+  # A user's custom palette only takes effect in custom mode; sources without
+  # a mode (plain override maps) are treated as already-active palettes.
+  defp active_overrides(%{theme_mode: mode} = source) do
+    if mode == "custom", do: extract_overrides(source), else: %{}
+  end
+
+  defp active_overrides(source), do: extract_overrides(source)
 end

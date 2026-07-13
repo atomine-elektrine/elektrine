@@ -150,9 +150,15 @@ defmodule ElektrineWeb.UserSettingsLiveTest do
         |> log_in_user(user)
         |> live(~p"/account?tab=preferences")
 
+      # Picking custom mode reveals the palette editor.
+      view
+      |> form("#preferences-form", user: %{theme_mode: "custom"})
+      |> render_change()
+
       view
       |> form("#preferences-form",
         user: %{
+          theme_mode: "custom",
           theme_overrides: %{
             color_base_100: "#101820",
             color_primary: "#f5d90a"
@@ -161,12 +167,16 @@ defmodule ElektrineWeb.UserSettingsLiveTest do
       )
       |> render_submit()
 
-      assert_push_event(view, "apply-theme-overrides", payload)
-      assert payload.preference == "dark"
+      assert_push_event(view, "apply-theme-settings", payload)
+      assert payload.mode == "custom"
+      assert payload.theme == "dark"
       assert payload.style =~ "--theme-override-color-base-100: #101820"
       assert payload.style =~ "--theme-override-color-primary: #f5d90a"
 
-      assert Map.take(Accounts.get_user!(user.id).theme_overrides, [
+      reloaded_user = Accounts.get_user!(user.id)
+      assert reloaded_user.theme_mode == "custom"
+
+      assert Map.take(reloaded_user.theme_overrides, [
                "color_base_100",
                "color_primary"
              ]) == %{
@@ -175,9 +185,38 @@ defmodule ElektrineWeb.UserSettingsLiveTest do
              }
     end
 
+    test "pinning day mode deactivates but keeps the custom palette", %{conn: conn, user: user} do
+      {:ok, user} =
+        Accounts.update_user(user, %{
+          "theme_mode" => "custom",
+          "theme_overrides" => %{"color_base_100" => "#101820"}
+        })
+
+      {:ok, view, _html} =
+        conn
+        |> log_in_user(user)
+        |> live(~p"/account?tab=preferences")
+
+      # Clicking a mode radio hides the palette editor before the save.
+      view
+      |> form("#preferences-form", user: %{theme_mode: "light"})
+      |> render_change()
+
+      view
+      |> form("#preferences-form", user: %{theme_mode: "light"})
+      |> render_submit()
+
+      assert_push_event(view, "apply-theme-settings", %{mode: "light", theme: "light", style: ""})
+
+      reloaded_user = Accounts.get_user!(user.id)
+      assert reloaded_user.theme_mode == "light"
+      assert reloaded_user.theme_overrides == %{"color_base_100" => "#101820"}
+    end
+
     test "immediately clears active overrides when resetting the theme", %{conn: conn, user: user} do
       {:ok, user} =
         Accounts.update_user(user, %{
+          "theme_mode" => "custom",
           "theme_overrides" => %{"color_base_100" => "#101820"}
         })
 
@@ -190,7 +229,13 @@ defmodule ElektrineWeb.UserSettingsLiveTest do
       |> form("#preferences-form", user: %{})
       |> render_submit(%{"action" => "reset_theme_defaults"})
 
-      assert_push_event(view, "apply-theme-overrides", %{preference: "system", style: ""})
+      assert_push_event(view, "apply-theme-settings", %{
+        mode: "custom",
+        theme: "light",
+        style: style
+      })
+
+      assert style =~ "--theme-override-color-base-100: #f5f7fa"
       assert Accounts.get_user!(user.id).theme_overrides == %{}
     end
   end

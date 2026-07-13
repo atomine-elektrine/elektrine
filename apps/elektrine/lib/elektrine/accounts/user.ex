@@ -51,6 +51,7 @@ defmodule Elektrine.Accounts.User do
     field :locale, :string, default: "en"
     field :timezone, :string
     field :time_format, :string, default: "12"
+    field :theme_mode, :string, default: "system"
     field :theme_overrides, :map, default: %{}
 
     # Social Identity
@@ -355,6 +356,7 @@ defmodule Elektrine.Accounts.User do
       :locale,
       :timezone,
       :time_format,
+      :theme_mode,
       :theme_overrides,
       :email_signature,
       :preferred_email_domain,
@@ -415,6 +417,9 @@ defmodule Elektrine.Accounts.User do
     |> validate_birthday()
     |> normalize_account_migration_metadata()
     |> validate_account_migration_metadata()
+    |> validate_inclusion(:theme_mode, Elektrine.Theme.modes(),
+      message: "is not a supported theme mode"
+    )
     |> Elektrine.Theme.validate_overrides(:theme_overrides)
     |> validate_preferred_email_domain(user)
     |> validate_bluesky_settings()

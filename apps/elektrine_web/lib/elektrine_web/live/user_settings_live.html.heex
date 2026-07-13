@@ -1503,6 +1503,7 @@
             >
               <% effective_theme_defaults = Elektrine.Theme.effective_overrides(%{}) %>
               <% theme_overrides = Ecto.Changeset.get_field(@changeset, :theme_overrides) || %{} %>
+              <% theme_mode = Ecto.Changeset.get_field(@changeset, :theme_mode) || "system" %>
               <!-- Language/Locale -->
               <div>
                 <label class="label">
@@ -1692,55 +1693,91 @@
                 <div>
                   <h3 class="text-base font-semibold">Site Theme</h3>
                   <p class="text-sm text-base-content/60 mt-1">
-                    Customize the shared application palette. Changes apply across the website.
-                  </p>
-                  <p class="text-xs text-base-content/50 mt-2">
-                    Reset clears your personal theme overrides and falls back to the site defaults.
+                    Choose how Elektrine looks. Day and Night use the standard palettes;
+                    Custom applies your personal colors everywhere.
                   </p>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
-                  <%= for field <- Elektrine.Theme.editor_fields() do %>
-                    <label class="flex items-center gap-4 rounded-lg border border-base-300/60 bg-base-200/40 p-4">
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <%= for mode <- [
+                    %{value: "system", label: gettext("System"), description: gettext("Follow your device")},
+                    %{value: "light", label: gettext("Day"), description: gettext("Always light")},
+                    %{value: "dark", label: gettext("Night"), description: gettext("Always dark")},
+                    %{value: "custom", label: gettext("Custom"), description: gettext("Your own palette")}
+                  ] do %>
+                    <label class={[
+                      "flex items-start gap-3 rounded-lg border p-4 cursor-pointer",
+                      if(theme_mode == mode.value,
+                        do: "border-primary bg-base-200/70",
+                        else: "border-base-300/60 bg-base-200/40"
+                      )
+                    ]}>
                       <input
-                        type="color"
-                        name={"user[theme_overrides][#{field.key}]"}
-                        value={
-                          Map.get(
-                            theme_overrides,
-                            field.key,
-                            Map.get(effective_theme_defaults, field.key, field.default)
-                          )
-                        }
-                        class="h-14 w-14 rounded-lg border-0 cursor-pointer bg-transparent"
+                        type="radio"
+                        name="user[theme_mode]"
+                        value={mode.value}
+                        checked={theme_mode == mode.value}
+                        class="radio radio-primary radio-sm mt-0.5"
                       />
 
                       <div class="min-w-0">
-                        <div class="font-medium">{field.label}</div>
-                        <div class="text-sm text-base-content/65">{field.description}</div>
-                        <div class="mt-1 text-xs text-base-content/50 font-mono">
-                          {Map.get(
-                            theme_overrides,
-                            field.key,
-                            Map.get(effective_theme_defaults, field.key, field.default)
-                          )}
-                        </div>
+                        <div class="font-medium">{mode.label}</div>
+                        <div class="text-xs text-base-content/60">{mode.description}</div>
                       </div>
                     </label>
                   <% end %>
                 </div>
+
+                <%= if theme_mode == "custom" do %>
+                  <p class="text-xs text-base-content/50">
+                    Reset clears your personal theme overrides and falls back to the site defaults.
+                  </p>
+
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+                    <%= for field <- Elektrine.Theme.editor_fields() do %>
+                      <label class="flex items-center gap-4 rounded-lg border border-base-300/60 bg-base-200/40 p-4">
+                        <input
+                          type="color"
+                          name={"user[theme_overrides][#{field.key}]"}
+                          value={
+                            Map.get(
+                              theme_overrides,
+                              field.key,
+                              Map.get(effective_theme_defaults, field.key, field.default)
+                            )
+                          }
+                          class="h-14 w-14 rounded-lg border-0 cursor-pointer bg-transparent"
+                        />
+
+                        <div class="min-w-0">
+                          <div class="font-medium">{field.label}</div>
+                          <div class="text-sm text-base-content/65">{field.description}</div>
+                          <div class="mt-1 text-xs text-base-content/50 font-mono">
+                            {Map.get(
+                              theme_overrides,
+                              field.key,
+                              Map.get(effective_theme_defaults, field.key, field.default)
+                            )}
+                          </div>
+                        </div>
+                      </label>
+                    <% end %>
+                  </div>
+                <% end %>
               </div>
 
               <div class="card-actions justify-end mt-4 sm:mt-6 gap-3">
-                <.button
-                  type="submit"
-                  name="action"
-                  value="reset_theme_defaults"
-                  variant="ghost"
-                  class="w-full sm:w-auto"
-                >
-                  Reset Theme
-                </.button>
+                <%= if theme_mode == "custom" do %>
+                  <.button
+                    type="submit"
+                    name="action"
+                    value="reset_theme_defaults"
+                    variant="ghost"
+                    class="w-full sm:w-auto"
+                  >
+                    Reset Theme
+                  </.button>
+                <% end %>
                 <.button class="w-full sm:w-auto">{gettext("Save Changes")}</.button>
               </div>
             </.form>

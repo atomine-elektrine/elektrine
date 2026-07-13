@@ -436,6 +436,7 @@ defmodule ElektrineWeb.Router do
     ElektrineWeb.Routes.Chat.private_attachment_routes()
     post("/atomine/account/pow/receipts", API.AtomineAttestationController, :pow_receipt)
     post("/atomine/passkey-receipts", API.AtomineAttestationController, :passkey_receipt)
+    put("/preferences/theme", API.PreferencesController, :update_theme)
   end
 
   # Lightweight signed messaging federation endpoints (instance-to-instance)

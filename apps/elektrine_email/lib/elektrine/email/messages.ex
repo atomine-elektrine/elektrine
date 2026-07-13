@@ -786,8 +786,6 @@ defmodule Elektrine.Email.Messages do
     self_email_attrs?(attrs) || sender_owned_by_mailbox_user?(attrs, mailbox_user_id)
   end
 
-  defp self_originated_email_attrs?(_attrs, _mailbox_user_id), do: false
-
   defp self_email_attrs?(attrs) when is_map(attrs) do
     metadata = get_attr(attrs, :metadata)
 

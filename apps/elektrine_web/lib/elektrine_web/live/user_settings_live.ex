@@ -53,6 +53,7 @@ defmodule ElektrineWeb.UserSettingsLive do
     "locale",
     "timezone",
     "time_format",
+    "theme_mode",
     "theme_overrides",
     "email_signature",
     "activitypub_manually_approve_followers"
@@ -318,7 +319,7 @@ defmodule ElektrineWeb.UserSettingsLive do
          |> assign(:current_user, updated_user)
          |> assign(:user, updated_user)
          |> assign(:changeset, Accounts.change_user(updated_user))
-         |> apply_theme_overrides(updated_user)
+         |> apply_theme_settings(updated_user)
          |> notify_info("Theme reset to defaults")}
 
       {:error, %Ecto.Changeset{} = changeset} ->
@@ -1115,7 +1116,7 @@ defmodule ElektrineWeb.UserSettingsLive do
          |> assign(:mailboxes, mailboxes)
          |> assign(:aliases, aliases)
          |> assign(:profile_notice, message)
-         |> maybe_apply_theme_overrides(final_user, final_params)
+         |> maybe_apply_theme_settings(final_user, final_params)
          |> notify_info(message)}
 
       {:error, %Ecto.Changeset{} = changeset} ->
@@ -1151,26 +1152,33 @@ defmodule ElektrineWeb.UserSettingsLive do
     end
   end
 
-  defp maybe_apply_theme_overrides(socket, user, %{"theme_overrides" => _overrides}) do
-    apply_theme_overrides(socket, user)
+  defp maybe_apply_theme_settings(socket, user, params) do
+    if Map.has_key?(params, "theme_mode") or Map.has_key?(params, "theme_overrides") do
+      apply_theme_settings(socket, user)
+    else
+      socket
+    end
   end
 
-  defp maybe_apply_theme_overrides(socket, _user, _params), do: socket
+  defp apply_theme_settings(socket, user) do
+    mode = user.theme_mode || "system"
 
-  defp apply_theme_overrides(socket, user) do
-    overrides = user.theme_overrides || %{}
+    {style, theme} =
+      case mode do
+        "custom" ->
+          overrides = user.theme_overrides || %{}
 
-    preference =
-      case Theme.preferred_scheme(overrides) do
-        :light -> "light"
-        :dark -> "dark"
-        nil -> "system"
+          {Theme.effective_style_attribute(overrides),
+           overrides |> Theme.custom_scheme() |> to_string()}
+
+        "system" ->
+          {"", nil}
+
+        pinned ->
+          {"", pinned}
       end
 
-    push_event(socket, "apply-theme-overrides", %{
-      style: Theme.style_attribute(overrides),
-      preference: preference
-    })
+    push_event(socket, "apply-theme-settings", %{style: style, mode: mode, theme: theme})
   end
 
   defp bluesky_managed_error_message(:invalid_credentials) do
