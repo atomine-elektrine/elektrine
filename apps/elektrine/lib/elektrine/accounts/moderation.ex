@@ -7,6 +7,7 @@ defmodule Elektrine.Accounts.Moderation do
   import Ecto.Query, warn: false
   alias Elektrine.Accounts.{AccountDeletionRequest, TrustLevel, User}
   alias Elektrine.Accounts.Authentication
+  alias Elektrine.Accounts.Cached
   alias Elektrine.Platform.Modules
   alias Elektrine.Repo
 
@@ -207,14 +208,16 @@ defmodule Elektrine.Accounts.Moderation do
         # Update mailbox email if username changed
         case Ecto.Changeset.get_change(changeset, :username) do
           nil ->
-            # Username didn't change
-            {:ok, updated_user}
+            :ok
 
           _new_username ->
-            # Username changed, update mailbox email
             update_mailbox_email_for_username_change(updated_user)
-            {:ok, updated_user}
+            # Clear lookup caches keyed by the old username
+            Cached.invalidate_user_cache(user)
         end
+
+        Cached.invalidate_user_cache(updated_user)
+        {:ok, updated_user}
 
       error ->
         error

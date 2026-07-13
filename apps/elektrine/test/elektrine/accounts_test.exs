@@ -9,6 +9,49 @@ defmodule Elektrine.AccountsTest do
   alias Elektrine.Domains
   alias Elektrine.Profiles
 
+  describe "user cache invalidation" do
+    test "update_user invalidates the cached user so reads see fresh data" do
+      user = AccountsFixtures.user_fixture()
+
+      # Warm the cache the way login does, then change the theme mode
+      assert %User{theme_mode: "system"} = Accounts.Cached.get_user!(user.id)
+
+      assert {:ok, %User{theme_mode: "dark"}} =
+               Accounts.update_user(user, %{theme_mode: "dark"})
+
+      # Regression: the cached copy used by the dead render must not keep
+      # serving the pre-update theme mode
+      assert %User{theme_mode: "dark"} = Accounts.Cached.get_user!(user.id)
+    end
+
+    test "update_user refreshes username lookup caches" do
+      user = AccountsFixtures.user_fixture()
+
+      assert %User{} = Accounts.Cached.get_user_by_username(user.username)
+
+      assert {:ok, %User{}} = Accounts.update_user(user, %{display_name: "Fresh Name"})
+
+      assert %User{display_name: "Fresh Name"} =
+               Accounts.Cached.get_user_by_username(user.username)
+    end
+
+    test "admin_update_user invalidates username lookup caches on rename" do
+      user = AccountsFixtures.user_fixture()
+      old_username = user.username
+      new_username = old_username <> "x"
+
+      assert %User{} = Accounts.Cached.get_user_by_username(old_username)
+
+      assert {:ok, %User{}} =
+               Accounts.Moderation.admin_update_user(user, %{username: new_username})
+
+      assert Accounts.Cached.get_user_by_username(old_username) == nil
+
+      assert %User{username: ^new_username} =
+               Accounts.Cached.get_user_by_username(new_username)
+    end
+  end
+
   describe "user validation" do
     test "username validation requires minimum 2 characters" do
       # Test usernames that are too short (less than 2 characters)

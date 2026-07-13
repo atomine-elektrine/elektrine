@@ -67,19 +67,41 @@ defmodule Elektrine.Accounts.Cached do
 
   @doc """
   Invalidates all cached data for a user.
-  Should be called when user data changes.
+  Should be called when user data changes. Accepts a `%User{}` (clears the
+  lookup caches keyed by that struct's username/email) or a user id.
   """
+  def invalidate_user_cache(%Accounts.User{} = user) do
+    AppCache.invalidate_user_cache(user.id)
+    delete_lookup_caches(user)
+  end
+
   def invalidate_user_cache(user_id) do
     AppCache.invalidate_user_cache(user_id)
 
-    # Also clear email/username lookup caches
     try do
-      user = Accounts.get_user!(user_id)
-      user_email = EmailAddresses.primary_for_user(user)
-      AppCache.get_system_config("user_by_username:#{user.username}", fn -> nil end)
-      AppCache.get_system_config("user_by_email:#{user_email}", fn -> nil end)
+      user_id
+      |> Accounts.get_user!()
+      |> delete_lookup_caches()
     rescue
       _ -> :ok
     end
+  end
+
+  defp delete_lookup_caches(user) do
+    AppCache.delete_system_config("user_by_username:#{user.username}")
+    AppCache.delete_system_config("user_by_activitypub_identifier:#{user.username}")
+
+    if user.handle do
+      AppCache.delete_system_config("user_by_activitypub_identifier:#{user.handle}")
+    end
+
+    try do
+      user_email = EmailAddresses.primary_for_user(user)
+      AppCache.delete_system_config("user_by_email:#{user_email}")
+    rescue
+      _ -> :ok
+    end
+
+    :ok
   end
 end

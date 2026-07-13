@@ -16,6 +16,7 @@ defmodule Elektrine.Accounts do
   import Ecto.Query, warn: false
   alias Elektrine.Repo
 
+  alias Elektrine.Accounts.Cached
   alias Elektrine.Accounts.ConnectedAccount
   alias Elektrine.Accounts.InviteCode
   alias Elektrine.Accounts.InviteCodeUse
@@ -439,9 +440,12 @@ defmodule Elektrine.Accounts do
           new_username ->
             record_username_change(user.id, user.username, new_username)
             update_mailbox_email_for_username_change(updated_user)
+            # Clear lookup caches keyed by the old username
+            Cached.invalidate_user_cache(user)
         end
 
         maybe_federate_actor_update(updated_user, changeset)
+        Cached.invalidate_user_cache(updated_user)
         {:ok, updated_user}
 
       error ->
@@ -458,7 +462,15 @@ defmodule Elektrine.Accounts do
     user
     |> User.notification_settings_changeset(attrs)
     |> Repo.update()
+    |> invalidate_on_update()
   end
+
+  defp invalidate_on_update({:ok, %User{} = user} = result) do
+    Cached.invalidate_user_cache(user)
+    result
+  end
+
+  defp invalidate_on_update(result), do: result
 
   defp sanitize_update_attrs(attrs) when is_map(attrs) do
     Map.new(attrs, fn {key, value} -> {key, sanitize_update_value(value)} end)
@@ -518,6 +530,7 @@ defmodule Elektrine.Accounts do
     user
     |> Ecto.Changeset.change(%{addressbook_ctag: ctag})
     |> Repo.update()
+    |> invalidate_on_update()
   end
 
   @doc """
@@ -590,6 +603,7 @@ defmodule Elektrine.Accounts do
     user
     |> User.locale_changeset(attrs)
     |> Repo.update()
+    |> invalidate_on_update()
   end
 
   def update_user_locale(%User{} = user, locale) when is_binary(locale) do
@@ -1050,6 +1064,7 @@ defmodule Elektrine.Accounts do
           Repo.rollback(changeset)
       end
     end)
+    |> invalidate_on_update()
   end
 
   @doc """
@@ -1059,6 +1074,7 @@ defmodule Elektrine.Accounts do
     user
     |> User.handle_changeset(%{display_name: display_name})
     |> Repo.update()
+    |> invalidate_on_update()
   end
 
   @doc """

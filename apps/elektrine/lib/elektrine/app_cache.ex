@@ -661,6 +661,13 @@ defmodule Elektrine.AppCache do
   end
 
   @doc """
+  Deletes a single cached system configuration entry.
+  """
+  def delete_system_config(key) do
+    delete_with_telemetry({:system_config, key})
+  end
+
+  @doc """
   Invalidates admin dashboard cache.
   """
   def invalidate_admin_cache do
