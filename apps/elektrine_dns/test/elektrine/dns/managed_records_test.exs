@@ -524,6 +524,82 @@ defmodule Elektrine.DNS.ManagedRecordsTest do
            end)
   end
 
+  test "rejects an invalid www target with a friendly error" do
+    user = AccountsFixtures.user_fixture()
+    {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
+
+    assert {:error, message} =
+             DNS.apply_zone_service(zone, "web", %{
+               "settings" => %{"www_target" => "https://example.com"}
+             })
+
+    assert message =~ "WWW target must be a public hostname"
+
+    zone = DNS.get_zone(zone.id, user.id)
+    refute Enum.any?(zone.records, &(&1.service == "web"))
+  end
+
+  test "rejects an invalid service host label with a friendly error" do
+    user = AccountsFixtures.user_fixture()
+    {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
+
+    assert {:error, message} =
+             DNS.apply_zone_service(zone, "bluesky", %{
+               "settings" => %{"bluesky_host" => "bad host!"}
+             })
+
+    assert message =~ "Bluesky host must be a subdomain name"
+
+    zone = DNS.get_zone(zone.id, user.id)
+    refute Enum.any?(zone.records, &(&1.service == "bluesky"))
+  end
+
+  test "adds mailto: to a bare TLS-RPT email address" do
+    user = AccountsFixtures.user_fixture()
+    {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
+
+    assert {:ok, config} =
+             DNS.apply_zone_service(zone, "mail", %{
+               "settings" => %{"tls_rpt_rua" => "reports@example.com"}
+             })
+
+    assert config.status == "ok"
+    assert config.settings["tls_rpt_rua"] == "mailto:reports@example.com"
+
+    zone = DNS.get_zone(zone.id, user.id)
+
+    assert Enum.any?(zone.records, fn record ->
+             record.service == "mail" and record.name == "_smtp._tls" and
+               record.content == "v=TLSRPTv1; rua=mailto:reports@example.com"
+           end)
+  end
+
+  test "rejects a TLS-RPT address that is not an email or https url" do
+    user = AccountsFixtures.user_fixture()
+    {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
+
+    assert {:error, message} =
+             DNS.apply_zone_service(zone, "mail", %{
+               "settings" => %{"tls_rpt_rua" => "not a report address"}
+             })
+
+    assert message =~ "TLS-RPT rua must be an email address"
+
+    zone = DNS.get_zone(zone.id, user.id)
+    refute Enum.any?(zone.records, &(&1.service == "mail"))
+  end
+
+  test "service health includes planned records before a service is enabled" do
+    user = AccountsFixtures.user_fixture()
+    {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
+
+    web_health = DNS.zone_service_health(zone) |> Enum.find(&(&1.service == "web"))
+
+    assert web_health.status == "not_configured"
+    assert web_health.checks == []
+    assert [%{name: "www", type: "CNAME"}] = web_health.planned_records
+  end
+
   defp unique_domain do
     "zone#{System.unique_integer([:positive])}.elektrine.dev"
   end

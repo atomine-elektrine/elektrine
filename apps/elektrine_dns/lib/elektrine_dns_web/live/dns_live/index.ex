@@ -388,14 +388,14 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
         attrs = %{"settings" => Map.drop(params, ["service"])}
 
         case DNS.apply_zone_service(zone, service, attrs) do
-          {:ok, _config} ->
+          {:ok, config} ->
             {:noreply,
              socket
-             |> put_flash(:info, "Managed #{String.capitalize(service)} DNS applied")
-             |> push_patch(to: ~p"/dns?zone_id=#{zone.id}")}
+             |> put_service_apply_flash(service, config)
+             |> push_patch(to: ~p"/dns?zone_id=#{zone.id}&tab=services")}
 
-          {:error, changeset} ->
-            {:noreply, put_flash(socket, :error, format_service_error(service, changeset))}
+          {:error, reason} ->
+            {:noreply, put_flash(socket, :error, format_service_error(service, reason))}
         end
 
       _ ->
@@ -411,11 +411,14 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
           {:ok, _config} ->
             {:noreply,
              socket
-             |> put_flash(:info, "Managed #{String.capitalize(service)} DNS disabled")
-             |> push_patch(to: ~p"/dns?zone_id=#{zone.id}")}
+             |> put_flash(
+               :info,
+               "Managed #{service_label(service)} DNS disabled and its records removed"
+             )
+             |> push_patch(to: ~p"/dns?zone_id=#{zone.id}&tab=services")}
 
-          {:error, changeset} ->
-            {:noreply, put_flash(socket, :error, format_service_error(service, changeset))}
+          {:error, reason} ->
+            {:noreply, put_flash(socket, :error, format_service_error(service, reason))}
         end
 
       _ ->
@@ -1165,6 +1168,24 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                               </div>
                             <% end %>
                           </div>
+                        <% else %>
+                          <%= if health.planned_records != [] do %>
+                            <div class="space-y-2">
+                              <p class="text-xs text-base-content/55">
+                                Not enabled yet. Applying this template creates and keeps these records up to date:
+                              </p>
+                              <div class="grid gap-2 text-sm md:grid-cols-2">
+                                <%= for record <- health.planned_records do %>
+                                  <div class="flex items-center justify-between gap-3 rounded-xl border border-base-content/10 bg-base-100 px-3 py-2">
+                                    <span>{record.metadata["label"]}</span>
+                                    <span class="badge badge-outline">
+                                      {record.type} {record.name}
+                                    </span>
+                                  </div>
+                                <% end %>
+                              </div>
+                            </div>
+                          <% end %>
                         <% end %>
 
                         <.simple_form
@@ -1179,6 +1200,7 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                               <.input
                                 field={Map.fetch!(@service_forms, health.service)[:mail_target]}
                                 label="MX target"
+                                placeholder={"mail." <> @active_zone.domain}
                               />
                               <.input
                                 field={Map.fetch!(@service_forms, health.service)[:dmarc_policy]}
@@ -1203,17 +1225,24 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                               <.input
                                 field={Map.fetch!(@service_forms, health.service)[:tls_rpt_rua]}
                                 label="TLS-RPT rua"
-                                placeholder={"mailto:postmaster@" <> @active_zone.domain}
+                                placeholder={"postmaster@" <> @active_zone.domain}
                               />
                             </div>
+                            <p class="text-xs text-base-content/55">
+                              Targets are hostnames like mail.{@active_zone.domain} — no http://, paths, or IP addresses. TLS-RPT takes the email address that should receive TLS delivery reports.
+                            </p>
                           <% end %>
                           <%= if health.service == "web" do %>
                             <div class="grid gap-4 md:grid-cols-2">
                               <.input
                                 field={Map.fetch!(@service_forms, health.service)[:www_target]}
                                 label="WWW target"
+                                placeholder={@active_zone.domain}
                               />
                             </div>
+                            <p class="text-xs text-base-content/55">
+                              Where www.{@active_zone.domain} should point — a hostname like {@active_zone.domain}, not a URL.
+                            </p>
                           <% end %>
                           <%= if health.service == "turn" do %>
                             <div class="grid gap-4 md:grid-cols-2">
@@ -1266,6 +1295,9 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                                 placeholder={@active_zone.domain}
                               />
                             </div>
+                            <p class="text-xs text-base-content/55">
+                              Host is the subdomain to create (bsky becomes bsky.{@active_zone.domain}); target is the hostname it points at.
+                            </p>
                           <% end %>
                           <:actions>
                             <.button>Apply / Repair</.button>
@@ -1278,6 +1310,7 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                               type="button"
                               phx-click="service_disable"
                               phx-value-service={health.service}
+                              data-confirm={"Disable managed #{service_label(health.service)} DNS for #{@active_zone.domain}? This deletes the #{length(health.managed_records)} DNS record(s) it manages. Records you created yourself are kept."}
                               class="link link-hover text-sm text-base-content/65"
                             >
                               Disable service
@@ -2170,7 +2203,9 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
       mode: nil,
       status: "not_configured",
       last_error: nil,
-      managed_records: []
+      managed_records: [],
+      planned_records: [],
+      checks: []
     }
   end
 
@@ -2497,17 +2532,49 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
     end
   end
 
-  defp format_service_error(service, changeset) do
+  defp put_service_apply_flash(socket, service, config) do
+    case config.status do
+      "ok" ->
+        put_flash(socket, :info, "Managed #{service_label(service)} DNS applied")
+
+      "conflict" ->
+        put_flash(
+          socket,
+          :error,
+          "Managed #{service_label(service)} DNS was not applied: #{config.last_error}. " <>
+            "Remove or edit the conflicting records under the Records tab, then apply again."
+        )
+
+      "error" ->
+        put_flash(
+          socket,
+          :error,
+          "Managed #{service_label(service)} DNS ran into a problem: #{config.last_error}"
+        )
+
+      _ ->
+        put_flash(socket, :info, "Managed #{service_label(service)} DNS settings saved")
+    end
+  end
+
+  defp format_service_error(service, %Ecto.Changeset{} = changeset) do
     details =
       changeset.errors
-      |> Keyword.keys()
-      |> Enum.map_join(", ", &to_string/1)
+      |> Enum.map_join("; ", fn {field, {message, _opts}} -> "#{field} #{message}" end)
 
     if details == "" do
-      "Could not apply managed #{service} DNS"
+      "Could not apply managed #{service_label(service)} DNS"
     else
-      "Could not apply managed #{service} DNS (#{details})"
+      "Could not apply managed #{service_label(service)} DNS: #{details}"
     end
+  end
+
+  defp format_service_error(service, reason) when is_binary(reason) do
+    "Could not apply managed #{service_label(service)} DNS: #{reason}"
+  end
+
+  defp format_service_error(service, _reason) do
+    "Could not apply managed #{service_label(service)} DNS"
   end
 
   defp service_form_from_health(nil, defaults), do: to_form(defaults, as: :service_config)

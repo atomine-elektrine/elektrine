@@ -17,12 +17,18 @@ defmodule Elektrine.DNS.ManagedRecords do
   def apply_service(%Zone{} = zone, service, attrs \\ %{}) when is_map(attrs) do
     service = normalize_service(service)
 
-    incoming_settings =
-      attrs
-      |> Map.get("settings", %{})
-      |> normalize_settings()
-      |> drop_redacted_private_settings(service)
+    attrs
+    |> Map.get("settings", %{})
+    |> normalize_settings()
+    |> drop_redacted_private_settings(service)
+    |> validate_settings(service)
+    |> case do
+      {:ok, incoming_settings} -> do_apply_service(zone, service, attrs, incoming_settings)
+      {:error, _message} = error -> error
+    end
+  end
 
+  defp do_apply_service(zone, service, attrs, incoming_settings) do
     enabled = Map.get(attrs, "enabled", true)
     mode = Map.get(attrs, "mode", "managed")
 
@@ -76,7 +82,11 @@ defmodule Elektrine.DNS.ManagedRecords do
                 updated =
                   record
                   |> Record.changeset(Map.merge(attrs, %{zone_id: zone.id}))
-                  |> Repo.insert_or_update!()
+                  |> Repo.insert_or_update()
+                  |> case do
+                    {:ok, updated} -> updated
+                    {:error, changeset} -> Repo.rollback(invalid_record_message(attrs, changeset))
+                  end
 
                 if record.id, do: MapSet.put(adopted_ids, updated.id), else: adopted_ids
               end)
@@ -200,8 +210,8 @@ defmodule Elektrine.DNS.ManagedRecords do
         |> normalize_settings()
         |> decrypt_private_settings(service)
 
-      desired =
-        if(config && config.enabled, do: desired_records(zone, service, settings), else: [])
+      planned = desired_records(zone, service, settings)
+      desired = if config && config.enabled, do: planned, else: []
 
       managed_records = list_managed_records(zone.id, service)
       conflicts = conflicts_for(zone, service, desired)
@@ -210,6 +220,7 @@ defmodule Elektrine.DNS.ManagedRecords do
       %{
         service: service,
         enabled: config && config.enabled,
+        planned_records: planned,
         mode: config && config.mode,
         status: if(config, do: config.status, else: "not_configured"),
         last_error: if(config, do: config.last_error, else: nil),
@@ -516,6 +527,143 @@ defmodule Elektrine.DNS.ManagedRecords do
        do: false
 
   defp normalize_setting_value(value), do: value
+
+  @hostname_settings %{
+    "web" => [{"www_target", "WWW target"}],
+    "turn" => [{"turn_target", "TURN target"}],
+    "vpn" => [{"vpn_target", "VPN target"}, {"vpn_api_target", "Admin/API target"}],
+    "bluesky" => [{"bluesky_target", "Bluesky target"}]
+  }
+
+  @label_settings %{
+    "turn" => [{"turn_host", "TURN host"}],
+    "vpn" => [{"vpn_host", "VPN host"}, {"vpn_api_host", "Admin/API host"}],
+    "bluesky" => [{"bluesky_host", "Bluesky host"}]
+  }
+
+  defp validate_settings(settings, service) do
+    with :ok <- validate_setting_fields(settings, @hostname_settings[service], &target_error/2),
+         :ok <- validate_setting_fields(settings, @label_settings[service], &label_error/2) do
+      normalize_tls_rpt_setting(settings, service)
+    end
+  end
+
+  defp validate_setting_fields(_settings, nil, _error_fun), do: :ok
+
+  defp validate_setting_fields(settings, fields, error_fun) do
+    Enum.find_value(fields, :ok, fn {key, label} ->
+      error_fun.(label, Map.get(settings, key))
+    end)
+  end
+
+  defp target_error(_label, value) when is_nil(value), do: nil
+
+  defp target_error(label, value) do
+    if blank?(value) or (is_binary(value) and Elektrine.DNS.public_hostname?(value)) do
+      nil
+    else
+      {:error,
+       "#{label} must be a public hostname like host.example.com" <>
+         " (no http://, paths, IP addresses, or spaces)"}
+    end
+  end
+
+  defp label_error(_label, value) when is_nil(value), do: nil
+
+  defp label_error(label, value) do
+    if blank?(value) or (is_binary(value) and valid_relative_name?(value)) do
+      nil
+    else
+      {:error,
+       "#{label} must be a subdomain name like turn or turn.eu" <>
+         " (letters, digits, and hyphens only)"}
+    end
+  end
+
+  defp valid_relative_name?(value) do
+    normalized = normalize_domain(value)
+
+    normalized != "" and
+      normalized
+      |> String.split(".")
+      |> Enum.all?(&String.match?(&1, ~r/^_?[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/))
+  end
+
+  defp normalize_tls_rpt_setting(settings, "mail") do
+    case Map.get(settings, "tls_rpt_rua") do
+      value when is_binary(value) ->
+        if blank?(value) do
+          {:ok, settings}
+        else
+          value
+          |> String.split(",")
+          |> Enum.map(&String.trim/1)
+          |> Enum.reject(&(&1 == ""))
+          |> normalize_tls_rpt_entries()
+          |> case do
+            {:ok, entries} -> {:ok, Map.put(settings, "tls_rpt_rua", Enum.join(entries, ","))}
+            {:error, _message} = error -> error
+          end
+        end
+
+      _ ->
+        {:ok, settings}
+    end
+  end
+
+  defp normalize_tls_rpt_setting(settings, _service), do: {:ok, settings}
+
+  defp normalize_tls_rpt_entries(entries) do
+    entries
+    |> Enum.reduce_while({:ok, []}, fn entry, {:ok, acc} ->
+      case normalize_tls_rpt_entry(entry) do
+        {:ok, normalized} -> {:cont, {:ok, [normalized | acc]}}
+        {:error, _message} = error -> {:halt, error}
+      end
+    end)
+    |> case do
+      {:ok, normalized} -> {:ok, Enum.reverse(normalized)}
+      error -> error
+    end
+  end
+
+  defp normalize_tls_rpt_entry("mailto:" <> address = entry) do
+    if email_address?(address) do
+      {:ok, entry}
+    else
+      {:error, "TLS-RPT rua must use a valid email address, got #{entry}"}
+    end
+  end
+
+  defp normalize_tls_rpt_entry("https://" <> _ = entry), do: {:ok, entry}
+
+  defp normalize_tls_rpt_entry(entry) do
+    if email_address?(entry) do
+      {:ok, "mailto:" <> entry}
+    else
+      {:error,
+       "TLS-RPT rua must be an email address (reports@example.com) or an https:// URL," <>
+         " got #{entry}"}
+    end
+  end
+
+  defp email_address?(value) do
+    case String.split(value, "@") do
+      [local, domain] -> local != "" and Elektrine.DNS.public_hostname?(domain)
+      _ -> false
+    end
+  end
+
+  defp invalid_record_message(attrs, changeset) do
+    label = attrs.metadata["label"] || attrs.managed_key
+
+    details =
+      Enum.map_join(changeset.errors, "; ", fn {field, {message, _opts}} ->
+        "#{field} #{message}"
+      end)
+
+    "cannot apply #{attrs.type} record for #{label}: #{details}"
+  end
 
   defp drop_redacted_private_settings(settings, service) do
     Map.reject(settings, fn {key, value} ->
