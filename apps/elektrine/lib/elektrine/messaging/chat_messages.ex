@@ -1456,7 +1456,10 @@ defmodule Elektrine.Messaging.ChatMessages do
     end
 
     maybe_federate_message_created(conversation_id, decrypted)
-    maybe_notify_chat_members(conversation_id, decrypted)
+
+    # Notification fan-out costs several queries per member, so large group
+    # chats must not pay for it on the sender's request path.
+    Elektrine.Async.run(fn -> maybe_notify_chat_members(conversation_id, decrypted) end)
 
     {:ok, decrypted}
   end
