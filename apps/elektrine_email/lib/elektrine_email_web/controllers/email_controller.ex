@@ -373,11 +373,16 @@ defmodule ElektrineEmailWeb.EmailController do
       Regex.scan(~r/<style\b[^>]*>.*?<\/style>|<link\b[^>]*>/is, content)
       |> Enum.map_join("\n", fn [match | _] -> match end)
 
-    {body_attributes, body_content} =
-      case Regex.run(~r/<body\b[^>]*>(.*?)<\/body>/is, content) do
-        [body_tag, body] -> {body_attributes(body_tag), body}
-        _ -> {"", strip_document_shell(content)}
+    # Keep content outside any embedded <body> shell: replies quote full HTML
+    # documents inline, so extracting only the <body> interior would drop the
+    # reply text written above the quote.
+    body_attributes =
+      case Regex.run(~r/<body\b[^>]*>/is, content) do
+        [body_tag] -> body_attributes(body_tag)
+        _ -> ""
       end
+
+    body_content = strip_document_shell(content)
 
     body_content = remove_extracted_head_content(body_content)
 
