@@ -288,15 +288,17 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
     <div class="flex flex-wrap items-center gap-2">
       <%= if @interaction_id do %>
         <!-- Like Button -->
-        <button
+        <.button
+          variant="ghost"
+          size="xs"
           phx-click="like_post"
           phx-value-message_id={@interaction_id}
           class={[
-            "btn btn-xs btn-ghost transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
+            "transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
             Map.get(@user_likes, @interaction_id, false) &&
-              "text-error phx-click-loading:text-base-content/70",
+              "bg-primary/10 text-primary phx-click-loading:text-base-content/70",
             !Map.get(@user_likes, @interaction_id, false) &&
-              "phx-click-loading:text-error"
+              "hover:text-primary phx-click-loading:text-primary"
           ]}
           type="button"
         >
@@ -308,20 +310,22 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
                   do: "hero-heart-solid",
                   else: "hero-heart"
               }
-              class={["w-3 h-3", is_liked && "text-error"]}
+              class={["w-3 h-3", is_liked && "text-primary"]}
             />
             <span class="text-xs">{reply_like_display_count(@normalized)}</span>
           </span>
-        </button>
+        </.button>
       <% end %>
       
     <!-- Reply to Reply -->
       <%= if @post && @reply_target_id do %>
-        <button
+        <.button
+          variant="ghost"
+          size="xs"
           phx-click={@on_reply_click}
           phx-value-reply_id={@reply_target_id}
           phx-value-post_id={@post.id}
-          class="btn btn-xs btn-ghost phx-click-loading:pointer-events-none phx-click-loading:cursor-wait"
+          class="hover:text-primary phx-click-loading:pointer-events-none phx-click-loading:cursor-wait"
           type="button"
           title="Reply to this comment"
         >
@@ -329,31 +333,33 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
           <%= if @normalized.reply_count > 0 do %>
             <span class="text-xs">{@normalized.reply_count}</span>
           <% end %>
-        </button>
+        </.button>
       <% end %>
       
     <!-- Boost Button -->
       <%= if @interaction_id do %>
         <% is_boosted = Map.get(@user_boosts, @interaction_id, false) %>
-        <button
+        <.button
+          variant="ghost"
+          size="xs"
           phx-click={if is_boosted, do: "unboost_post", else: "boost_post"}
           phx-value-message_id={@interaction_id}
           class={[
-            "btn btn-xs btn-ghost transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
+            "transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
             is_boosted &&
-              "text-success phx-click-loading:text-base-content/70",
-            !is_boosted && "phx-click-loading:text-success"
+              "bg-accent/10 text-accent phx-click-loading:text-base-content/70",
+            !is_boosted && "hover:text-accent phx-click-loading:text-accent"
           ]}
           type="button"
         >
           <span class="inline-flex items-center gap-1">
             <.icon
               name={if is_boosted, do: "hero-arrow-path-solid", else: "hero-arrow-path"}
-              class={["w-3 h-3", is_boosted && "text-success"]}
+              class={["w-3 h-3", is_boosted && "text-accent"]}
             />
             <span class="text-xs">{@normalized.share_count || 0}</span>
           </span>
-        </button>
+        </.button>
       <% end %>
 
       <%= if !@interaction_id do %>
@@ -382,7 +388,7 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
             href={@normalized.ap_id}
             target="_blank"
             rel="noopener noreferrer"
-            class="flex items-center gap-1 text-xs opacity-60 hover:opacity-100 hover:text-error transition-colors"
+            class="flex items-center gap-1 text-xs opacity-60 hover:opacity-100 hover:text-primary transition-colors"
             title="Open on remote instance"
           >
             <.icon name="hero-arrow-top-right-on-square" class="w-3 h-3" />

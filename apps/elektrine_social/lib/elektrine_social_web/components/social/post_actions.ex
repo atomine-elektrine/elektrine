@@ -87,7 +87,9 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
   attr :value_name, :string, default: "post_id"
   attr :save_post_id, :any, default: nil
   attr :save_value_name, :string, default: nil
+  attr :comment_post_id, :any, default: nil
   attr :comment_value_name, :string, default: nil
+  attr :comment_active, :boolean, default: false
   attr :comment_path, :string, default: nil
   attr :size, :atom, default: :sm
   attr :style, :atom, default: :default
@@ -120,6 +122,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
 
     # Use per-action value overrides when set, otherwise fall back to value_name.
     actual_comment_value_name = assigns.comment_value_name || assigns.value_name
+    actual_comment_post_id = assigns.comment_post_id || assigns.post_id
     actual_save_value_name = assigns.save_value_name || assigns.value_name
     actual_save_post_id = assigns.save_post_id || assigns.post_id
     actual_react_value_name = assigns.react_value_name || assigns.value_name
@@ -131,6 +134,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
       |> assign(:btn_class, btn_class)
       |> assign(:text_class, text_class)
       |> assign(:actual_comment_value_name, actual_comment_value_name)
+      |> assign(:actual_comment_post_id, actual_comment_post_id)
       |> assign(:actual_save_value_name, actual_save_value_name)
       |> assign(:actual_save_post_id, actual_save_post_id)
       |> assign(:actual_react_value_name, actual_react_value_name)
@@ -211,11 +215,13 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
           <%= if @current_user do %>
             <button
               phx-click={@on_comment}
-              {[{"phx-value-#{@actual_comment_value_name}", @post_id}]}
+              {[{"phx-value-#{@actual_comment_value_name}", @actual_comment_post_id}]}
               data-action-lock-key={action_lock_key(@dom_id_prefix, "comment")}
               class={[
                 @btn_class,
-                "cursor-pointer transition-colors hover:text-primary phx-click-loading:pointer-events-none phx-click-loading:cursor-wait"
+                "cursor-pointer transition-colors phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
+                @comment_active && "bg-primary/10 text-primary",
+                !@comment_active && "hover:text-primary"
               ]}
               type="button"
             >
@@ -460,9 +466,15 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
           <%= if @current_user do %>
             <button
               phx-click={@on_comment}
-              {[{"phx-value-#{@actual_comment_value_name}", @post_id}]}
+              {[{"phx-value-#{@actual_comment_value_name}", @actual_comment_post_id}]}
               data-action-lock-key={action_lock_key(@dom_id_prefix, "comment")}
-              class="flex items-center gap-1.5 text-base-content/60 hover:text-primary transition-colors cursor-pointer phx-click-loading:pointer-events-none phx-click-loading:cursor-wait"
+              class={[
+                "flex items-center gap-1.5 transition-colors cursor-pointer phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
+                if(@comment_active,
+                  do: "text-primary",
+                  else: "text-base-content/60 hover:text-primary"
+                )
+              ]}
               type="button"
             >
               <.icon name="hero-chat-bubble-left" class={@icon_size} />

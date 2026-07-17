@@ -14,6 +14,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.ThreadedCommentComponents do
 
   alias ElektrineWeb.Live.PostInteractions
 
+  import ElektrineSocialWeb.Components.Social.PostActions, only: [post_actions: 1]
   import ElektrineSocialWeb.Components.Social.PostReactions, only: [post_reactions: 1]
   import ElektrineSocialWeb.RemotePostLive.ReplyAuthorComponents, only: [reply_author_summary: 1]
 
@@ -500,128 +501,27 @@ defmodule ElektrineSocialWeb.RemotePostLive.ThreadedCommentComponents do
             <% end %>
             
     <!-- Comment Actions -->
-            <%= if @current_user do %>
-              <div class="relative z-20 pointer-events-auto flex items-center gap-4 text-xs">
-                <button
-                  phx-click={if is_reply_liked, do: "unlike_post", else: "like_post"}
-                  phx-value-message_id={reply_local_message_id}
-                  phx-value-post_id={reply_view.action_post_id}
-                  data-action-lock-key={"#{reply_view.card_dom_id}-like-lock"}
-                  class={[
-                    "flex items-center gap-1 transition-colors",
-                    if(is_reply_liked, do: "text-error", else: "opacity-60 hover:text-error")
-                  ]}
-                  type="button"
-                >
-                  <.icon
-                    name={if is_reply_liked, do: "hero-heart-solid", else: "hero-heart"}
-                    class={["w-4 h-4", is_reply_liked && "text-error"]}
-                  />
-                  <span
-                    id={"#{reply_view.card_dom_id}-like-count"}
-                    phx-hook="AnimatedCount"
-                    phx-update="ignore"
-                    data-count={reply_like_count}
-                  >
-                    {reply_like_count}
-                  </span>
-                </button>
-                <button
-                  phx-click={if is_reply_boosted, do: "unboost_post", else: "boost_post"}
-                  phx-value-message_id={reply_local_message_id}
-                  phx-value-post_id={reply_view.action_post_id}
-                  data-action-lock-key={"#{reply_view.card_dom_id}-boost-lock"}
-                  class={[
-                    "flex items-center gap-1 transition-colors",
-                    if(is_reply_boosted,
-                      do: "text-success",
-                      else: "opacity-60 hover:text-success"
-                    )
-                  ]}
-                  type="button"
-                >
-                  <.icon
-                    name={if is_reply_boosted, do: "hero-arrow-path-solid", else: "hero-arrow-path"}
-                    class={[
-                      "w-4 h-4",
-                      is_reply_boosted && "text-success"
-                    ]}
-                  />
-                  <span
-                    id={"#{reply_view.card_dom_id}-boost-count"}
-                    phx-hook="AnimatedCount"
-                    phx-update="ignore"
-                    data-count={reply_boost_count}
-                  >
-                    {reply_boost_count}
-                  </span>
-                </button>
-                <button
-                  phx-click="toggle_comment_reply"
-                  phx-value-comment_id={reply_view.activitypub_id}
-                  class={[
-                    "flex items-center gap-1 transition-colors",
-                    if(reply_view.replying?,
-                      do: "text-secondary",
-                      else: "opacity-60 hover:text-secondary"
-                    )
-                  ]}
-                  type="button"
-                >
-                  <.icon name="hero-chat-bubble-left" class="w-4 h-4" />
-                  <span
-                    id={"#{reply_view.card_dom_id}-reply-count"}
-                    phx-hook="AnimatedCount"
-                    phx-update="ignore"
-                    data-count={reply_child_count}
-                  >
-                    {reply_child_count}
-                  </span>
-                </button>
-              </div>
-            <% else %>
-              <div class="flex items-center gap-4 text-xs opacity-50">
-                <div class="flex items-center gap-1">
-                  <.icon name="hero-heart" class="w-4 h-4" />
-                  <%= if reply_like_count > 0 do %>
-                    <span
-                      id={"#{reply_view.card_dom_id}-readonly-like-count"}
-                      phx-hook="AnimatedCount"
-                      phx-update="ignore"
-                      data-count={reply_like_count}
-                    >
-                      {reply_like_count}
-                    </span>
-                  <% end %>
-                </div>
-                <div class="flex items-center gap-1">
-                  <.icon name="hero-arrow-path" class="w-4 h-4" />
-                  <%= if reply_boost_count > 0 do %>
-                    <span
-                      id={"#{reply_view.card_dom_id}-readonly-boost-count"}
-                      phx-hook="AnimatedCount"
-                      phx-update="ignore"
-                      data-count={reply_boost_count}
-                    >
-                      {reply_boost_count}
-                    </span>
-                  <% end %>
-                </div>
-                <%= if reply_child_count > 0 do %>
-                  <div class="flex items-center gap-1">
-                    <.icon name="hero-chat-bubble-left" class="w-4 h-4" />
-                    <span
-                      id={"#{reply_view.card_dom_id}-readonly-reply-count"}
-                      phx-hook="AnimatedCount"
-                      phx-update="ignore"
-                      data-count={reply_child_count}
-                    >
-                      {reply_child_count}
-                    </span>
-                  </div>
-                <% end %>
-              </div>
-            <% end %>
+            <div class="relative z-20 pointer-events-auto">
+              <.post_actions
+                post_id={reply_local_message_id || reply_view.action_post_id}
+                value_name={if(reply_local_message_id, do: "message_id", else: "post_id")}
+                current_user={@current_user}
+                is_liked={is_reply_liked}
+                is_boosted={is_reply_boosted}
+                like_count={reply_like_count}
+                boost_count={reply_boost_count}
+                comment_count={reply_child_count}
+                on_comment="toggle_comment_reply"
+                comment_value_name="comment_id"
+                comment_post_id={reply_view.activitypub_id}
+                comment_active={reply_view.replying?}
+                show_quote={false}
+                show_react={false}
+                show_save={false}
+                dom_id_prefix={reply_view.card_dom_id}
+                size={:xs}
+              />
+            </div>
 
             <%= if reply_reaction.target_id do %>
               <div class="relative z-20 pointer-events-auto mt-2">
