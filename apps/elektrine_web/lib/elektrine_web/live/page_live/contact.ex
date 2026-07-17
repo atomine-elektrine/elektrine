@@ -5,8 +5,15 @@ defmodule ElektrineWeb.PageLive.Contact do
 
   on_mount {ElektrineWeb.Live.AuthHooks, :maybe_authenticated_user}
 
+  @channels [
+    %{label: "General", local: "welcome", icon: "hero-envelope"},
+    %{label: "Support", local: "support", icon: "hero-lifebuoy"},
+    %{label: "Security", local: "security", icon: "hero-shield-check"},
+    %{label: "Privacy", local: "privacy", icon: "hero-lock-closed"}
+  ]
+
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, page_title: "Contact")}
+    {:ok, assign(socket, page_title: "Contact", channels: @channels)}
   end
 
   def render(assigns) do
@@ -15,49 +22,28 @@ defmodule ElektrineWeb.PageLive.Contact do
       <div class="mx-auto max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
         <.e_nav active_tab="" class="mb-6" current_user={@current_user} />
 
-        <.card id="contact-card">
-          <:body>
-            <h1 class="card-title text-3xl mb-6">Contact</h1>
+        <div>
+          <header class="mb-8">
+            <h1 class="text-3xl font-semibold tracking-tight">Contact</h1>
+          </header>
 
-            <div class="space-y-4">
-              <.card>
-                <:body>
-                  <h3 class="font-semibold">General</h3>
-                  <a href={EmailAddresses.mailto("welcome")} class="link link-primary">
-                    {EmailAddresses.local("welcome")}
-                  </a>
-                </:body>
-              </.card>
+          <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <a
+              :for={channel <- @channels}
+              href={EmailAddresses.mailto(channel.local)}
+              class="group rounded-box border border-base-content/10 bg-base-200/20 p-5 transition-colors hover:border-base-content/20 hover:bg-base-200/40"
+            >
+              <div class="flex items-center gap-2">
+                <.icon name={channel.icon} class="h-4 w-4 text-base-content/60" />
+                <span class="text-sm font-semibold">{channel.label}</span>
+              </div>
 
-              <.card>
-                <:body>
-                  <h3 class="font-semibold">Support</h3>
-                  <a href={EmailAddresses.mailto("support")} class="link link-primary">
-                    {EmailAddresses.local("support")}
-                  </a>
-                </:body>
-              </.card>
-
-              <.card>
-                <:body>
-                  <h3 class="font-semibold">Security</h3>
-                  <a href={EmailAddresses.mailto("security")} class="link link-primary">
-                    {EmailAddresses.local("security")}
-                  </a>
-                </:body>
-              </.card>
-
-              <.card>
-                <:body>
-                  <h3 class="font-semibold">Privacy</h3>
-                  <a href={EmailAddresses.mailto("privacy")} class="link link-primary">
-                    {EmailAddresses.local("privacy")}
-                  </a>
-                </:body>
-              </.card>
-            </div>
-          </:body>
-        </.card>
+              <p class="mt-3 break-all text-sm font-medium text-primary group-hover:underline">
+                {EmailAddresses.local(channel.local)}
+              </p>
+            </a>
+          </div>
+        </div>
       </div>
     </div>
     """

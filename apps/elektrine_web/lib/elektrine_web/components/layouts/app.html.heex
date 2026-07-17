@@ -243,9 +243,10 @@
         </ul>
       </div>
 
-      <button
+      <.button
         type="button"
-        class="btn btn-ghost btn-circle flex-shrink-0"
+        variant="ghost"
+        class="btn-circle flex-shrink-0"
         data-theme-toggle
         aria-label="Use dark theme"
         title="Use dark theme"
@@ -256,7 +257,7 @@
         <span data-theme-show="dark" aria-hidden="true">
           <.icon name="hero-sun" class="h-5 w-5" />
         </span>
-      </button>
+      </.button>
 
       <%= if @current_user do %>
         <!-- Notification Bell -->
@@ -539,8 +540,8 @@
   {@inner_content}
 </main>
 
-<footer class="relative min-h-[360px] flex items-center overflow-x-clip">
-  <div class="pointer-events-none absolute inset-0 overflow-hidden hidden sm:block">
+<footer class="relative mt-16 border-t border-base-300 bg-base-200/30 overflow-x-clip sm:mt-24">
+  <div class="pointer-events-none absolute inset-0 overflow-hidden hidden lg:block">
     <div class="absolute right-8 top-1/2 -translate-y-1/2 rotate-[-14deg]">
       <div class="footer-brandmark">
         <.link
@@ -559,133 +560,21 @@
     </div>
   </div>
 
-  <div class="relative z-10 mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
-    <!-- Main Footer Content -->
-    <div class="grid grid-cols-2 gap-6 mb-6 text-center md:grid-cols-5 md:gap-8 md:mb-8 md:text-left">
-      <!-- Company -->
-      <div>
-        <h3 class="font-semibold mb-3 text-sm">Company</h3>
+  <div class="relative z-10 mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-12 lg:px-8">
+    <div class="grid grid-cols-2 gap-x-6 gap-y-10 md:grid-cols-4 lg:grid-cols-6">
+      <!-- Brand -->
+      <div class="col-span-2 md:col-span-4 lg:col-span-2 space-y-4 lg:pr-10">
+        <.link navigate={~p"/"} aria-label="Go to homepage" class="inline-flex items-center">
+          <.elektrine_logo class="h-6 w-auto text-base-content" />
+          <span class="sr-only">Elektrine</span>
+        </.link>
 
-        <ul class="space-y-2 text-xs">
-          <li>
-            <.link href={~p"/about"} class="link link-hover opacity-70 hover:opacity-100">
-              About
-            </.link>
-          </li>
-
-          <li>
-            <.link href={~p"/contact"} class="link link-hover opacity-70 hover:opacity-100">
-              Contact
-            </.link>
-          </li>
-
-          <li>
-            <.link href={~p"/faq"} class="link link-hover opacity-70 hover:opacity-100">
-              FAQ
-            </.link>
-          </li>
-        </ul>
-      </div>
-      <!-- Legal -->
-      <div>
-        <h3 class="font-semibold mb-3 text-sm">Legal</h3>
-
-        <ul class="space-y-2 text-xs">
-          <li>
-            <.link href={~p"/terms"} class="link link-hover opacity-70 hover:opacity-100">
-              Terms of Service
-            </.link>
-          </li>
-
-          <li>
-            <.link href={~p"/privacy"} class="link link-hover opacity-70 hover:opacity-100">
-              Privacy Policy
-            </.link>
-          </li>
-
-          <li>
-            <.link href={~p"/canary"} class="link link-hover opacity-70 hover:opacity-100">
-              Warrant Canary
-            </.link>
-          </li>
-
-          <li>
-            <.link
-              href={Elektrine.Paths.vpn_policy_path()}
-              class="link link-hover opacity-70 hover:opacity-100"
-            >
-              VPN Policy
-            </.link>
-          </li>
-        </ul>
-      </div>
-      <!-- Email Settings -->
-      <div class="col-span-2 md:col-span-1">
-        <h3 class="font-semibold mb-3 text-sm">Email Settings</h3>
-
-        <div class="text-xs opacity-70 space-y-1">
-          <p>
-            <span class="font-semibold">IMAP:</span>
-            <span class="font-mono">
-              {Elektrine.MailClientSettings.host(:imap)}:{Elektrine.MailClientSettings.imap().port}
-            </span>
-          </p>
-
-          <p>
-            <span class="font-semibold">POP3:</span>
-            <span class="font-mono">
-              {Elektrine.MailClientSettings.host(:pop3)}:{Elektrine.MailClientSettings.pop3().port}
-            </span>
-          </p>
-
-          <p>
-            <span class="font-semibold">SMTP:</span>
-            <span class="font-mono">
-              {Elektrine.MailClientSettings.host(:smtp)}:{Elektrine.MailClientSettings.smtp().port}
-            </span>
-          </p>
-        </div>
-
-        <p class="text-xs opacity-50 mt-2">
-          IMAP/POP3 use TLS. SMTP uses {Elektrine.MailClientSettings.security_label(
-            Elektrine.MailClientSettings.smtp()
-          )}.
-        </p>
-      </div>
-      <!-- Support -->
-      <div>
-        <h3 class="font-semibold mb-3 text-sm">Support</h3>
-
-        <ul class="space-y-2 text-xs">
-          <li>
-            <a
-              href={Elektrine.EmailAddresses.mailto("support")}
-              class="link link-hover opacity-70 hover:opacity-100"
-            >
-              {Elektrine.EmailAddresses.local("support")}
-            </a>
-          </li>
-
-          <li>
-            <a
-              href={Elektrine.EmailAddresses.mailto("security")}
-              class="link link-hover opacity-70 hover:opacity-100"
-            >
-              Report Security Issue
-            </a>
-          </li>
-        </ul>
-      </div>
-      <!-- Connect -->
-      <div>
-        <h3 class="font-semibold mb-3 text-sm">Connect</h3>
-
-        <div class="flex items-center gap-3 justify-center md:justify-start">
+        <div class="flex items-center gap-3">
           <a
             href="https://github.com/atomine-elektrine/elektrine"
             target="_blank"
             rel="noopener noreferrer"
-            class="opacity-60 hover:opacity-100 hover:text-primary transition"
+            class="text-base-content/60 transition-colors hover:text-primary"
             title="GitHub"
           >
             <.brand_icon name="github" class="w-5 h-5" />
@@ -694,28 +583,225 @@
             href="https://t.me/elektrine"
             target="_blank"
             rel="noopener noreferrer"
-            class="opacity-60 hover:opacity-100 hover:text-primary transition"
+            class="text-base-content/60 transition-colors hover:text-primary"
             title="Telegram"
           >
             <.brand_icon name="telegram" class="w-5 h-5" />
           </a>
         </div>
 
-        <div class="mt-3">
-          <p class="text-xs opacity-70 mb-1">Tor Hidden Service</p>
-          <code class="text-xs opacity-60 break-all select-all">{tor_onion_host()}</code>
+        <div>
+          <p class="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-base-content/60">
+            Tor hidden service
+          </p>
+          <code class="text-xs text-base-content/50 break-all select-all">
+            {tor_onion_host()}
+          </code>
         </div>
+      </div>
+      <!-- Platform -->
+      <div>
+        <h3 class="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-base-content/60">
+          Platform
+        </h3>
+
+        <ul class="space-y-2 text-sm">
+          <li>
+            <.link
+              href="/email"
+              class="link link-hover text-base-content/70 transition-colors hover:text-base-content"
+            >
+              Email
+            </.link>
+          </li>
+
+          <li>
+            <.link
+              href="/chat"
+              class="link link-hover text-base-content/70 transition-colors hover:text-base-content"
+            >
+              Chat
+            </.link>
+          </li>
+
+          <li>
+            <.link
+              href="/timeline"
+              class="link link-hover text-base-content/70 transition-colors hover:text-base-content"
+            >
+              Timeline
+            </.link>
+          </li>
+
+          <li>
+            <.link
+              href="/communities"
+              class="link link-hover text-base-content/70 transition-colors hover:text-base-content"
+            >
+              Communities
+            </.link>
+          </li>
+
+          <li>
+            <.link
+              href="/vpn"
+              class="link link-hover text-base-content/70 transition-colors hover:text-base-content"
+            >
+              VPN
+            </.link>
+          </li>
+
+          <li>
+            <.link
+              href="/dns"
+              class="link link-hover text-base-content/70 transition-colors hover:text-base-content"
+            >
+              DNS
+            </.link>
+          </li>
+        </ul>
+      </div>
+      <!-- Company -->
+      <div>
+        <h3 class="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-base-content/60">
+          Company
+        </h3>
+
+        <ul class="space-y-2 text-sm">
+          <li>
+            <.link
+              href={~p"/about"}
+              class="link link-hover text-base-content/70 transition-colors hover:text-base-content"
+            >
+              About
+            </.link>
+          </li>
+
+          <li>
+            <.link
+              href={~p"/contact"}
+              class="link link-hover text-base-content/70 transition-colors hover:text-base-content"
+            >
+              Contact
+            </.link>
+          </li>
+
+          <li>
+            <.link
+              href={~p"/faq"}
+              class="link link-hover text-base-content/70 transition-colors hover:text-base-content"
+            >
+              FAQ
+            </.link>
+          </li>
+        </ul>
+      </div>
+      <!-- Legal -->
+      <div>
+        <h3 class="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-base-content/60">
+          Legal
+        </h3>
+
+        <ul class="space-y-2 text-sm">
+          <li>
+            <.link
+              href={~p"/terms"}
+              class="link link-hover text-base-content/70 transition-colors hover:text-base-content"
+            >
+              Terms of Service
+            </.link>
+          </li>
+
+          <li>
+            <.link
+              href={~p"/privacy"}
+              class="link link-hover text-base-content/70 transition-colors hover:text-base-content"
+            >
+              Privacy Policy
+            </.link>
+          </li>
+
+          <li>
+            <.link
+              href={~p"/canary"}
+              class="link link-hover text-base-content/70 transition-colors hover:text-base-content"
+            >
+              Warrant Canary
+            </.link>
+          </li>
+
+          <li>
+            <.link
+              href={Elektrine.Paths.vpn_policy_path()}
+              class="link link-hover text-base-content/70 transition-colors hover:text-base-content"
+            >
+              VPN Policy
+            </.link>
+          </li>
+        </ul>
+      </div>
+      <!-- Support -->
+      <div>
+        <h3 class="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-base-content/60">
+          Support
+        </h3>
+
+        <ul class="space-y-2 text-sm">
+          <li>
+            <a
+              href={Elektrine.EmailAddresses.mailto("support")}
+              class="link link-hover text-base-content/70 transition-colors hover:text-base-content"
+            >
+              {Elektrine.EmailAddresses.local("support")}
+            </a>
+          </li>
+
+          <li>
+            <a
+              href={Elektrine.EmailAddresses.mailto("security")}
+              class="link link-hover text-base-content/70 transition-colors hover:text-base-content"
+            >
+              Report Security Issue
+            </a>
+          </li>
+        </ul>
+      </div>
+    </div>
+    <!-- Mail client settings -->
+    <div class="mt-10 rounded-box border border-base-300 bg-base-100/60 px-4 py-3">
+      <div class="flex flex-wrap items-baseline gap-x-6 gap-y-1.5 text-xs">
+        <span class="font-semibold uppercase tracking-[0.16em] text-base-content/60">
+          Mail client setup
+        </span>
+
+        <span class="text-base-content/70">
+          <span class="font-semibold">IMAP</span>
+          <span class="font-mono">
+            {Elektrine.MailClientSettings.host(:imap)}:{Elektrine.MailClientSettings.imap().port}
+          </span>
+        </span>
+
+        <span class="text-base-content/70">
+          <span class="font-semibold">POP3</span>
+          <span class="font-mono">
+            {Elektrine.MailClientSettings.host(:pop3)}:{Elektrine.MailClientSettings.pop3().port}
+          </span>
+        </span>
+
+        <span class="text-base-content/70">
+          <span class="font-semibold">SMTP</span>
+          <span class="font-mono">
+            {Elektrine.MailClientSettings.host(:smtp)}:{Elektrine.MailClientSettings.smtp().port}
+          </span>
+        </span>
       </div>
     </div>
     <!-- Bottom Bar -->
-    <div class="border-t border-base-300 pt-3 sm:pt-4">
-      <div class="flex flex-wrap justify-center items-center gap-3 sm:gap-4 text-xs opacity-60">
-        <span>© 2026 Elektrine. All rights reserved.</span>
-        <span class="hidden sm:inline">•</span>
-        <span data-live-clock>
-          Server: {DateTime.utc_now() |> Calendar.strftime("%H:%M:%S UTC")}
-        </span>
-      </div>
+    <div class="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-base-300 pt-4 text-xs text-base-content/60">
+      <span>© 2026 Elektrine. All rights reserved.</span>
+      <span data-live-clock>
+        Server: {DateTime.utc_now() |> Calendar.strftime("%H:%M:%S UTC")}
+      </span>
     </div>
   </div>
 </footer>

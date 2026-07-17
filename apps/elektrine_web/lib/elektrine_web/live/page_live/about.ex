@@ -5,8 +5,47 @@ defmodule ElektrineWeb.PageLive.About do
 
   on_mount {ElektrineWeb.Live.AuthHooks, :maybe_authenticated_user}
 
+  @sections [
+    %{
+      title: "What it is",
+      paras: [
+        "Elektrine is a personal internet space for the parts of online life you want to keep close.",
+        "Depending on the account, it can include communication, identity, search, storage, and personal tools."
+      ]
+    },
+    %{
+      title: "The vision",
+      paras: [
+        "Elektrine is designed to feel like one connected place instead of a pile of separate accounts and apps.",
+        "The goal is a calmer, more portable home for messages, identity, connections, and everyday tools."
+      ]
+    },
+    %{
+      title: "Who is behind the project",
+      paras: [
+        "Elektrine is built and run by one person.",
+        "Based in Detroit, Michigan."
+      ]
+    },
+    %{
+      title: "How it works",
+      paras: [
+        "Not every Elektrine account exposes the same features. Access can vary by local policy, trust, and configuration.",
+        "Built with Elixir and Phoenix."
+      ]
+    },
+    %{
+      title: "Federation",
+      paras: [
+        "Social federation is built around ActivityPub.",
+        "Chat federation uses Arblarg, a server-to-server protocol between domains.",
+        "Optional Bluesky integration can connect public social posting to ATProto services."
+      ]
+    }
+  ]
+
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, page_title: "About")}
+    {:ok, assign(socket, page_title: "About", sections: @sections)}
   end
 
   def render(assigns) do
@@ -15,87 +54,62 @@ defmodule ElektrineWeb.PageLive.About do
       <div class="mx-auto max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
         <.e_nav active_tab="" class="mb-6" current_user={@current_user} />
 
-        <.card id="about-card">
-          <:body>
-            <h1 class="card-title text-3xl mb-6">About Elektrine</h1>
+        <div>
+          <header class="mb-8">
+            <h1 class="text-3xl font-semibold tracking-tight">About Elektrine</h1>
+          </header>
 
-            <div class="prose prose-lg max-w-none">
-              <section class="mb-8">
-                <h2 class="text-2xl font-semibold mb-4">What it is</h2>
-                <p class="mb-4">
-                  Elektrine is a personal internet space for the parts of online life you want to keep close.
-                </p>
-                <p>
-                  Depending on the account, it can include communication, identity, search, storage, and personal tools.
+          <.card id="about-card" class="panel-card" body_class="p-0">
+            <:body>
+              <section
+                :for={section <- @sections}
+                class="border-b border-base-content/10 px-5 py-6 last:border-b-0 sm:px-7"
+              >
+                <h2 class="text-base font-semibold">{section.title}</h2>
+
+                <p
+                  :for={para <- section.paras}
+                  class="mt-3 text-sm leading-relaxed text-base-content/70"
+                >
+                  {para}
                 </p>
               </section>
 
-              <section class="mb-8">
-                <h2 class="text-2xl font-semibold mb-4">The vision</h2>
-                <p class="mb-4">
-                  Elektrine is designed to feel like one connected place instead of a pile of separate accounts and apps.
-                </p>
-                <p>
-                  The goal is a calmer, more portable home for messages, identity, connections, and everyday tools.
-                </p>
-              </section>
+              <section class="px-5 py-6 sm:px-7">
+                <h2 class="text-base font-semibold">Contact</h2>
 
-              <section class="mb-8">
-                <h2 class="text-2xl font-semibold mb-4">Who is behind the project</h2>
-                <p class="mb-4">
-                  Elektrine is built and run by one person.
-                </p>
-                <p>Based in Detroit, Michigan.</p>
-              </section>
+                <dl class="mt-4 space-y-2 text-sm">
+                  <div class="flex gap-3">
+                    <dt class="w-16 shrink-0 text-base-content/50">General</dt>
+                    <dd>
+                      <a href={EmailAddresses.mailto("welcome")} class="link link-hover text-primary">
+                        {EmailAddresses.local("welcome")}
+                      </a>
+                    </dd>
+                  </div>
 
-              <section class="mb-8">
-                <h2 class="text-2xl font-semibold mb-4">How it works</h2>
-                <p class="mb-4">
-                  Not every Elektrine account exposes the same features. Access can vary by local policy, trust, and configuration.
-                </p>
-                <p>Built with Elixir and Phoenix.</p>
-              </section>
+                  <div class="flex gap-3">
+                    <dt class="w-16 shrink-0 text-base-content/50">Support</dt>
+                    <dd>
+                      <a href={EmailAddresses.mailto("support")} class="link link-hover text-primary">
+                        {EmailAddresses.local("support")}
+                      </a>
+                    </dd>
+                  </div>
 
-              <section class="mb-8">
-                <h2 class="text-2xl font-semibold mb-4">Federation</h2>
-                <p class="mb-4">
-                  Social federation is built around ActivityPub.
-                </p>
-                <p class="mb-4">
-                  Chat federation uses Arblarg, a server-to-server protocol between domains.
-                </p>
-                <p>
-                  Optional Bluesky integration can connect public social posting to ATProto services.
-                </p>
+                  <div class="flex gap-3">
+                    <dt class="w-16 shrink-0 text-base-content/50">Security</dt>
+                    <dd>
+                      <a href={EmailAddresses.mailto("security")} class="link link-hover text-primary">
+                        {EmailAddresses.local("security")}
+                      </a>
+                    </dd>
+                  </div>
+                </dl>
               </section>
-
-              <section>
-                <h2 class="text-2xl font-semibold mb-4">Contact</h2>
-                <p>For questions, support, or security issues:</p>
-                <div class="mt-4 space-y-2">
-                  <p>
-                    General:
-                    <a href={EmailAddresses.mailto("welcome")} class="link link-primary">
-                      {EmailAddresses.local("welcome")}
-                    </a>
-                  </p>
-                  <p>
-                    Support:
-                    <a href={EmailAddresses.mailto("support")} class="link link-primary">
-                      {EmailAddresses.local("support")}
-                    </a>
-                  </p>
-                  <p>
-                    Security:
-                    <a href={EmailAddresses.mailto("security")} class="link link-primary">
-                      {EmailAddresses.local("security")}
-                    </a>
-                  </p>
-                </div>
-              </section>
-            </div>
-          </:body>
-        </.card>
+            </:body>
+          </.card>
+        </div>
       </div>
     </div>
     """
