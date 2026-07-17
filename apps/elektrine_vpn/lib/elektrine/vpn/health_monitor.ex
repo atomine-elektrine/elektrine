@@ -46,7 +46,22 @@ defmodule Elektrine.VPN.HealthMonitor do
     schedule_health_check()
 
     Logger.info("Startup: vpn health monitor ready")
-    {:ok, %{heartbeats: %{}}}
+    {:ok, %{heartbeats: seed_heartbeats()}}
+  end
+
+  # Seed every currently-active server with an initial heartbeat timestamp so a
+  # node that dies right after a control-plane restart still gets drained once
+  # the timeout elapses. Without this, the heartbeats map starts empty and a
+  # dead node that never checks in again would stay "active" forever.
+  defp seed_heartbeats do
+    now = DateTime.utc_now()
+
+    VPN.list_active_servers()
+    |> Map.new(fn server -> {server.id, now} end)
+  rescue
+    # The repo may not be ready in some boot orders/tests; start empty and let
+    # live heartbeats populate the map.
+    _ -> %{}
   end
 
   @impl true

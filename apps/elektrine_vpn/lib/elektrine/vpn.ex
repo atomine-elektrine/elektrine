@@ -250,7 +250,7 @@ defmodule Elektrine.VPN do
       |> Map.put_new(:endpoint_port, default_endpoint_port(protocol))
       |> maybe_put_default_client_mtu(protocol)
       |> Map.put_new(:dns_servers, "1.1.1.1, 1.0.0.1")
-      |> Map.put_new(:internal_ip_range, default_internal_ip_range(protocol))
+      |> Map.put_new_lazy(:internal_ip_range, fn -> allocate_internal_ip_range(protocol) end)
       |> ensure_default_shadowsocks_metadata(protocol)
 
     case create_server(attrs) do
@@ -823,6 +823,113 @@ defmodule Elektrine.VPN do
 
   defp default_internal_ip_range("shadowsocks"), do: "0.0.0.0/32"
   defp default_internal_ip_range(_protocol), do: "10.8.0.0/24"
+
+  @doc """
+  Picks a per-node WireGuard tunnel range (`/24`) that no other server is using.
+
+  Every WireGuard node needs its own internal range so client IPs don't collide
+  across the fleet. Ranges are carved out of the supernet from
+  `VPN_WG_SUPERNET` (default `10.8.0.0/16`, i.e. up to 256 nodes) and the first
+  `/24` not already claimed by an existing server is returned. Falls back to the
+  static default when the supernet is exhausted or malformed so registration
+  still succeeds (an operator can then widen the supernet).
+
+  Shadowsocks nodes route per-port rather than per-tunnel, so they keep the
+  sentinel `0.0.0.0/32`.
+  """
+  def allocate_internal_ip_range(protocol \\ "wireguard")
+
+  def allocate_internal_ip_range("shadowsocks"), do: default_internal_ip_range("shadowsocks")
+
+  def allocate_internal_ip_range(_protocol) do
+    used =
+      from(s in Server,
+        where: s.protocol == "wireguard" and not is_nil(s.internal_ip_range),
+        select: s.internal_ip_range
+      )
+      |> Repo.all()
+      |> Enum.map(&range_network_integer/1)
+      |> Enum.reject(&is_nil/1)
+      |> MapSet.new()
+
+    case next_free_slash24(wg_supernet(), used) do
+      nil -> default_internal_ip_range("wireguard")
+      range -> range
+    end
+  end
+
+  defp wg_supernet do
+    System.get_env("VPN_WG_SUPERNET") || "10.8.0.0/16"
+  end
+
+  # Walks the supernet in /24 steps and returns the first block whose network
+  # address isn't already claimed. Returns nil if the supernet is unparseable or
+  # every block is taken.
+  defp next_free_slash24(supernet, used) do
+    with {:ok, {base_int, prefix}} <- parse_cidr(supernet),
+         true <- prefix <= 24 do
+      block_count = Integer.pow(2, 24 - prefix)
+      supernet_base = Bitwise.band(base_int, mask_for_prefix(prefix))
+
+      Enum.find_value(0..(block_count - 1), fn block ->
+        network = supernet_base + block * 256
+        if MapSet.member?(used, network), do: false, else: integer_to_ip(network) <> "/24"
+      end)
+    else
+      _ -> nil
+    end
+  end
+
+  # Normalizes a stored range like "10.8.3.0/24" to the integer of its /24
+  # network address so overlap checks compare apples to apples.
+  defp range_network_integer(range) when is_binary(range) do
+    case parse_cidr(range) do
+      {:ok, {ip_int, _prefix}} -> Bitwise.band(ip_int, mask_for_prefix(24))
+      :error -> nil
+    end
+  end
+
+  defp range_network_integer(_range), do: nil
+
+  defp parse_cidr(value) when is_binary(value) do
+    with [ip, prefix] <- String.split(String.trim(value), "/", parts: 2),
+         {prefix_int, ""} when prefix_int >= 0 and prefix_int <= 32 <- Integer.parse(prefix),
+         {:ok, ip_int} <- ip_to_integer(ip) do
+      {:ok, {ip_int, prefix_int}}
+    else
+      _ -> :error
+    end
+  end
+
+  defp ip_to_integer(ip) do
+    case ip |> String.trim() |> String.split(".") do
+      [_, _, _, _] = octets ->
+        octets
+        |> Enum.reduce_while({:ok, 0}, fn octet, {:ok, acc} ->
+          case Integer.parse(octet) do
+            {n, ""} when n >= 0 and n <= 255 -> {:cont, {:ok, acc * 256 + n}}
+            _ -> {:halt, :error}
+          end
+        end)
+
+      _ ->
+        :error
+    end
+  end
+
+  defp integer_to_ip(int) do
+    [
+      Bitwise.band(Bitwise.bsr(int, 24), 255),
+      Bitwise.band(Bitwise.bsr(int, 16), 255),
+      Bitwise.band(Bitwise.bsr(int, 8), 255),
+      Bitwise.band(int, 255)
+    ]
+    |> Enum.join(".")
+  end
+
+  defp mask_for_prefix(prefix) do
+    Bitwise.bsl(0xFFFFFFFF, 32 - prefix) |> Bitwise.band(0xFFFFFFFF)
+  end
 
   defp default_selfhost_name("shadowsocks"), do: "Shadowsocks"
   defp default_selfhost_name(_protocol), do: "WireGuard"

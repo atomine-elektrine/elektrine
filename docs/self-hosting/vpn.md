@@ -44,8 +44,24 @@ If you are not using WireGuard, remove `vpn` from `ELEKTRINE_ENABLED_MODULES`.
 
 ## Fleet Mode
 
-Use `VPN_FLEET_REGISTRATION_KEY` only when you are running a multi-server VPN
-fleet that self-registers nodes through the API.
+For a multi-server VPN fleet, set `VPN_FLEET_REGISTRATION_KEY` on the control
+plane so nodes can self-register through the API.
+
+Two ways to run fleet nodes:
+
+- **Standalone agent (recommended at scale)** — `scripts/vpn/` ships a DB-free
+  WireGuard node agent. It registers over HTTPS, then pulls peers, applies them,
+  reports stats, and heartbeats — without a database connection. See
+  `scripts/vpn/README.md`. This is the right choice for dozens to hundreds of
+  nodes, since it keeps Postgres connections and exposure off the edge.
+- **Bundled container** — run the Elektrine image with `ELEKTRINE_RUNTIME_ROLE=vpn`
+  pointed at the central database. Simplest for a few nodes and required for
+  Shadowsocks nodes (per-port `ss-server` management).
+
+Each WireGuard node is auto-assigned a distinct internal `/24` at registration,
+carved from `VPN_WG_SUPERNET` (default `10.8.0.0/16`; widen it before you
+approach ~256 nodes). Nodes that stop heartbeating for ~5 minutes are drained
+automatically (marked `offline`) so no new users are assigned to them.
 
 ## What The Docker VPN Service Does
 

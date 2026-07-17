@@ -1,0 +1,19 @@
+[Unit]
+Description=Elektrine VPN fleet agent (WireGuard)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Node identity and control-plane connection live in this env file.
+# See elektrine-vpn-agent.env.example.
+EnvironmentFile=/etc/elektrine-vpn-agent.env
+ExecStart=/usr/local/bin/elektrine-vpn-agent.sh
+Restart=always
+RestartSec=10
+# Needs NET_ADMIN to own the WireGuard interface and program NAT.
+AmbientCapabilities=CAP_NET_ADMIN
+StateDirectory=elektrine-vpn
+
+[Install]
+WantedBy=multi-user.target

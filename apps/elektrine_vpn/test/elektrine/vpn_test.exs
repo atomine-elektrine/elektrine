@@ -152,6 +152,73 @@ defmodule Elektrine.VPNTest do
       assert server.internal_ip_range == "0.0.0.0/32"
       assert server.metadata["cipher"] == "chacha20-ietf-poly1305"
     end
+
+    test "auto-allocates a distinct internal range per wireguard node" do
+      {:ok, first} =
+        VPN.auto_register_server(%{
+          name: "Node A",
+          location: "Frankfurt",
+          public_ip: "203.0.113.30",
+          public_key: "node-a-key"
+        })
+
+      {:ok, second} =
+        VPN.auto_register_server(%{
+          name: "Node B",
+          location: "Frankfurt",
+          public_ip: "203.0.113.31",
+          public_key: "node-b-key"
+        })
+
+      {:ok, third} =
+        VPN.auto_register_server(%{
+          name: "Node C",
+          location: "Frankfurt",
+          public_ip: "203.0.113.32",
+          public_key: "node-c-key"
+        })
+
+      ranges = [first.internal_ip_range, second.internal_ip_range, third.internal_ip_range]
+
+      assert first.internal_ip_range == "10.8.0.0/24"
+      assert Enum.all?(ranges, &String.ends_with?(&1, "/24"))
+      assert length(Enum.uniq(ranges)) == 3
+    end
+
+    test "skips ranges already claimed by an existing server" do
+      {:ok, _existing} =
+        VPN.create_server(%{
+          name: "Manual Node",
+          location: "Oslo",
+          public_ip: "203.0.113.40",
+          public_key: "manual-key",
+          internal_ip_range: "10.8.0.0/24"
+        })
+
+      {:ok, auto} =
+        VPN.auto_register_server(%{
+          name: "Auto Node",
+          location: "Oslo",
+          public_ip: "203.0.113.41",
+          public_key: "auto-key"
+        })
+
+      refute auto.internal_ip_range == "10.8.0.0/24"
+      assert auto.internal_ip_range == "10.8.1.0/24"
+    end
+
+    test "honors an explicit internal range when provided" do
+      {:ok, server} =
+        VPN.auto_register_server(%{
+          name: "Pinned Node",
+          location: "Tokyo",
+          public_ip: "203.0.113.42",
+          public_key: "pinned-key",
+          internal_ip_range: "10.20.5.0/24"
+        })
+
+      assert server.internal_ip_range == "10.20.5.0/24"
+    end
   end
 
   describe "server API keys" do
