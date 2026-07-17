@@ -1604,7 +1604,26 @@ Subject: #{message.subject}#{attachment_info}
   defp markdown_to_html(markdown) do
     markdown
     |> MDEx.to_html!(render: [hardbreaks: true])
+    |> style_block_elements()
     |> Elektrine.Email.Sanitizer.sanitize_html_content()
+  end
+
+  # MDEx emits bare block tags (<p>, <ul>, ...). Bare tags rely on the viewing
+  # client's default margins, but many mail clients (Outlook especially) zero
+  # them via a CSS reset, which squashes every paragraph into one block. Emit
+  # explicit inline margins so paragraph spacing survives regardless of the
+  # recipient's client. Inline styles are used because clients frequently strip
+  # <style> blocks.
+  defp style_block_elements(html) do
+    html
+    |> String.replace("<p>", ~s(<p style="margin:0 0 1em 0;">))
+    |> String.replace("<ul>", ~s(<ul style="margin:0 0 1em 0;padding-left:1.5em;">))
+    |> String.replace("<ol>", ~s(<ol style="margin:0 0 1em 0;padding-left:1.5em;">))
+    |> String.replace(
+      "<blockquote>",
+      ~s(<blockquote style="margin:0 0 1em 0;padding-left:1em;border-left:3px solid #ccc;">)
+    )
+    |> String.replace("<pre>", ~s(<pre style="margin:0 0 1em 0;">))
   end
 
   defp html_body_for_format(_body, "plaintext"), do: nil
