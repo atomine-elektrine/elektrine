@@ -35,6 +35,29 @@ limit.
 
 ## Per-node install
 
+### Hands-off (cloud-init, any provider)
+
+Generate a self-contained `#cloud-config` blob and hand it to the provider as the
+node's user-data. The agent, systemd unit, and your env are inlined, so the node
+installs and starts the agent on first boot with no SSH.
+
+```sh
+cp elektrine-vpn-agent.env.example node.env
+# edit node.env: CONTROL_PLANE_URL, VPN_FLEET_REGISTRATION_KEY, NODE_*
+./gen-cloud-init.sh --env node.env > user-data.yaml
+```
+
+Paste `user-data.yaml` into the provider's user-data / cloud-init field, or wire
+it into Terraform as `user_data = file("user-data.yaml")`. Works with Hetzner,
+DigitalOcean, Vultr, AWS, and anything else that accepts cloud-init.
+
+The agent is inlined at generation time, so `elektrine-vpn-agent.sh` stays the
+single source of truth — edit it and regenerate. Note: user-data is readable via
+most providers' metadata API, so treat the fleet key it carries as exposed to the
+node; rotate it periodically.
+
+### Manual
+
 ```sh
 install -m 0755 elektrine-vpn-agent.sh /usr/local/bin/elektrine-vpn-agent.sh
 install -m 0600 elektrine-vpn-agent.env.example /etc/elektrine-vpn-agent.env
