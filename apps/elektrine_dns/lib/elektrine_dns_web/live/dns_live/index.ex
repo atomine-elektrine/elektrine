@@ -837,6 +837,23 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                                       proxied
                                     </span>
                                   <% end %>
+                                  <%= if Record.health_check?(record) do %>
+                                    <%= if record_target_healthy?(record) do %>
+                                      <span
+                                        class="badge badge-success badge-outline badge-xs"
+                                        title="Health-checked failover: target is up"
+                                      >
+                                        healthy
+                                      </span>
+                                    <% else %>
+                                      <span
+                                        class="badge badge-error badge-outline badge-xs"
+                                        title="Health-checked failover: target is down and withheld from answers"
+                                      >
+                                        down
+                                      </span>
+                                    <% end %>
+                                  <% end %>
                                 </div>
                               </td>
                               <td class="font-mono text-xs sm:text-sm">{record.type}</td>
@@ -1488,6 +1505,28 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
           Return Elektrine edge addresses publicly and keep this record value as the protected origin.
         </p>
       </div>
+
+      <%= if record_form_type(@record_form) in ["A", "AAAA"] do %>
+        <div class="space-y-2 rounded-xl border border-base-content/10 bg-base-100/50 p-3">
+          <.input
+            field={@record_form[:health_check_enabled]}
+            type="checkbox"
+            label="Health-checked failover"
+          />
+          <p class="text-xs text-base-content/55">
+            TCP-check this address on an interval and drop it from DNS answers while it is
+            down. If every checked address for a name is down, all are still answered.
+          </p>
+          <%= if health_check_enabled?(@record_form) do %>
+            <.input
+              field={@record_form[:health_check_port]}
+              type="number"
+              label="Health check port"
+              placeholder="443"
+            />
+          <% end %>
+        </div>
+      <% end %>
 
       <%= for spec <- record_param_specs(@record_form) do %>
         <div class="space-y-1">
@@ -2430,6 +2469,15 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
       nil -> "A"
       value -> value |> to_string() |> String.upcase()
     end
+  end
+
+  defp health_check_enabled?(form) do
+    Phoenix.HTML.Form.input_value(form, :health_check_enabled) in [true, "true"]
+  end
+
+  defp record_target_healthy?(record) do
+    port = Record.health_check_port(record) || Elektrine.DNS.HealthMonitor.default_port()
+    Elektrine.DNS.HealthMonitor.healthy?(record.content, port)
   end
 
   defp record_rdata(%{type: "MX", priority: priority, content: content}),

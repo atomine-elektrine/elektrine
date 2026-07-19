@@ -453,6 +453,8 @@ defmodule Elektrine.DNS do
     |> Map.put(:proxy_origin_port, Record.proxy_origin_port(record))
     |> Map.put(:proxy_origin_host_header, Record.proxy_origin_host_header(record))
     |> Map.put(:proxy_atomine_gate, Record.proxy_atomine_gate?(record))
+    |> Map.put(:health_check_enabled, Record.health_check?(record))
+    |> Map.put(:health_check_port, Record.health_check_port(record))
     |> Record.changeset(attrs)
   end
 

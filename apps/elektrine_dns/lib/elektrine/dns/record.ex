@@ -30,6 +30,8 @@ defmodule Elektrine.DNS.Record do
     field :proxy_origin_port, :integer, virtual: true
     field :proxy_origin_host_header, :string, virtual: true
     field :proxy_atomine_gate, :boolean, virtual: true, default: true
+    field :health_check_enabled, :boolean, virtual: true, default: false
+    field :health_check_port, :integer, virtual: true
     field :priority, :integer
     field :weight, :integer
     field :port, :integer
@@ -67,6 +69,8 @@ defmodule Elektrine.DNS.Record do
       :proxy_origin_port,
       :proxy_origin_host_header,
       :proxy_atomine_gate,
+      :health_check_enabled,
+      :health_check_port,
       :priority,
       :weight,
       :port,
@@ -88,10 +92,12 @@ defmodule Elektrine.DNS.Record do
     |> update_change(:content, &normalize_content/1)
     |> put_private_metadata()
     |> put_proxy_metadata()
+    |> put_health_check_metadata()
     |> validate_required([:name, :type, :ttl, :content, :zone_id])
     |> validate_inclusion(:type, @types)
     |> validate_inclusion(:source, ["user", "system"])
     |> validate_number(:ttl, greater_than: 0, less_than_or_equal_to: 86_400)
+    |> validate_number(:health_check_port, greater_than: 0, less_than: 65_536)
     |> validate_record_name()
     |> validate_cname_constraints()
     |> normalize_type_specific_content()
@@ -105,6 +111,54 @@ defmodule Elektrine.DNS.Record do
     |> unique_constraint(:name, name: :dns_records_identity_unique)
     |> unique_constraint(:managed_key, name: :dns_records_zone_managed_key_unique)
   end
+
+  def health_check?(%__MODULE__{metadata: %{} = metadata}) do
+    get_in(metadata, ["health_check", "enabled"]) in [true, "true"]
+  end
+
+  def health_check?(_), do: false
+
+  def health_check_port(%__MODULE__{metadata: %{} = metadata}) do
+    case get_in(metadata, ["health_check", "port"]) do
+      port when is_integer(port) and port in 1..65_535 -> port
+      _ -> nil
+    end
+  end
+
+  def health_check_port(_), do: nil
+
+  defp put_health_check_metadata(changeset) do
+    if health_check_param_present?(changeset) do
+      metadata = get_field(changeset, :metadata) || %{}
+
+      metadata =
+        if get_field(changeset, :health_check_enabled) and
+             get_field(changeset, :type) in ["A", "AAAA"] do
+          Map.put(metadata, "health_check", %{
+            "enabled" => true,
+            "port" => normalize_health_check_port(get_field(changeset, :health_check_port))
+          })
+        else
+          Map.delete(metadata, "health_check")
+        end
+
+      put_change(changeset, :metadata, metadata)
+    else
+      changeset
+    end
+  end
+
+  defp health_check_param_present?(%{params: params}) when is_map(params) do
+    Enum.any?(
+      ["health_check_enabled", :health_check_enabled, "health_check_port", :health_check_port],
+      &Map.has_key?(params, &1)
+    )
+  end
+
+  defp health_check_param_present?(_changeset), do: false
+
+  defp normalize_health_check_port(port) when is_integer(port) and port in 1..65_535, do: port
+  defp normalize_health_check_port(_port), do: 443
 
   def private?(%__MODULE__{metadata: %{} = metadata}) do
     metadata["visibility"] == "private" or metadata["private"] == true
