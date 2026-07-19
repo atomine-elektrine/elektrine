@@ -8,6 +8,8 @@
 
 	auto_https disable_redirects
 
+	order rate_limit before basic_auth
+
 	servers :443 {
 		trusted_proxies static 192.0.2.0/32 {$CADDY_TRUSTED_PROXY_CIDRS:}
 		trusted_proxies_strict
@@ -28,6 +30,23 @@
 	}
 	respond @admin_off_vpn "Not Found" 404
 }
+# Per-IP edge rate limit (mholt/caddy-ratelimit, built into deploy/caddy).
+# Federation inboxes and well-known discovery are exempt so bursts of
+# legitimate ActivityPub deliveries are never shed. Responds 429 with
+# Retry-After when the limit is hit.
+(edge_rate_limit) {
+	rate_limit {
+		zone per_ip {
+			match {
+				not path /inbox /users/*/inbox /c/*/inbox /relay/inbox /.well-known/*
+			}
+			key {client_ip}
+			events {$CADDY_RATE_LIMIT_EVENTS:600}
+			window {$CADDY_RATE_LIMIT_WINDOW:60s}
+		}
+	}
+}
+
 
 # elektrine:media:start
 {$CADDY_MEDIA_HOST:media.elektrine.com} {
@@ -50,6 +69,7 @@
 	tls {$CADDY_MANAGED_SITE_1_CERT_PATH} {$CADDY_MANAGED_SITE_1_KEY_PATH}
 	header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
 	import admin_netbird_gate
+	import edge_rate_limit
 	respond /_edge/* "Not Found" 404
 
 	reverse_proxy {$ORIGIN_UPSTREAM:app:8080} {
@@ -65,6 +85,7 @@
 	tls {$CADDY_MANAGED_SITE_2_CERT_PATH} {$CADDY_MANAGED_SITE_2_KEY_PATH}
 	header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
 	import admin_netbird_gate
+	import edge_rate_limit
 	respond /_edge/* "Not Found" 404
 
 	reverse_proxy {$ORIGIN_UPSTREAM:app:8080} {
@@ -83,6 +104,7 @@ https:// {
 
 	header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
 	import admin_netbird_gate
+	import edge_rate_limit
 	respond /_edge/* "Not Found" 404
 
 	reverse_proxy {$ORIGIN_UPSTREAM:app:8080} {
