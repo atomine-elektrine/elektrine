@@ -572,7 +572,7 @@ populate_wildcard_cert_defaults() {
 uses_elektrine_wildcard_acme() {
   local site_values="${CADDY_MANAGED_SITE_1:-} ${CADDY_MANAGED_SITE_2:-}"
 
-    [[ " $RENDER_PROFILES " == *" caddy " ]] &&
+    [[ " $RENDER_PROFILES " == *" caddy "* ]] &&
     [[ "$site_values" == *"*."* ]] &&
     [[ "${ACME_WILDCARD_RENEWAL_ENABLED:-false}" =~ ^(1|true|TRUE|yes|YES)$ ]]
 }
