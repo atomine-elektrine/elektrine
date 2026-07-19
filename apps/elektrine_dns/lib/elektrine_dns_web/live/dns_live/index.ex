@@ -465,7 +465,12 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
   def render(assigns) do
     ~H"""
     <div class="mx-auto max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
-      <.e_nav active_tab="dns" current_user={@current_user} class="mb-6" />
+      <.e_nav
+        active_tab="dns"
+        current_user={@current_user}
+        badge_counts={@e_nav_badge_counts}
+        class="mb-6"
+      />
 
       <div class="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
         <aside class="space-y-6">

@@ -14,7 +14,11 @@ defmodule ElektrineWeb.Live.Hooks.NotificationCountHook do
     else
       case socket.assigns[:current_user] do
         nil ->
-          {:cont, assign(socket, :notification_count_hook_mounted, true)}
+          {:cont,
+           socket
+           |> assign(:notification_count, 0)
+           |> assign(:e_nav_badge_counts, nil)
+           |> assign(:notification_count_hook_mounted, true)}
 
         user ->
           # Subscribe to notification updates
@@ -124,7 +128,12 @@ defmodule ElektrineWeb.Live.Hooks.NotificationCountHook do
 
   defp refresh_e_nav_badge_counts(socket), do: socket
 
-  defp notification_payload(notification) do
+  @doc """
+  Toast payload for a `"show_notification"` push event. Public so
+  `ElektrineWeb.NavBadgeLive` (the dead-page badge island) can push the
+  same toasts.
+  """
+  def notification_payload(notification) do
     %{
       title: notification.title || "New notification",
       message: notification.body || notification.title || "You have a new notification",

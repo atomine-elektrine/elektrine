@@ -558,7 +558,10 @@ document.addEventListener('DOMContentLoaded', () => {
 // ============================================================================
 
 function shouldConnectLiveSocket() {
-  return Boolean(document.querySelector('[data-phx-main]'))
+  // data-phx-main covers full LiveView pages; data-phx-session also matches
+  // live_render islands embedded in controller-rendered pages (e.g. the
+  // navbar notification badge), which need the socket too.
+  return Boolean(document.querySelector('[data-phx-main], [data-phx-session]'))
 }
 
 if (shouldConnectLiveSocket()) {

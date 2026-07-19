@@ -576,7 +576,10 @@ defmodule ElektrineWeb.Router do
 
     # LiveView routes in their own session for consistent behavior
     live_session :auth,
-      on_mount: [{ElektrineWeb.Live.AuthHooks, :maybe_authenticated_user}] do
+      on_mount: [
+        {ElektrineWeb.Live.AuthHooks, :maybe_authenticated_user},
+        {ElektrineWeb.Live.Hooks.NotificationCountHook, :default}
+      ] do
       live("/register", AuthLive.Register, :new)
       live("/login", AuthLive.Login, :new)
       live("/password/reset", AuthLive.PasswordReset, :new)
@@ -617,7 +620,10 @@ defmodule ElektrineWeb.Router do
     pipe_through(:browser)
 
     live_session :two_factor,
-      on_mount: [{ElektrineWeb.Live.AuthHooks, :maybe_authenticated_user}] do
+      on_mount: [
+        {ElektrineWeb.Live.AuthHooks, :maybe_authenticated_user},
+        {ElektrineWeb.Live.Hooks.NotificationCountHook, :default}
+      ] do
       live("/two_factor", AuthLive.TwoFactor, :new)
     end
 

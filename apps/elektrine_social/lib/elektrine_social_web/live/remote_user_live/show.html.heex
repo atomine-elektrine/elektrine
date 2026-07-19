@@ -1,7 +1,7 @@
 <div class="social-page-wrap">
   <%= if is_nil(@remote_actor) do %>
     <!-- Loading state when actor hasn't been fetched yet -->
-    <.e_nav active_tab="timeline" current_user={@current_user} />
+    <.e_nav active_tab="timeline" current_user={@current_user} badge_counts={@e_nav_badge_counts} />
     <%= if @error do %>
       <div class="flex justify-center items-center py-20">
         <div class="text-center">
@@ -33,6 +33,7 @@
     <.e_nav
       active_tab={if @remote_actor.actor_type == "Group", do: "discussions", else: "timeline"}
       current_user={@current_user}
+      badge_counts={@e_nav_badge_counts}
     />
     
 <!-- Back Button -->

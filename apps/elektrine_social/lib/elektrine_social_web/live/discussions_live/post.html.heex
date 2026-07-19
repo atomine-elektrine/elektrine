@@ -22,7 +22,11 @@
   <% end %>
   
 <!-- Z Platform Navigation -->
-  <.e_nav active_tab="discussions" current_user={@current_user} />
+  <.e_nav
+    active_tab="discussions"
+    current_user={@current_user}
+    badge_counts={@e_nav_badge_counts}
+  />
   
 <!-- Breadcrumb Navigation -->
   <div class="breadcrumbs text-xs sm:text-sm mb-4 sm:mb-6 overflow-x-auto">

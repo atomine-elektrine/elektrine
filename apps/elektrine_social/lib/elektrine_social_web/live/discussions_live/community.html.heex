@@ -31,7 +31,11 @@
   <% end %>
   
 <!-- Z Platform Navigation -->
-  <.e_nav active_tab="discussions" current_user={@current_user} />
+  <.e_nav
+    active_tab="discussions"
+    current_user={@current_user}
+    badge_counts={@e_nav_badge_counts}
+  />
   
 <!-- Community Header -->
   <% community_rules = String.trim(@community.community_rules || "") %>

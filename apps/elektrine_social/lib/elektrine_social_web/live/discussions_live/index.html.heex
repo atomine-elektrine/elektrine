@@ -1,5 +1,9 @@
 <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-2">
-  <.e_nav active_tab="discussions" current_user={@current_user} />
+  <.e_nav
+    active_tab="discussions"
+    current_user={@current_user}
+    badge_counts={@e_nav_badge_counts}
+  />
   <% category_pills = [
     {"all", "All"},
     {"programming", "Programming"},

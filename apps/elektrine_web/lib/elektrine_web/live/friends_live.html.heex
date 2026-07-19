@@ -1,6 +1,6 @@
 <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-2">
   <!-- Z Platform Navigation -->
-  <.e_nav active_tab="friends" current_user={@current_user} /> <% roster_stats =
+  <.e_nav active_tab="friends" current_user={@current_user} badge_counts={@e_nav_badge_counts} /> <% roster_stats =
     friend_roster_stats(@friends, @user_statuses, @friend_follow_status) %> <% visible_friends =
     visible_friends(@friends, @search_query, @friend_status_filter, @friend_sort, @user_statuses) %>
   <div class="space-y-6">

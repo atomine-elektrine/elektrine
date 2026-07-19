@@ -1,6 +1,14 @@
 <div>
   <div class="mx-auto max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
-    <.e_nav active_tab="" class="mb-6" current_user={@current_user} />
+    <%= if @current_user do %>
+      {live_render(@conn, ElektrineWeb.ENavLive,
+        id: "e-nav-live",
+        session: %{"user_id" => @current_user.id, "active_tab" => "", "class" => "mb-6"},
+        container: {:div, class: "contents"}
+      )}
+    <% else %>
+      <.e_nav active_tab="" class="mb-6" current_user={@current_user} />
+    <% end %>
 
     <div>
       <header class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">

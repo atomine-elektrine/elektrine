@@ -1,5 +1,10 @@
 <div class="mx-auto max-w-7xl px-3 pb-10 sm:px-5 lg:px-8">
-  <.e_nav active_tab="uptime" current_user={@current_user} class="mb-5" />
+  <.e_nav
+    active_tab="uptime"
+    current_user={@current_user}
+    badge_counts={@e_nav_badge_counts}
+    class="mb-5"
+  />
 
   <section class="panel-card mb-6 rounded-lg border border-base-300 p-4 sm:p-5">
     <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">

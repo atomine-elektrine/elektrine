@@ -1668,6 +1668,7 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
 
     assigns = %{
       __changed__: %{},
+      e_nav_badge_counts: nil,
       z: %{},
       loading: false,
       load_error: nil,
@@ -1745,6 +1746,7 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
 
     assigns = %{
       __changed__: %{},
+      e_nav_badge_counts: nil,
       z: %{},
       loading: false,
       load_error: nil,
@@ -1831,6 +1833,7 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
 
     assigns = %{
       __changed__: %{},
+      e_nav_badge_counts: nil,
       z: %{},
       loading: false,
       load_error: nil,
@@ -1952,6 +1955,7 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
 
     assigns = %{
       __changed__: %{},
+      e_nav_badge_counts: nil,
       z: %{},
       loading: false,
       load_error: nil,
@@ -2177,6 +2181,7 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
 
     assigns = %{
       __changed__: %{},
+      e_nav_badge_counts: nil,
       z: %{},
       loading: false,
       load_error: nil,
@@ -2252,6 +2257,7 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
 
     assigns = %{
       __changed__: %{},
+      e_nav_badge_counts: nil,
       z: %{},
       loading: false,
       load_error: nil,

@@ -72,6 +72,10 @@ defmodule ElektrineWeb.CoreComponents do
   # Floating panel component
   defdelegate floating_panel(assigns), to: FloatingPanel
 
+  # Navbar notification badge fragments (shared with ElektrineWeb.NavBadgeLive)
+  defdelegate bell_badge(assigns), to: ElektrineWeb.Components.Notification.Bell
+  defdelegate menu_badge(assigns), to: ElektrineWeb.Components.Notification.Bell
+
   # Reusable page UI primitives
   defdelegate section_header(assigns), to: SectionHeader
   defdelegate pill_switcher(assigns), to: PillSwitcher

@@ -110,20 +110,14 @@
           class="indicator rounded-full h-10 w-10 p-0 inline-flex items-center justify-center flex-shrink-0"
           title="Notifications"
         >
-          <%= if assigns[:notification_count] && @notification_count > 0 do %>
-            <span class="indicator-item indicator-top indicator-end flex h-4 w-4 pointer-events-none -translate-x-0.5 translate-y-0.5">
-              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-error opacity-75">
-              </span>
-              <span class="relative inline-flex items-center justify-center rounded-full h-4 w-4 bg-error text-error-content text-[9px] font-medium">
-                {if @notification_count > 99, do: "99+", else: @notification_count}
-              </span>
-            </span>
-          <% end %>
-
-          <%= if assigns[:notification_count] && @notification_count > 0 do %>
-            <.icon name="hero-bell-alert" class="w-5 h-5" />
+          <%= if Map.has_key?(assigns, :socket) do %>
+            <.bell_badge count={@notification_count || 0} />
           <% else %>
-            <.icon name="hero-bell" class="w-5 h-5" />
+            {live_render(@conn, ElektrineWeb.NavBadgeLive,
+              id: "nav-bell-badge",
+              session: %{"user_id" => @current_user.id, "variant" => "bell"},
+              container: {:span, class: "contents"}
+            )}
           <% end %>
         </.button>
         <!-- User Avatar Dropdown -->
@@ -199,7 +193,11 @@
 <.flash_group flash={assigns[:flash] || %{}} />
 
 <div class="admin-layout">
-  <main class="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-8 min-h-[100vh] overflow-x-hidden">
+  <main
+    id="admin-notification-handler"
+    phx-hook="NotificationHandler"
+    class="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-8 min-h-[100vh] overflow-x-hidden"
+  >
     {@inner_content}
   </main>
 </div>

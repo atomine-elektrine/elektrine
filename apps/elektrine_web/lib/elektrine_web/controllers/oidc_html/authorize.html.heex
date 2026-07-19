@@ -1,5 +1,17 @@
 <div class="mx-auto w-full max-w-7xl px-4 pb-2 sm:px-6 lg:px-8">
-  <.e_nav active_tab="account" current_user={@current_user} class="mb-6 sm:mb-8" />
+  <%= if @current_user do %>
+    {live_render(@conn, ElektrineWeb.ENavLive,
+      id: "e-nav-live",
+      session: %{
+        "user_id" => @current_user.id,
+        "active_tab" => "account",
+        "class" => "mb-6 sm:mb-8"
+      },
+      container: {:div, class: "contents"}
+    )}
+  <% else %>
+    <.e_nav active_tab="account" current_user={@current_user} class="mb-6 sm:mb-8" />
+  <% end %>
   <div class="mx-auto flex max-w-3xl flex-col gap-6">
     <header class="space-y-3">
       <div class="flex items-start justify-between gap-4">

@@ -12,9 +12,11 @@ defmodule ElektrineDNSWeb.Components.Platform.ENav do
   attr :active_tab, :string, required: true
   attr :class, :string, default: "mb-6"
   attr :current_user, :any, default: nil
+  attr :badge_counts, :map, default: nil
 
   def e_nav(assigns) do
-    badge_counts = PlatformENav.notification_badge_counts(assigns.current_user)
+    badge_counts =
+      assigns.badge_counts || PlatformENav.notification_badge_counts(assigns.current_user)
 
     assigns =
       assigns
