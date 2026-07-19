@@ -1,37 +1,45 @@
 <div class="admin-page">
-  <div>
-    <p class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/50">
-      User Admin
-    </p>
-
-    <h1 class="mt-2 text-2xl font-bold">Create User</h1>
-
-    <p class="mt-2 text-sm text-base-content/70 sm:text-base">
-      Create a new account manually and set its initial privileges before the user signs in.
-    </p>
-  </div>
-
-  <.card>
+  <.card class="panel-card mx-auto w-full max-w-2xl" body_class="p-0">
     <:body>
-      <.simple_form :let={f} for={@changeset} action={~p"/pripyat/users"}>
-        <.error :if={@changeset.action}>
-          Oops, something went wrong! Please check the errors below.
-        </.error>
-        <.input field={f[:username]} type="text" label="Username" required />
-        <.input field={f[:password]} type="password" label="Password" required />
-        <.input
-          field={f[:password_confirmation]}
-          type="password"
-          label="Confirm Password"
-          required
-        />
-        <div>
-          <label class="label">
-            <span>Initial Trust Level</span>
-            <span class="opacity-50">Access and reputation tier</span>
-          </label>
-          <div class="select select-bordered w-full">
-            <select name="user[trust_level]">
+      <div class="border-b border-base-content/10 px-5 py-6 sm:px-8 sm:py-8">
+        <div class="flex items-start gap-4">
+          <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <.icon name="hero-user-plus" class="h-5 w-5" />
+          </div>
+
+          <div>
+            <div class="text-2xs font-semibold uppercase tracking-[0.32em] text-primary/80">
+              User Admin
+            </div>
+
+            <h1 class="mt-2 text-2xl font-semibold tracking-tight">Create User</h1>
+
+            <p class="mt-3 text-sm leading-6 text-base-content/70 sm:text-base">
+              Create a new account manually and set its initial privileges before the user signs in.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="px-5 py-6 sm:px-8">
+        <.simple_form :let={f} for={@changeset} action={~p"/pripyat/users"}>
+          <.error :if={@changeset.action}>
+            Oops, something went wrong! Please check the errors below.
+          </.error>
+          <.input field={f[:username]} type="text" label="Username" required />
+          <.input field={f[:password]} type="password" label="Password" required />
+          <.input
+            field={f[:password_confirmation]}
+            type="password"
+            label="Confirm Password"
+            required
+          />
+          <div>
+            <label class="label">
+              <span>Initial Trust Level</span>
+              <span class="opacity-50">Access and reputation tier</span>
+            </label>
+            <select name="user[trust_level]" class="select select-bordered w-full">
               <option
                 value="0"
                 selected={Phoenix.HTML.Form.input_value(f, :trust_level) in [nil, 0]}
@@ -52,41 +60,41 @@
               </option>
             </select>
           </div>
-        </div>
 
-        <div>
-          <label class="label cursor-pointer">
-            <span>Lock trust level</span>
-            <.input
-              field={f[:trust_level_locked]}
-              type="checkbox"
-              class="checkbox checkbox-warning"
-            />
-          </label>
-          <div class="label">
-            <span class="opacity-70">Prevent automatic trust-level reconciliation</span>
+          <div>
+            <label class="label cursor-pointer">
+              <span>Lock trust level</span>
+              <.input
+                field={f[:trust_level_locked]}
+                type="checkbox"
+                class="checkbox checkbox-warning"
+              />
+            </label>
+            <div class="label">
+              <span class="opacity-70">Prevent automatic trust-level reconciliation</span>
+            </div>
           </div>
-        </div>
 
-        <div>
-          <label class="label cursor-pointer">
-            <span>Admin privileges</span>
-            <.input field={f[:is_admin]} type="checkbox" class="checkbox checkbox-primary" />
-          </label>
-          <div class="label">
-            <span class="opacity-70"> Grant admin privileges to this user </span>
+          <div>
+            <label class="label cursor-pointer">
+              <span>Admin privileges</span>
+              <.input field={f[:is_admin]} type="checkbox" class="checkbox checkbox-primary" />
+            </label>
+            <div class="label">
+              <span class="opacity-70"> Grant admin privileges to this user </span>
+            </div>
           </div>
-        </div>
 
-        <div class="card-actions justify-end mt-6">
-          <.button href={~p"/pripyat/users"} variant="ghost">
-            <.icon name="hero-arrow-left" class="w-4 h-4 mr-2" /> Cancel
-          </.button>
-          <.button type="submit">
-            <.icon name="hero-plus" class="w-4 h-4 mr-2" /> Create User
-          </.button>
-        </div>
-      </.simple_form>
+          <div class="mt-6 flex items-center justify-end gap-2 border-t border-base-content/10 pt-6">
+            <.button href={~p"/pripyat/users"} variant="ghost">
+              <.icon name="hero-arrow-left" class="h-4 w-4" /> Cancel
+            </.button>
+            <.button type="submit">
+              <.icon name="hero-plus" class="h-4 w-4" /> Create User
+            </.button>
+          </div>
+        </.simple_form>
+      </div>
     </:body>
   </.card>
 </div>

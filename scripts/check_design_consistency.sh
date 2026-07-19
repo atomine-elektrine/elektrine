@@ -48,8 +48,8 @@ check_budget() {
   fi
 }
 
-check_budget "raw btn markup" 54 '[ "]btn[ "]'
-check_budget "raw card markup" 76 '[ "]card[ "]'
+check_budget "raw btn markup" 48 '[ "]btn[ "]'
+check_budget "raw card markup" 66 '[ "]card[ "]'
 check_budget "arbitrary text-[..px]" 2 'text-\[[0-9]+px\]'
 check_budget "off-convention radius" 0 '"[^"]*\brounded(-(sm|md|xl|2xl|3xl))?[ "]'
 check_budget "raw hex colors in templates" 0 '#[0-9a-fA-F]{6}\b' --glob '*.heex'

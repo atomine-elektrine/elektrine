@@ -1,129 +1,159 @@
 <div class="admin-page">
-  <div class="mb-8">
-    <h1 class="text-3xl font-bold text-error">Confirm Server Deletion</h1>
+  <.card class="panel-card" body_class="p-0">
+    <:body>
+      <div class="px-5 py-6 sm:px-8 sm:py-8">
+        <div class="text-2xs font-semibold uppercase tracking-[0.32em] text-error/80">
+          VPN Admin
+        </div>
 
-    <p class="text-base-content/70 mt-2">This action cannot be undone</p>
-  </div>
+        <h1 class="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
+          Confirm Server Deletion
+        </h1>
 
-  <div class="alert alert-error mb-6">
-    <.icon name="hero-exclamation-triangle" class="w-6 h-6" />
-    <div>
-      <h3 class="font-bold">WARNING: Destructive Action</h3>
+        <p class="mt-3 max-w-2xl text-sm leading-6 text-base-content/70 sm:text-base">
+          This action cannot be undone
+        </p>
+      </div>
+    </:body>
+  </.card>
 
-      <div class="text-sm mt-1">
-        <p>
+  <div class="rounded-box border border-error/20 bg-error/10 px-4 py-3 text-sm text-base-content/75">
+    <div class="flex items-start gap-3">
+      <.icon name="hero-exclamation-triangle" class="mt-0.5 h-5 w-5 shrink-0 text-error" />
+
+      <div>
+        <p class="font-semibold text-base-content">WARNING: Destructive Action</p>
+
+        <p class="mt-1">
           You are about to permanently delete this VPN server and ALL associated user configurations.
         </p>
       </div>
     </div>
   </div>
 
-  <div class="card panel-card border border-error">
-    <div class="card-body">
-      <h2 class="card-title text-lg">Server Details</h2>
-
-      <div class="space-y-3 my-4">
-        <div class="flex justify-between py-2 border-b border-base-300">
-          <span class="font-semibold">Server Name:</span> <span>{@server.name}</span>
+  <.card class="panel-card border border-error/30" body_class="p-0">
+    <:body>
+      <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+        <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+          Target
         </div>
 
-        <div class="flex justify-between py-2 border-b border-base-300">
-          <span class="font-semibold">Location:</span> <span>{@server.location}</span>
-        </div>
+        <h2 class="mt-1 text-xl font-semibold tracking-tight">Server Details</h2>
+      </div>
 
-        <div class="flex justify-between py-2 border-b border-base-300">
-          <span class="font-semibold">Public IP:</span>
-          <span class="font-medium">{@server.public_ip}</span>
-        </div>
+      <div class="px-5 py-5 sm:px-6">
+        <div class="space-y-3">
+          <div class="flex justify-between border-b border-base-content/10 py-2">
+            <span class="font-semibold">Server Name:</span> <span>{@server.name}</span>
+          </div>
 
-        <div class="flex justify-between py-2 border-b border-base-300">
-          <span class="font-semibold">Status:</span>
-          <%= if @server.status == "active" do %>
-            <span class="badge badge-sm badge-success">{String.upcase(@server.status)}</span>
-          <% else %>
-            <span class="badge badge-sm badge-warning">{String.upcase(@server.status)}</span>
-          <% end %>
+          <div class="flex justify-between border-b border-base-content/10 py-2">
+            <span class="font-semibold">Location:</span> <span>{@server.location}</span>
+          </div>
+
+          <div class="flex justify-between border-b border-base-content/10 py-2">
+            <span class="font-semibold">Public IP:</span>
+            <span class="font-medium">{@server.public_ip}</span>
+          </div>
+
+          <div class="flex justify-between border-b border-base-content/10 py-2">
+            <span class="font-semibold">Status:</span>
+            <%= if @server.status == "active" do %>
+              <span class="badge badge-sm badge-success">{String.upcase(@server.status)}</span>
+            <% else %>
+              <span class="badge badge-sm badge-warning">{String.upcase(@server.status)}</span>
+            <% end %>
+          </div>
         </div>
       </div>
 
-      <div class="divider"></div>
+      <div class="space-y-4 border-t border-base-content/10 px-5 py-5 sm:px-6">
+        <%= if @user_config_count > 0 do %>
+          <div class="rounded-box border border-error/20 bg-error/10 px-4 py-3 text-sm text-base-content/75">
+            <div class="flex items-start gap-3">
+              <.icon name="hero-users" class="mt-0.5 h-5 w-5 shrink-0 text-error" />
 
-      <%= if @user_config_count > 0 do %>
-        <div class="alert alert-error">
-          <.icon name="hero-users" class="w-5 h-5" />
-          <div>
-            <h3 class="font-bold">
-              {@user_config_count} User Configuration{if @user_config_count != 1,
-                do: "s",
-                else: ""} Will Be Deleted
-            </h3>
+              <div>
+                <p class="font-semibold text-base-content">
+                  {@user_config_count} User Configuration{if @user_config_count != 1,
+                    do: "s",
+                    else: ""} Will Be Deleted
+                </p>
 
-            <div class="text-sm mt-1">
-              <p>All user VPN configurations for this server will be permanently removed.</p>
+                <p class="mt-1">
+                  All user VPN configurations for this server will be permanently removed.
+                </p>
 
-              <p class="font-semibold mt-1">
-                Users will lose access to this VPN server immediately.
-              </p>
+                <p class="mt-1 font-semibold">
+                  Users will lose access to this VPN server immediately.
+                </p>
+              </div>
             </div>
           </div>
-        </div>
-      <% else %>
-        <div class="alert alert-info">
-          <.icon name="hero-users" class="w-5 h-5" />
-          <div>
-            <h3 class="font-bold">No User Configurations</h3>
+        <% else %>
+          <div class="rounded-box border border-info/20 bg-info/10 px-4 py-3 text-sm text-base-content/75">
+            <div class="flex items-start gap-3">
+              <.icon name="hero-users" class="mt-0.5 h-5 w-5 shrink-0 text-info" />
 
-            <div class="text-sm mt-1">
-              <p>This server has no user configurations and can be safely deleted.</p>
+              <div>
+                <p class="font-semibold text-base-content">No User Configurations</p>
+
+                <p class="mt-1">
+                  This server has no user configurations and can be safely deleted.
+                </p>
+              </div>
             </div>
           </div>
+        <% end %>
+
+        <%= if @user_config_count > 0 do %>
+          <div class="rounded-box border border-error/20 bg-error/10 p-4">
+            <p class="font-semibold text-error">Before you proceed:</p>
+
+            <ul class="mt-2 list-disc list-inside space-y-1 text-sm text-base-content/80">
+              <li>{@user_config_count} user(s) will lose VPN access</li>
+
+              <li>All WireGuard configurations will be deleted</li>
+
+              <li>Connection logs will be permanently removed</li>
+
+              <li>This action cannot be reversed</li>
+            </ul>
+          </div>
+        <% end %>
+
+        <div class="flex flex-wrap justify-end gap-3 pt-2">
+          <.button href={~p"/pripyat/vpn"} variant="ghost">
+            <.icon name="hero-arrow-left" class="w-5 h-5" /> Cancel
+          </.button>
+          <.form
+            for={%{}}
+            action={~p"/pripyat/vpn/servers/#{@server.id}?confirmed=true"}
+            method="delete"
+          >
+            <.button type="submit" variant="secondary">
+              <.icon name="hero-trash" class="w-5 h-5" />
+              Yes, Delete Server {if @user_config_count > 0,
+                do: "and #{@user_config_count} User Config(s)"}
+            </.button>
+          </.form>
         </div>
-      <% end %>
-
-      <%= if @user_config_count > 0 do %>
-        <div class="bg-error/10 border border-error rounded-lg p-4 mt-4">
-          <p class="font-bold text-error mb-2">Before you proceed:</p>
-
-          <ul class="list-disc list-inside text-sm space-y-1 text-base-content/80">
-            <li>{@user_config_count} user(s) will lose VPN access</li>
-
-            <li>All WireGuard configurations will be deleted</li>
-
-            <li>Connection logs will be permanently removed</li>
-
-            <li>This action cannot be reversed</li>
-          </ul>
-        </div>
-      <% end %>
-
-      <div class="flex gap-3 justify-end mt-6">
-        <a href={~p"/pripyat/vpn"} class="btn btn-ghost">
-          <.icon name="hero-arrow-left" class="w-5 h-5" /> Cancel
-        </a>
-        <.form
-          for={%{}}
-          action={~p"/pripyat/vpn/servers/#{@server.id}?confirmed=true"}
-          method="delete"
-        >
-          <button type="submit" class="btn btn-secondary">
-            <.icon name="hero-trash" class="w-5 h-5" />
-            Yes, Delete Server {if @user_config_count > 0,
-              do: "and #{@user_config_count} User Config(s)"}
-          </button>
-        </.form>
       </div>
-    </div>
-  </div>
+    </:body>
+  </.card>
 
   <%= if @user_config_count > 0 do %>
-    <div class="alert alert-warning mt-4">
-      <.icon name="hero-light-bulb" class="w-5 h-5" />
-      <div class="text-sm">
-        <p class="font-semibold">Alternative: Migrate users first</p>
+    <div class="rounded-box border border-warning/20 bg-warning/10 px-4 py-3 text-sm text-base-content/75">
+      <div class="flex items-start gap-3">
+        <.icon name="hero-light-bulb" class="mt-0.5 h-5 w-5 shrink-0 text-warning" />
 
-        <p>
-          Consider creating a replacement server and migrating users before deleting this one.
-        </p>
+        <div>
+          <p class="font-semibold text-base-content">Alternative: Migrate users first</p>
+
+          <p class="mt-1">
+            Consider creating a replacement server and migrating users before deleting this one.
+          </p>
+        </div>
       </div>
     </div>
   <% end %>

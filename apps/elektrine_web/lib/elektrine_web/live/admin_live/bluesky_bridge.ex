@@ -208,160 +208,267 @@ defmodule ElektrineWeb.AdminLive.BlueskyBridge do
   def render(assigns) do
     ~H"""
     <div class="admin-page">
-      <.section_header
-        title="Bluesky Bridge"
-        description="Monitor ATProto cross-posting, inbound sync health, and outbound mirror queue pressure."
-      >
-        <:actions>
-          <.action_toolbar>
-            <.button navigate={~p"/pripyat/messaging-federation"} variant="ghost" size="sm">
-              <.icon name="hero-chat-bubble-left-right" class="w-4 h-4" />
-              <span class="ml-1">Chat Federation</span>
-            </.button>
-            <.button navigate={~p"/pripyat/federation"} variant="ghost" size="sm">
-              <.icon name="hero-globe-alt" class="w-4 h-4" />
-              <span class="ml-1">ActivityPub Policies</span>
-            </.button>
-            <.button variant="ghost" size="sm" phx-click="refresh">
-              <.icon name="hero-arrow-path" class="w-4 h-4" />
-              <span class="ml-1">Refresh</span>
-            </.button>
-          </.action_toolbar>
-        </:actions>
-      </.section_header>
+      <.card class="panel-card" body_class="p-0">
+        <:body>
+          <div class="flex flex-col gap-6 px-5 py-6 sm:px-8 sm:py-8 xl:flex-row xl:items-end xl:justify-between">
+            <div class="max-w-3xl">
+              <div class="text-2xs font-semibold uppercase tracking-[0.32em] text-info/80">
+                Federation
+              </div>
 
-      <div class="alert bg-base-200 border border-base-300">
-        <.icon name="hero-information-circle" class="w-5 h-5 text-info" />
-        <span class="text-sm">
-          Outbound queue uses jobs named <span class="font-mono">mirror_*</span>
-          in <span class="font-mono">federation</span>. Inbound sync stores tracked events in <span class="font-mono">bluesky_inbound_events</span>.
-        </span>
+              <h1 class="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">Bluesky Bridge</h1>
+
+              <p class="mt-3 max-w-2xl text-sm leading-6 text-base-content/70 sm:text-base">
+                Monitor ATProto cross-posting, inbound sync health, and outbound mirror queue
+                pressure.
+              </p>
+
+              <div class="mt-5 flex flex-wrap gap-2">
+                <div class="surface-muted rounded-box px-3 py-2 text-sm text-base-content/70">
+                  Linked users:
+                  <span class="font-semibold text-base-content">{@stats.linked_users}</span>
+                </div>
+
+                <div class="surface-muted rounded-box px-3 py-2 text-sm text-base-content/70">
+                  Mirrored posts:
+                  <span class="font-semibold text-base-content">{@stats.mirrored_posts}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex flex-wrap gap-2">
+              <.button navigate={~p"/pripyat/messaging-federation"} variant="ghost" size="sm">
+                <.icon name="hero-chat-bubble-left-right" class="w-4 h-4" />
+                <span class="ml-1">Chat Federation</span>
+              </.button>
+              <.button navigate={~p"/pripyat/federation"} variant="ghost" size="sm">
+                <.icon name="hero-globe-alt" class="w-4 h-4" />
+                <span class="ml-1">ActivityPub Policies</span>
+              </.button>
+              <.button variant="ghost" size="sm" phx-click="refresh">
+                <.icon name="hero-arrow-path" class="w-4 h-4" />
+                <span class="ml-1">Refresh</span>
+              </.button>
+            </div>
+          </div>
+        </:body>
+      </.card>
+
+      <div class="rounded-box border border-info/20 bg-info/10 px-4 py-3 text-sm text-base-content/75">
+        <div class="flex items-start gap-3">
+          <.icon name="hero-information-circle" class="mt-0.5 h-5 w-5 shrink-0 text-info" />
+          <span>
+            Outbound queue uses jobs named <span class="font-mono">mirror_*</span>
+            in <span class="font-mono">federation</span>. Inbound sync stores tracked events in <span class="font-mono">bluesky_inbound_events</span>.
+          </span>
+        </div>
       </div>
 
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <.card body_class="p-3 sm:p-4">
-          <:body>
-            <div class="text-xs opacity-70">Bridge Enabled</div>
+      <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div class="surface-muted rounded-box px-4 py-4 shadow-sm">
+          <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            Bridge Enabled
+          </div>
+
+          <div class="mt-2">
             <span class={status_badge_classes(@config.enabled)}>
               {if @config.enabled, do: "enabled", else: "disabled"}
             </span>
-          </:body>
-        </.card>
-        <.card body_class="p-3 sm:p-4">
-          <:body>
-            <div class="text-xs opacity-70">Inbound Sync</div>
+          </div>
+        </div>
+
+        <div class="surface-muted rounded-box px-4 py-4 shadow-sm">
+          <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            Inbound Sync
+          </div>
+
+          <div class="mt-2">
             <span class={status_badge_classes(@config.inbound_enabled)}>
               {if @config.inbound_enabled, do: "enabled", else: "disabled"}
             </span>
-          </:body>
-        </.card>
-        <.card body_class="p-3 sm:p-4">
-          <:body>
-            <div class="text-xs opacity-70">Managed PDS</div>
+          </div>
+        </div>
+
+        <div class="surface-muted rounded-box px-4 py-4 shadow-sm">
+          <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            Managed PDS
+          </div>
+
+          <div class="mt-2">
             <span class={status_badge_classes(@config.managed_enabled)}>
               {if @config.managed_enabled, do: "enabled", else: "disabled"}
             </span>
-          </:body>
-        </.card>
-        <.card body_class="p-3 sm:p-4">
-          <:body>
-            <div class="text-xs opacity-70">Managed Admin Secret</div>
+          </div>
+        </div>
+
+        <div class="surface-muted rounded-box px-4 py-4 shadow-sm">
+          <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            Managed Admin Secret
+          </div>
+
+          <div class="mt-2">
             <span class={status_badge_classes(@config.managed_admin_password_configured)}>
               {if @config.managed_admin_password_configured, do: "configured", else: "missing"}
             </span>
-          </:body>
-        </.card>
-      </div>
+          </div>
+        </div>
+      </section>
 
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <.card body_class="p-3 sm:p-4">
-          <:body>
-            <div class="text-xs opacity-70">Linked Users</div>
-            <div class="text-xl font-semibold">{@stats.linked_users}</div>
-          </:body>
-        </.card>
-        <.card body_class="p-3 sm:p-4">
-          <:body>
-            <div class="text-xs opacity-70">Ready Users</div>
-            <div class="text-xl font-semibold">{@stats.ready_users}</div>
-          </:body>
-        </.card>
-        <.card body_class="p-3 sm:p-4">
-          <:body>
-            <div class="text-xs opacity-70">Managed Linked Users</div>
-            <div class="text-xl font-semibold">{@stats.managed_linked_users}</div>
-          </:body>
-        </.card>
-        <.card body_class="p-3 sm:p-4">
-          <:body>
-            <div class="text-xs opacity-70">Polled in 24h</div>
-            <div class="text-xl font-semibold">{@stats.users_polled_24h}</div>
-          </:body>
-        </.card>
-      </div>
+      <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div class="surface-muted rounded-box px-4 py-4 shadow-sm">
+          <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            Linked Users
+          </div>
 
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <.card body_class="p-3 sm:p-4">
-          <:body>
-            <div class="text-xs opacity-70">Mirrored Posts</div>
-            <div class="text-xl font-semibold">{@stats.mirrored_posts}</div>
-          </:body>
-        </.card>
-        <.card body_class="p-3 sm:p-4">
-          <:body>
-            <div class="text-xs opacity-70">Inbound Events (24h)</div>
-            <div class="text-xl font-semibold">{@stats.inbound_events_24h}</div>
-          </:body>
-        </.card>
-        <.card body_class="p-3 sm:p-4">
-          <:body>
-            <div class="text-xs opacity-70">Pending Outbound Jobs</div>
-            <div class="text-xl font-semibold">{@stats.pending_outbound_jobs}</div>
-          </:body>
-        </.card>
-        <.card body_class="p-3 sm:p-4">
-          <:body>
-            <div class="text-xs opacity-70">Discarded Jobs (24h)</div>
-            <div class="text-xl font-semibold text-error">{@stats.discarded_outbound_jobs_24h}</div>
-          </:body>
-        </.card>
-      </div>
+          <div class="mt-2 text-2xl font-semibold text-info">{@stats.linked_users}</div>
+        </div>
 
-      <.card body_class="p-4 sm:p-6">
+        <div class="surface-muted rounded-box px-4 py-4 shadow-sm">
+          <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            Ready Users
+          </div>
+
+          <div class="mt-2 text-2xl font-semibold text-success">{@stats.ready_users}</div>
+        </div>
+
+        <div class="surface-muted rounded-box px-4 py-4 shadow-sm">
+          <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            Managed Linked Users
+          </div>
+
+          <div class="mt-2 text-2xl font-semibold text-base-content">
+            {@stats.managed_linked_users}
+          </div>
+        </div>
+
+        <div class="surface-muted rounded-box px-4 py-4 shadow-sm">
+          <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            Polled in 24h
+          </div>
+
+          <div class="mt-2 text-2xl font-semibold text-base-content">{@stats.users_polled_24h}</div>
+        </div>
+      </section>
+
+      <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div class="surface-muted rounded-box px-4 py-4 shadow-sm">
+          <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            Mirrored Posts
+          </div>
+
+          <div class="mt-2 text-2xl font-semibold text-base-content">{@stats.mirrored_posts}</div>
+        </div>
+
+        <div class="surface-muted rounded-box px-4 py-4 shadow-sm">
+          <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            Inbound Events (24h)
+          </div>
+
+          <div class="mt-2 text-2xl font-semibold text-base-content">
+            {@stats.inbound_events_24h}
+          </div>
+        </div>
+
+        <div class="surface-muted rounded-box px-4 py-4 shadow-sm">
+          <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            Pending Outbound Jobs
+          </div>
+
+          <div class="mt-2 text-2xl font-semibold text-warning">
+            {@stats.pending_outbound_jobs}
+          </div>
+        </div>
+
+        <div class="surface-muted rounded-box px-4 py-4 shadow-sm">
+          <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            Discarded Jobs (24h)
+          </div>
+
+          <div class="mt-2 text-2xl font-semibold text-error">
+            {@stats.discarded_outbound_jobs_24h}
+          </div>
+        </div>
+      </section>
+
+      <.card class="panel-card" body_class="p-0">
         <:body>
-          <h2 class="card-title text-base sm:text-lg mb-3">
-            <.icon name="hero-cog-6-tooth" class="w-5 h-5" /> Bridge Configuration
-          </h2>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-            <div>
-              <span class="opacity-70">Service URL:</span>
-              <span class="font-mono ml-2">{@config.service_url || "-"}</span>
+          <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+            <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+              Settings
             </div>
-            <div>
-              <span class="opacity-70">Managed Service URL:</span>
-              <span class="font-mono ml-2">{@config.managed_service_url || "-"}</span>
+
+            <h2 class="mt-1 text-xl font-semibold tracking-tight">Bridge Configuration</h2>
+          </div>
+
+          <div class="grid gap-4 px-5 py-5 sm:grid-cols-2 sm:px-6 lg:grid-cols-3">
+            <div class="rounded-box border border-base-content/10 bg-base-200/35 p-4">
+              <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                Service URL
+              </div>
+
+              <div class="mt-2 font-mono text-xs text-base-content/75 break-all">
+                {@config.service_url || "-"}
+              </div>
             </div>
-            <div>
-              <span class="opacity-70">Managed Handle Domain:</span>
-              <span class="font-mono ml-2">{@config.managed_domain || "-"}</span>
+
+            <div class="rounded-box border border-base-content/10 bg-base-200/35 p-4">
+              <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                Managed Service URL
+              </div>
+
+              <div class="mt-2 font-mono text-xs text-base-content/75 break-all">
+                {@config.managed_service_url || "-"}
+              </div>
             </div>
-            <div>
-              <span class="opacity-70">Inbound Batch Limit:</span>
-              <span class="font-mono ml-2">{@config.inbound_limit}</span>
+
+            <div class="rounded-box border border-base-content/10 bg-base-200/35 p-4">
+              <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                Managed Handle Domain
+              </div>
+
+              <div class="mt-2 font-mono text-xs text-base-content/75 break-all">
+                {@config.managed_domain || "-"}
+              </div>
             </div>
-            <div>
-              <span class="opacity-70">Bridge Timeout (ms):</span>
-              <span class="font-mono ml-2">{@config.timeout_ms}</span>
+
+            <div class="rounded-box border border-base-content/10 bg-base-200/35 p-4">
+              <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                Inbound Batch Limit
+              </div>
+
+              <div class="mt-2 font-mono text-xs text-base-content/75">
+                {@config.inbound_limit}
+              </div>
             </div>
-            <div>
-              <span class="opacity-70">Max Post Characters:</span>
-              <span class="font-mono ml-2">{@config.max_chars}</span>
+
+            <div class="rounded-box border border-base-content/10 bg-base-200/35 p-4">
+              <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                Bridge Timeout (ms)
+              </div>
+
+              <div class="mt-2 font-mono text-xs text-base-content/75">
+                {@config.timeout_ms}
+              </div>
+            </div>
+
+            <div class="rounded-box border border-base-content/10 bg-base-200/35 p-4">
+              <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                Max Post Characters
+              </div>
+
+              <div class="mt-2 font-mono text-xs text-base-content/75">
+                {@config.max_chars}
+              </div>
             </div>
           </div>
+
           <%= if @reason_counts != [] do %>
-            <div class="mt-4">
-              <div class="text-xs opacity-70 mb-2">Inbound reasons (last 24h)</div>
-              <div class="flex flex-wrap gap-2">
+            <div class="border-t border-base-content/10 px-5 py-5 sm:px-6">
+              <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                Inbound reasons (last 24h)
+              </div>
+
+              <div class="mt-3 flex flex-wrap gap-2">
                 <%= for {reason, count} <- @reason_counts do %>
                   <span class="badge badge-outline">{reason}: {count}</span>
                 <% end %>
@@ -371,85 +478,107 @@ defmodule ElektrineWeb.AdminLive.BlueskyBridge do
         </:body>
       </.card>
 
-      <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <.card body_class="p-4 sm:p-6">
+      <section class="grid gap-6 xl:grid-cols-2">
+        <.card class="panel-card" body_class="p-0">
           <:body>
-            <h2 class="card-title text-base sm:text-lg mb-3">
-              <.icon name="hero-arrow-down-tray" class="w-5 h-5" /> Recent Inbound Events
-            </h2>
-            <%= if @recent_events == [] do %>
-              <p class="text-sm opacity-70">No inbound events recorded yet.</p>
-            <% else %>
-              <div class="overflow-x-auto">
-                <table class="table table-sm">
-                  <thead>
-                    <tr>
-                      <th>User</th>
-                      <th>Reason</th>
-                      <th>Post URI</th>
-                      <th>Processed</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <%= for event <- @recent_events do %>
-                      <tr>
-                        <td>{event.username || "-"}</td>
-                        <td>
-                          <span class="badge badge-outline badge-sm">{event.reason || "-"}</span>
-                        </td>
-                        <td>
-                          <span class="font-mono text-xs break-all">
-                            {event.related_post_uri || "-"}
-                          </span>
-                        </td>
-                        <td class="text-xs opacity-70">{format_datetime(event.processed_at)}</td>
-                      </tr>
-                    <% end %>
-                  </tbody>
-                </table>
+            <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+              <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+                Inbound
               </div>
-            <% end %>
+
+              <h2 class="mt-1 text-xl font-semibold tracking-tight">Recent Inbound Events</h2>
+            </div>
+
+            <div class="px-5 py-5 sm:px-6">
+              <%= if @recent_events == [] do %>
+                <div class="rounded-box border border-dashed border-base-content/15 bg-base-200/45 px-4 py-8 text-center text-sm text-base-content/55">
+                  No inbound events recorded yet.
+                </div>
+              <% else %>
+                <div class="overflow-x-auto">
+                  <table class="table table-sm w-full">
+                    <thead>
+                      <tr>
+                        <th>User</th>
+                        <th>Reason</th>
+                        <th>Post URI</th>
+                        <th>Processed</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <%= for event <- @recent_events do %>
+                        <tr>
+                          <td>{event.username || "-"}</td>
+                          <td>
+                            <span class="badge badge-outline badge-sm">{event.reason || "-"}</span>
+                          </td>
+                          <td>
+                            <span class="font-mono text-xs break-all">
+                              {event.related_post_uri || "-"}
+                            </span>
+                          </td>
+                          <td class="text-xs text-base-content/60">
+                            {format_datetime(event.processed_at)}
+                          </td>
+                        </tr>
+                      <% end %>
+                    </tbody>
+                  </table>
+                </div>
+              <% end %>
+            </div>
           </:body>
         </.card>
 
-        <.card body_class="p-4 sm:p-6">
+        <.card class="panel-card" body_class="p-0">
           <:body>
-            <h2 class="card-title text-base sm:text-lg mb-3">
-              <.icon name="hero-arrow-up-tray" class="w-5 h-5" /> Recent Outbound Jobs
-            </h2>
-            <%= if @recent_jobs == [] do %>
-              <p class="text-sm opacity-70">No outbound mirror jobs recorded yet.</p>
-            <% else %>
-              <div class="overflow-x-auto">
-                <table class="table table-sm">
-                  <thead>
-                    <tr>
-                      <th>Action</th>
-                      <th>State</th>
-                      <th>Attempts</th>
-                      <th>Created</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <%= for job <- @recent_jobs do %>
-                      <tr>
-                        <td><span class="font-mono text-xs">{job.action || "-"}</span></td>
-                        <td>
-                          <span class={job_state_badge_classes(job.state)}>{job.state}</span>
-                        </td>
-                        <td class="text-xs font-mono">
-                          {job.attempt}/{job.max_attempts}
-                        </td>
-                        <td class="text-xs opacity-70">{format_datetime(job.inserted_at)}</td>
-                      </tr>
-                    <% end %>
-                  </tbody>
-                </table>
+            <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+              <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+                Outbound
               </div>
-            <% end %>
+
+              <h2 class="mt-1 text-xl font-semibold tracking-tight">Recent Outbound Jobs</h2>
+            </div>
+
+            <div class="px-5 py-5 sm:px-6">
+              <%= if @recent_jobs == [] do %>
+                <div class="rounded-box border border-dashed border-base-content/15 bg-base-200/45 px-4 py-8 text-center text-sm text-base-content/55">
+                  No outbound mirror jobs recorded yet.
+                </div>
+              <% else %>
+                <div class="overflow-x-auto">
+                  <table class="table table-sm w-full">
+                    <thead>
+                      <tr>
+                        <th>Action</th>
+                        <th>State</th>
+                        <th>Attempts</th>
+                        <th>Created</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <%= for job <- @recent_jobs do %>
+                        <tr>
+                          <td><span class="font-mono text-xs">{job.action || "-"}</span></td>
+                          <td>
+                            <span class={job_state_badge_classes(job.state)}>{job.state}</span>
+                          </td>
+                          <td class="font-mono text-xs">
+                            {job.attempt}/{job.max_attempts}
+                          </td>
+                          <td class="text-xs text-base-content/60">
+                            {format_datetime(job.inserted_at)}
+                          </td>
+                        </tr>
+                      <% end %>
+                    </tbody>
+                  </table>
+                </div>
+              <% end %>
+            </div>
           </:body>
         </.card>
-      </div>
+      </section>
     </div>
     """
   end

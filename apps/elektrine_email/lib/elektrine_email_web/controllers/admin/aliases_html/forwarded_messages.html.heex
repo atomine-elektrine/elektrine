@@ -8,409 +8,489 @@
       is_map(message.forwarding_chain) && is_list(message.forwarding_chain["hops"]) &&
         length(message.forwarding_chain["hops"]) > 0
     end) %>
-  <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-    <div>
-      <h1 class="text-2xl font-bold sm:text-3xl">Forwarded Messages</h1>
+  <.card class="panel-card" body_class="p-0">
+    <:body>
+      <div class="flex flex-col gap-6 px-5 py-6 sm:px-8 sm:py-8 lg:flex-row lg:items-end lg:justify-between">
+        <div class="max-w-2xl">
+          <div class="text-2xs font-semibold uppercase tracking-[0.32em] text-info/80">
+            Forwarding
+          </div>
 
-      <p class="mt-1 text-sm opacity-70 sm:text-base">
-        Visibility into alias forwarding routes, hops, and recipient outcomes.
-      </p>
-    </div>
+          <h1 class="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
+            Forwarded Messages
+          </h1>
 
-    <div class="rounded-lg border border-base-300 bg-base-200/50 px-3 py-2 text-xs opacity-70 sm:text-sm">
-      Page {@current_page} of {@total_pages}
-    </div>
-  </div>
+          <p class="mt-3 max-w-2xl text-sm leading-6 text-base-content/70 sm:text-base">
+            Visibility into alias forwarding routes, hops, and recipient outcomes.
+          </p>
+        </div>
 
-  <div class="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-    <div class="rounded-xl border border-base-300 bg-base-200/60 p-3 sm:p-4">
-      <div class="text-xs uppercase tracking-wide opacity-60">On This Page</div>
-
-      <div class="mt-1 text-xl font-semibold sm:text-2xl">{page_results_count}</div>
-    </div>
-
-    <div class="rounded-xl border border-base-300 bg-base-200/60 p-3 sm:p-4">
-      <div class="text-xs uppercase tracking-wide opacity-60">Total Matches</div>
-
-      <div class="mt-1 text-xl font-semibold sm:text-2xl">{@total_count}</div>
-    </div>
-
-    <div class="rounded-xl border border-base-300 bg-base-200/60 p-3 sm:p-4">
-      <div class="text-xs uppercase tracking-wide opacity-60">Avg Hops</div>
-
-      <div class="mt-1 text-xl font-semibold text-primary sm:text-2xl">{average_hops}</div>
-    </div>
-
-    <div class="rounded-xl border border-base-300 bg-base-200/60 p-3 sm:p-4">
-      <div class="text-xs uppercase tracking-wide opacity-60">Path Details</div>
-
-      <div class="mt-1 text-xl font-semibold text-info sm:text-2xl">{chain_detail_count}</div>
-    </div>
-  </div>
-
-  <div class="card panel-card mb-6">
-    <div class="card-body">
-      <form
-        method="get"
-        action={~p"/pripyat/forwarded-messages"}
-        class="flex flex-col gap-3 sm:flex-row sm:items-end"
-      >
-        <div class="w-full flex-1">
-          <label class="label pt-0"><span>Search forwarded messages</span></label>
-          <div class="join w-full">
-            <input
-              type="text"
-              name="search"
-              value={@search_query}
-              placeholder="Search by sender, subject, alias, or recipient"
-              class="input join-item w-full"
-            />
-            <button type="submit" class="btn btn-primary join-item">
-              <.icon name="hero-magnifying-glass" class="h-4 w-4" /> Search
-            </button>
+        <div class="flex flex-wrap gap-2">
+          <div class="surface-muted rounded-box px-3 py-2 text-sm text-base-content/70">
+            Page {@current_page} of
+            <span class="font-semibold text-base-content">{@total_pages}</span>
           </div>
         </div>
+      </div>
+    </:body>
+  </.card>
+
+  <section class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <div class="surface-muted rounded-box px-4 py-4 shadow-sm">
+      <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+        On This Page
+      </div>
+
+      <div class="mt-2 text-xl font-semibold text-base-content sm:text-2xl">
+        {page_results_count}
+      </div>
+    </div>
+
+    <div class="surface-muted rounded-box px-4 py-4 shadow-sm">
+      <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+        Total Matches
+      </div>
+
+      <div class="mt-2 text-xl font-semibold text-base-content sm:text-2xl">{@total_count}</div>
+    </div>
+
+    <div class="surface-muted rounded-box px-4 py-4 shadow-sm">
+      <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+        Avg Hops
+      </div>
+
+      <div class="mt-2 text-xl font-semibold text-primary sm:text-2xl">{average_hops}</div>
+    </div>
+
+    <div class="surface-muted rounded-box px-4 py-4 shadow-sm">
+      <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+        Path Details
+      </div>
+
+      <div class="mt-2 text-xl font-semibold text-info sm:text-2xl">{chain_detail_count}</div>
+    </div>
+  </section>
+
+  <.card class="panel-card" body_class="p-0">
+    <:body>
+      <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+        <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+          Search
+        </div>
+
+        <h2 class="mt-1 text-xl font-semibold tracking-tight">Find Forwarded Messages</h2>
+      </div>
+
+      <div class="px-5 py-5 sm:px-6">
+        <form
+          method="get"
+          action={~p"/pripyat/forwarded-messages"}
+          class="surface-muted rounded-box p-4"
+        >
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div class="min-w-0 flex-1">
+              <label class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                Search forwarded messages
+              </label>
+              <div class="mt-3 join w-full">
+                <input
+                  type="text"
+                  name="search"
+                  value={@search_query}
+                  placeholder="Search by sender, subject, alias, or recipient"
+                  class="input input-bordered join-item w-full"
+                />
+                <.button type="submit" variant="info" class="join-item">
+                  <.icon name="hero-magnifying-glass" class="h-4 w-4" /> Search
+                </.button>
+              </div>
+            </div>
+
+            <%= if search_active do %>
+              <.button
+                href={~p"/pripyat/forwarded-messages"}
+                variant="ghost"
+                data-search-clear="true"
+              >
+                Clear
+              </.button>
+            <% end %>
+          </div>
+        </form>
 
         <%= if search_active do %>
-          <.link
-            href={~p"/pripyat/forwarded-messages"}
-            data-search-clear="true"
-            class="btn btn-ghost"
-          >
-            Clear
-          </.link>
-        <% end %>
-      </form>
-
-      <%= if search_active do %>
-        <div class="mt-4 rounded-lg border border-info/30 bg-info/10 p-3 text-sm">
-          Showing results for <strong>{@search_query}</strong>
-          ({@total_count} match{if @total_count != 1, do: "es"})
-        </div>
-      <% end %>
-    </div>
-  </div>
-
-  <div class="card panel-card">
-    <div class="card-body p-3 sm:p-6">
-      <%= if @total_count > 0 do %>
-        <div class="mb-4 flex items-start justify-between gap-3">
-          <div>
-            <h2 class="card-title text-lg">
-              <.icon name="hero-paper-airplane" class="h-5 w-5" /> Forwarding Activity
-            </h2>
-
-            <p class="text-sm opacity-70">
-              {page_results_count} result{if page_results_count != 1, do: "s"} on this page.
-            </p>
+          <div class="mt-4 flex items-start gap-3 rounded-box border border-info/20 bg-info/10 px-4 py-3 text-sm text-base-content/75">
+            <.icon name="hero-information-circle" class="mt-0.5 h-5 w-5 shrink-0 text-info" />
+            <span>
+              Showing results for <strong>{@search_query}</strong>
+              ({@total_count} match{if @total_count != 1, do: "es"})
+            </span>
           </div>
-        </div>
+        <% end %>
+      </div>
+    </:body>
+  </.card>
 
-        <div class="space-y-3 lg:hidden">
-          <%= for message <- @forwarded_messages do %>
-            <% has_chain_details =
-              is_map(message.forwarding_chain) && is_list(message.forwarding_chain["hops"]) &&
-                length(message.forwarding_chain["hops"]) > 0 %>
-            <article class="rounded-xl border border-base-300 bg-base-200/60 p-4 shadow-sm">
-              <div class="mb-3 flex items-start justify-between gap-3">
-                <div class="min-w-0 flex-1">
-                  <div class="text-xs uppercase tracking-wide opacity-60">From</div>
+  <.card class="panel-card" body_class="p-0">
+    <:body>
+      <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+              Activity
+            </div>
 
-                  <div class="break-all text-sm font-medium">{message.from_address}</div>
-                </div>
+            <h2 class="mt-1 text-xl font-semibold tracking-tight">Forwarding Activity</h2>
+          </div>
 
-                <div class="flex items-center gap-2">
-                  <span class="badge badge-primary badge-sm">
-                    {message.total_hops} hop{if message.total_hops != 1, do: "s"}
-                  </span>
-                  <%= if has_chain_details do %>
-                    <label for={"chain-modal-#{message.id}"} class="btn btn-ghost btn-xs">
-                      Path
-                    </label>
-                  <% end %>
-                </div>
-              </div>
-
-              <div class="mb-3 rounded-lg border border-base-300/60 bg-base-100/50 p-3">
-                <div class="mb-1 text-xs uppercase tracking-wide opacity-60">Subject</div>
-
-                <div class="text-sm break-words">{message.subject || "(no subject)"}</div>
-              </div>
-
-              <div class="space-y-2">
-                <div>
-                  <div class="text-xs uppercase tracking-wide opacity-60">Original Recipient</div>
-
-                  <div class="break-all text-sm font-medium">{message.original_recipient}</div>
-                </div>
-
-                <div class="flex items-center justify-center opacity-40">
-                  <.icon name="hero-arrow-down" class="h-4 w-4" />
-                </div>
-
-                <div>
-                  <div class="text-xs uppercase tracking-wide opacity-60">Final Recipient</div>
-
-                  <div class="break-all text-sm font-medium">{message.final_recipient}</div>
-                </div>
-              </div>
-
-              <div class="mt-3 flex items-center justify-between gap-3 text-xs opacity-60">
-                <div class="truncate" title={message.alias_email || "No alias metadata"}>
-                  Alias: {message.alias_email || "Unknown"}
-                </div>
-
-                <div class="shrink-0">
-                  <.local_time
-                    datetime={message.inserted_at}
-                    format="datetime"
-                    timezone={@timezone}
-                    time_format={@time_format}
-                  />
-                </div>
-              </div>
-            </article>
+          <%= if @total_count > 0 do %>
+            <div class="text-sm text-base-content/55">
+              {page_results_count} result{if page_results_count != 1, do: "s"} on this page
+            </div>
           <% end %>
         </div>
+      </div>
 
-        <div class="hidden overflow-x-auto lg:block">
-          <table class="table table-zebra w-full">
-            <thead>
-              <tr>
-                <th>Sender and Subject</th>
-
-                <th>Routing</th>
-
-                <th>Alias</th>
-
-                <th>Hops</th>
-
-                <th>Date</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              <%= for message <- @forwarded_messages do %>
-                <% has_chain_details =
-                  is_map(message.forwarding_chain) && is_list(message.forwarding_chain["hops"]) &&
-                    length(message.forwarding_chain["hops"]) > 0 %>
-                <tr class="hover">
-                  <td class="align-top">
-                    <div class="max-w-md">
-                      <div class="truncate text-sm font-medium" title={message.from_address}>
-                        {message.from_address}
-                      </div>
-
-                      <div class="mt-1 text-sm opacity-75 break-words">
-                        {message.subject || "(no subject)"}
-                      </div>
+      <div class="px-5 py-5 sm:px-6">
+        <%= if @total_count > 0 do %>
+          <div class="space-y-3 lg:hidden">
+            <%= for message <- @forwarded_messages do %>
+              <% has_chain_details =
+                is_map(message.forwarding_chain) && is_list(message.forwarding_chain["hops"]) &&
+                  length(message.forwarding_chain["hops"]) > 0 %>
+              <article class="rounded-box border border-base-content/10 bg-base-200/45 p-4">
+                <div class="mb-3 flex items-start justify-between gap-3">
+                  <div class="min-w-0 flex-1">
+                    <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                      From
                     </div>
-                  </td>
 
-                  <td class="align-top">
-                    <div class="max-w-sm space-y-1 text-xs">
-                      <div class="break-all font-medium">{message.original_recipient}</div>
+                    <div class="break-all text-sm font-medium">{message.from_address}</div>
+                  </div>
 
-                      <div class="flex items-center gap-1 opacity-50">
-                        <.icon name="hero-arrow-right" class="h-3 w-3" /> forwarded to
-                      </div>
+                  <div class="flex items-center gap-2">
+                    <span class="badge badge-primary badge-sm">
+                      {message.total_hops} hop{if message.total_hops != 1, do: "s"}
+                    </span>
+                    <%= if has_chain_details do %>
+                      <label
+                        for={"chain-modal-#{message.id}"}
+                        class="link link-info cursor-pointer text-xs font-medium"
+                      >
+                        Path
+                      </label>
+                    <% end %>
+                  </div>
+                </div>
 
-                      <div class="break-all font-medium">{message.final_recipient}</div>
+                <div class="mb-3 rounded-lg border border-base-content/10 bg-base-100/50 p-3">
+                  <div class="mb-1 text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                    Subject
+                  </div>
+
+                  <div class="text-sm break-words">{message.subject || "(no subject)"}</div>
+                </div>
+
+                <div class="space-y-2">
+                  <div>
+                    <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                      Original Recipient
                     </div>
-                  </td>
 
-                  <td class="align-top">
-                    <div
-                      class="max-w-[14rem] truncate text-sm"
-                      title={message.alias_email || "No alias metadata"}
-                    >
-                      {message.alias_email || "Unknown"}
+                    <div class="break-all text-sm font-medium">{message.original_recipient}</div>
+                  </div>
+
+                  <div class="flex items-center justify-center text-base-content/40">
+                    <.icon name="hero-arrow-down" class="h-4 w-4" />
+                  </div>
+
+                  <div>
+                    <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                      Final Recipient
                     </div>
-                  </td>
 
-                  <td class="align-top">
-                    <div class="flex items-center gap-2">
-                      <span class="badge badge-primary badge-sm">{message.total_hops}</span>
-                      <%= if has_chain_details do %>
-                        <label for={"chain-modal-#{message.id}"} class="btn btn-ghost btn-xs">
-                          Path
-                        </label>
-                      <% end %>
-                    </div>
-                  </td>
+                    <div class="break-all text-sm font-medium">{message.final_recipient}</div>
+                  </div>
+                </div>
 
-                  <td class="align-top whitespace-nowrap text-sm opacity-70">
+                <div class="mt-3 flex items-center justify-between gap-3 border-t border-base-content/10 pt-3 text-xs text-base-content/55">
+                  <div class="truncate" title={message.alias_email || "No alias metadata"}>
+                    Alias: {message.alias_email || "Unknown"}
+                  </div>
+
+                  <div class="shrink-0">
                     <.local_time
                       datetime={message.inserted_at}
                       format="datetime"
                       timezone={@timezone}
                       time_format={@time_format}
                     />
-                  </td>
-                </tr>
-              <% end %>
-            </tbody>
-          </table>
-        </div>
-
-        <%= for message <- @forwarded_messages do %>
-          <% has_chain_details =
-            is_map(message.forwarding_chain) && is_list(message.forwarding_chain["hops"]) &&
-              length(message.forwarding_chain["hops"]) > 0 %>
-          <%= if has_chain_details do %>
-            <input type="checkbox" id={"chain-modal-#{message.id}"} class="modal-toggle" />
-            <div class="modal modal-bottom sm:modal-middle">
-              <div class="modal-box modal-surface max-w-2xl">
-                <h3 class="text-lg font-bold">Forwarding Chain Details</h3>
-
-                <div class="mt-4 space-y-3">
-                  <div>
-                    <div class="text-xs opacity-60">Message ID</div>
-
-                    <div class="break-all text-sm font-medium">{message.message_id}</div>
-                  </div>
-
-                  <div>
-                    <div class="text-xs opacity-60">Sender</div>
-
-                    <div class="break-all text-sm font-medium">{message.from_address}</div>
-                  </div>
-
-                  <div>
-                    <div class="text-xs opacity-60">Subject</div>
-
-                    <div class="break-words text-sm">{message.subject || "(no subject)"}</div>
-                  </div>
-
-                  <div>
-                    <div class="text-xs opacity-60">Recorded Hops</div>
-
-                    <div class="text-sm font-medium">
-                      {message.total_hops} hop{if message.total_hops != 1, do: "s"}
-                    </div>
-                  </div>
-
-                  <div class="divider my-1"></div>
-
-                  <div>
-                    <div class="mb-3 text-sm font-semibold">Forwarding Path</div>
-
-                    <div class="space-y-2">
-                      <%= for {hop, index} <- Enum.with_index(message.forwarding_chain["hops"]) do %>
-                        <div class="rounded-lg border border-base-300 bg-base-200/60 p-3">
-                          <div class="mb-2 flex items-center gap-2">
-                            <span class="badge badge-primary badge-sm">{index + 1}</span>
-                            <span class="text-xs uppercase tracking-wide opacity-60">Hop</span>
-                          </div>
-
-                          <div class="space-y-2 text-sm">
-                            <div>
-                              <div class="text-xs opacity-60">From</div>
-
-                              <div class="break-all font-medium">{hop["from"]}</div>
-                            </div>
-
-                            <div class="flex items-center gap-2 opacity-40">
-                              <div class="h-px flex-1 bg-base-content/20"></div>
-                              <.icon name="hero-arrow-down" class="h-4 w-4" />
-                              <div class="h-px flex-1 bg-base-content/20"></div>
-                            </div>
-
-                            <div>
-                              <div class="text-xs opacity-60">To</div>
-
-                              <div class="break-all font-medium">{hop["to"]}</div>
-                            </div>
-                          </div>
-                        </div>
-                      <% end %>
-                    </div>
                   </div>
                 </div>
+              </article>
+            <% end %>
+          </div>
 
-                <div class="modal-action">
-                  <label for={"chain-modal-#{message.id}"} class="btn btn-sm">Close</label>
+          <div class="hidden overflow-x-auto lg:block">
+            <table class="table w-full">
+              <thead>
+                <tr>
+                  <th>Sender and Subject</th>
+
+                  <th>Routing</th>
+
+                  <th>Alias</th>
+
+                  <th>Hops</th>
+
+                  <th>Date</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                <%= for message <- @forwarded_messages do %>
+                  <% has_chain_details =
+                    is_map(message.forwarding_chain) && is_list(message.forwarding_chain["hops"]) &&
+                      length(message.forwarding_chain["hops"]) > 0 %>
+                  <tr class="hover">
+                    <td class="align-top">
+                      <div class="max-w-md">
+                        <div class="truncate text-sm font-medium" title={message.from_address}>
+                          {message.from_address}
+                        </div>
+
+                        <div class="mt-1 text-sm text-base-content/70 break-words">
+                          {message.subject || "(no subject)"}
+                        </div>
+                      </div>
+                    </td>
+
+                    <td class="align-top">
+                      <div class="max-w-sm space-y-1 text-xs">
+                        <div class="break-all font-medium">{message.original_recipient}</div>
+
+                        <div class="flex items-center gap-1 text-base-content/50">
+                          <.icon name="hero-arrow-right" class="h-3 w-3" /> forwarded to
+                        </div>
+
+                        <div class="break-all font-medium">{message.final_recipient}</div>
+                      </div>
+                    </td>
+
+                    <td class="align-top">
+                      <div
+                        class="max-w-[14rem] truncate text-sm"
+                        title={message.alias_email || "No alias metadata"}
+                      >
+                        {message.alias_email || "Unknown"}
+                      </div>
+                    </td>
+
+                    <td class="align-top">
+                      <div class="flex items-center gap-2">
+                        <span class="badge badge-primary badge-sm">{message.total_hops}</span>
+                        <%= if has_chain_details do %>
+                          <label
+                            for={"chain-modal-#{message.id}"}
+                            class="link link-info cursor-pointer text-xs font-medium"
+                          >
+                            Path
+                          </label>
+                        <% end %>
+                      </div>
+                    </td>
+
+                    <td class="align-top whitespace-nowrap text-sm text-base-content/70">
+                      <.local_time
+                        datetime={message.inserted_at}
+                        format="datetime"
+                        timezone={@timezone}
+                        time_format={@time_format}
+                      />
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+
+          <%= for message <- @forwarded_messages do %>
+            <% has_chain_details =
+              is_map(message.forwarding_chain) && is_list(message.forwarding_chain["hops"]) &&
+                length(message.forwarding_chain["hops"]) > 0 %>
+            <%= if has_chain_details do %>
+              <input type="checkbox" id={"chain-modal-#{message.id}"} class="modal-toggle" />
+              <div class="modal modal-bottom sm:modal-middle">
+                <div class="modal-box modal-surface max-w-2xl">
+                  <h3 class="text-lg font-bold">Forwarding Chain Details</h3>
+
+                  <div class="mt-4 space-y-3">
+                    <div>
+                      <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                        Message ID
+                      </div>
+
+                      <div class="mt-1 break-all text-sm font-medium">{message.message_id}</div>
+                    </div>
+
+                    <div>
+                      <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                        Sender
+                      </div>
+
+                      <div class="mt-1 break-all text-sm font-medium">{message.from_address}</div>
+                    </div>
+
+                    <div>
+                      <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                        Subject
+                      </div>
+
+                      <div class="mt-1 break-words text-sm">
+                        {message.subject || "(no subject)"}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                        Recorded Hops
+                      </div>
+
+                      <div class="mt-1 text-sm font-medium">
+                        {message.total_hops} hop{if message.total_hops != 1, do: "s"}
+                      </div>
+                    </div>
+
+                    <div class="border-t border-base-content/10"></div>
+
+                    <div>
+                      <div class="mb-3 text-sm font-semibold">Forwarding Path</div>
+
+                      <div class="space-y-2">
+                        <%= for {hop, index} <- Enum.with_index(message.forwarding_chain["hops"]) do %>
+                          <div class="rounded-box border border-base-content/10 bg-base-200/45 p-3">
+                            <div class="mb-2 flex items-center gap-2">
+                              <span class="badge badge-primary badge-sm">{index + 1}</span>
+                              <span class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                                Hop
+                              </span>
+                            </div>
+
+                            <div class="space-y-2 text-sm">
+                              <div>
+                                <div class="text-xs text-base-content/55">From</div>
+
+                                <div class="break-all font-medium">{hop["from"]}</div>
+                              </div>
+
+                              <div class="flex items-center gap-2 text-base-content/40">
+                                <div class="h-px flex-1 bg-base-content/20"></div>
+                                <.icon name="hero-arrow-down" class="h-4 w-4" />
+                                <div class="h-px flex-1 bg-base-content/20"></div>
+                              </div>
+
+                              <div>
+                                <div class="text-xs text-base-content/55">To</div>
+
+                                <div class="break-all font-medium">{hop["to"]}</div>
+                              </div>
+                            </div>
+                          </div>
+                        <% end %>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="modal-action">
+                    <label
+                      for={"chain-modal-#{message.id}"}
+                      class="inline-flex cursor-pointer items-center rounded-lg border border-base-content/15 px-4 py-2 text-sm font-medium transition-colors hover:bg-base-200"
+                    >
+                      Close
+                    </label>
+                  </div>
                 </div>
               </div>
-            </div>
+            <% end %>
           <% end %>
-        <% end %>
+        <% else %>
+          <div class="rounded-box border border-dashed border-base-content/15 bg-base-200/45 px-4 py-12 text-center">
+            <.icon name="hero-arrow-right-circle" class="mx-auto h-12 w-12 text-base-content/30" />
+            <p class="mt-4 text-lg font-medium text-base-content/70">
+              <%= if search_active do %>
+                No forwarded messages found
+              <% else %>
+                No forwarded messages yet
+              <% end %>
+            </p>
 
-        <%= if @total_pages > 1 do %>
-          <div class="mt-6 flex flex-col items-center gap-3">
+            <p class="mt-2 text-sm text-base-content/50">
+              <%= if search_active do %>
+                Try adjusting your search terms.
+              <% else %>
+                Forwarded messages will appear here when aliases forward email.
+              <% end %>
+            </p>
+          </div>
+        <% end %>
+      </div>
+
+      <%= if @total_count > 0 && @total_pages > 1 do %>
+        <div class="border-t border-base-content/10 px-5 py-5 sm:px-6">
+          <div class="flex flex-col items-center gap-3">
             <div class="join">
               <%= if @current_page > 1 do %>
-                <.link
+                <.button
                   href={
                     if search_active,
                       do:
                         ~p"/pripyat/forwarded-messages?search=#{@search_query}&page=#{@current_page - 1}",
                       else: ~p"/pripyat/forwarded-messages?page=#{@current_page - 1}"
                   }
-                  class="join-item btn"
+                  variant="default"
+                  class="join-item"
                 >
                   Prev
-                </.link>
+                </.button>
               <% end %>
 
               <%= for page_num <- @page_range do %>
-                <.link
+                <.button
                   href={
                     if search_active,
                       do:
                         ~p"/pripyat/forwarded-messages?search=#{@search_query}&page=#{page_num}",
                       else: ~p"/pripyat/forwarded-messages?page=#{page_num}"
                   }
-                  class={
-                    if page_num == @current_page,
-                      do: "join-item btn btn-primary",
-                      else: "join-item btn btn-ghost"
-                  }
+                  variant={if page_num == @current_page, do: "primary", else: "ghost"}
+                  class="join-item"
                 >
                   {page_num}
-                </.link>
+                </.button>
               <% end %>
 
               <%= if @current_page < @total_pages do %>
-                <.link
+                <.button
                   href={
                     if search_active,
                       do:
                         ~p"/pripyat/forwarded-messages?search=#{@search_query}&page=#{@current_page + 1}",
                       else: ~p"/pripyat/forwarded-messages?page=#{@current_page + 1}"
                   }
-                  class="join-item btn"
+                  variant="default"
+                  class="join-item"
                 >
                   Next
-                </.link>
+                </.button>
               <% end %>
             </div>
 
-            <div class="text-center text-xs opacity-60 sm:text-sm">
+            <div class="text-center text-sm text-base-content/60">
               Page {@current_page} of {@total_pages} | {@total_count} total forwarded messages
             </div>
           </div>
-        <% end %>
-      <% else %>
-        <div class="py-12 text-center">
-          <.icon name="hero-arrow-right-circle" class="mx-auto mb-4 h-12 w-12 opacity-30" />
-          <p class="mb-2 text-lg font-medium opacity-70">
-            <%= if search_active do %>
-              No forwarded messages found
-            <% else %>
-              No forwarded messages yet
-            <% end %>
-          </p>
-
-          <p class="text-sm opacity-50">
-            <%= if search_active do %>
-              Try adjusting your search terms.
-            <% else %>
-              Forwarded messages will appear here when aliases forward email.
-            <% end %>
-          </p>
         </div>
       <% end %>
-    </div>
-  </div>
+    </:body>
+  </.card>
 </div>

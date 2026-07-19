@@ -1,80 +1,104 @@
 <div class="admin-page">
-  <div class="mb-6">
-    <div class="flex items-center mb-2">
-      <.link href={~p"/pripyat"} class="btn btn-ghost btn-sm mr-4">
-        <.icon name="hero-arrow-left" class="h-4 w-4 mr-2" /> Back
-      </.link>
-      <h1 class="text-2xl font-bold">System Email</h1>
-    </div>
+  <.card class="panel-card" body_class="p-0">
+    <:body>
+      <div class="px-5 py-6 sm:px-8 sm:py-8">
+        <.link
+          href={~p"/pripyat"}
+          class="inline-flex items-center gap-1.5 text-sm text-base-content/60 transition-colors hover:text-base-content"
+        >
+          <.icon name="hero-chevron-left" class="h-4 w-4" /> Back to dashboard
+        </.link>
 
-    <p class="opacity-70">
-      Send a platform-originated email directly to every local user mailbox.
-    </p>
-  </div>
+        <div class="mt-5 flex items-start gap-4">
+          <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-warning/10 text-warning">
+            <.icon name="hero-megaphone" class="h-5 w-5" />
+          </div>
 
-  <div class="alert alert-warning mb-6">
-    <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
-    <span>
-      This queues one inbox message for each user mailbox. Use it only for service-wide notices.
-    </span>
-  </div>
+          <div>
+            <div class="text-2xs font-semibold uppercase tracking-[0.32em] text-warning/80">
+              Broadcast
+            </div>
 
-  <div class="card panel-card">
-    <div class="card-body">
-      <.form
-        :let={_f}
-        for={%{}}
-        action={~p"/pripyat/system-email"}
-        method="post"
-        class="space-y-5"
-      >
-        <div>
-          <label class="label"><span class="label-text">From</span></label>
-          <input type="text" class="input input-bordered w-full" value={@from_address} disabled />
+            <h1 class="mt-2 text-2xl font-semibold tracking-tight">System Email</h1>
+
+            <p class="mt-3 max-w-2xl text-sm leading-6 text-base-content/70 sm:text-base">
+              Send a platform-originated email directly to every local user mailbox.
+            </p>
+          </div>
         </div>
 
-        <div>
-          <label class="label"><span class="label-text">Subject</span></label>
-          <input
-            type="text"
-            name="system_email[subject]"
-            class="input input-bordered w-full"
-            value={@params["subject"] || ""}
-            maxlength="500"
-            required
-          />
+        <div class="mt-6 flex items-start gap-3 rounded-box border border-warning/20 bg-warning/10 px-4 py-3 text-sm text-base-content/75">
+          <.icon name="hero-exclamation-triangle" class="mt-0.5 h-5 w-5 shrink-0 text-warning" />
+          <span>
+            This queues one inbox message for each user mailbox. Use it only for service-wide notices.
+          </span>
+        </div>
+      </div>
+    </:body>
+  </.card>
+
+  <.card class="panel-card" body_class="p-0">
+    <:body>
+      <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+        <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+          Compose
         </div>
 
-        <div>
-          <label class="label"><span class="label-text">Plain Text Body</span></label>
-          <textarea
-            name="system_email[text_body]"
-            class="textarea textarea-bordered min-h-52 w-full"
-            required
-          ><%= @params["text_body"] || "" %></textarea>
-        </div>
+        <h2 class="mt-1 text-xl font-semibold tracking-tight">Message</h2>
+      </div>
 
-        <div>
-          <label class="label">
-            <span class="label-text">HTML Body</span><span class="label-text-alt">Optional</span>
-          </label>
-          <textarea
-            name="system_email[html_body]"
-            class="textarea textarea-bordered min-h-52 w-full font-mono text-sm"
-          ><%= @params["html_body"] || "" %></textarea>
-        </div>
+      <div class="px-5 py-5 sm:px-6">
+        <.form
+          :let={_f}
+          for={%{}}
+          action={~p"/pripyat/system-email"}
+          method="post"
+          class="space-y-5"
+        >
+          <div>
+            <label class="label"><span class="label-text">From</span></label>
+            <input type="text" class="input input-bordered w-full" value={@from_address} disabled />
+          </div>
 
-        <div class="flex flex-col sm:flex-row gap-2 pt-2">
-          <button
-            type="submit"
-            class="btn btn-primary"
-            data-confirm="Queue this email for every user mailbox?"
-          >
-            <.icon name="hero-paper-airplane" class="h-4 w-4 mr-2" /> Send To All Users
-          </button>
-          <.link href={~p"/pripyat"} class="btn btn-ghost">Cancel</.link>
-        </div>
-      </.form>
-    </div>
-  </div>
+          <div>
+            <label class="label"><span class="label-text">Subject</span></label>
+            <input
+              type="text"
+              name="system_email[subject]"
+              class="input input-bordered w-full"
+              value={@params["subject"] || ""}
+              maxlength="500"
+              required
+            />
+          </div>
+
+          <div>
+            <label class="label"><span class="label-text">Plain Text Body</span></label>
+            <textarea
+              name="system_email[text_body]"
+              class="textarea textarea-bordered min-h-52 w-full"
+              required
+            ><%= @params["text_body"] || "" %></textarea>
+          </div>
+
+          <div>
+            <label class="label">
+              <span class="label-text">HTML Body</span><span class="label-text-alt">Optional</span>
+            </label>
+            <textarea
+              name="system_email[html_body]"
+              class="textarea textarea-bordered min-h-52 w-full font-mono text-sm"
+            ><%= @params["html_body"] || "" %></textarea>
+          </div>
+
+          <div class="flex flex-col gap-2 border-t border-base-content/10 pt-5 sm:flex-row">
+            <.button type="submit" data-confirm="Queue this email for every user mailbox?">
+              <.icon name="hero-paper-airplane" class="h-4 w-4" /> Send To All Users
+            </.button>
+            <.button href={~p"/pripyat"} variant="ghost">Cancel</.button>
+          </div>
+        </.form>
+      </div>
+    </:body>
+  </.card>
 </div>

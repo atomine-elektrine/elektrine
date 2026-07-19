@@ -1,112 +1,186 @@
 <div class="admin-page">
-  <div class="mb-6 flex justify-between items-start">
-    <div>
-      <h1 class="text-2xl font-bold">Message Details</h1>
+  <.card class="panel-card" body_class="p-0">
+    <:body>
+      <div class="flex flex-col gap-4 px-5 py-6 sm:flex-row sm:items-end sm:justify-between sm:px-8 sm:py-8">
+        <div class="min-w-0">
+          <div class="text-2xs font-semibold uppercase tracking-[0.32em] text-warning/80">
+            Email
+          </div>
 
-      <%= if @user do %>
-        <p class="opacity-70 mt-2">From @{@user.username}'s mailbox</p>
-      <% else %>
-        <p class="opacity-70 mt-2">System message</p>
-      <% end %>
-    </div>
-
-    <div class="flex gap-2">
-      <.link href={@raw_path} class="btn btn-ghost" target="_blank">
-        <.icon name="hero-code-bracket" class="w-4 h-4 mr-2" /> View Raw
-      </.link>
-      <.link href={~p"/pripyat/messages"} class="btn btn-ghost">
-        <.icon name="hero-arrow-left" class="w-4 h-4 mr-2" /> Back to Messages
-      </.link>
-    </div>
-  </div>
-  <!-- Message Header -->
-  <div class="card panel-card mb-6">
-    <div class="card-body">
-      <h2 class="text-lg font-semibold mb-4">Message Info</h2>
-
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-        <div>
-          <p><strong>Subject:</strong> {decode_email_subject(@message.subject)}</p>
-
-          <p><strong>From:</strong> <span class="font-medium">{@message.from}</span></p>
-
-          <p><strong>To:</strong> <span class="font-medium">{@message.to}</span></p>
-
-          <%= if @message.cc do %>
-            <p><strong>CC:</strong> <span class="font-medium">{@message.cc}</span></p>
-          <% end %>
-        </div>
-
-        <div>
-          <p>
-            <strong>Date:</strong>
-            <.local_time
-              datetime={@message.inserted_at}
-              format="datetime"
-              timezone={@timezone}
-              time_format={@time_format}
-            />
-          </p>
-
-          <p>
-            <strong>Message ID:</strong>
-            <span class="font-medium text-xs">{@message.message_id}</span>
-          </p>
+          <h1 class="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Message Details</h1>
 
           <%= if @user do %>
-            <p>
-              <strong>Owner:</strong>
-              <.link href={~p"/pripyat/users/#{@user.id}/messages"} class="link link-primary">
-                @{@user.username}
-              </.link>
+            <p class="mt-3 text-sm leading-6 text-base-content/70 sm:text-base">
+              From @{@user.username}'s mailbox
             </p>
+          <% else %>
+            <p class="mt-3 text-sm leading-6 text-base-content/70 sm:text-base">System message</p>
           <% end %>
+        </div>
 
-          <p><strong>Category:</strong> {String.capitalize(@message.category || "inbox")}</p>
-
-          <p>
-            <strong>Status:</strong>
-            <span class={["badge badge-sm", message_status_badge_class(@message.status)]}>
-              {message_status_label(@message.status)}
-            </span>
-            <span class="ml-1 text-xs opacity-60">
-              {message_status_description(@message.status)}
-            </span>
-          </p>
+        <div class="flex flex-shrink-0 flex-wrap gap-2">
+          <.button href={@raw_path} variant="ghost" target="_blank">
+            <.icon name="hero-code-bracket" class="h-4 w-4" /> View Raw
+          </.button>
+          <.button href={~p"/pripyat/messages"} variant="ghost">
+            <.icon name="hero-arrow-left" class="h-4 w-4" /> Back to Messages
+          </.button>
         </div>
       </div>
-    </div>
-  </div>
-  <!-- Message Content -->
-  <div class="card panel-card">
-    <div class="card-body">
-      <h2 class="text-lg font-semibold mb-4">Message Content</h2>
+    </:body>
+  </.card>
 
-      <div class="bg-base-50 rounded-lg border border-base-300 min-h-[20rem] overflow-hidden">
-        <%= cond do %>
-          <% @message.html_body && String.trim(@message.html_body) != "" -> %>
-            <iframe
-              src={@iframe_path}
-              class="w-full min-h-[400px] h-[600px] border-0"
-              sandbox="allow-same-origin"
-              loading="lazy"
-            >
-            </iframe>
-          <% @message.text_body && String.trim(@message.text_body) != "" -> %>
-            <div class="whitespace-pre-wrap text-sm leading-relaxed break-words overflow-x-auto p-6">
-              {@message.text_body}
+  <.card class="panel-card" body_class="p-0">
+    <:body>
+      <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+        <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+          Metadata
+        </div>
+
+        <h2 class="mt-1 text-xl font-semibold tracking-tight">Message Info</h2>
+      </div>
+
+      <div class="grid grid-cols-1 gap-4 px-5 py-5 text-sm sm:px-6 md:grid-cols-2">
+        <div class="space-y-3">
+          <div>
+            <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              Subject
             </div>
-          <% true -> %>
-            <div class="flex items-center justify-center h-[20rem] text-base-content/50">
-              <div class="text-center">
-                <.icon name="hero-check-circle" class="w-12 h-12 mx-auto mb-3" />
-                <p class="text-lg mb-2">No content available</p>
 
-                <p class="text-sm">This message has no readable content</p>
+            <div class="mt-1 font-medium">{decode_email_subject(@message.subject)}</div>
+          </div>
+
+          <div>
+            <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              From
+            </div>
+
+            <div class="mt-1 font-medium break-all">{@message.from}</div>
+          </div>
+
+          <div>
+            <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              To
+            </div>
+
+            <div class="mt-1 font-medium break-all">{@message.to}</div>
+          </div>
+
+          <%= if @message.cc do %>
+            <div>
+              <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                CC
+              </div>
+
+              <div class="mt-1 font-medium break-all">{@message.cc}</div>
+            </div>
+          <% end %>
+        </div>
+
+        <div class="space-y-3">
+          <div>
+            <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              Date
+            </div>
+
+            <div class="mt-1 font-medium">
+              <.local_time
+                datetime={@message.inserted_at}
+                format="datetime"
+                timezone={@timezone}
+                time_format={@time_format}
+              />
+            </div>
+          </div>
+
+          <div>
+            <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              Message ID
+            </div>
+
+            <div class="mt-1 font-mono text-xs text-base-content/75 break-all">
+              {@message.message_id}
+            </div>
+          </div>
+
+          <%= if @user do %>
+            <div>
+              <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                Owner
+              </div>
+
+              <div class="mt-1">
+                <.link href={~p"/pripyat/users/#{@user.id}/messages"} class="link link-primary">
+                  @{@user.username}
+                </.link>
               </div>
             </div>
-        <% end %>
+          <% end %>
+
+          <div>
+            <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              Category
+            </div>
+
+            <div class="mt-1 font-medium">{String.capitalize(@message.category || "inbox")}</div>
+          </div>
+
+          <div>
+            <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              Status
+            </div>
+
+            <div class="mt-1 flex flex-wrap items-center gap-1.5">
+              <span class={["badge badge-sm", message_status_badge_class(@message.status)]}>
+                {message_status_label(@message.status)}
+              </span>
+              <span class="text-xs text-base-content/60">
+                {message_status_description(@message.status)}
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
-  </div>
+    </:body>
+  </.card>
+
+  <.card class="panel-card" body_class="p-0">
+    <:body>
+      <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+        <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+          Body
+        </div>
+
+        <h2 class="mt-1 text-xl font-semibold tracking-tight">Message Content</h2>
+      </div>
+
+      <div class="px-5 py-5 sm:px-6">
+        <div class="min-h-[20rem] overflow-hidden rounded-box border border-base-content/10 bg-base-200/30">
+          <%= cond do %>
+            <% @message.html_body && String.trim(@message.html_body) != "" -> %>
+              <iframe
+                src={@iframe_path}
+                class="w-full min-h-[400px] h-[600px] border-0"
+                sandbox="allow-same-origin"
+                loading="lazy"
+              >
+              </iframe>
+            <% @message.text_body && String.trim(@message.text_body) != "" -> %>
+              <div class="whitespace-pre-wrap text-sm leading-relaxed break-words overflow-x-auto p-6">
+                {@message.text_body}
+              </div>
+            <% true -> %>
+              <div class="flex h-[20rem] items-center justify-center text-base-content/50">
+                <div class="text-center">
+                  <.icon name="hero-check-circle" class="mx-auto mb-3 h-12 w-12" />
+                  <p class="mb-2 text-lg">No content available</p>
+
+                  <p class="text-sm">This message has no readable content</p>
+                </div>
+              </div>
+          <% end %>
+        </div>
+      </div>
+    </:body>
+  </.card>
 </div>

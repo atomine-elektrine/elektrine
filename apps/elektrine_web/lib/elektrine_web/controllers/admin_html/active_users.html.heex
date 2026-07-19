@@ -1,134 +1,156 @@
 <div class="admin-page">
-  <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-    <div>
-      <p class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/50">
-        User Admin
-      </p>
+  <div>
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <div class="max-w-2xl">
+        <div class="text-2xs font-semibold uppercase tracking-[0.32em] text-primary/80">
+          User Admin
+        </div>
 
-      <h1 class="mt-2 text-xl font-bold sm:text-2xl">Active Users - {@title}</h1>
+        <h1 class="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Active Users</h1>
 
-      <p class="mt-2 text-sm text-base-content/70 sm:text-base">
-        Review account activity by timeframe to spot recent engagement, dormant accounts, and unusual patterns.
-      </p>
+        <p class="mt-3 text-sm leading-6 text-base-content/70 sm:text-base">
+          Review account activity by timeframe to spot recent engagement, dormant accounts, and unusual patterns.
+        </p>
+      </div>
+
+      <div class="flex flex-wrap gap-2">
+        <div class="surface-muted rounded-box px-3 py-2 text-sm text-base-content/70">
+          Window: <span class="font-semibold text-base-content">{@title}</span>
+        </div>
+
+        <div class="surface-muted rounded-box px-3 py-2 text-sm text-base-content/70">
+          Users: <span class="font-semibold text-base-content">{@total_count}</span>
+        </div>
+      </div>
     </div>
-
-    <div class="text-xs opacity-60 sm:text-sm">{@total_count} users</div>
   </div>
-  <!-- Timeframe Filter -->
-  <.card class="mb-6">
+
+  <.card class="panel-card" body_class="p-0">
     <:body>
-      <div class="tabs tabs-bordered">
-        <%= for {value, label} <- [ {"1h", "Last Hour"}, {"24h", "Last 24 Hours"}, {"7d", "Last 7 Days"}, {"30d", "Last 30 Days"}, {"never", "Never Active"} ] do %>
-          <.link
-            navigate={~p"/pripyat/active-users?timeframe=#{value}"}
-            class={["tab", if(@timeframe == value, do: "tab-active", else: "")]}
-          >
-            {label}
-          </.link>
-        <% end %>
+      <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+        <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+          Filter
+        </div>
+
+        <h2 class="mt-1 text-xl font-semibold tracking-tight">Timeframe</h2>
+
+        <div class="mt-4 flex flex-wrap gap-2">
+          <%= for {value, label} <- [ {"1h", "Last Hour"}, {"24h", "Last 24 Hours"}, {"7d", "Last 7 Days"}, {"30d", "Last 30 Days"}, {"never", "Never Active"} ] do %>
+            <.link
+              navigate={~p"/pripyat/active-users?timeframe=#{value}"}
+              class={[
+                "surface-soft inline-flex items-center rounded-full px-3 py-2 text-sm transition",
+                if(@timeframe == value,
+                  do: "border-primary/40 font-medium text-base-content",
+                  else: "text-base-content/70 hover:border-primary/25 hover:text-base-content"
+                )
+              ]}
+            >
+              {label}
+            </.link>
+          <% end %>
+        </div>
       </div>
-    </:body>
-  </.card>
-  <!-- Active Users Table -->
-  <.card body_class="p-3 sm:p-6">
-    <:body>
-      <div class="overflow-x-auto">
-        <table class="table table-zebra w-full">
-          <thead>
-            <tr>
-              <th class="text-xs sm:text-sm">User</th>
 
-              <th class="text-xs sm:text-sm">Last Activity</th>
-
-              <th class="text-xs sm:text-sm hidden lg:table-cell">IP Address</th>
-
-              <th class="text-xs sm:text-sm hidden md:table-cell">Login Count</th>
-
-              <th class="text-xs sm:text-sm">Status</th>
-
-              <th class="text-xs sm:text-sm">Actions</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            <%= for user <- @active_users do %>
+      <div class="px-5 py-5 sm:px-6">
+        <div class="overflow-x-auto">
+          <table class="table w-full">
+            <thead>
               <tr>
-                <td>
-                  <div>
-                    <div class="font-bold">{user.username}</div>
+                <th class="text-xs sm:text-sm">User</th>
 
-                    <%= if user.is_admin do %>
-                      <div class="badge badge-error badge-xs">Admin</div>
-                    <% end %>
+                <th class="text-xs sm:text-sm">Last Activity</th>
 
-                    <div class="text-xs opacity-50">
-                      Registered: {Calendar.strftime(user.inserted_at, "%Y-%m-%d")}
-                    </div>
-                  </div>
-                </td>
+                <th class="text-xs sm:text-sm hidden lg:table-cell">IP Address</th>
 
-                <td>
-                  <%= if user.last_activity_at do %>
-                    <div class="text-sm">
-                      {Calendar.strftime(user.last_activity_at, "%Y-%m-%d %H:%M")}
-                    </div>
+                <th class="text-xs sm:text-sm hidden md:table-cell">Login Count</th>
 
-                    <div class="mt-1 flex flex-wrap items-center gap-2 text-xs opacity-60">
-                      <span>{time_ago_in_words(user.last_activity_at)} ago</span>
-                      <span class="badge badge-outline badge-xs">
-                        {activity_source_label(user.last_activity_source)}
-                      </span>
-                    </div>
-                  <% else %>
-                    <span class="opacity-50">Never</span>
-                  <% end %>
-                </td>
+                <th class="text-xs sm:text-sm">Status</th>
 
-                <td class="hidden lg:table-cell">
-                  <span class="font-medium text-xs break-all max-w-xs">
-                    {if(user.last_activity_source == :web,
-                      do: user.last_login_ip || "-",
-                      else: "-"
-                    )}
-                  </span>
-                </td>
-
-                <td class="hidden md:table-cell">
-                  <span class="font-medium text-sm">{user.login_count || 0}</span>
-                </td>
-
-                <td>
-                  <div class="flex flex-wrap gap-1">
-                    <%= if user.two_factor_enabled do %>
-                      <div class="badge badge-success badge-sm">2FA</div>
-                    <% end %>
-
-                    <%= if user.last_activity_at && DateTime.diff(DateTime.utc_now(), user.last_activity_at, :hour) < 1 do %>
-                      <div class="badge badge-success badge-sm">Online</div>
-                    <% end %>
-                  </div>
-                </td>
-
-                <td>
-                  <.button
-                    navigate={~p"/pripyat/users/#{user.id}/edit"}
-                    variant="ghost"
-                    size="xs"
-                  >
-                    <.icon name="hero-pencil" class="w-3 h-3" /> View
-                  </.button>
-                </td>
+                <th class="text-xs sm:text-sm">Actions</th>
               </tr>
-            <% end %>
-          </tbody>
-        </table>
+            </thead>
+
+            <tbody>
+              <%= for user <- @active_users do %>
+                <tr>
+                  <td>
+                    <div>
+                      <div class="font-semibold">{user.username}</div>
+
+                      <%= if user.is_admin do %>
+                        <div class="badge badge-error badge-xs">Admin</div>
+                      <% end %>
+
+                      <div class="text-xs text-base-content/50">
+                        Registered: {Calendar.strftime(user.inserted_at, "%Y-%m-%d")}
+                      </div>
+                    </div>
+                  </td>
+
+                  <td>
+                    <%= if user.last_activity_at do %>
+                      <div class="text-sm">
+                        {Calendar.strftime(user.last_activity_at, "%Y-%m-%d %H:%M")}
+                      </div>
+
+                      <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-base-content/60">
+                        <span>{time_ago_in_words(user.last_activity_at)} ago</span>
+                        <span class="badge badge-outline badge-xs">
+                          {activity_source_label(user.last_activity_source)}
+                        </span>
+                      </div>
+                    <% else %>
+                      <span class="text-base-content/50">Never</span>
+                    <% end %>
+                  </td>
+
+                  <td class="hidden lg:table-cell">
+                    <span class="max-w-xs break-all font-medium text-xs">
+                      {if(user.last_activity_source == :web,
+                        do: user.last_login_ip || "-",
+                        else: "-"
+                      )}
+                    </span>
+                  </td>
+
+                  <td class="hidden md:table-cell">
+                    <span class="font-medium text-sm">{user.login_count || 0}</span>
+                  </td>
+
+                  <td>
+                    <div class="flex flex-wrap gap-1">
+                      <%= if user.two_factor_enabled do %>
+                        <div class="badge badge-success badge-sm">2FA</div>
+                      <% end %>
+
+                      <%= if user.last_activity_at && DateTime.diff(DateTime.utc_now(), user.last_activity_at, :hour) < 1 do %>
+                        <div class="badge badge-success badge-sm">Online</div>
+                      <% end %>
+                    </div>
+                  </td>
+
+                  <td>
+                    <.button
+                      navigate={~p"/pripyat/users/#{user.id}/edit"}
+                      variant="ghost"
+                      size="xs"
+                    >
+                      <.icon name="hero-pencil" class="h-3 w-3" /> View
+                    </.button>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
       </div>
     </:body>
   </.card>
-  <!-- Pagination -->
+
   <%= if @total_pages > 1 do %>
-    <div class="flex items-center justify-between mt-6">
-      <div class="text-sm opacity-70">Page {@page} of {@total_pages}</div>
+    <div class="flex items-center justify-between">
+      <div class="text-sm text-base-content/70">Page {@page} of {@total_pages}</div>
 
       <div class="join">
         <%= if @page > 1 do %>
@@ -138,13 +160,13 @@
             size="sm"
             class="join-item"
           >
-            <.icon name="hero-chevron-left" class="w-4 h-4" />
+            <.icon name="hero-chevron-left" class="h-4 w-4" />
           </.button>
         <% end %>
 
         <%= for page_num <- max(1, @page - 2)..min(@total_pages, @page + 2) do %>
           <%= if page_num == @page do %>
-            <.button variant="default" size="sm" class="join-item btn-active">
+            <.button variant="primary" size="sm" class="join-item">
               {page_num}
             </.button>
           <% else %>
@@ -166,7 +188,7 @@
             size="sm"
             class="join-item"
           >
-            <.icon name="hero-chevron-right" class="w-4 h-4" />
+            <.icon name="hero-chevron-right" class="h-4 w-4" />
           </.button>
         <% end %>
       </div>

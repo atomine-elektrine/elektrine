@@ -36,31 +36,43 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
   def render(assigns) do
     ~H"""
     <div class="admin-page">
-      <.section_header
-        title="Reports"
-        description="Review, triage, and resolve user reports across messages, users, and conversations."
-      >
-        <:actions>
-          <.action_toolbar>
-            <.button href={~p"/pripyat/content-moderation"} variant="ghost" size="sm">
-              <.icon name="hero-shield-exclamation" class="w-4 h-4" /> Moderation Queue
-            </.button>
-            <.button href={~p"/pripyat/content-moderation?type=chat"} variant="ghost" size="sm">
-              <.icon name="hero-chat-bubble-left-right" class="w-4 h-4" /> Chat Queue
-            </.button>
-          </.action_toolbar>
-        </:actions>
-      </.section_header>
+      <.card body_class="p-0">
+        <:body>
+          <div class="flex flex-col gap-6 px-5 py-6 sm:px-8 sm:py-8 lg:flex-row lg:items-end lg:justify-between">
+            <div class="max-w-2xl">
+              <div class="text-2xs font-semibold uppercase tracking-[0.32em] text-warning/80">
+                Moderation
+              </div>
+
+              <h1 class="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">Reports</h1>
+
+              <p class="mt-3 max-w-2xl text-sm leading-6 text-base-content/70 sm:text-base">
+                Review, triage, and resolve user reports across messages, users, and conversations.
+              </p>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2">
+              <.button href={~p"/pripyat/content-moderation"} variant="ghost" size="sm">
+                <.icon name="hero-shield-exclamation" class="w-4 h-4" /> Moderation Queue
+              </.button>
+              <.button href={~p"/pripyat/content-moderation?type=chat"} variant="ghost" size="sm">
+                <.icon name="hero-chat-bubble-left-right" class="w-4 h-4" /> Chat Queue
+              </.button>
+            </div>
+          </div>
+        </:body>
+      </.card>
 
       <div class="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <button
           phx-click="set_filter_status"
           phx-value-status="pending"
           class={[
-            "rounded-box border border-base-300 bg-base-200/60 px-4 py-4 text-left shadow-sm transition",
+            "rounded-box border px-4 py-4 text-left transition",
             if(@filter_status == "pending",
-              do: "border-warning/30 bg-warning/10 shadow-md",
-              else: "border-base-content/10 hover:-translate-y-0.5 hover:border-warning/30"
+              do: "border-warning/40 bg-warning/10",
+              else:
+                "border-base-content/10 bg-base-200/35 hover:-translate-y-0.5 hover:border-warning/30"
             )
           ]}
         >
@@ -68,17 +80,18 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
             Pending
           </div>
           <div class="mt-2 text-3xl font-semibold text-warning">{@stats[:pending] || 0}</div>
-          <div class="mt-2 text-xs text-base-content/55">Needs initial review.</div>
+          <div class="mt-2 text-sm text-base-content/55">Needs initial review.</div>
         </button>
 
         <button
           phx-click="set_filter_status"
           phx-value-status="reviewing"
           class={[
-            "rounded-box border border-base-300 bg-base-200/60 px-4 py-4 text-left shadow-sm transition",
+            "rounded-box border px-4 py-4 text-left transition",
             if(@filter_status == "reviewing",
-              do: "border-info/30 bg-info/10 shadow-md",
-              else: "border-base-content/10 hover:-translate-y-0.5 hover:border-info/30"
+              do: "border-info/40 bg-info/10",
+              else:
+                "border-base-content/10 bg-base-200/35 hover:-translate-y-0.5 hover:border-info/30"
             )
           ]}
         >
@@ -86,17 +99,18 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
             Reviewing
           </div>
           <div class="mt-2 text-3xl font-semibold text-info">{@stats[:reviewing] || 0}</div>
-          <div class="mt-2 text-xs text-base-content/55">In progress.</div>
+          <div class="mt-2 text-sm text-base-content/55">In progress.</div>
         </button>
 
         <button
           phx-click="set_filter_status"
           phx-value-status="resolved"
           class={[
-            "rounded-box border border-base-300 bg-base-200/60 px-4 py-4 text-left shadow-sm transition",
+            "rounded-box border px-4 py-4 text-left transition",
             if(@filter_status == "resolved",
-              do: "border-success/30 bg-success/10 shadow-md",
-              else: "border-base-content/10 hover:-translate-y-0.5 hover:border-success/30"
+              do: "border-success/40 bg-success/10",
+              else:
+                "border-base-content/10 bg-base-200/35 hover:-translate-y-0.5 hover:border-success/30"
             )
           ]}
         >
@@ -104,17 +118,18 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
             Resolved
           </div>
           <div class="mt-2 text-3xl font-semibold text-success">{@stats[:resolved] || 0}</div>
-          <div class="mt-2 text-xs text-base-content/55">Closed with action.</div>
+          <div class="mt-2 text-sm text-base-content/55">Closed with action.</div>
         </button>
 
         <button
           phx-click="set_filter_status"
           phx-value-status="all"
           class={[
-            "rounded-box border border-base-300 bg-base-200/60 px-4 py-4 text-left shadow-sm transition",
+            "rounded-box border px-4 py-4 text-left transition",
             if(@filter_status == "all",
-              do: "border-error/30 bg-error/10 shadow-md",
-              else: "border-base-content/10 hover:-translate-y-0.5 hover:border-error/30"
+              do: "border-error/40 bg-error/10",
+              else:
+                "border-base-content/10 bg-base-200/35 hover:-translate-y-0.5 hover:border-error/30"
             )
           ]}
         >
@@ -122,109 +137,149 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
             Critical Pending
           </div>
           <div class="mt-2 text-3xl font-semibold text-error">{@stats[:critical] || 0}</div>
-          <div class="mt-2 text-xs text-base-content/55">High-risk unresolved.</div>
+          <div class="mt-2 text-sm text-base-content/55">High-risk unresolved.</div>
         </button>
       </div>
 
-      <.card body_class="gap-4">
+      <.card body_class="p-0">
         <:body>
-          <div class="tabs tabs-boxed overflow-x-auto flex-nowrap">
-            <button
-              phx-click="set_filter_status"
-              phx-value-status="pending"
-              class={status_tab_class(@filter_status, "pending")}
-            >
-              <.icon name="hero-clock" class="w-4 h-4 mr-1" /> Pending
-            </button>
-            <button
-              phx-click="set_filter_status"
-              phx-value-status="reviewing"
-              class={status_tab_class(@filter_status, "reviewing")}
-            >
-              <.icon name="hero-magnifying-glass" class="w-4 h-4 mr-1" /> Reviewing
-            </button>
-            <button
-              phx-click="set_filter_status"
-              phx-value-status="resolved"
-              class={status_tab_class(@filter_status, "resolved")}
-            >
-              <.icon name="hero-check-circle" class="w-4 h-4 mr-1" /> Resolved
-            </button>
-            <button
-              phx-click="set_filter_status"
-              phx-value-status="dismissed"
-              class={status_tab_class(@filter_status, "dismissed")}
-            >
-              <.icon name="hero-x-circle" class="w-4 h-4 mr-1" /> Dismissed
-            </button>
-            <button
-              phx-click="set_filter_status"
-              phx-value-status="all"
-              class={status_tab_class(@filter_status, "all")}
-            >
-              <.icon name="hero-document-text" class="w-4 h-4 mr-1" /> All
-            </button>
+          <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+            <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+              Filters
+            </div>
+
+            <h2 class="mt-1 text-xl font-semibold tracking-tight">Narrow the Queue</h2>
           </div>
 
-          <form phx-change="filter_change" class="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <label class="form-control">
-              <span class="label-text mb-1 text-sm">Status</span>
-              <div class="select select-bordered">
-                <select name="status">
-                  <option value="all" selected={@filter_status == "all"}>All statuses</option>
-                  <option value="pending" selected={@filter_status == "pending"}>Pending</option>
-                  <option value="reviewing" selected={@filter_status == "reviewing"}>
-                    Reviewing
-                  </option>
-                  <option value="resolved" selected={@filter_status == "resolved"}>Resolved</option>
-                  <option value="dismissed" selected={@filter_status == "dismissed"}>
-                    Dismissed
-                  </option>
-                </select>
-              </div>
-            </label>
+          <div class="space-y-4 px-5 py-5 sm:px-6">
+            <div class="tabs tabs-boxed overflow-x-auto flex-nowrap">
+              <button
+                phx-click="set_filter_status"
+                phx-value-status="pending"
+                class={status_tab_class(@filter_status, "pending")}
+              >
+                <.icon name="hero-clock" class="w-4 h-4 mr-1" /> Pending
+              </button>
+              <button
+                phx-click="set_filter_status"
+                phx-value-status="reviewing"
+                class={status_tab_class(@filter_status, "reviewing")}
+              >
+                <.icon name="hero-magnifying-glass" class="w-4 h-4 mr-1" /> Reviewing
+              </button>
+              <button
+                phx-click="set_filter_status"
+                phx-value-status="resolved"
+                class={status_tab_class(@filter_status, "resolved")}
+              >
+                <.icon name="hero-check-circle" class="w-4 h-4 mr-1" /> Resolved
+              </button>
+              <button
+                phx-click="set_filter_status"
+                phx-value-status="dismissed"
+                class={status_tab_class(@filter_status, "dismissed")}
+              >
+                <.icon name="hero-x-circle" class="w-4 h-4 mr-1" /> Dismissed
+              </button>
+              <button
+                phx-click="set_filter_status"
+                phx-value-status="all"
+                class={status_tab_class(@filter_status, "all")}
+              >
+                <.icon name="hero-document-text" class="w-4 h-4 mr-1" /> All
+              </button>
+            </div>
 
-            <label class="form-control">
-              <span class="label-text mb-1 text-sm">Content type</span>
-              <div class="select select-bordered">
-                <select name="type">
-                  <option value="all" selected={@filter_type == "all"}>All types</option>
-                  <option value="user" selected={@filter_type == "user"}>User</option>
-                  <option value="message" selected={@filter_type == "message"}>Message</option>
-                  <option value="conversation" selected={@filter_type == "conversation"}>
-                    Conversation
-                  </option>
-                </select>
-              </div>
-            </label>
+            <form
+              phx-change="filter_change"
+              class="surface-muted rounded-box grid grid-cols-1 gap-3 p-4 md:grid-cols-3"
+            >
+              <label class="form-control">
+                <span class="mb-1 text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                  Status
+                </span>
+                <div class="select select-bordered">
+                  <select name="status">
+                    <option value="all" selected={@filter_status == "all"}>All statuses</option>
+                    <option value="pending" selected={@filter_status == "pending"}>Pending</option>
+                    <option value="reviewing" selected={@filter_status == "reviewing"}>
+                      Reviewing
+                    </option>
+                    <option value="resolved" selected={@filter_status == "resolved"}>Resolved</option>
+                    <option value="dismissed" selected={@filter_status == "dismissed"}>
+                      Dismissed
+                    </option>
+                  </select>
+                </div>
+              </label>
 
-            <label class="form-control">
-              <span class="label-text mb-1 text-sm">Priority</span>
-              <div class="select select-bordered">
-                <select name="priority">
-                  <option value="all" selected={@filter_priority == "all"}>All priorities</option>
-                  <option value="critical" selected={@filter_priority == "critical"}>Critical</option>
-                  <option value="high" selected={@filter_priority == "high"}>High</option>
-                  <option value="normal" selected={@filter_priority == "normal"}>Normal</option>
-                  <option value="low" selected={@filter_priority == "low"}>Low</option>
-                </select>
-              </div>
-            </label>
-          </form>
+              <label class="form-control">
+                <span class="mb-1 text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                  Content type
+                </span>
+                <div class="select select-bordered">
+                  <select name="type">
+                    <option value="all" selected={@filter_type == "all"}>All types</option>
+                    <option value="user" selected={@filter_type == "user"}>User</option>
+                    <option value="message" selected={@filter_type == "message"}>Message</option>
+                    <option value="conversation" selected={@filter_type == "conversation"}>
+                      Conversation
+                    </option>
+                  </select>
+                </div>
+              </label>
 
-          <div class="flex flex-wrap gap-2 text-xs">
-            <span class="badge badge-outline">Status: {String.capitalize(@filter_status)}</span>
-            <span class="badge badge-outline">Type: {String.capitalize(@filter_type)}</span>
-            <span class="badge badge-outline">Priority: {String.capitalize(@filter_priority)}</span>
-            <span class="badge badge-ghost">
-              Showing {length(@reports)} of {@reports_total_count}
-            </span>
+              <label class="form-control">
+                <span class="mb-1 text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                  Priority
+                </span>
+                <div class="select select-bordered">
+                  <select name="priority">
+                    <option value="all" selected={@filter_priority == "all"}>All priorities</option>
+                    <option value="critical" selected={@filter_priority == "critical"}>
+                      Critical
+                    </option>
+                    <option value="high" selected={@filter_priority == "high"}>High</option>
+                    <option value="normal" selected={@filter_priority == "normal"}>Normal</option>
+                    <option value="low" selected={@filter_priority == "low"}>Low</option>
+                  </select>
+                </div>
+              </label>
+            </form>
+
+            <div class="flex flex-wrap gap-2 text-xs text-base-content/60">
+              <span class="rounded-full border border-base-content/10 bg-base-200/45 px-2.5 py-1">
+                Status: {String.capitalize(@filter_status)}
+              </span>
+              <span class="rounded-full border border-base-content/10 bg-base-200/45 px-2.5 py-1">
+                Type: {String.capitalize(@filter_type)}
+              </span>
+              <span class="rounded-full border border-base-content/10 bg-base-200/45 px-2.5 py-1">
+                Priority: {String.capitalize(@filter_priority)}
+              </span>
+            </div>
           </div>
         </:body>
       </.card>
 
       <.card body_class="p-0">
         <:body>
+          <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+            <div class="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+                  Queue
+                </div>
+
+                <h2 class="mt-1 text-xl font-semibold tracking-tight">Report Queue</h2>
+              </div>
+
+              <div class="text-sm text-base-content/55">
+                Showing {length(@reports)} of {@reports_total_count}
+              </div>
+            </div>
+          </div>
+
           <%= if @reports == [] do %>
             <.empty_state
               icon="hero-document-magnifying-glass"
@@ -234,7 +289,7 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
             />
           <% else %>
             <div class="hidden lg:block overflow-x-auto overflow-y-visible">
-              <table class="table table-zebra">
+              <table class="table w-full">
                 <thead>
                   <tr>
                     <th>Report</th>
@@ -334,9 +389,11 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
 
                           <%= if report.status in ["pending", "reviewing"] do %>
                             <div class="dropdown dropdown-end dropdown-left">
-                              <label tabindex="0" class="btn btn-ghost btn-xs btn-square">
-                                <.icon name="hero-ellipsis-vertical" class="w-4 h-4" />
-                              </label>
+                              <.icon_button
+                                icon="hero-ellipsis-vertical"
+                                size="xs"
+                                label="More actions"
+                              />
                               <ul
                                 tabindex="0"
                                 class="dropdown-content z-50 menu p-2 rounded-box w-52"
@@ -374,7 +431,7 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
 
             <div class="space-y-3 p-4 lg:hidden">
               <%= for report <- @reports do %>
-                <article class="rounded-box border border-base-300 bg-base-200/60 px-4 py-4 shadow-sm">
+                <article class="rounded-box border border-base-content/10 bg-base-200/45 px-4 py-4">
                   <div class="mb-3 flex items-start justify-between gap-3">
                     <div>
                       <div class="font-semibold">Report #{report.id}</div>
@@ -430,9 +487,7 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
                     </.button>
                     <%= if report.status in ["pending", "reviewing"] do %>
                       <div class="dropdown dropdown-end">
-                        <label tabindex="0" class="btn btn-ghost btn-sm btn-square">
-                          <.icon name="hero-ellipsis-vertical" class="w-4 h-4" />
-                        </label>
+                        <.icon_button icon="hero-ellipsis-vertical" size="sm" label="More actions" />
                         <ul
                           tabindex="0"
                           class="dropdown-content z-50 menu p-2 rounded-box w-52"
@@ -501,11 +556,16 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
             class="modal-box modal-surface max-w-5xl w-full p-0 overflow-hidden"
             phx-click-away="close_report_modal"
           >
-            <div class="border-b border-base-300 px-6 py-5">
+            <div class="border-b border-base-content/10 px-6 py-5">
               <div class="flex items-start justify-between gap-3">
                 <div>
-                  <h2 class="text-2xl font-bold">Report #{@selected_report.id}</h2>
-                  <p class="mt-1 text-sm text-base-content/70">
+                  <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+                    Report Review
+                  </div>
+                  <h2 class="mt-1 text-2xl font-semibold tracking-tight">
+                    Report #{@selected_report.id}
+                  </h2>
+                  <p class="mt-1 text-sm text-base-content/60">
                     Submitted
                     <.local_time datetime={@selected_report.inserted_at} format="datetime" />
                   </p>
@@ -517,25 +577,25 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
                   <span class={["badge", status_badge_class(@selected_report.status)]}>
                     {String.capitalize(@selected_report.status || "pending")}
                   </span>
-                  <.button
-                    phx-click="close_report_modal"
-                    variant="ghost"
+                  <.icon_button
+                    icon="hero-x-mark"
                     size="sm"
-                    class="btn-square"
-                  >
-                    <.icon name="hero-x-mark" class="w-4 h-4" />
-                  </.button>
+                    label="Close"
+                    phx-click="close_report_modal"
+                  />
                 </div>
               </div>
             </div>
 
             <div class="max-h-[75vh] overflow-y-auto p-6 space-y-6">
               <div class="grid gap-4 lg:grid-cols-2">
-                <section class="rounded-box border border-base-300 bg-base-200/50 p-4 space-y-4">
+                <section class="rounded-box border border-base-content/10 bg-base-200/35 p-4 space-y-4">
                   <h3 class="font-semibold">Context</h3>
 
                   <div>
-                    <div class="text-xs uppercase tracking-wide opacity-60 mb-1">Reporter</div>
+                    <div class="mb-1 text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                      Reporter
+                    </div>
                     <%= if @selected_report.reporter do %>
                       <div class="flex items-center gap-3">
                         <.user_avatar user={@selected_report.reporter} size="sm" />
@@ -544,16 +604,20 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
                             {@selected_report.reporter.display_name ||
                               @selected_report.reporter.username}
                           </p>
-                          <p class="text-sm opacity-70">@{@selected_report.reporter.username}</p>
+                          <p class="text-sm text-base-content/70">
+                            @{@selected_report.reporter.username}
+                          </p>
                         </div>
                       </div>
                     <% else %>
-                      <p class="text-sm opacity-70">User deleted</p>
+                      <p class="text-sm text-base-content/70">User deleted</p>
                     <% end %>
                   </div>
 
                   <div>
-                    <div class="text-xs uppercase tracking-wide opacity-60 mb-1">Reported item</div>
+                    <div class="mb-1 text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                      Reported item
+                    </div>
                     <div class="flex flex-wrap items-center gap-2">
                       <span class={[
                         "badge badge-outline",
@@ -561,7 +625,7 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
                       ]}>
                         {String.upcase(@selected_report.reportable_type || "unknown")}
                       </span>
-                      <span class="text-xs font-mono opacity-70">
+                      <span class="text-xs font-mono text-base-content/70">
                         ID {@selected_report.reportable_id}
                       </span>
                       <.button
@@ -578,7 +642,9 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
 
                   <%= if @selected_report.metadata && map_size(@selected_report.metadata) > 0 do %>
                     <div>
-                      <div class="text-xs uppercase tracking-wide opacity-60 mb-1">Metadata</div>
+                      <div class="mb-1 text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                        Metadata
+                      </div>
                       <div class="space-y-1 text-sm">
                         <%= for {key, value} <- @selected_report.metadata do %>
                           <p>
@@ -591,11 +657,13 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
                   <% end %>
                 </section>
 
-                <section class="rounded-box border border-base-300 bg-base-200/50 p-4 space-y-4">
+                <section class="rounded-box border border-base-content/10 bg-base-200/35 p-4 space-y-4">
                   <h3 class="font-semibold">Reason and Resolution</h3>
 
                   <div>
-                    <div class="text-xs uppercase tracking-wide opacity-60 mb-1">Reason</div>
+                    <div class="mb-1 text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                      Reason
+                    </div>
                     <div class="badge badge-error badge-lg">
                       {format_reason(@selected_report.reason)}
                     </div>
@@ -603,26 +671,30 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
 
                   <%= if @selected_report.description do %>
                     <div>
-                      <div class="text-xs uppercase tracking-wide opacity-60 mb-1">Description</div>
+                      <div class="mb-1 text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                        Description
+                      </div>
                       <p class="text-sm whitespace-pre-wrap">{@selected_report.description}</p>
                     </div>
                   <% end %>
 
                   <div>
-                    <div class="text-xs uppercase tracking-wide opacity-60 mb-1">Review status</div>
+                    <div class="mb-1 text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                      Review status
+                    </div>
                     <%= if @selected_report.reviewed_by do %>
                       <p class="text-sm">
                         Reviewed by <strong>@{@selected_report.reviewed_by.username}</strong>
                         on <.local_time datetime={@selected_report.reviewed_at} format="date" />
                       </p>
                     <% else %>
-                      <p class="text-sm opacity-70">Not reviewed yet</p>
+                      <p class="text-sm text-base-content/70">Not reviewed yet</p>
                     <% end %>
                   </div>
 
                   <%= if @selected_report.resolution_notes do %>
                     <div>
-                      <div class="text-xs uppercase tracking-wide opacity-60 mb-1">
+                      <div class="mb-1 text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
                         Resolution notes
                       </div>
                       <p class="text-sm whitespace-pre-wrap">{@selected_report.resolution_notes}</p>
@@ -632,7 +704,7 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
               </div>
 
               <%= if @selected_report.status in ["pending", "reviewing"] do %>
-                <section class="rounded-box border border-base-300 bg-base-100 p-4">
+                <section class="rounded-box border border-base-content/10 bg-base-200/35 p-4">
                   <h3 class="font-semibold mb-3">Take Action</h3>
                   <form phx-submit="update_report" class="space-y-4">
                     <input type="hidden" name="report_id" value={@selected_report.id} />
@@ -744,48 +816,52 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
                     </div>
                   </form>
 
-                  <div class="divider my-6">Quick Actions</div>
-                  <div class="flex flex-wrap gap-2">
-                    <%= if @selected_report.reportable_type == "user" do %>
-                      <.button
-                        phx-click="admin_action"
-                        phx-value-action="suspend_user"
-                        phx-value-user_id={@selected_report.reportable_id}
-                        data-confirm="Suspend this user for 7 days?"
-                        variant="warning"
-                        size="sm"
-                      >
-                        <.icon name="hero-pause" class="w-4 h-4" /> Suspend User (7 days)
-                      </.button>
-                      <.button
-                        phx-click="admin_action"
-                        phx-value-action="ban_user"
-                        phx-value-user_id={@selected_report.reportable_id}
-                        data-confirm="Permanently ban this user?"
-                        variant="secondary"
-                        size="sm"
-                      >
-                        <.icon name="hero-no-symbol" class="w-4 h-4" /> Ban User
-                      </.button>
-                    <% end %>
-                    <%= if @selected_report.reportable_type == "message" do %>
-                      <.button
-                        phx-click="admin_action"
-                        phx-value-action="delete_message"
-                        phx-value-message_id={@selected_report.reportable_id}
-                        data-confirm="Delete this message?"
-                        variant="secondary"
-                        size="sm"
-                      >
-                        <.icon name="hero-trash" class="w-4 h-4" /> Delete Message
-                      </.button>
-                    <% end %>
+                  <div class="mt-6 border-t border-base-content/10 pt-4">
+                    <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                      Quick Actions
+                    </div>
+                    <div class="mt-3 flex flex-wrap gap-2">
+                      <%= if @selected_report.reportable_type == "user" do %>
+                        <.button
+                          phx-click="admin_action"
+                          phx-value-action="suspend_user"
+                          phx-value-user_id={@selected_report.reportable_id}
+                          data-confirm="Suspend this user for 7 days?"
+                          variant="warning"
+                          size="sm"
+                        >
+                          <.icon name="hero-pause" class="w-4 h-4" /> Suspend User (7 days)
+                        </.button>
+                        <.button
+                          phx-click="admin_action"
+                          phx-value-action="ban_user"
+                          phx-value-user_id={@selected_report.reportable_id}
+                          data-confirm="Permanently ban this user?"
+                          variant="secondary"
+                          size="sm"
+                        >
+                          <.icon name="hero-no-symbol" class="w-4 h-4" /> Ban User
+                        </.button>
+                      <% end %>
+                      <%= if @selected_report.reportable_type == "message" do %>
+                        <.button
+                          phx-click="admin_action"
+                          phx-value-action="delete_message"
+                          phx-value-message_id={@selected_report.reportable_id}
+                          data-confirm="Delete this message?"
+                          variant="secondary"
+                          size="sm"
+                        >
+                          <.icon name="hero-trash" class="w-4 h-4" /> Delete Message
+                        </.button>
+                      <% end %>
+                    </div>
                   </div>
                 </section>
               <% end %>
             </div>
 
-            <div class="border-t border-base-300 px-6 py-4 flex justify-end">
+            <div class="border-t border-base-content/10 px-6 py-4 flex justify-end">
               <.button type="button" phx-click="close_report_modal" variant="ghost">
                 Close
               </.button>

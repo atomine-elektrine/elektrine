@@ -1,102 +1,134 @@
 <div class="admin-page">
-  <div class="mb-6">
-    <div class="flex items-center mb-2">
-      <.button href={~p"/pripyat/announcements"} variant="ghost" size="sm" class="mr-4">
-        <.icon name="hero-arrow-left" class="h-4 w-4 mr-2" /> Back
-      </.button>
-      <h1 class="text-2xl font-bold">Create Announcement</h1>
-    </div>
-
-    <p class="opacity-70">Create a site-wide announcement for all users.</p>
-  </div>
-
-  <.card>
+  <.card class="panel-card" body_class="p-0">
     <:body>
-      <.simple_form :let={f} for={@changeset} action={~p"/pripyat/announcements"} bare={true}>
-        <.error :if={@changeset.action}>
-          Oops, something went wrong! Please check the errors below.
-        </.error>
+      <div class="px-5 py-6 sm:px-8 sm:py-8">
+        <.link
+          href={~p"/pripyat/announcements"}
+          class="inline-flex items-center gap-1.5 text-sm text-base-content/60 transition-colors hover:text-base-content"
+        >
+          <.icon name="hero-chevron-left" class="h-4 w-4" /> Back to announcements
+        </.link>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <.input
-              field={f[:title]}
-              type="text"
-              label="Title"
-              placeholder="Brief announcement title"
-              required
-            />
+        <div class="mt-5 flex items-start gap-4">
+          <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary/10 text-secondary">
+            <.icon name="hero-megaphone" class="h-5 w-5" />
           </div>
 
           <div>
-            <.input
-              field={f[:type]}
-              type="select"
-              label="Type"
-              options={[
-                {"Information", "info"},
-                {"Warning", "warning"},
-                {"Maintenance", "maintenance"},
-                {"New Feature", "feature"},
-                {"Urgent", "urgent"}
-              ]}
-              required
-            />
+            <div class="text-2xs font-semibold uppercase tracking-[0.32em] text-secondary/80">
+              Communications
+            </div>
+
+            <h1 class="mt-2 text-2xl font-semibold tracking-tight">Create Announcement</h1>
+
+            <p class="mt-3 max-w-2xl text-sm leading-6 text-base-content/70">
+              Create a site-wide announcement for all users.
+            </p>
           </div>
         </div>
+      </div>
+    </:body>
+  </.card>
 
-        <div>
-          <.input
-            field={f[:content]}
-            type="textarea"
-            label="Content"
-            placeholder="Write the announcement users will see..."
-            rows="6"
-            required
-          />
+  <.card class="panel-card" body_class="p-0">
+    <:body>
+      <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+        <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+          New Announcement
         </div>
 
-        <div class="divider">Display</div>
+        <h2 class="mt-1 text-xl font-semibold tracking-tight">Details</h2>
+      </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <.input field={f[:starts_at]} type="datetime-local" label="Starts At" />
-            <div class="label">
-              <span class="text-xs opacity-70">Leave empty to show immediately.</span>
+      <div class="px-5 py-5 sm:px-6">
+        <.simple_form :let={f} for={@changeset} action={~p"/pripyat/announcements"} bare={true}>
+          <.error :if={@changeset.action}>
+            Oops, something went wrong! Please check the errors below.
+          </.error>
+
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+              <.input
+                field={f[:title]}
+                type="text"
+                label="Title"
+                placeholder="Brief announcement title"
+                required
+              />
+            </div>
+
+            <div>
+              <.input
+                field={f[:type]}
+                type="select"
+                label="Type"
+                options={[
+                  {"Information", "info"},
+                  {"Warning", "warning"},
+                  {"Maintenance", "maintenance"},
+                  {"New Feature", "feature"},
+                  {"Urgent", "urgent"}
+                ]}
+                required
+              />
             </div>
           </div>
 
           <div>
-            <.input field={f[:ends_at]} type="datetime-local" label="Ends At" />
-            <div class="label">
-              <span class="text-xs opacity-70">Leave empty to keep visible until disabled.</span>
+            <.input
+              field={f[:content]}
+              type="textarea"
+              label="Content"
+              placeholder="Write the announcement users will see..."
+              rows="6"
+              required
+            />
+          </div>
+
+          <div class="border-t border-base-content/10 pt-5">
+            <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              Display
             </div>
           </div>
-        </div>
 
-        <div>
-          <.input
-            field={f[:active]}
-            type="checkbox"
-            label="Active (visible to users)"
-            checked={Ecto.Changeset.get_field(@changeset, :active, true)}
-          />
-          <div class="label">
-            <span class="text-xs opacity-70">Inactive announcements stay saved but hidden.</span>
-          </div>
-        </div>
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+              <.input field={f[:starts_at]} type="datetime-local" label="Starts At" />
+              <p class="mt-1 text-xs text-base-content/55">Leave empty to show immediately.</p>
+            </div>
 
-        <:actions>
-          <div class="card-actions justify-end mt-6">
-            <.button href={~p"/pripyat/announcements"} variant="ghost">
-              <.icon name="hero-arrow-left" class="w-4 h-4 mr-2" /> Cancel
-            </.button>
-            <.button type="submit">
-              <.icon name="hero-plus" class="w-4 h-4 mr-2" /> Create Announcement
-            </.button>
+            <div>
+              <.input field={f[:ends_at]} type="datetime-local" label="Ends At" />
+              <p class="mt-1 text-xs text-base-content/55">
+                Leave empty to keep visible until disabled.
+              </p>
+            </div>
           </div>
-        </:actions>
-      </.simple_form>
+
+          <div>
+            <.input
+              field={f[:active]}
+              type="checkbox"
+              label="Active (visible to users)"
+              checked={Ecto.Changeset.get_field(@changeset, :active, true)}
+            />
+            <p class="mt-1 text-xs text-base-content/55">
+              Inactive announcements stay saved but hidden.
+            </p>
+          </div>
+
+          <:actions>
+            <div class="mt-6 flex flex-wrap justify-end gap-2 border-t border-base-content/10 pt-5">
+              <.button href={~p"/pripyat/announcements"} variant="ghost">
+                Cancel
+              </.button>
+              <.button type="submit">
+                <.icon name="hero-plus" class="h-4 w-4" /> Create Announcement
+              </.button>
+            </div>
+          </:actions>
+        </.simple_form>
+      </div>
     </:body>
   </.card>
 </div>

@@ -1,27 +1,64 @@
 <div class="admin-page">
-  <.section_header
-    title="Community Management"
-    description="Manage discussion communities and their members."
-    class="mb-6"
-  />
-  <!-- Stats Cards -->
-  <.stats_row
-    class="mb-6 lg:grid-cols-4"
-    stats={[
-      %{label: "Total Communities", value: @stats.total},
-      %{label: "Public", value: @stats.public},
-      %{label: "Private", value: @stats.private},
-      %{label: "Active (7d)", value: @stats.active_7d}
-    ]}
-  />
-  <!-- Search and Filters -->
-  <.card class="mb-6">
+  <.card body_class="p-0">
     <:body>
-      <form method="get" action={~p"/pripyat/communities"} class="space-y-4">
-        <!-- Search Box -->
-        <div class="form-control">
-          <label class="label"><span class="label-text">Search</span></label>
-          <div class="join w-full">
+      <div class="flex flex-col gap-6 px-5 py-6 sm:px-8 sm:py-8 lg:flex-row lg:items-start lg:justify-between">
+        <div class="min-w-0 max-w-2xl">
+          <div class="text-2xs font-semibold uppercase tracking-[0.32em] text-primary/80">
+            Discussions
+          </div>
+
+          <h1 class="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
+            Community Management
+          </h1>
+
+          <p class="mt-3 max-w-2xl text-sm leading-6 text-base-content/70 sm:text-base">
+            Manage discussion communities and their members.
+          </p>
+
+          <div class="mt-5 flex flex-wrap gap-2">
+            <div class="surface-muted rounded-box px-3 py-2 text-sm text-base-content/70">
+              Total Communities:
+              <span class="font-semibold text-base-content">{@stats.total}</span>
+            </div>
+
+            <div class="surface-muted rounded-box px-3 py-2 text-sm text-base-content/70">
+              Public: <span class="font-semibold text-base-content">{@stats.public}</span>
+            </div>
+
+            <div class="surface-muted rounded-box px-3 py-2 text-sm text-base-content/70">
+              Private: <span class="font-semibold text-base-content">{@stats.private}</span>
+            </div>
+
+            <div class="surface-muted rounded-box px-3 py-2 text-sm text-base-content/70">
+              Active (7d): <span class="font-semibold text-base-content">{@stats.active_7d}</span>
+            </div>
+          </div>
+        </div>
+
+        <.button href={~p"/pripyat"} variant="ghost">
+          <.icon name="hero-arrow-left" class="h-4 w-4" /> Back to Admin Dashboard
+        </.button>
+      </div>
+    </:body>
+  </.card>
+
+  <.card body_class="p-0">
+    <:body>
+      <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+        <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+          Filters
+        </div>
+
+        <h2 class="mt-1 text-xl font-semibold tracking-tight">Search Communities</h2>
+      </div>
+
+      <form method="get" action={~p"/pripyat/communities"} class="space-y-5 px-5 py-5 sm:px-6">
+        <div>
+          <label class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+            Search
+          </label>
+
+          <div class="join mt-2 w-full">
             <input
               type="text"
               name="search"
@@ -30,7 +67,7 @@
               class="input flex-1 join-item w-full"
             />
             <.button type="submit" class="join-item">
-              <.icon name="hero-magnifying-glass" class="w-4 h-4" /> Search
+              <.icon name="hero-magnifying-glass" class="h-4 w-4" /> Search
             </.button>
             <%= if @search_query != "" do %>
               <.button
@@ -39,16 +76,19 @@
                 variant="ghost"
                 class="join-item"
               >
-                <.icon name="hero-x-mark" class="w-4 h-4" />
+                <.icon name="hero-x-mark" class="h-4 w-4" />
               </.button>
             <% end %>
           </div>
         </div>
-        <!-- Filters -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div class="form-control">
-            <label class="label"><span class="label-text">Category</span></label>
-            <div class="select select-bordered">
+
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              Category
+            </label>
+
+            <div class="select select-bordered mt-2">
               <select name="category" data-submit-on-change>
                 <option value="all" selected={@category_filter == "all"}>All Categories</option>
 
@@ -71,9 +111,12 @@
             </div>
           </div>
 
-          <div class="form-control">
-            <label class="label"><span class="label-text">Status</span></label>
-            <div class="select select-bordered">
+          <div>
+            <label class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              Status
+            </label>
+
+            <div class="select select-bordered mt-2">
               <select name="status" data-submit-on-change>
                 <option value="all" selected={@status_filter == "all"}>All</option>
 
@@ -88,12 +131,12 @@
         </div>
 
         <%= if @search_query != "" || @category_filter != "all" || @status_filter != "all" do %>
-          <div class="alert alert-info">
-            <.icon name="hero-funnel" class="w-5 h-5" />
+          <div class="flex items-start gap-3 rounded-box border border-info/20 bg-info/10 px-4 py-3 text-sm text-base-content/75">
+            <.icon name="hero-funnel" class="mt-0.5 h-5 w-5 shrink-0 text-info" />
             <div>
-              <div class="font-bold">Filters Active</div>
+              <div class="font-semibold text-base-content">Filters Active</div>
 
-              <div class="text-sm">
+              <div class="mt-0.5 text-sm">
                 Showing {@total_count} communities
                 <%= if @search_query != "" do %>
                   matching "<span class="font-medium">{@search_query}</span>"
@@ -113,231 +156,243 @@
       </form>
     </:body>
   </.card>
-  <!-- Communities Table -->
-  <%= if Enum.empty?(@communities) do %>
-    <.card body_class="text-center py-12">
-      <:body>
-        <.icon name="hero-magnifying-glass" class="w-16 h-16 mx-auto mb-4 text-base-content/30" />
-        <h3 class="text-lg font-semibold">No Communities Found</h3>
 
-        <p class="text-base-content/70">
-          <%= if @search_query != "" do %>
-            No communities match your search criteria.
-          <% else %>
-            No communities have been created yet.
-          <% end %>
-        </p>
+  <%= if Enum.empty?(@communities) do %>
+    <.card>
+      <:body>
+        <div class="rounded-box border border-dashed border-base-content/15 bg-base-200/45 px-4 py-12 text-center">
+          <.icon name="hero-magnifying-glass" class="mx-auto h-10 w-10 text-base-content/30" />
+          <h3 class="mt-4 text-lg font-semibold">No Communities Found</h3>
+
+          <p class="mt-1 text-sm text-base-content/60">
+            <%= if @search_query != "" do %>
+              No communities match your search criteria.
+            <% else %>
+              No communities have been created yet.
+            <% end %>
+          </p>
+        </div>
       </:body>
     </.card>
   <% else %>
-    <.card body_class="p-3 sm:p-6">
+    <.card body_class="p-0">
       <:body>
-        <div class="overflow-x-auto">
-          <table class="table table-zebra">
-            <thead>
-              <tr>
-                <th>Community</th>
+        <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+          <div class="flex items-center justify-between gap-4">
+            <div>
+              <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+                Directory
+              </div>
 
-                <th>Creator</th>
+              <h2 class="mt-1 text-xl font-semibold tracking-tight">Communities</h2>
+            </div>
 
-                <th>Category</th>
+            <div class="text-sm text-base-content/55">{@total_count} total</div>
+          </div>
+        </div>
 
-                <th>Members</th>
+        <div class="px-5 py-5 sm:px-6">
+          <div class="overflow-x-auto">
+            <table class="table w-full">
+              <thead>
+                <tr>
+                  <th>Community</th>
 
-                <th>Posts</th>
+                  <th>Creator</th>
 
-                <th>Status</th>
+                  <th>Category</th>
 
-                <th class="hidden md:table-cell">Activity</th>
+                  <th>Members</th>
 
-                <th>Actions</th>
-              </tr>
-            </thead>
+                  <th>Posts</th>
 
-            <tbody>
-              <%= for community <- @communities do %>
-                <tr class="hover">
-                  <td>
-                    <div>
-                      <div class="font-bold">{community.name}</div>
+                  <th>Status</th>
 
-                      <div class="text-xs text-base-content/60 truncate max-w-xs">
-                        {community.description || "No description"}
+                  <th class="hidden md:table-cell">Activity</th>
+
+                  <th>Actions</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                <%= for community <- @communities do %>
+                  <tr class="hover">
+                    <td>
+                      <div class="min-w-0">
+                        <div class="font-semibold">{community.name}</div>
+
+                        <div class="max-w-xs truncate text-xs text-base-content/60">
+                          {community.description || "No description"}
+                        </div>
                       </div>
-                    </div>
-                  </td>
+                    </td>
 
-                  <td>
-                    <%= if community.creator do %>
-                      <.link
-                        href={~p"/pripyat/users/#{community.creator.id}/edit"}
-                        class="link link-primary text-sm"
-                      >
-                        @{community.creator.username}
-                      </.link>
-                    <% else %>
-                      <span class="text-base-content/50 text-sm">System</span>
-                    <% end %>
-                  </td>
+                    <td>
+                      <%= if community.creator do %>
+                        <.link
+                          href={~p"/pripyat/users/#{community.creator.id}/edit"}
+                          class="link link-primary text-sm"
+                        >
+                          @{community.creator.username}
+                        </.link>
+                      <% else %>
+                        <span class="text-sm text-base-content/50">System</span>
+                      <% end %>
+                    </td>
 
-                  <td>
-                    <%= if community.community_category do %>
-                      <span class="badge badge-outline badge-sm">
-                        {community.community_category}
-                      </span>
-                    <% else %>
-                      <span class="text-base-content/40 text-xs">None</span>
-                    <% end %>
-                  </td>
+                    <td>
+                      <%= if community.community_category do %>
+                        <span class="badge badge-outline badge-sm">
+                          {community.community_category}
+                        </span>
+                      <% else %>
+                        <span class="text-xs text-base-content/40">None</span>
+                      <% end %>
+                    </td>
 
-                  <td>
-                    <div class="flex items-center gap-2">
-                      <.icon name="hero-users" class="w-4 h-4 text-base-content/50" />
-                      <span class="font-semibold">{community.member_count || 0}</span>
-                    </div>
-                  </td>
-
-                  <td>
-                    <div class="flex items-center gap-2">
-                      <.icon name="hero-document-text" class="w-4 h-4 text-base-content/50" />
-                      <span class="font-semibold">{community.post_count}</span>
-                    </div>
-                  </td>
-
-                  <td>
-                    <%= if community.is_public do %>
-                      <span class="badge badge-success badge-sm">Public</span>
-                    <% else %>
-                      <span class="badge badge-ghost badge-sm">Private</span>
-                    <% end %>
-                  </td>
-
-                  <td class="hidden md:table-cell">
-                    <%= if community.last_message_at do %>
-                      <div class="text-xs">
-                        <.local_time
-                          datetime={community.last_message_at}
-                          format="relative"
-                          class="text-base-content/70"
-                          timezone={@timezone}
-                          time_format={@time_format}
-                        />
+                    <td>
+                      <div class="flex items-center gap-2">
+                        <.icon name="hero-users" class="h-4 w-4 text-base-content/50" />
+                        <span class="font-semibold">{community.member_count || 0}</span>
                       </div>
-                    <% else %>
-                      <span class="text-base-content/40 text-xs">No posts</span>
-                    <% end %>
-                  </td>
+                    </td>
 
-                  <td>
-                    <div class="flex gap-1">
-                      <.button
-                        href={~p"/pripyat/communities/#{community.id}"}
-                        variant="ghost"
-                        size="xs"
-                        title="View Details"
-                      >
-                        <.icon name="hero-eye" class="w-4 h-4" />
-                      </.button>
-                      <.button
-                        href={~p"/discussions/#{community.name}"}
-                        variant="ghost"
-                        size="xs"
-                        title="Visit Community"
-                        target="_blank"
-                      >
-                        <.icon name="hero-arrow-top-right-on-square" class="w-4 h-4" />
-                      </.button>
-                      <.form
-                        for={%{}}
-                        action={~p"/pripyat/communities/#{community.id}"}
-                        method="delete"
-                        class="inline"
-                      >
+                    <td>
+                      <div class="flex items-center gap-2">
+                        <.icon name="hero-document-text" class="h-4 w-4 text-base-content/50" />
+                        <span class="font-semibold">{community.post_count}</span>
+                      </div>
+                    </td>
+
+                    <td>
+                      <%= if community.is_public do %>
+                        <span class="badge badge-success badge-sm">Public</span>
+                      <% else %>
+                        <span class="badge badge-ghost badge-sm">Private</span>
+                      <% end %>
+                    </td>
+
+                    <td class="hidden md:table-cell">
+                      <%= if community.last_message_at do %>
+                        <div class="text-xs">
+                          <.local_time
+                            datetime={community.last_message_at}
+                            format="relative"
+                            class="text-base-content/70"
+                            timezone={@timezone}
+                            time_format={@time_format}
+                          />
+                        </div>
+                      <% else %>
+                        <span class="text-xs text-base-content/40">No posts</span>
+                      <% end %>
+                    </td>
+
+                    <td>
+                      <div class="flex gap-1">
                         <.button
+                          href={~p"/pripyat/communities/#{community.id}"}
                           variant="ghost"
                           size="xs"
-                          class="text-error"
-                          data-confirm={"Delete '#{community.name}'?\n\nThis will permanently delete:\n• The community\n• All #{community.member_count || 0} members\n• All #{community.post_count} posts\n• All replies and comments\n\nThis CANNOT be undone!"}
+                          title="View Details"
                         >
-                          <.icon name="hero-trash" class="w-4 h-4" />
+                          <.icon name="hero-eye" class="h-4 w-4" />
                         </.button>
-                      </.form>
-                    </div>
-                  </td>
-                </tr>
-              <% end %>
-            </tbody>
-          </table>
-        </div>
-        <!-- Pagination -->
-        <%= if @total_pages > 1 do %>
-          <div class="flex justify-center mt-6 gap-2">
-            <%= if @current_page > 1 do %>
-              <.button
-                href={
-                  build_communities_url(
-                    @search_query,
-                    @category_filter,
-                    @status_filter,
-                    @current_page - 1
-                  )
-                }
-                variant="default"
-                size="sm"
-              >
-                «
-              </.button>
-            <% end %>
+                        <.button
+                          href={~p"/discussions/#{community.name}"}
+                          variant="ghost"
+                          size="xs"
+                          title="Visit Community"
+                          target="_blank"
+                        >
+                          <.icon name="hero-arrow-top-right-on-square" class="h-4 w-4" />
+                        </.button>
+                        <.form
+                          for={%{}}
+                          action={~p"/pripyat/communities/#{community.id}"}
+                          method="delete"
+                          class="inline"
+                        >
+                          <.button
+                            variant="ghost"
+                            size="xs"
+                            class="text-error"
+                            data-confirm={"Delete '#{community.name}'?\n\nThis will permanently delete:\n• The community\n• All #{community.member_count || 0} members\n• All #{community.post_count} posts\n• All replies and comments\n\nThis CANNOT be undone!"}
+                          >
+                            <.icon name="hero-trash" class="h-4 w-4" />
+                          </.button>
+                        </.form>
+                      </div>
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
 
-            <div class="join">
-              <%= for page_num <- @page_range do %>
+          <%= if @total_pages > 1 do %>
+            <div class="mt-6 flex justify-center gap-2">
+              <%= if @current_page > 1 do %>
                 <.button
                   href={
                     build_communities_url(
                       @search_query,
                       @category_filter,
                       @status_filter,
-                      page_num
+                      @current_page - 1
                     )
                   }
                   variant="default"
                   size="sm"
-                  class={"join-item " <> if(page_num == @current_page, do: "btn-active", else: "")}
                 >
-                  {page_num}
+                  «
+                </.button>
+              <% end %>
+
+              <div class="join">
+                <%= for page_num <- @page_range do %>
+                  <.button
+                    href={
+                      build_communities_url(
+                        @search_query,
+                        @category_filter,
+                        @status_filter,
+                        page_num
+                      )
+                    }
+                    variant="default"
+                    size="sm"
+                    class={"join-item " <> if(page_num == @current_page, do: "btn-active", else: "")}
+                  >
+                    {page_num}
+                  </.button>
+                <% end %>
+              </div>
+
+              <%= if @current_page < @total_pages do %>
+                <.button
+                  href={
+                    build_communities_url(
+                      @search_query,
+                      @category_filter,
+                      @status_filter,
+                      @current_page + 1
+                    )
+                  }
+                  variant="default"
+                  size="sm"
+                >
+                  »
                 </.button>
               <% end %>
             </div>
 
-            <%= if @current_page < @total_pages do %>
-              <.button
-                href={
-                  build_communities_url(
-                    @search_query,
-                    @category_filter,
-                    @status_filter,
-                    @current_page + 1
-                  )
-                }
-                variant="default"
-                size="sm"
-              >
-                »
-              </.button>
-            <% end %>
-          </div>
-
-          <div class="text-center text-sm text-base-content/70 mt-4">
-            Page {@current_page} of {@total_pages} • {@total_count} communities
-          </div>
-        <% end %>
+            <div class="mt-4 text-center text-sm text-base-content/60">
+              Page {@current_page} of {@total_pages} • {@total_count} communities
+            </div>
+          <% end %>
+        </div>
       </:body>
     </.card>
   <% end %>
-  <!-- Back Button -->
-  <div class="mt-6">
-    <.button href={~p"/pripyat"} variant="ghost">
-      <.icon name="hero-arrow-left" class="w-4 h-4" /> Back to Admin Dashboard
-    </.button>
-  </div>
 </div>

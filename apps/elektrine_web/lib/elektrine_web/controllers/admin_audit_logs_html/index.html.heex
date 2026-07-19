@@ -1,126 +1,174 @@
 <div class="admin-page">
-  <div class="mb-6 flex justify-between items-start">
-    <div>
-      <h1 class="text-2xl font-bold">Audit Log</h1>
-      <p class="opacity-70 mt-2">
-        Complete log of all administrative actions performed in the system.
-      </p>
-    </div>
-    <div class="flex gap-2">
-      <.button href={~p"/pripyat"} variant="ghost">
-        <.icon name="hero-arrow-left" class="w-4 h-4 mr-2" /> Back to Dashboard
-      </.button>
-    </div>
-  </div>
-
-  <.card>
+  <.card class="panel-card" body_class="p-0">
     <:body>
-      <div class="overflow-x-auto">
-        <table class="table table-zebra w-full">
-          <thead>
-            <tr>
-              <th>Date & Time</th>
-              <th>Admin</th>
-              <th>Action</th>
-              <th>Target</th>
-              <th>Details</th>
-              <th>IP Address</th>
-            </tr>
-          </thead>
-          <tbody>
-            <%= for log <- @audit_logs do %>
-              <tr>
-                <td class="text-sm font-medium">
-                  {Calendar.strftime(log.inserted_at, "%Y-%m-%d %H:%M:%S")}
-                </td>
-                <td>
-                  <%= if log.admin do %>
-                    <div class="font-medium">{log.admin.username}</div>
-                    <div class="text-xs opacity-50">ID: {log.admin.id}</div>
-                  <% else %>
-                    <span class="opacity-50">Deleted Admin</span>
-                  <% end %>
-                </td>
-                <td>
-                  <div class={[
-                    "badge badge-sm",
-                    case log.action do
-                      "create" -> "badge-success"
-                      "delete" -> "badge-error"
-                      "ban" -> "badge-warning"
-                      "unban" -> "badge-info"
-                      _ -> "badge-ghost"
-                    end
-                  ]}>
-                    {String.upcase(log.action)}
-                  </div>
-                </td>
-                <td>
-                  <div class="text-sm">
-                    <div class="font-medium">{String.upcase(log.resource_type)}</div>
-                    <%= if log.target_user do %>
-                      <div class="text-xs opacity-70">{log.target_user.username}</div>
-                    <% else %>
-                      <%= if log.details["username"] do %>
-                        <div class="text-xs opacity-70">{log.details["username"]}</div>
-                      <% end %>
-                    <% end %>
-                  </div>
-                </td>
-                <td>
-                  <div class="text-xs">
-                    <%= for {key, value} <- log.details do %>
-                      <div><strong>{key}:</strong> {inspect(value)}</div>
-                    <% end %>
-                  </div>
-                </td>
-                <td class="font-medium text-xs">
-                  {log.ip_address || "N/A"}
-                </td>
-              </tr>
-            <% end %>
-          </tbody>
-        </table>
-      </div>
-      
-<!-- Pagination -->
-      <%= if @total_pages > 1 do %>
-        <div class="flex justify-center mt-6">
-          <div class="join">
-            <%= if @current_page > 1 do %>
-              <.button
-                href={~p"/pripyat/audit-logs?page=#{@current_page - 1}"}
-                variant="default"
-                class="join-item"
-              >
-                «
-              </.button>
-            <% end %>
+      <div class="flex flex-col gap-6 px-5 py-6 sm:px-8 sm:py-8 lg:flex-row lg:items-end lg:justify-between">
+        <div class="max-w-2xl">
+          <div class="text-2xs font-semibold uppercase tracking-[0.32em] text-primary/80">
+            Security
+          </div>
 
-            <%= for page_num <- @page_range do %>
-              <.button
-                href={~p"/pripyat/audit-logs?page=#{page_num}"}
-                variant={if page_num == @current_page, do: "primary", else: "ghost"}
-                class="join-item"
-              >
-                {page_num}
-              </.button>
-            <% end %>
+          <h1 class="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">Audit Log</h1>
 
-            <%= if @current_page < @total_pages do %>
-              <.button
-                href={~p"/pripyat/audit-logs?page=#{@current_page + 1}"}
-                variant="default"
-                class="join-item"
-              >
-                »
-              </.button>
+          <p class="mt-3 max-w-2xl text-sm leading-6 text-base-content/70 sm:text-base">
+            Complete log of all administrative actions performed in the system.
+          </p>
+
+          <div class="mt-5 flex flex-wrap gap-2">
+            <div class="surface-muted rounded-box px-3 py-2 text-sm text-base-content/70">
+              Total entries: <span class="font-semibold text-base-content">{@total_count}</span>
+            </div>
+
+            <%= if @total_pages > 1 do %>
+              <div class="surface-muted rounded-box px-3 py-2 text-sm text-base-content/70">
+                Page:
+                <span class="font-semibold text-base-content">
+                  {@current_page} of {@total_pages}
+                </span>
+              </div>
             <% end %>
           </div>
         </div>
 
-        <div class="text-center mt-4 text-sm opacity-70">
-          Page {@current_page} of {@total_pages} • {@total_count} total audit entries
+        <.button href={~p"/pripyat"} variant="ghost">
+          <.icon name="hero-arrow-left" class="h-4 w-4" /> Back to Dashboard
+        </.button>
+      </div>
+    </:body>
+  </.card>
+
+  <.card class="panel-card" body_class="p-0">
+    <:body>
+      <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+        <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+          History
+        </div>
+
+        <h2 class="mt-1 text-xl font-semibold tracking-tight">Administrative Actions</h2>
+      </div>
+
+      <div class="px-5 py-5 sm:px-6">
+        <div class="overflow-x-auto">
+          <table class="table w-full">
+            <thead>
+              <tr>
+                <th>Date &amp; Time</th>
+                <th>Admin</th>
+                <th>Action</th>
+                <th>Target</th>
+                <th>Details</th>
+                <th>IP Address</th>
+              </tr>
+            </thead>
+            <tbody>
+              <%= if @audit_logs == [] do %>
+                <tr>
+                  <td colspan="6" class="py-10 text-center text-sm text-base-content/55">
+                    No audit entries yet.
+                  </td>
+                </tr>
+              <% end %>
+
+              <%= for log <- @audit_logs do %>
+                <tr>
+                  <td class="text-sm font-medium">
+                    {Calendar.strftime(log.inserted_at, "%Y-%m-%d %H:%M:%S")}
+                  </td>
+                  <td>
+                    <%= if log.admin do %>
+                      <div class="font-medium">{log.admin.username}</div>
+                      <div class="text-xs text-base-content/50">ID: {log.admin.id}</div>
+                    <% else %>
+                      <span class="text-base-content/50">Deleted Admin</span>
+                    <% end %>
+                  </td>
+                  <td>
+                    <div class={[
+                      "badge badge-sm",
+                      case log.action do
+                        "create" -> "badge-success"
+                        "delete" -> "badge-error"
+                        "ban" -> "badge-warning"
+                        "unban" -> "badge-info"
+                        _ -> "badge-ghost"
+                      end
+                    ]}>
+                      {String.upcase(log.action)}
+                    </div>
+                  </td>
+                  <td>
+                    <div class="text-sm">
+                      <div class="font-medium">{String.upcase(log.resource_type)}</div>
+                      <%= if log.target_user do %>
+                        <div class="text-xs text-base-content/60">{log.target_user.username}</div>
+                      <% else %>
+                        <%= if log.details["username"] do %>
+                          <div class="text-xs text-base-content/60">
+                            {log.details["username"]}
+                          </div>
+                        <% end %>
+                      <% end %>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="text-xs text-base-content/70">
+                      <%= for {key, value} <- log.details do %>
+                        <div>
+                          <span class="font-semibold text-base-content/80">{key}:</span> {inspect(
+                            value
+                          )}
+                        </div>
+                      <% end %>
+                    </div>
+                  </td>
+                  <td class="font-mono text-xs">
+                    {log.ip_address || "N/A"}
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <%= if @total_pages > 1 do %>
+        <div class="border-t border-base-content/10 px-5 py-5 sm:px-6">
+          <div class="flex justify-center">
+            <div class="join">
+              <%= if @current_page > 1 do %>
+                <.button
+                  href={~p"/pripyat/audit-logs?page=#{@current_page - 1}"}
+                  variant="default"
+                  class="join-item"
+                >
+                  «
+                </.button>
+              <% end %>
+
+              <%= for page_num <- @page_range do %>
+                <.button
+                  href={~p"/pripyat/audit-logs?page=#{page_num}"}
+                  variant={if page_num == @current_page, do: "primary", else: "ghost"}
+                  class="join-item"
+                >
+                  {page_num}
+                </.button>
+              <% end %>
+
+              <%= if @current_page < @total_pages do %>
+                <.button
+                  href={~p"/pripyat/audit-logs?page=#{@current_page + 1}"}
+                  variant="default"
+                  class="join-item"
+                >
+                  »
+                </.button>
+              <% end %>
+            </div>
+          </div>
+
+          <div class="mt-4 text-center text-sm text-base-content/60">
+            Page {@current_page} of {@total_pages} • {@total_count} total audit entries
+          </div>
         </div>
       <% end %>
     </:body>

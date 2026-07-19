@@ -1,110 +1,204 @@
 <div class="admin-page">
-  <div class="flex justify-between items-start gap-4">
-    <div>
-      <h1 class="mt-2 text-2xl font-bold">Chat Message</h1>
-      <p class="mt-2 text-sm text-base-content/70 sm:text-base">
-        Inspect a single message, its delivery metadata, and raw payload for moderation or debugging work.
-      </p>
-    </div>
-    <div class="flex gap-2">
-      <.link
-        href={~p"/pripyat/arblarg/messages/#{@message.id}/raw"}
-        class="btn btn-ghost"
-        target="_blank"
-      >
-        <.icon name="hero-code-bracket" class="w-4 h-4 mr-2" /> View Raw
-      </.link>
-      <.link href={~p"/pripyat/arblarg/messages"} class="btn btn-ghost">
-        <.icon name="hero-arrow-left" class="w-4 h-4 mr-2" /> Back to Messages
-      </.link>
-    </div>
-  </div>
+  <.card class="panel-card" body_class="p-0">
+    <:body>
+      <div class="flex flex-col gap-6 px-5 py-6 sm:px-8 sm:py-8 lg:flex-row lg:items-end lg:justify-between">
+        <div class="max-w-2xl">
+          <div class="text-2xs font-semibold uppercase tracking-[0.32em] text-primary/80">
+            Arblarg
+          </div>
 
-  <div class="card panel-card mb-6">
-    <div class="card-body">
-      <h2 class="text-lg font-semibold mb-4">Message Info</h2>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-        <div class="space-y-1">
-          <p><strong>Message ID:</strong> <span class="font-medium">#{@message.id}</span></p>
-          <p>
-            <strong>Type:</strong>
-            <span class="badge badge-ghost badge-sm">{@message.message_type}</span>
-          </p>
-          <p>
-            <strong>Sender:</strong>
-            <.link href={~p"/pripyat/users/#{@message.sender_id}/edit"} class="link link-primary">
-              {@message.sender && @message.sender.username} (@{@message.sender &&
-                @message.sender.handle})
-            </.link>
-          </p>
-          <p>
-            <strong>Conversation:</strong> {@message.conversation &&
-              (@message.conversation.name || "(No name)")}
-          </p>
-          <p>
-            <strong>Conversation Type:</strong> {@message.conversation &&
-              String.upcase(@message.conversation.type || "unknown")}
+          <h1 class="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Chat Message</h1>
+
+          <p class="mt-3 max-w-2xl text-sm leading-6 text-base-content/70 sm:text-base">
+            Inspect a single message, its delivery metadata, and raw payload for moderation or debugging work.
           </p>
         </div>
-        <div class="space-y-1">
-          <p>
-            <strong>Created:</strong>
-            <.local_time
-              datetime={@message.inserted_at}
-              format="datetime"
-              timezone={@timezone}
-              time_format={@time_format}
-            />
-          </p>
-          <p><strong>Edited At:</strong> {@message.edited_at || "(Never)"}</p>
-          <p>
-            <strong>Protocol:</strong>
-            <span class={
-              case @message.protocol_kind do
-                "mirrored" -> "badge badge-warning badge-sm"
-                "federated" -> "badge badge-success badge-sm"
-                _ -> "badge badge-info badge-sm"
-              end
-            }>
-              {String.capitalize(@message.protocol_kind)}
-            </span>
-          </p>
-          <p><strong>Origin Domain:</strong> {@message.origin_domain || "(Local)"}</p>
-          <p>
-            <strong>Federated Source:</strong>
-            <span class="text-xs">{@message.federated_source || "(None)"}</span>
-          </p>
-          <p>
-            <strong>Mirrored:</strong> {if @message.is_federated_mirror, do: "Yes", else: "No"}
-          </p>
+
+        <div class="flex flex-wrap gap-2">
+          <.button
+            href={~p"/pripyat/arblarg/messages/#{@message.id}/raw"}
+            variant="ghost"
+            target="_blank"
+          >
+            <.icon name="hero-code-bracket" class="h-4 w-4" /> View Raw
+          </.button>
+          <.button href={~p"/pripyat/arblarg/messages"} variant="ghost">
+            <.icon name="hero-arrow-left" class="h-4 w-4" /> Back to Messages
+          </.button>
         </div>
       </div>
-    </div>
-  </div>
+    </:body>
+  </.card>
 
-  <div class="card panel-card mb-6">
-    <div class="card-body">
-      <h2 class="text-lg font-semibold mb-4">Content</h2>
-      <%= if @message.content && String.trim(@message.content) != "" do %>
-        <div class="bg-base-50 rounded-lg border border-base-300 p-4 whitespace-pre-wrap text-sm leading-relaxed break-words">
-          {@message.content}
+  <.card class="panel-card" body_class="p-0">
+    <:body>
+      <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+        <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+          Delivery
         </div>
-      <% else %>
-        <div class="bg-base-50 rounded-lg border border-base-300 p-4 text-sm opacity-70">
-          No text content on this message.
+
+        <h2 class="mt-1 text-xl font-semibold tracking-tight">Message Info</h2>
+      </div>
+
+      <div class="grid gap-4 px-5 py-5 sm:grid-cols-2 sm:px-6">
+        <div class="space-y-4">
+          <div>
+            <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              Message ID
+            </div>
+            <div class="mt-1 text-sm font-medium">#{@message.id}</div>
+          </div>
+
+          <div>
+            <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              Type
+            </div>
+            <div class="mt-1">
+              <span class="badge badge-ghost badge-sm">{@message.message_type}</span>
+            </div>
+          </div>
+
+          <div>
+            <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              Sender
+            </div>
+            <div class="mt-1 text-sm">
+              <.link
+                href={~p"/pripyat/users/#{@message.sender_id}/edit"}
+                class="link link-primary"
+              >
+                {@message.sender && @message.sender.username} (@{@message.sender &&
+                  @message.sender.handle})
+              </.link>
+            </div>
+          </div>
+
+          <div>
+            <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              Conversation
+            </div>
+            <div class="mt-1 text-sm">
+              {@message.conversation && (@message.conversation.name || "(No name)")}
+            </div>
+          </div>
+
+          <div>
+            <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              Conversation Type
+            </div>
+            <div class="mt-1 text-sm">
+              {@message.conversation && String.upcase(@message.conversation.type || "unknown")}
+            </div>
+          </div>
         </div>
-      <% end %>
-    </div>
-  </div>
 
-  <div class="card panel-card">
-    <div class="card-body">
-      <h2 class="text-lg font-semibold mb-4">Media & Metadata</h2>
+        <div class="space-y-4">
+          <div>
+            <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              Created
+            </div>
+            <div class="mt-1 text-sm">
+              <.local_time
+                datetime={@message.inserted_at}
+                format="datetime"
+                timezone={@timezone}
+                time_format={@time_format}
+              />
+            </div>
+          </div>
 
-      <%= if @message.media_urls && @message.media_urls != [] do %>
-        <div class="mb-4">
-          <h3 class="font-medium mb-2">Media URLs</h3>
-          <div class="space-y-2">
+          <div>
+            <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              Edited At
+            </div>
+            <div class="mt-1 text-sm">{@message.edited_at || "(Never)"}</div>
+          </div>
+
+          <div>
+            <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              Protocol
+            </div>
+            <div class="mt-1">
+              <span class={
+                case @message.protocol_kind do
+                  "mirrored" -> "badge badge-warning badge-sm"
+                  "federated" -> "badge badge-success badge-sm"
+                  _ -> "badge badge-info badge-sm"
+                end
+              }>
+                {String.capitalize(@message.protocol_kind)}
+              </span>
+            </div>
+          </div>
+
+          <div>
+            <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              Origin Domain
+            </div>
+            <div class="mt-1 text-sm">{@message.origin_domain || "(Local)"}</div>
+          </div>
+
+          <div>
+            <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              Federated Source
+            </div>
+            <div class="mt-1 text-xs break-all">{@message.federated_source || "(None)"}</div>
+          </div>
+
+          <div>
+            <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              Mirrored
+            </div>
+            <div class="mt-1 text-sm">
+              {if @message.is_federated_mirror, do: "Yes", else: "No"}
+            </div>
+          </div>
+        </div>
+      </div>
+    </:body>
+  </.card>
+
+  <.card class="panel-card" body_class="p-0">
+    <:body>
+      <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+        <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+          Body
+        </div>
+
+        <h2 class="mt-1 text-xl font-semibold tracking-tight">Content</h2>
+      </div>
+
+      <div class="px-5 py-5 sm:px-6">
+        <%= if @message.content && String.trim(@message.content) != "" do %>
+          <div class="whitespace-pre-wrap rounded-box border border-base-content/10 bg-base-200/35 p-4 text-sm leading-relaxed break-words">
+            {@message.content}
+          </div>
+        <% else %>
+          <div class="rounded-box border border-dashed border-base-content/15 bg-base-200/45 px-4 py-8 text-center text-sm text-base-content/55">
+            No text content on this message.
+          </div>
+        <% end %>
+      </div>
+    </:body>
+  </.card>
+
+  <.card class="panel-card" body_class="p-0">
+    <:body>
+      <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+        <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+          Attachments
+        </div>
+
+        <h2 class="mt-1 text-xl font-semibold tracking-tight">Media &amp; Metadata</h2>
+      </div>
+
+      <div class="px-5 py-5 sm:px-6">
+        <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+          Media URLs
+        </div>
+
+        <%= if @message.media_urls && @message.media_urls != [] do %>
+          <div class="mt-2 space-y-2">
             <%= for media_url <- @message.media_urls do %>
               <div class="text-sm break-all">
                 <a
@@ -118,15 +212,17 @@
               </div>
             <% end %>
           </div>
-        </div>
-      <% else %>
-        <p class="text-sm opacity-70 mb-4">No media URLs.</p>
-      <% end %>
-
-      <div>
-        <h3 class="font-medium mb-2">Media Metadata</h3>
-        <pre class="bg-base-50 rounded-lg border border-base-300 p-4 text-xs overflow-x-auto whitespace-pre-wrap break-words">{if is_map(@message.media_metadata), do: Jason.encode!(@message.media_metadata, pretty: true), else: inspect(@message.media_metadata, pretty: true)}</pre>
+        <% else %>
+          <p class="mt-2 text-sm text-base-content/60">No media URLs.</p>
+        <% end %>
       </div>
-    </div>
-  </div>
+
+      <div class="border-t border-base-content/10 px-5 py-5 sm:px-6">
+        <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+          Media Metadata
+        </div>
+        <pre class="mt-2 overflow-x-auto whitespace-pre-wrap rounded-box border border-base-content/10 bg-base-200/35 p-4 text-xs break-words">{if is_map(@message.media_metadata), do: Jason.encode!(@message.media_metadata, pretty: true), else: inspect(@message.media_metadata, pretty: true)}</pre>
+      </div>
+    </:body>
+  </.card>
 </div>

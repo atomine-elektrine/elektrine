@@ -492,198 +492,232 @@ defmodule ElektrineWeb.AdminLive.Federation do
   def render(assigns) do
     ~H"""
     <div class="admin-page">
-      <.section_header
-        title="ActivityPub Federation"
-        description="Moderate remote ActivityPub instances, actors, and activity flow without touching chat peering or Bluesky bridge credentials."
-      >
-        <:actions>
-          <.action_toolbar>
-            <.button navigate={~p"/pripyat/messaging-federation"} variant="ghost" size="sm">
-              <.icon name="hero-chat-bubble-left-right" class="w-4 h-4" />
-              <span class="hidden sm:inline ml-1">Chat Federation</span>
-            </.button>
-            <.button navigate={~p"/pripyat/bluesky-bridge"} variant="ghost" size="sm">
-              <.icon name="hero-link" class="w-4 h-4" />
-              <span class="hidden sm:inline ml-1">Bluesky Bridge</span>
-            </.button>
-            <.button navigate={~p"/pripyat/relays"} variant="ghost" size="sm">
-              <.icon name="hero-signal" class="w-4 h-4" />
-              <span class="hidden sm:inline ml-1">ActivityPub Relays</span>
-            </.button>
-            <.button variant="secondary" size="sm" phx-click="show_add_block_modal">
-              <.icon name="hero-plus" class="w-4 h-4" />
-              <span class="hidden sm:inline ml-1">Add Policy</span>
-            </.button>
-            <.button variant="ghost" size="sm" phx-click="refresh">
-              <.icon name="hero-arrow-path" class="w-4 h-4" />
-              <span class="hidden sm:inline ml-1">Refresh</span>
-            </.button>
-          </.action_toolbar>
-        </:actions>
-      </.section_header>
+      <.card class="panel-card" body_class="p-0">
+        <:body>
+          <div class="flex flex-col gap-6 px-5 py-6 sm:px-8 sm:py-8 xl:flex-row xl:items-end xl:justify-between">
+            <div class="max-w-3xl">
+              <div class="text-2xs font-semibold uppercase tracking-[0.32em] text-info/80">
+                Federation
+              </div>
 
-      <div class="alert bg-base-200 border border-base-300">
-        <.icon name="hero-information-circle" class="w-5 h-5 text-info" />
-        <span class="text-sm">
-          Use this page for ActivityPub trust and safety policy. For chat server peering use Chat
-          Federation, and for ATProto mirror health use Bluesky Bridge.
-        </span>
-      </div>
-      
-    <!-- Stats Cards -->
-      <div class="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-4 lg:grid-cols-8">
-        <.card body_class="p-3 sm:p-4">
-          <:body>
-            <div class="flex items-center gap-2">
-              <.icon name="hero-globe-alt" class="w-4 h-4 text-primary opacity-70" />
-              <span class="text-xs opacity-70">Domains</span>
+              <h1 class="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
+                ActivityPub Federation
+              </h1>
+
+              <p class="mt-3 max-w-2xl text-sm leading-6 text-base-content/70 sm:text-base">
+                Moderate remote ActivityPub instances, actors, and activity flow without touching
+                chat peering or Bluesky bridge credentials.
+              </p>
+
+              <div class="mt-5 flex items-start gap-3 rounded-box border border-info/20 bg-info/10 px-4 py-3 text-sm text-base-content/75">
+                <.icon name="hero-information-circle" class="mt-0.5 h-5 w-5 shrink-0 text-info" />
+                <span>
+                  Use this page for ActivityPub trust and safety policy. For chat server peering use
+                  Chat Federation, and for ATProto mirror health use Bluesky Bridge.
+                </span>
+              </div>
             </div>
-            <div class="text-lg sm:text-xl font-bold">{@stats.unique_domains}</div>
-          </:body>
-        </.card>
-        <.card body_class="p-3 sm:p-4">
-          <:body>
-            <div class="flex items-center gap-2">
-              <.icon name="hero-users" class="w-4 h-4 text-info opacity-70" />
-              <span class="text-xs opacity-70">Actors</span>
+
+            <div class="flex flex-wrap gap-2">
+              <.button navigate={~p"/pripyat/messaging-federation"} variant="ghost" size="sm">
+                <.icon name="hero-chat-bubble-left-right" class="h-4 w-4" />
+                <span class="ml-1 hidden sm:inline">Chat Federation</span>
+              </.button>
+              <.button navigate={~p"/pripyat/bluesky-bridge"} variant="ghost" size="sm">
+                <.icon name="hero-link" class="h-4 w-4" />
+                <span class="ml-1 hidden sm:inline">Bluesky Bridge</span>
+              </.button>
+              <.button navigate={~p"/pripyat/relays"} variant="ghost" size="sm">
+                <.icon name="hero-signal" class="h-4 w-4" />
+                <span class="ml-1 hidden sm:inline">ActivityPub Relays</span>
+              </.button>
+              <.button variant="ghost" size="sm" phx-click="refresh">
+                <.icon name="hero-arrow-path" class="h-4 w-4" />
+                <span class="ml-1 hidden sm:inline">Refresh</span>
+              </.button>
+              <.button variant="secondary" size="sm" phx-click="show_add_block_modal">
+                <.icon name="hero-plus" class="h-4 w-4" />
+                <span class="ml-1 hidden sm:inline">Add Policy</span>
+              </.button>
             </div>
-            <div class="text-lg sm:text-xl font-bold">{@stats.total_actors}</div>
-          </:body>
-        </.card>
-        <.card body_class="p-3 sm:p-4">
-          <:body>
-            <div class="flex items-center gap-2">
-              <.icon name="hero-user" class="w-4 h-4 text-success opacity-70" />
-              <span class="text-xs opacity-70">People</span>
-            </div>
-            <div class="text-lg sm:text-xl font-bold">{@stats.person_actors}</div>
-          </:body>
-        </.card>
-        <.card body_class="p-3 sm:p-4">
-          <:body>
-            <div class="flex items-center gap-2">
-              <.icon name="hero-user-group" class="w-4 h-4 text-accent opacity-70" />
-              <span class="text-xs opacity-70">Groups</span>
-            </div>
-            <div class="text-lg sm:text-xl font-bold">{@stats.group_actors}</div>
-          </:body>
-        </.card>
-        <.card body_class="p-3 sm:p-4">
-          <:body>
-            <div class="flex items-center gap-2">
-              <.icon name="hero-bolt" class="w-4 h-4 text-warning opacity-70" />
-              <span class="text-xs opacity-70">Activities</span>
-            </div>
-            <div class="text-lg sm:text-xl font-bold">{@stats.total_activities}</div>
-          </:body>
-        </.card>
-        <.card body_class="p-3 sm:p-4">
-          <:body>
-            <div class="flex items-center gap-2">
-              <.icon name="hero-no-symbol" class="w-4 h-4 text-error opacity-70" />
-              <span class="text-xs opacity-70">Blocked</span>
-            </div>
-            <div class="text-lg sm:text-xl font-bold text-error">{@stats.blocked_instances}</div>
-          </:body>
-        </.card>
-        <.card body_class="p-3 sm:p-4">
-          <:body>
-            <div class="flex items-center gap-2">
-              <.icon name="hero-adjustments-horizontal" class="w-4 h-4 text-warning opacity-70" />
-              <span class="text-xs opacity-70">Limited</span>
-            </div>
-            <div class="text-lg sm:text-xl font-bold text-warning">{@stats.limited_instances}</div>
-          </:body>
-        </.card>
-        <.card body_class="p-3 sm:p-4">
-          <:body>
-            <div class="flex items-center gap-2">
-              <.icon name="hero-clock" class="w-4 h-4 text-secondary opacity-70" />
-              <span class="text-xs opacity-70">Pending</span>
-            </div>
-            <div class="text-lg sm:text-xl font-bold">{@stats.pending_deliveries}</div>
-          </:body>
-        </.card>
-      </div>
-      
-    <!-- Tabs -->
-      <div class="tabs tabs-boxed bg-base-200 p-1">
-        <button
-          phx-click="switch_tab"
-          phx-value-tab="instances"
-          class={["tab", @active_tab == "instances" && "tab-active"]}
-        >
-          <.icon name="hero-server-stack" class="w-4 h-4 mr-1" /> Instance Policies
-        </button>
-        <button
-          phx-click="switch_tab"
-          phx-value-tab="actors"
-          class={["tab", @active_tab == "actors" && "tab-active"]}
-        >
-          <.icon name="hero-users" class="w-4 h-4 mr-1" /> Remote Actors
-        </button>
-        <button
-          phx-click="switch_tab"
-          phx-value-tab="domains"
-          class={["tab", @active_tab == "domains" && "tab-active"]}
-        >
-          <.icon name="hero-chart-bar" class="w-4 h-4 mr-1" /> Top Domains
-        </button>
-        <button
-          phx-click="switch_tab"
-          phx-value-tab="activity"
-          class={["tab", @active_tab == "activity" && "tab-active"]}
-        >
-          <.icon name="hero-bolt" class="w-4 h-4 mr-1" /> Activity
-        </button>
-      </div>
-      
-    <!-- Search -->
-      <div>
-        <form phx-submit="search" class="flex gap-2">
-          <div class="join flex-1">
-            <input
-              type="text"
-              name="query"
-              value={@search_query}
-              placeholder={
-                case @active_tab do
-                  "actors" -> "Search actors by username or domain..."
-                  "instances" -> "Search instances or reasons..."
-                  _ -> "Search instances or reasons..."
-                end
-              }
-              class="input input-bordered join-item flex-1"
-              phx-debounce="300"
-              disabled={@active_tab in ["domains", "activity"]}
-            />
-            <.button
-              type="submit"
-              class="join-item"
-              disabled={@active_tab in ["domains", "activity"]}
-            >
-              <.icon name="hero-magnifying-glass" class="w-4 h-4" />
-            </.button>
           </div>
-          <%= if @search_query != "" && @active_tab not in ["domains", "activity"] do %>
-            <.button
-              type="button"
-              variant="ghost"
-              phx-click="clear_search"
-              data-search-clear="true"
-            >
-              <.icon name="hero-x-mark" class="w-4 h-4" />
-            </.button>
-          <% end %>
-        </form>
-        <%= if @active_tab in ["domains", "activity"] do %>
-          <p class="text-xs opacity-60 mt-2">
-            Search filters only the Instance Policies and Remote Actors tabs.
-          </p>
-        <% end %>
-      </div>
-      
-    <!-- Content based on active tab -->
+        </:body>
+      </.card>
+
+      <section class="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-8">
+        <div class="surface-muted rounded-box px-4 py-4">
+          <div class="flex items-center justify-between gap-2">
+            <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              Domains
+            </div>
+            <.icon name="hero-globe-alt" class="h-4 w-4 text-primary" />
+          </div>
+
+          <div class="mt-2 text-2xl font-semibold text-base-content">{@stats.unique_domains}</div>
+        </div>
+
+        <div class="surface-muted rounded-box px-4 py-4">
+          <div class="flex items-center justify-between gap-2">
+            <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              Actors
+            </div>
+            <.icon name="hero-users" class="h-4 w-4 text-info" />
+          </div>
+
+          <div class="mt-2 text-2xl font-semibold text-base-content">{@stats.total_actors}</div>
+        </div>
+
+        <div class="surface-muted rounded-box px-4 py-4">
+          <div class="flex items-center justify-between gap-2">
+            <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              People
+            </div>
+            <.icon name="hero-user" class="h-4 w-4 text-success" />
+          </div>
+
+          <div class="mt-2 text-2xl font-semibold text-base-content">{@stats.person_actors}</div>
+        </div>
+
+        <div class="surface-muted rounded-box px-4 py-4">
+          <div class="flex items-center justify-between gap-2">
+            <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              Groups
+            </div>
+            <.icon name="hero-user-group" class="h-4 w-4 text-accent" />
+          </div>
+
+          <div class="mt-2 text-2xl font-semibold text-base-content">{@stats.group_actors}</div>
+        </div>
+
+        <div class="surface-muted rounded-box px-4 py-4">
+          <div class="flex items-center justify-between gap-2">
+            <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              Activities
+            </div>
+            <.icon name="hero-bolt" class="h-4 w-4 text-warning" />
+          </div>
+
+          <div class="mt-2 text-2xl font-semibold text-base-content">
+            {@stats.total_activities}
+          </div>
+        </div>
+
+        <div class="surface-muted rounded-box px-4 py-4">
+          <div class="flex items-center justify-between gap-2">
+            <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              Blocked
+            </div>
+            <.icon name="hero-no-symbol" class="h-4 w-4 text-error" />
+          </div>
+
+          <div class="mt-2 text-2xl font-semibold text-error">{@stats.blocked_instances}</div>
+        </div>
+
+        <div class="surface-muted rounded-box px-4 py-4">
+          <div class="flex items-center justify-between gap-2">
+            <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              Limited
+            </div>
+            <.icon name="hero-adjustments-horizontal" class="h-4 w-4 text-warning" />
+          </div>
+
+          <div class="mt-2 text-2xl font-semibold text-warning">{@stats.limited_instances}</div>
+        </div>
+
+        <div class="surface-muted rounded-box px-4 py-4">
+          <div class="flex items-center justify-between gap-2">
+            <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              Pending
+            </div>
+            <.icon name="hero-clock" class="h-4 w-4 text-secondary" />
+          </div>
+
+          <div class="mt-2 text-2xl font-semibold text-base-content">
+            {@stats.pending_deliveries}
+          </div>
+        </div>
+      </section>
+
+      <.card class="panel-card" body_class="p-0">
+        <:body>
+          <div class="flex flex-col gap-4 px-5 py-5 sm:px-6">
+            <div class="tabs tabs-boxed w-fit bg-base-200 p-1">
+              <button
+                phx-click="switch_tab"
+                phx-value-tab="instances"
+                class={["tab", @active_tab == "instances" && "tab-active"]}
+              >
+                <.icon name="hero-server-stack" class="mr-1 h-4 w-4" /> Instance Policies
+              </button>
+              <button
+                phx-click="switch_tab"
+                phx-value-tab="actors"
+                class={["tab", @active_tab == "actors" && "tab-active"]}
+              >
+                <.icon name="hero-users" class="mr-1 h-4 w-4" /> Remote Actors
+              </button>
+              <button
+                phx-click="switch_tab"
+                phx-value-tab="domains"
+                class={["tab", @active_tab == "domains" && "tab-active"]}
+              >
+                <.icon name="hero-chart-bar" class="mr-1 h-4 w-4" /> Top Domains
+              </button>
+              <button
+                phx-click="switch_tab"
+                phx-value-tab="activity"
+                class={["tab", @active_tab == "activity" && "tab-active"]}
+              >
+                <.icon name="hero-bolt" class="mr-1 h-4 w-4" /> Activity
+              </button>
+            </div>
+
+            <form phx-submit="search" class="flex gap-2">
+              <div class="join flex-1">
+                <input
+                  type="text"
+                  name="query"
+                  value={@search_query}
+                  placeholder={
+                    case @active_tab do
+                      "actors" -> "Search actors by username or domain..."
+                      "instances" -> "Search instances or reasons..."
+                      _ -> "Search instances or reasons..."
+                    end
+                  }
+                  class="input input-bordered join-item flex-1"
+                  phx-debounce="300"
+                  disabled={@active_tab in ["domains", "activity"]}
+                />
+                <.button
+                  type="submit"
+                  class="join-item"
+                  disabled={@active_tab in ["domains", "activity"]}
+                >
+                  <.icon name="hero-magnifying-glass" class="h-4 w-4" />
+                </.button>
+              </div>
+              <%= if @search_query != "" && @active_tab not in ["domains", "activity"] do %>
+                <.button
+                  type="button"
+                  variant="ghost"
+                  phx-click="clear_search"
+                  data-search-clear="true"
+                >
+                  <.icon name="hero-x-mark" class="h-4 w-4" />
+                </.button>
+              <% end %>
+            </form>
+
+            <%= if @active_tab in ["domains", "activity"] do %>
+              <p class="text-xs text-base-content/55">
+                Search filters only the Instance Policies and Remote Actors tabs.
+              </p>
+            <% end %>
+          </div>
+        </:body>
+      </.card>
+
       <%= case @active_tab do %>
         <% "instances" -> %>
           <.instances_table
@@ -704,16 +738,14 @@ defmodule ElektrineWeb.AdminLive.Federation do
         <% "activity" -> %>
           <.activity_table activities={@recent_activities} />
       <% end %>
-      
-    <!-- Policy Edit Modal -->
+
       <%= if @show_policy_modal && @selected_instance do %>
         <.policy_modal
           instance={@selected_instance}
           policy_form={@policy_form}
         />
       <% end %>
-      
-    <!-- Add Instance Modal -->
+
       <%= if @show_add_block_modal do %>
         <.add_instance_modal policy_form={@policy_form} />
       <% end %>
@@ -723,123 +755,139 @@ defmodule ElektrineWeb.AdminLive.Federation do
 
   defp instances_table(assigns) do
     ~H"""
-    <.card body_class="p-3 sm:p-6">
+    <.card class="panel-card" body_class="p-0">
       <:body>
-        <h2 class="card-title text-base sm:text-lg mb-4">
-          <.icon name="hero-server-stack" class="w-5 h-5" /> ActivityPub Instance Policies
-          <span class="badge badge-neutral">{@total_count}</span>
-        </h2>
+        <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+          <div class="flex items-center justify-between gap-4">
+            <div>
+              <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+                Moderation
+              </div>
 
-        <%= if length(@instances) > 0 do %>
-          <div class="overflow-x-auto">
-            <table class="table table-zebra">
-              <thead>
-                <tr>
-                  <th>Domain</th>
-                  <th>Status</th>
-                  <th class="hidden sm:table-cell">Active Policies</th>
-                  <th class="hidden md:table-cell">Reason</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <%= for instance <- @instances do %>
+              <h2 class="mt-1 text-xl font-semibold tracking-tight">
+                ActivityPub Instance Policies
+              </h2>
+            </div>
+
+            <div class="badge badge-ghost badge-sm">{@total_count}</div>
+          </div>
+        </div>
+
+        <div class="px-5 py-5 sm:px-6">
+          <%= if length(@instances) > 0 do %>
+            <div class="overflow-x-auto">
+              <table class="table w-full">
+                <thead>
                   <tr>
-                    <td>
-                      <div class="font-mono text-sm">{instance.domain}</div>
-                      <%= if String.starts_with?(instance.domain || "", "*.") do %>
-                        <span class="badge badge-xs badge-info">wildcard</span>
-                      <% end %>
-                    </td>
-                    <td>
-                      <.severity_badge instance={instance} />
-                    </td>
-                    <td class="hidden sm:table-cell">
-                      <div class="flex flex-wrap gap-1">
-                        <%= for policy <- Instance.policy_summary(instance) do %>
-                          <span class="badge badge-xs badge-outline">{policy}</span>
+                    <th>Domain</th>
+                    <th>Status</th>
+                    <th class="hidden sm:table-cell">Active Policies</th>
+                    <th class="hidden md:table-cell">Reason</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <%= for instance <- @instances do %>
+                    <tr>
+                      <td>
+                        <div class="font-mono text-sm">{instance.domain}</div>
+                        <%= if String.starts_with?(instance.domain || "", "*.") do %>
+                          <span class="badge badge-xs badge-info">wildcard</span>
                         <% end %>
-                        <%= if Instance.policy_summary(instance) == [] do %>
-                          <span class="text-sm opacity-50">None</span>
-                        <% end %>
-                      </div>
-                    </td>
-                    <td class="hidden md:table-cell text-sm opacity-70 max-w-xs truncate">
-                      {instance.reason || "-"}
-                    </td>
-                    <td>
-                      <div class="flex gap-1">
-                        <.button
-                          variant="ghost"
-                          size="xs"
-                          phx-click="show_policy_modal"
-                          phx-value-id={instance.id}
-                          title="Edit Policies"
-                        >
-                          <.icon name="hero-cog-6-tooth" class="w-3 h-3" />
-                        </.button>
-                        <%= if Instance.has_any_policy?(instance) do %>
+                      </td>
+                      <td>
+                        <.severity_badge instance={instance} />
+                      </td>
+                      <td class="hidden sm:table-cell">
+                        <div class="flex flex-wrap gap-1">
+                          <%= for policy <- Instance.policy_summary(instance) do %>
+                            <span class="badge badge-xs badge-outline">{policy}</span>
+                          <% end %>
+                          <%= if Instance.policy_summary(instance) == [] do %>
+                            <span class="text-sm text-base-content/50">None</span>
+                          <% end %>
+                        </div>
+                      </td>
+                      <td class="hidden max-w-xs truncate text-sm text-base-content/70 md:table-cell">
+                        {instance.reason || "-"}
+                      </td>
+                      <td>
+                        <div class="flex gap-1">
                           <.button
                             variant="ghost"
                             size="xs"
-                            class="btn-success"
-                            phx-click="unblock_instance"
+                            phx-click="show_policy_modal"
                             phx-value-id={instance.id}
-                            title="Clear All Policies"
+                            title="Edit Policies"
                           >
-                            <.icon name="hero-check" class="w-3 h-3" />
+                            <.icon name="hero-cog-6-tooth" class="h-3 w-3" />
                           </.button>
-                        <% end %>
-                        <.button
-                          variant="ghost"
-                          size="xs"
-                          class="btn-error"
-                          phx-click="delete_instance"
-                          phx-value-id={instance.id}
-                          data-confirm="Delete this instance record? This cannot be undone."
-                          title="Delete"
-                        >
-                          <.icon name="hero-trash" class="w-3 h-3" />
-                        </.button>
-                      </div>
-                    </td>
-                  </tr>
-                <% end %>
-              </tbody>
-            </table>
-          </div>
-          <%= if @total_pages > 1 do %>
-            <div class="flex items-center justify-between mt-4">
-              <span class="text-xs opacity-70">Page {@page} of {@total_pages}</span>
-              <div class="join">
-                <.button
-                  variant="default"
-                  size="sm"
-                  class="join-item"
-                  phx-click="instances_prev_page"
-                  disabled={@page <= 1}
-                >
-                  Previous
-                </.button>
-                <.button
-                  variant="default"
-                  size="sm"
-                  class="join-item"
-                  phx-click="instances_next_page"
-                  disabled={@page >= @total_pages}
-                >
-                  Next
-                </.button>
-              </div>
+                          <%= if Instance.has_any_policy?(instance) do %>
+                            <.button
+                              variant="ghost"
+                              size="xs"
+                              phx-click="unblock_instance"
+                              phx-value-id={instance.id}
+                              title="Clear All Policies"
+                            >
+                              <.icon name="hero-check" class="h-3 w-3 text-success" />
+                            </.button>
+                          <% end %>
+                          <.button
+                            variant="ghost"
+                            size="xs"
+                            phx-click="delete_instance"
+                            phx-value-id={instance.id}
+                            data-confirm="Delete this instance record? This cannot be undone."
+                            title="Delete"
+                          >
+                            <.icon name="hero-trash" class="h-3 w-3 text-error" />
+                          </.button>
+                        </div>
+                      </td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+          <% else %>
+            <div class="rounded-box border border-dashed border-base-content/15 bg-base-200/45 px-4 py-10 text-center">
+              <.icon name="hero-server-stack" class="mx-auto h-10 w-10 text-base-content/25" />
+
+              <p class="mt-3 text-sm text-base-content/60">
+                No ActivityPub instance policies configured
+              </p>
+
+              <p class="mt-1 text-sm text-base-content/45">
+                Add an instance to apply MRF moderation controls
+              </p>
             </div>
           <% end %>
-        <% else %>
-          <div class="text-center py-12">
-            <.icon name="hero-server-stack" class="w-12 h-12 mx-auto opacity-30 mb-4" />
-            <p class="opacity-70">No ActivityPub instance policies configured</p>
-            <p class="text-sm opacity-50 mt-1">
-              Add an instance to apply MRF moderation controls
-            </p>
+        </div>
+
+        <%= if @total_pages > 1 do %>
+          <div class="flex items-center justify-between border-t border-base-content/10 px-5 py-4 sm:px-6">
+            <span class="text-xs text-base-content/60">Page {@page} of {@total_pages}</span>
+            <div class="join">
+              <.button
+                variant="default"
+                size="sm"
+                class="join-item"
+                phx-click="instances_prev_page"
+                disabled={@page <= 1}
+              >
+                Previous
+              </.button>
+              <.button
+                variant="default"
+                size="sm"
+                class="join-item"
+                phx-click="instances_next_page"
+                disabled={@page >= @total_pages}
+              >
+                Next
+              </.button>
+            </div>
           </div>
         <% end %>
       </:body>
@@ -868,124 +916,129 @@ defmodule ElektrineWeb.AdminLive.Federation do
     ~H"""
     <div class="modal modal-open">
       <div class="modal-box modal-surface max-w-2xl">
-        <h3 class="font-bold text-lg mb-4">
-          <.icon name="hero-cog-6-tooth" class="w-5 h-5 inline mr-2" /> ActivityPub MRF Policies for
-          <span class="font-mono">{@instance.domain}</span>
-        </h3>
-
-        <form phx-submit="save_policies" phx-change="sync_policy_form">
-          <!-- Policy toggles in categories -->
-          <div class="space-y-4">
-            <!-- Blocking -->
-            <.card body_class="p-4">
-              <:body>
-                <h4 class="font-semibold text-error mb-2">Blocking</h4>
-                <.policy_toggle
-                  field="blocked"
-                  label="Block Instance"
-                  description="Reject all activities from this instance (except deletes)"
-                  value={@policy_form["blocked"]}
-                />
-                <.policy_toggle
-                  field="reject_deletes"
-                  label="Reject Deletes"
-                  description="Also reject Delete activities (keeps content even if deleted upstream)"
-                  value={@policy_form["reject_deletes"]}
-                />
-              </:body>
-            </.card>
-            
-    <!-- Visibility -->
-            <.card body_class="p-4">
-              <:body>
-                <h4 class="font-semibold text-warning mb-2">Visibility Restrictions</h4>
-                <.policy_toggle
-                  field="federated_timeline_removal"
-                  label="Remove from Federated Timeline"
-                  description="Hide posts from public timeline (still visible to followers)"
-                  value={@policy_form["federated_timeline_removal"]}
-                />
-                <.policy_toggle
-                  field="followers_only"
-                  label="Force Followers-Only"
-                  description="Convert all public posts to followers-only visibility"
-                  value={@policy_form["followers_only"]}
-                />
-                <.policy_toggle
-                  field="silenced"
-                  label="Silence (Legacy)"
-                  description="Legacy option - prefer using specific visibility policies"
-                  value={@policy_form["silenced"]}
-                />
-              </:body>
-            </.card>
-            
-    <!-- Media -->
-            <.card body_class="p-4">
-              <:body>
-                <h4 class="font-semibold text-info mb-2">Media Handling</h4>
-                <.policy_toggle
-                  field="media_removal"
-                  label="Remove Media"
-                  description="Strip all media attachments from posts"
-                  value={@policy_form["media_removal"]}
-                />
-                <.policy_toggle
-                  field="media_nsfw"
-                  label="Force NSFW"
-                  description="Mark all media as sensitive/NSFW"
-                  value={@policy_form["media_nsfw"]}
-                />
-                <.policy_toggle
-                  field="avatar_removal"
-                  label="Remove Avatars"
-                  description="Strip avatar images from user profiles"
-                  value={@policy_form["avatar_removal"]}
-                />
-                <.policy_toggle
-                  field="banner_removal"
-                  label="Remove Banners"
-                  description="Strip header/banner images from user profiles"
-                  value={@policy_form["banner_removal"]}
-                />
-              </:body>
-            </.card>
-            
-    <!-- Moderation -->
-            <.card body_class="p-4">
-              <:body>
-                <h4 class="font-semibold text-secondary mb-2">Moderation</h4>
-                <.policy_toggle
-                  field="report_removal"
-                  label="Reject Reports"
-                  description="Ignore Flag (report) activities from this instance"
-                  value={@policy_form["report_removal"]}
-                />
-              </:body>
-            </.card>
+        <div class="flex items-start gap-3">
+          <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-info/10 text-info">
+            <.icon name="hero-cog-6-tooth" class="h-5 w-5" />
           </div>
-          
-    <!-- Reason and notes -->
-          <div class="form-control mt-4">
-            <label class="label">
-              <span class="label-text">Reason (public)</span>
+
+          <div class="min-w-0">
+            <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+              MRF Policies
+            </div>
+
+            <h3 class="mt-1 truncate text-lg font-semibold tracking-tight">
+              ActivityPub MRF Policies for <span class="font-mono">{@instance.domain}</span>
+            </h3>
+          </div>
+        </div>
+
+        <form phx-submit="save_policies" phx-change="sync_policy_form" class="mt-5">
+          <div class="space-y-4">
+            <div class="rounded-box border border-base-content/10 bg-base-200/35 p-4">
+              <h4 class="text-2xs font-semibold uppercase tracking-[0.18em] text-error">
+                Blocking
+              </h4>
+              <.policy_toggle
+                field="blocked"
+                label="Block Instance"
+                description="Reject all activities from this instance (except deletes)"
+                value={@policy_form["blocked"]}
+              />
+              <.policy_toggle
+                field="reject_deletes"
+                label="Reject Deletes"
+                description="Also reject Delete activities (keeps content even if deleted upstream)"
+                value={@policy_form["reject_deletes"]}
+              />
+            </div>
+
+            <div class="rounded-box border border-base-content/10 bg-base-200/35 p-4">
+              <h4 class="text-2xs font-semibold uppercase tracking-[0.18em] text-warning">
+                Visibility Restrictions
+              </h4>
+              <.policy_toggle
+                field="federated_timeline_removal"
+                label="Remove from Federated Timeline"
+                description="Hide posts from public timeline (still visible to followers)"
+                value={@policy_form["federated_timeline_removal"]}
+              />
+              <.policy_toggle
+                field="followers_only"
+                label="Force Followers-Only"
+                description="Convert all public posts to followers-only visibility"
+                value={@policy_form["followers_only"]}
+              />
+              <.policy_toggle
+                field="silenced"
+                label="Silence (Legacy)"
+                description="Legacy option - prefer using specific visibility policies"
+                value={@policy_form["silenced"]}
+              />
+            </div>
+
+            <div class="rounded-box border border-base-content/10 bg-base-200/35 p-4">
+              <h4 class="text-2xs font-semibold uppercase tracking-[0.18em] text-info">
+                Media Handling
+              </h4>
+              <.policy_toggle
+                field="media_removal"
+                label="Remove Media"
+                description="Strip all media attachments from posts"
+                value={@policy_form["media_removal"]}
+              />
+              <.policy_toggle
+                field="media_nsfw"
+                label="Force NSFW"
+                description="Mark all media as sensitive/NSFW"
+                value={@policy_form["media_nsfw"]}
+              />
+              <.policy_toggle
+                field="avatar_removal"
+                label="Remove Avatars"
+                description="Strip avatar images from user profiles"
+                value={@policy_form["avatar_removal"]}
+              />
+              <.policy_toggle
+                field="banner_removal"
+                label="Remove Banners"
+                description="Strip header/banner images from user profiles"
+                value={@policy_form["banner_removal"]}
+              />
+            </div>
+
+            <div class="rounded-box border border-base-content/10 bg-base-200/35 p-4">
+              <h4 class="text-2xs font-semibold uppercase tracking-[0.18em] text-secondary">
+                Moderation
+              </h4>
+              <.policy_toggle
+                field="report_removal"
+                label="Reject Reports"
+                description="Ignore Flag (report) activities from this instance"
+                value={@policy_form["report_removal"]}
+              />
+            </div>
+          </div>
+
+          <div class="mt-5">
+            <label class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              Reason (public)
             </label>
             <input
               type="text"
               name="reason"
               value={@policy_form["reason"]}
-              class="input input-bordered"
+              class="input input-bordered mt-2 w-full"
               placeholder="Reason shown in transparency reports"
             />
           </div>
 
-          <div class="form-control mt-2">
-            <label class="label">
-              <span class="label-text">Notes (private)</span>
+          <div class="mt-4">
+            <label class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              Notes (private)
             </label>
             <textarea
               name="notes"
-              class="textarea textarea-bordered"
+              class="textarea textarea-bordered mt-2 w-full"
               rows="2"
               placeholder="Internal notes for admins"
             >{@policy_form["notes"]}</textarea>
@@ -1010,7 +1063,7 @@ defmodule ElektrineWeb.AdminLive.Federation do
 
   defp policy_toggle(assigns) do
     ~H"""
-    <label class="flex items-start gap-3 cursor-pointer py-2">
+    <label class="flex cursor-pointer items-start gap-3 py-2">
       <input
         type="checkbox"
         class="toggle toggle-sm"
@@ -1021,7 +1074,7 @@ defmodule ElektrineWeb.AdminLive.Federation do
       />
       <div class="flex-1">
         <div class="text-sm font-medium">{@label}</div>
-        <div class="text-xs opacity-70">{@description}</div>
+        <div class="text-xs text-base-content/60">{@description}</div>
       </div>
     </label>
     """
@@ -1031,37 +1084,46 @@ defmodule ElektrineWeb.AdminLive.Federation do
     ~H"""
     <div class="modal modal-open">
       <div class="modal-box modal-surface max-w-2xl">
-        <h3 class="font-bold text-lg mb-4">
-          <.icon name="hero-plus" class="w-5 h-5 inline mr-2" /> Add ActivityPub Instance Policy
-        </h3>
+        <div class="flex items-start gap-3">
+          <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-info/10 text-info">
+            <.icon name="hero-plus" class="h-5 w-5" />
+          </div>
 
-        <form phx-submit="add_instance" phx-change="sync_policy_form">
-          <div class="form-control mb-4">
-            <label class="label">
-              <span class="label-text">Domain</span>
+          <div>
+            <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+              New Policy
+            </div>
+
+            <h3 class="mt-1 text-lg font-semibold tracking-tight">
+              Add ActivityPub Instance Policy
+            </h3>
+          </div>
+        </div>
+
+        <form phx-submit="add_instance" phx-change="sync_policy_form" class="mt-5">
+          <div class="mb-4">
+            <label class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              Domain
             </label>
             <input
               type="text"
               name="domain"
               value={@policy_form["domain"] || ""}
               placeholder="example.com or *.example.com"
-              class="input input-bordered font-mono"
+              class="input input-bordered mt-2 w-full font-mono"
               required
               autofocus
             />
-            <label class="label">
-              <span class="label-text-alt opacity-70">
-                Use *.domain.com to match all subdomains
-              </span>
-            </label>
+            <p class="mt-2 text-xs text-base-content/60">
+              Use *.domain.com to match all subdomains
+            </p>
           </div>
-          
-    <!-- Quick policy presets -->
+
           <div class="mb-4">
-            <label class="label">
-              <span class="label-text">Quick Presets</span>
+            <label class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              Quick Presets
             </label>
-            <div class="flex flex-wrap gap-2">
+            <div class="mt-2 flex flex-wrap gap-2">
               <.button
                 type="button"
                 variant="error"
@@ -1094,9 +1156,8 @@ defmodule ElektrineWeb.AdminLive.Federation do
               </.button>
             </div>
           </div>
-          
-    <!-- Policy toggles -->
-          <div class="space-y-2 max-h-64 overflow-y-auto">
+
+          <div class="max-h-64 space-y-2 overflow-y-auto rounded-box border border-base-content/10 bg-base-200/35 p-4">
             <.policy_toggle
               field="blocked"
               label="Block Instance"
@@ -1153,26 +1214,26 @@ defmodule ElektrineWeb.AdminLive.Federation do
             />
           </div>
 
-          <div class="form-control mt-4">
-            <label class="label">
-              <span class="label-text">Reason (public)</span>
+          <div class="mt-4">
+            <label class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              Reason (public)
             </label>
             <input
               type="text"
               name="reason"
               value={@policy_form["reason"] || ""}
-              class="input input-bordered"
+              class="input input-bordered mt-2 w-full"
               placeholder="Spam, harassment, illegal content, etc."
             />
           </div>
 
-          <div class="form-control mt-2">
-            <label class="label">
-              <span class="label-text">Notes (private)</span>
+          <div class="mt-4">
+            <label class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              Notes (private)
             </label>
             <textarea
               name="notes"
-              class="textarea textarea-bordered"
+              class="textarea textarea-bordered mt-2 w-full"
               rows="2"
               placeholder="Internal notes"
             >{@policy_form["notes"] || ""}</textarea>
@@ -1197,108 +1258,122 @@ defmodule ElektrineWeb.AdminLive.Federation do
 
   defp actors_table(assigns) do
     ~H"""
-    <.card body_class="p-3 sm:p-6">
+    <.card class="panel-card" body_class="p-0">
       <:body>
-        <h2 class="card-title text-base sm:text-lg mb-4">
-          <.icon name="hero-users" class="w-5 h-5" /> Remote Actors
-          <span class="badge badge-neutral">{@total_count}</span>
-        </h2>
+        <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+          <div class="flex items-center justify-between gap-4">
+            <div>
+              <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+                Directory
+              </div>
 
-        <%= if length(@actors) > 0 do %>
-          <div class="overflow-x-auto">
-            <table class="table table-sm">
-              <thead>
-                <tr>
-                  <th>Actor</th>
-                  <th>Handle</th>
-                  <th class="hidden sm:table-cell">Type</th>
-                  <th class="hidden md:table-cell">Last Fetched</th>
-                </tr>
-              </thead>
-              <tbody>
-                <%= for actor <- @actors do %>
+              <h2 class="mt-1 text-xl font-semibold tracking-tight">Remote Actors</h2>
+            </div>
+
+            <div class="badge badge-ghost badge-sm">{@total_count}</div>
+          </div>
+        </div>
+
+        <div class="px-5 py-5 sm:px-6">
+          <%= if length(@actors) > 0 do %>
+            <div class="overflow-x-auto">
+              <table class="table table-sm w-full">
+                <thead>
                   <tr>
-                    <td>
-                      <div class="flex items-center gap-2">
-                        <%= if avatar_url =
+                    <th>Actor</th>
+                    <th>Handle</th>
+                    <th class="hidden sm:table-cell">Type</th>
+                    <th class="hidden md:table-cell">Last Fetched</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <%= for actor <- @actors do %>
+                    <tr>
+                      <td>
+                        <div class="flex items-center gap-2">
+                          <%= if avatar_url =
                               ElektrineWeb.HtmlHelpers.safe_external_image_url(actor.avatar_url) do %>
-                          <img
-                            src={avatar_url}
-                            class="w-8 h-8 rounded-full object-cover"
-                            alt=""
-                          />
-                        <% else %>
-                          <div class="w-8 h-8 rounded-full bg-base-300 flex items-center justify-center">
-                            <.icon name="hero-user" class="w-4 h-4 opacity-50" />
-                          </div>
-                        <% end %>
-                        <div>
-                          <div class="font-medium text-sm">
-                            {raw(ElektrineWeb.HtmlHelpers.render_actor_display_name(actor))}
-                          </div>
-                          <div class="text-xs opacity-50 sm:hidden">
-                            @{actor.username}@{actor.domain}
+                            <img
+                              src={avatar_url}
+                              class="h-8 w-8 rounded-full object-cover"
+                              alt=""
+                            />
+                          <% else %>
+                            <div class="flex h-8 w-8 items-center justify-center rounded-full bg-base-200">
+                              <.icon name="hero-user" class="h-4 w-4 text-base-content/40" />
+                            </div>
+                          <% end %>
+                          <div class="min-w-0">
+                            <div class="text-sm font-medium">
+                              {raw(ElektrineWeb.HtmlHelpers.render_actor_display_name(actor))}
+                            </div>
+                            <div class="truncate text-xs text-base-content/50 sm:hidden">
+                              @{actor.username}@{actor.domain}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </td>
-                    <td class="hidden sm:table-cell">
-                      <span class="font-mono text-xs">@{actor.username}@{actor.domain}</span>
-                    </td>
-                    <td class="hidden sm:table-cell">
-                      <span class={[
-                        "badge badge-xs",
-                        actor.actor_type == "Person" && "badge-info",
-                        actor.actor_type == "Group" && "badge-accent",
-                        actor.actor_type not in ["Person", "Group"] && "badge-neutral"
-                      ]}>
-                        {actor.actor_type}
-                      </span>
-                    </td>
-                    <td class="hidden md:table-cell text-xs opacity-70">
-                      <%= if actor.last_fetched_at do %>
-                        {Calendar.strftime(actor.last_fetched_at, "%Y-%m-%d %H:%M")}
-                      <% else %>
-                        -
-                      <% end %>
-                    </td>
-                  </tr>
-                <% end %>
-              </tbody>
-            </table>
-          </div>
-          <%= if @total_pages > 1 do %>
-            <div class="flex items-center justify-between mt-4">
-              <span class="text-xs opacity-70">Page {@page} of {@total_pages}</span>
-              <div class="join">
-                <.button
-                  variant="default"
-                  size="sm"
-                  class="join-item"
-                  phx-click="actors_prev_page"
-                  disabled={@page <= 1}
-                >
-                  Previous
-                </.button>
-                <.button
-                  variant="default"
-                  size="sm"
-                  class="join-item"
-                  phx-click="actors_next_page"
-                  disabled={@page >= @total_pages}
-                >
-                  Next
-                </.button>
-              </div>
+                      </td>
+                      <td class="hidden sm:table-cell">
+                        <span class="font-mono text-xs">@{actor.username}@{actor.domain}</span>
+                      </td>
+                      <td class="hidden sm:table-cell">
+                        <span class={[
+                          "badge badge-xs",
+                          actor.actor_type == "Person" && "badge-info",
+                          actor.actor_type == "Group" && "badge-accent",
+                          actor.actor_type not in ["Person", "Group"] && "badge-neutral"
+                        ]}>
+                          {actor.actor_type}
+                        </span>
+                      </td>
+                      <td class="hidden text-xs text-base-content/60 md:table-cell">
+                        <%= if actor.last_fetched_at do %>
+                          {Calendar.strftime(actor.last_fetched_at, "%Y-%m-%d %H:%M")}
+                        <% else %>
+                          -
+                        <% end %>
+                      </td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+          <% else %>
+            <div class="rounded-box border border-dashed border-base-content/15 bg-base-200/45 px-4 py-10 text-center">
+              <.icon name="hero-users" class="mx-auto h-10 w-10 text-base-content/25" />
+
+              <p class="mt-3 text-sm text-base-content/60">No remote actors found</p>
+
+              <p class="mt-1 text-sm text-base-content/45">
+                Remote actors will appear here as they interact with your instance
+              </p>
             </div>
           <% end %>
-        <% else %>
-          <div class="text-center py-12">
-            <.icon name="hero-users" class="w-12 h-12 mx-auto opacity-30 mb-4" />
-            <p class="opacity-70">No remote actors found</p>
-            <p class="text-sm opacity-50 mt-1">
-              Remote actors will appear here as they interact with your instance
-            </p>
+        </div>
+
+        <%= if @total_pages > 1 do %>
+          <div class="flex items-center justify-between border-t border-base-content/10 px-5 py-4 sm:px-6">
+            <span class="text-xs text-base-content/60">Page {@page} of {@total_pages}</span>
+            <div class="join">
+              <.button
+                variant="default"
+                size="sm"
+                class="join-item"
+                phx-click="actors_prev_page"
+                disabled={@page <= 1}
+              >
+                Previous
+              </.button>
+              <.button
+                variant="default"
+                size="sm"
+                class="join-item"
+                phx-click="actors_next_page"
+                disabled={@page >= @total_pages}
+              >
+                Next
+              </.button>
+            </div>
           </div>
         <% end %>
       </:body>
@@ -1308,48 +1383,54 @@ defmodule ElektrineWeb.AdminLive.Federation do
 
   defp domains_table(assigns) do
     ~H"""
-    <.card body_class="p-3 sm:p-6">
+    <.card class="panel-card" body_class="p-0">
       <:body>
-        <h2 class="card-title text-base sm:text-lg mb-4">
-          <.icon name="hero-chart-bar" class="w-5 h-5" /> Top Domains by Actor Count
-        </h2>
+        <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+          <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            Reach
+          </div>
 
-        <%= if length(@domain_stats) > 0 do %>
-          <div class="space-y-2">
-            <%= for {domain, count} <- @domain_stats do %>
-              <div class="flex items-center gap-3">
-                <div class="flex-1">
-                  <div class="flex items-center justify-between mb-1">
-                    <span class="font-mono text-sm">{domain}</span>
-                    <span class="text-sm font-medium">{count} actors</span>
+          <h2 class="mt-1 text-xl font-semibold tracking-tight">Top Domains by Actor Count</h2>
+        </div>
+
+        <div class="px-5 py-5 sm:px-6">
+          <%= if length(@domain_stats) > 0 do %>
+            <div class="space-y-3">
+              <%= for {domain, count} <- @domain_stats do %>
+                <div class="flex items-center gap-3 rounded-box border border-base-content/10 bg-base-200/45 px-4 py-3">
+                  <div class="min-w-0 flex-1">
+                    <div class="mb-1 flex items-center justify-between gap-3">
+                      <span class="truncate font-mono text-sm">{domain}</span>
+                      <span class="shrink-0 text-sm font-medium">{count} actors</span>
+                    </div>
+                    <progress
+                      class="progress progress-primary w-full"
+                      value={count}
+                      max={elem(List.first(@domain_stats), 1)}
+                    >
+                    </progress>
                   </div>
-                  <progress
-                    class="progress progress-primary w-full"
-                    value={count}
-                    max={elem(List.first(@domain_stats), 1)}
+                  <.button
+                    variant="ghost"
+                    size="xs"
+                    phx-click="quick_block"
+                    phx-value-domain={domain}
+                    data-confirm="Block all activity from #{domain}?"
+                    title="Quick Block"
                   >
-                  </progress>
+                    <.icon name="hero-no-symbol" class="h-3 w-3 text-error" />
+                  </.button>
                 </div>
-                <.button
-                  variant="ghost"
-                  size="xs"
-                  class="btn-error"
-                  phx-click="quick_block"
-                  phx-value-domain={domain}
-                  data-confirm="Block all activity from #{domain}?"
-                  title="Quick Block"
-                >
-                  <.icon name="hero-no-symbol" class="w-3 h-3" />
-                </.button>
-              </div>
-            <% end %>
-          </div>
-        <% else %>
-          <div class="text-center py-12">
-            <.icon name="hero-chart-bar" class="w-12 h-12 mx-auto opacity-30 mb-4" />
-            <p class="opacity-70">No domain statistics available</p>
-          </div>
-        <% end %>
+              <% end %>
+            </div>
+          <% else %>
+            <div class="rounded-box border border-dashed border-base-content/15 bg-base-200/45 px-4 py-10 text-center">
+              <.icon name="hero-chart-bar" class="mx-auto h-10 w-10 text-base-content/25" />
+
+              <p class="mt-3 text-sm text-base-content/60">No domain statistics available</p>
+            </div>
+          <% end %>
+        </div>
       </:body>
     </.card>
     """
@@ -1357,65 +1438,78 @@ defmodule ElektrineWeb.AdminLive.Federation do
 
   defp activity_table(assigns) do
     ~H"""
-    <.card body_class="p-3 sm:p-6">
+    <.card class="panel-card" body_class="p-0">
       <:body>
-        <h2 class="card-title text-base sm:text-lg mb-4">
-          <.icon name="hero-bolt" class="w-5 h-5" /> Recent Activity
-          <span class="badge badge-neutral">{length(@activities)}</span>
-        </h2>
+        <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+          <div class="flex items-center justify-between gap-4">
+            <div>
+              <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+                Traffic
+              </div>
 
-        <%= if length(@activities) > 0 do %>
-          <div class="overflow-x-auto">
-            <table class="table table-sm">
-              <thead>
-                <tr>
-                  <th>Type</th>
-                  <th class="hidden sm:table-cell">Actor</th>
-                  <th class="hidden md:table-cell">Object</th>
-                  <th>Time</th>
-                </tr>
-              </thead>
-              <tbody>
-                <%= for activity <- @activities do %>
+              <h2 class="mt-1 text-xl font-semibold tracking-tight">Recent Activity</h2>
+            </div>
+
+            <div class="badge badge-ghost badge-sm">{length(@activities)}</div>
+          </div>
+        </div>
+
+        <div class="px-5 py-5 sm:px-6">
+          <%= if length(@activities) > 0 do %>
+            <div class="overflow-x-auto">
+              <table class="table table-sm w-full">
+                <thead>
                   <tr>
-                    <td>
-                      <span class={[
-                        "badge badge-sm",
-                        activity.activity_type == "Create" && "badge-success",
-                        activity.activity_type == "Follow" && "badge-info",
-                        activity.activity_type == "Like" && "badge-warning",
-                        activity.activity_type == "Announce" && "badge-accent",
-                        activity.activity_type not in ["Create", "Follow", "Like", "Announce"] &&
-                          "badge-neutral"
-                      ]}>
-                        {activity.activity_type}
-                      </span>
-                    </td>
-                    <td class="hidden sm:table-cell">
-                      <span class="font-mono text-xs truncate max-w-[200px] block">
-                        {activity.actor_uri}
-                      </span>
-                    </td>
-                    <td class="hidden md:table-cell">
-                      <span class="font-mono text-xs truncate max-w-[200px] block opacity-70">
-                        {activity.object_id || "-"}
-                      </span>
-                    </td>
-                    <td class="text-xs opacity-70">
-                      {Calendar.strftime(activity.inserted_at, "%m-%d %H:%M")}
-                    </td>
+                    <th>Type</th>
+                    <th class="hidden sm:table-cell">Actor</th>
+                    <th class="hidden md:table-cell">Object</th>
+                    <th>Time</th>
                   </tr>
-                <% end %>
-              </tbody>
-            </table>
-          </div>
-        <% else %>
-          <div class="text-center py-12">
-            <.icon name="hero-bolt" class="w-12 h-12 mx-auto opacity-30 mb-4" />
-            <p class="opacity-70">No recent activity</p>
-            <p class="text-sm opacity-50 mt-1">Federation activity will appear here</p>
-          </div>
-        <% end %>
+                </thead>
+                <tbody>
+                  <%= for activity <- @activities do %>
+                    <tr>
+                      <td>
+                        <span class={[
+                          "badge badge-sm",
+                          activity.activity_type == "Create" && "badge-success",
+                          activity.activity_type == "Follow" && "badge-info",
+                          activity.activity_type == "Like" && "badge-warning",
+                          activity.activity_type == "Announce" && "badge-accent",
+                          activity.activity_type not in ["Create", "Follow", "Like", "Announce"] &&
+                            "badge-neutral"
+                        ]}>
+                          {activity.activity_type}
+                        </span>
+                      </td>
+                      <td class="hidden sm:table-cell">
+                        <span class="block max-w-[200px] truncate font-mono text-xs">
+                          {activity.actor_uri}
+                        </span>
+                      </td>
+                      <td class="hidden md:table-cell">
+                        <span class="block max-w-[200px] truncate font-mono text-xs text-base-content/60">
+                          {activity.object_id || "-"}
+                        </span>
+                      </td>
+                      <td class="text-xs text-base-content/60">
+                        {Calendar.strftime(activity.inserted_at, "%m-%d %H:%M")}
+                      </td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+          <% else %>
+            <div class="rounded-box border border-dashed border-base-content/15 bg-base-200/45 px-4 py-10 text-center">
+              <.icon name="hero-bolt" class="mx-auto h-10 w-10 text-base-content/25" />
+
+              <p class="mt-3 text-sm text-base-content/60">No recent activity</p>
+
+              <p class="mt-1 text-sm text-base-content/45">Federation activity will appear here</p>
+            </div>
+          <% end %>
+        </div>
       </:body>
     </.card>
     """

@@ -1,328 +1,407 @@
-<div class="admin-page space-y-6">
-  <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-    <div>
-      <p class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/50">
-        System
-      </p>
+<div class="admin-page">
+  <.card class="panel-card" body_class="p-0">
+    <:body>
+      <div class="flex flex-col gap-6 px-5 py-6 sm:px-8 sm:py-8 lg:flex-row lg:items-end lg:justify-between">
+        <div class="max-w-2xl">
+          <div class="text-2xs font-semibold uppercase tracking-[0.32em] text-info/80">
+            System
+          </div>
 
-      <h1 class="mt-2 text-xl font-bold sm:text-2xl">Operations</h1>
-    </div>
+          <h1 class="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">Operations</h1>
 
-    <div class={[
-      "badge badge-lg",
-      case @health.status do
-        "critical" -> "badge-error"
-        "warning" -> "badge-warning"
-        _ -> "badge-success"
-      end
-    ]}>
-      {@health.status}
-    </div>
-  </div>
+          <p class="mt-3 max-w-2xl text-sm leading-6 text-base-content/70 sm:text-base">
+            Runtime health, queue pressure, the media proxy cache, and live telemetry counters.
+          </p>
+        </div>
 
-  <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-    <div class="rounded-lg border border-base-300 bg-base-100 p-4">
-      <div class="text-xs font-semibold uppercase text-base-content/50">CPU</div>
-      <div class="mt-2 text-2xl font-bold">{@health.cpu.stress}</div>
-      <div class="mt-1 text-xs text-base-content/60">
+        <div class="flex items-center gap-3">
+          <span class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            Health
+          </span>
+
+          <div class={[
+            "badge badge-lg",
+            case @health.status do
+              "critical" -> "badge-error"
+              "warning" -> "badge-warning"
+              _ -> "badge-success"
+            end
+          ]}>
+            {@health.status}
+          </div>
+        </div>
+      </div>
+    </:body>
+  </.card>
+
+  <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <div class="surface-muted rounded-box px-4 py-4 shadow-sm">
+      <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+        CPU
+      </div>
+
+      <div class="mt-2 text-3xl font-semibold text-info">{@health.cpu.stress}</div>
+
+      <div class="mt-2 text-sm text-base-content/55">
         Run queue {@health.cpu.run_queue} / {@health.cpu.schedulers} schedulers
       </div>
     </div>
 
-    <div class="rounded-lg border border-base-300 bg-base-100 p-4">
-      <div class="text-xs font-semibold uppercase text-base-content/50">Memory</div>
-      <div class="mt-2 text-2xl font-bold">{@health.memory_mb.total} MB</div>
-      <div class="mt-1 text-xs text-base-content/60">
+    <div class="surface-muted rounded-box px-4 py-4 shadow-sm">
+      <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+        Memory
+      </div>
+
+      <div class="mt-2 text-3xl font-semibold text-primary">{@health.memory_mb.total} MB</div>
+
+      <div class="mt-2 text-sm text-base-content/55">
         Processes {@health.memory_mb.processes} MB, ETS {@health.memory_mb.ets} MB
       </div>
     </div>
 
-    <div class="rounded-lg border border-base-300 bg-base-100 p-4">
-      <div class="text-xs font-semibold uppercase text-base-content/50">Queue Guard</div>
-      <div class="mt-2 text-2xl font-bold">
+    <div class="surface-muted rounded-box px-4 py-4 shadow-sm">
+      <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+        Queue Guard
+      </div>
+
+      <div class="mt-2 text-3xl font-semibold text-warning">
         {@load_guard.available_or_retryable}
       </div>
-      <div class="mt-1 text-xs text-base-content/60">
+
+      <div class="mt-2 text-sm text-base-content/55">
         Threshold {@load_guard.max_available_or_retryable}
       </div>
     </div>
 
-    <div class="rounded-lg border border-base-300 bg-base-100 p-4">
-      <div class="text-xs font-semibold uppercase text-base-content/50">Live Jobs</div>
-      <div class="mt-2 text-2xl font-bold">{@live.processed_jobs}</div>
-      <div class="mt-1 text-xs text-base-content/60">
+    <div class="surface-muted rounded-box px-4 py-4 shadow-sm">
+      <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+        Live Jobs
+      </div>
+
+      <div class="mt-2 text-3xl font-semibold text-success">{@live.processed_jobs}</div>
+
+      <div class="mt-2 text-sm text-base-content/55">
         Process-local telemetry window
-      </div>
-    </div>
-  </div>
-
-  <section class="rounded-lg border border-base-300 bg-base-100">
-    <div class="border-b border-base-300 p-4">
-      <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 class="text-base font-semibold">Media Proxy Cache</h2>
-          <p class="mt-1 text-xs text-base-content/60">
-            Failures {length(@media_proxy_cache.failures)} · Bans {length(@media_proxy_cache.bans)}
-          </p>
-        </div>
-
-        <.button href={~p"/pripyat/media-proxy-cache"} variant="ghost" size="sm">
-          <.icon name="hero-code-bracket-square" class="h-4 w-4" />
-        </.button>
-      </div>
-    </div>
-
-    <div class="grid gap-4 p-4 xl:grid-cols-[0.95fr_1.05fr]">
-      <div class="space-y-4">
-        <form method="post" action={~p"/pripyat/media-proxy-cache/purge"} class="space-y-3">
-          <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
-          <input type="hidden" name="_admin_action_grant" value={@media_proxy_purge_grant} />
-
-          <label class="form-control">
-            <span class="label-text text-xs font-semibold uppercase text-base-content/60">
-              Purge URLs
-            </span>
-            <textarea
-              name="urls[]"
-              rows="4"
-              class="textarea textarea-bordered mt-2 font-mono text-xs"
-              placeholder="https://media.example/image.jpg"
-            ></textarea>
-          </label>
-
-          <div class="flex flex-wrap items-center gap-3">
-            <label class="label cursor-pointer gap-2 p-0">
-              <input
-                type="checkbox"
-                name="ban"
-                value="true"
-                class="checkbox checkbox-warning checkbox-sm"
-              />
-              <span class="label-text text-sm">Ban after purge</span>
-            </label>
-
-            <.button type="submit" variant="warning" size="sm">
-              <.icon name="hero-no-symbol" class="h-4 w-4" /> Purge
-            </.button>
-          </div>
-        </form>
-
-        <form method="post" action={~p"/pripyat/media-proxy-cache/unban"} class="space-y-3">
-          <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
-          <input type="hidden" name="_admin_action_grant" value={@media_proxy_unban_grant} />
-
-          <label class="form-control">
-            <span class="label-text text-xs font-semibold uppercase text-base-content/60">
-              Unban URLs
-            </span>
-            <textarea
-              name="urls[]"
-              rows="3"
-              class="textarea textarea-bordered mt-2 font-mono text-xs"
-              placeholder="https://media.example/image.jpg"
-            ></textarea>
-          </label>
-
-          <.button type="submit" variant="success" size="sm">
-            <.icon name="hero-check-circle" class="h-4 w-4" /> Unban
-          </.button>
-        </form>
-      </div>
-
-      <div class="grid gap-4 lg:grid-cols-2">
-        <div class="overflow-x-auto">
-          <table class="table table-sm">
-            <thead>
-              <tr>
-                <th>Recent failures</th>
-              </tr>
-            </thead>
-            <tbody>
-              <%= if @media_proxy_cache.failures == [] do %>
-                <tr>
-                  <td class="text-base-content/60">No recent failures.</td>
-                </tr>
-              <% else %>
-                <%= for entry <- @media_proxy_cache.failures do %>
-                  <tr>
-                    <td class="max-w-0 truncate font-mono text-xs" title={entry.url}>
-                      {entry.url}
-                    </td>
-                  </tr>
-                <% end %>
-              <% end %>
-            </tbody>
-          </table>
-        </div>
-
-        <div class="overflow-x-auto">
-          <table class="table table-sm">
-            <thead>
-              <tr>
-                <th>Runtime bans</th>
-              </tr>
-            </thead>
-            <tbody>
-              <%= if @media_proxy_cache.bans == [] do %>
-                <tr>
-                  <td class="text-base-content/60">No runtime bans.</td>
-                </tr>
-              <% else %>
-                <%= for entry <- @media_proxy_cache.bans do %>
-                  <tr>
-                    <td class="max-w-0 truncate font-mono text-xs" title={entry.url}>
-                      {entry.url}
-                    </td>
-                  </tr>
-                <% end %>
-              <% end %>
-            </tbody>
-          </table>
-        </div>
       </div>
     </div>
   </section>
 
-  <div class="grid gap-6 xl:grid-cols-2">
-    <section class="rounded-lg border border-base-300 bg-base-100">
-      <div class="border-b border-base-300 p-4">
-        <h2 class="text-base font-semibold">Queue Pressure</h2>
+  <.card class="panel-card" body_class="p-0">
+    <:body>
+      <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+              Cache
+            </div>
+
+            <h2 class="mt-1 text-xl font-semibold tracking-tight">Media Proxy Cache</h2>
+
+            <p class="mt-1 text-sm text-base-content/60">
+              Failures {length(@media_proxy_cache.failures)} · Bans {length(
+                @media_proxy_cache.bans
+              )}
+            </p>
+          </div>
+
+          <.button href={~p"/pripyat/media-proxy-cache"} variant="ghost" size="sm">
+            <.icon name="hero-code-bracket-square" class="h-4 w-4" />
+          </.button>
+        </div>
       </div>
 
-      <div class="overflow-x-auto">
-        <table class="table table-sm">
-          <thead>
-            <tr>
-              <th>Queue</th>
-              <th class="text-right">Available</th>
-              <th class="text-right">Retryable</th>
-              <th class="text-right">Executing</th>
-              <th class="text-right">Scheduled</th>
-              <th class="text-right">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            <%= if map_size(@queue_pressure) == 0 do %>
-              <tr>
-                <td colspan="6" class="text-base-content/60">No active queued jobs.</td>
-              </tr>
+      <div class="grid gap-4 px-5 py-5 sm:px-6 xl:grid-cols-[0.95fr_1.05fr]">
+        <div class="space-y-4">
+          <form
+            method="post"
+            action={~p"/pripyat/media-proxy-cache/purge"}
+            class="surface-muted space-y-3 rounded-box p-4"
+          >
+            <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
+            <input type="hidden" name="_admin_action_grant" value={@media_proxy_purge_grant} />
+
+            <label class="block">
+              <span class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                Purge URLs
+              </span>
+              <textarea
+                name="urls[]"
+                rows="4"
+                class="textarea textarea-bordered mt-2 w-full font-mono text-xs"
+                placeholder="https://media.example/image.jpg"
+              ></textarea>
+            </label>
+
+            <div class="flex flex-wrap items-center gap-3">
+              <label class="label cursor-pointer gap-2 p-0">
+                <input
+                  type="checkbox"
+                  name="ban"
+                  value="true"
+                  class="checkbox checkbox-warning checkbox-sm"
+                />
+                <span class="label-text text-sm">Ban after purge</span>
+              </label>
+
+              <.button type="submit" variant="warning" size="sm">
+                <.icon name="hero-no-symbol" class="h-4 w-4" /> Purge
+              </.button>
+            </div>
+          </form>
+
+          <form
+            method="post"
+            action={~p"/pripyat/media-proxy-cache/unban"}
+            class="surface-muted space-y-3 rounded-box p-4"
+          >
+            <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
+            <input type="hidden" name="_admin_action_grant" value={@media_proxy_unban_grant} />
+
+            <label class="block">
+              <span class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                Unban URLs
+              </span>
+              <textarea
+                name="urls[]"
+                rows="3"
+                class="textarea textarea-bordered mt-2 w-full font-mono text-xs"
+                placeholder="https://media.example/image.jpg"
+              ></textarea>
+            </label>
+
+            <.button type="submit" variant="success" size="sm">
+              <.icon name="hero-check-circle" class="h-4 w-4" /> Unban
+            </.button>
+          </form>
+        </div>
+
+        <div class="grid gap-4 lg:grid-cols-2">
+          <div class="rounded-box border border-base-content/10 bg-base-200/30 p-4">
+            <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              Recent failures
+            </div>
+
+            <%= if @media_proxy_cache.failures == [] do %>
+              <div class="mt-3 rounded-box border border-dashed border-base-content/15 bg-base-200/45 px-4 py-6 text-center text-sm text-base-content/55">
+                No recent failures.
+              </div>
             <% else %>
-              <%= for {queue, counts} <- Enum.sort_by(@queue_pressure, fn {queue, _} -> queue end) do %>
-                <tr>
-                  <td class="font-medium">{queue}</td>
-                  <td class="text-right">{Map.get(counts, "available", 0)}</td>
-                  <td class="text-right">{Map.get(counts, "retryable", 0)}</td>
-                  <td class="text-right">{Map.get(counts, "executing", 0)}</td>
-                  <td class="text-right">{Map.get(counts, "scheduled", 0)}</td>
-                  <td class="text-right font-semibold">{Map.get(counts, "total", 0)}</td>
-                </tr>
-              <% end %>
+              <ul class="mt-3 space-y-2">
+                <%= for entry <- @media_proxy_cache.failures do %>
+                  <li class="truncate font-mono text-xs text-base-content/70" title={entry.url}>
+                    {entry.url}
+                  </li>
+                <% end %>
+              </ul>
             <% end %>
-          </tbody>
-        </table>
-      </div>
-    </section>
+          </div>
 
-    <section class="rounded-lg border border-base-300 bg-base-100">
-      <div class="border-b border-base-300 p-4">
-        <h2 class="text-base font-semibold">Live Counters</h2>
-      </div>
+          <div class="rounded-box border border-base-content/10 bg-base-200/30 p-4">
+            <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              Runtime bans
+            </div>
 
-      <div class="grid gap-3 p-4 sm:grid-cols-2">
-        <div class="rounded-lg bg-base-200 p-3">
-          <div class="text-xs text-base-content/60">Skipped federation jobs</div>
-          <div class="mt-1 text-xl font-semibold">{@live.federation.skipped_jobs}</div>
-        </div>
-
-        <div class="rounded-lg bg-base-200 p-3">
-          <div class="text-xs text-base-content/60">Latest federation depth</div>
-          <div class="mt-1 text-xl font-semibold">{@live.federation.queue_depth}</div>
-        </div>
-
-        <div class="rounded-lg bg-base-200 p-3">
-          <div class="text-xs text-base-content/60">Home feed inserts</div>
-          <div class="mt-1 text-xl font-semibold">{@live.home_feed.fanout_insert}</div>
-        </div>
-
-        <div class="rounded-lg bg-base-200 p-3">
-          <div class="text-xs text-base-content/60">Home feed removals</div>
-          <div class="mt-1 text-xl font-semibold">{@live.home_feed.fanout_remove}</div>
-        </div>
-
-        <div class="rounded-lg bg-base-200 p-3">
-          <div class="text-xs text-base-content/60">Home feed cache hits</div>
-          <div class="mt-1 text-xl font-semibold">{@live.home_feed.cache_hit}</div>
-        </div>
-
-        <div class="rounded-lg bg-base-200 p-3">
-          <div class="text-xs text-base-content/60">Home feed cache misses</div>
-          <div class="mt-1 text-xl font-semibold">{@live.home_feed.cache_miss}</div>
-        </div>
-      </div>
-    </section>
-  </div>
-
-  <div class="grid gap-6 xl:grid-cols-2">
-    <section class="rounded-lg border border-base-300 bg-base-100">
-      <div class="border-b border-base-300 p-4">
-        <h2 class="text-base font-semibold">Report Outcomes</h2>
-      </div>
-
-      <div class="overflow-x-auto">
-        <table class="table table-sm">
-          <thead>
-            <tr>
-              <th>Outcome</th>
-              <th class="text-right">Count</th>
-            </tr>
-          </thead>
-          <tbody>
-            <%= if map_size(@live.reports) == 0 do %>
-              <tr>
-                <td colspan="2" class="text-base-content/60">No report events recorded.</td>
-              </tr>
+            <%= if @media_proxy_cache.bans == [] do %>
+              <div class="mt-3 rounded-box border border-dashed border-base-content/15 bg-base-200/45 px-4 py-6 text-center text-sm text-base-content/55">
+                No runtime bans.
+              </div>
             <% else %>
-              <%= for {key, count} <- Enum.sort_by(@live.reports, fn {key, _} -> key end) do %>
-                <tr>
-                  <td class="font-medium">{key}</td>
-                  <td class="text-right">{count}</td>
-                </tr>
-              <% end %>
+              <ul class="mt-3 space-y-2">
+                <%= for entry <- @media_proxy_cache.bans do %>
+                  <li class="truncate font-mono text-xs text-base-content/70" title={entry.url}>
+                    {entry.url}
+                  </li>
+                <% end %>
+              </ul>
             <% end %>
-          </tbody>
-        </table>
+          </div>
+        </div>
       </div>
-    </section>
+    </:body>
+  </.card>
 
-    <section class="rounded-lg border border-base-300 bg-base-100">
-      <div class="border-b border-base-300 p-4">
-        <h2 class="text-base font-semibold">Skipped Components</h2>
-      </div>
+  <section class="grid gap-6 xl:grid-cols-2">
+    <.card class="panel-card" body_class="p-0">
+      <:body>
+        <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+          <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            Jobs
+          </div>
 
-      <div class="overflow-x-auto">
-        <table class="table table-sm">
-          <thead>
-            <tr>
-              <th>Component</th>
-              <th class="text-right">Skips</th>
-            </tr>
-          </thead>
-          <tbody>
-            <%= if map_size(@live.federation.skipped_by_component) == 0 do %>
-              <tr>
-                <td colspan="2" class="text-base-content/60">No skipped components recorded.</td>
-              </tr>
-            <% else %>
-              <%= for {component, count} <- Enum.sort_by(@live.federation.skipped_by_component, fn {component, _} -> component end) do %>
+          <h2 class="mt-1 text-xl font-semibold tracking-tight">Queue Pressure</h2>
+        </div>
+
+        <div class="px-5 py-5 sm:px-6">
+          <div class="overflow-x-auto">
+            <table class="table w-full">
+              <thead>
                 <tr>
-                  <td class="font-medium">{component}</td>
-                  <td class="text-right">{count}</td>
+                  <th>Queue</th>
+                  <th class="text-right">Available</th>
+                  <th class="text-right">Retryable</th>
+                  <th class="text-right">Executing</th>
+                  <th class="text-right">Scheduled</th>
+                  <th class="text-right">Total</th>
                 </tr>
-              <% end %>
-            <% end %>
-          </tbody>
-        </table>
-      </div>
-    </section>
-  </div>
+              </thead>
+              <tbody>
+                <%= if map_size(@queue_pressure) == 0 do %>
+                  <tr>
+                    <td colspan="6" class="py-8 text-center text-sm text-base-content/55">
+                      No active queued jobs.
+                    </td>
+                  </tr>
+                <% else %>
+                  <%= for {queue, counts} <- Enum.sort_by(@queue_pressure, fn {queue, _} -> queue end) do %>
+                    <tr>
+                      <td class="font-medium">{queue}</td>
+                      <td class="text-right">{Map.get(counts, "available", 0)}</td>
+                      <td class="text-right">{Map.get(counts, "retryable", 0)}</td>
+                      <td class="text-right">{Map.get(counts, "executing", 0)}</td>
+                      <td class="text-right">{Map.get(counts, "scheduled", 0)}</td>
+                      <td class="text-right font-semibold">{Map.get(counts, "total", 0)}</td>
+                    </tr>
+                  <% end %>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </:body>
+    </.card>
+
+    <.card class="panel-card" body_class="p-0">
+      <:body>
+        <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+          <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            Telemetry
+          </div>
+
+          <h2 class="mt-1 text-xl font-semibold tracking-tight">Live Counters</h2>
+        </div>
+
+        <div class="grid gap-3 px-5 py-5 sm:grid-cols-2 sm:px-6">
+          <div class="rounded-box border border-base-content/10 bg-base-200/35 p-4">
+            <div class="text-sm text-base-content/60">Skipped federation jobs</div>
+
+            <div class="mt-2 text-xl font-semibold">{@live.federation.skipped_jobs}</div>
+          </div>
+
+          <div class="rounded-box border border-base-content/10 bg-base-200/35 p-4">
+            <div class="text-sm text-base-content/60">Latest federation depth</div>
+
+            <div class="mt-2 text-xl font-semibold">{@live.federation.queue_depth}</div>
+          </div>
+
+          <div class="rounded-box border border-base-content/10 bg-base-200/35 p-4">
+            <div class="text-sm text-base-content/60">Home feed inserts</div>
+
+            <div class="mt-2 text-xl font-semibold">{@live.home_feed.fanout_insert}</div>
+          </div>
+
+          <div class="rounded-box border border-base-content/10 bg-base-200/35 p-4">
+            <div class="text-sm text-base-content/60">Home feed removals</div>
+
+            <div class="mt-2 text-xl font-semibold">{@live.home_feed.fanout_remove}</div>
+          </div>
+
+          <div class="rounded-box border border-base-content/10 bg-base-200/35 p-4">
+            <div class="text-sm text-base-content/60">Home feed cache hits</div>
+
+            <div class="mt-2 text-xl font-semibold">{@live.home_feed.cache_hit}</div>
+          </div>
+
+          <div class="rounded-box border border-base-content/10 bg-base-200/35 p-4">
+            <div class="text-sm text-base-content/60">Home feed cache misses</div>
+
+            <div class="mt-2 text-xl font-semibold">{@live.home_feed.cache_miss}</div>
+          </div>
+        </div>
+      </:body>
+    </.card>
+  </section>
+
+  <section class="grid gap-6 xl:grid-cols-2">
+    <.card class="panel-card" body_class="p-0">
+      <:body>
+        <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+          <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            Moderation
+          </div>
+
+          <h2 class="mt-1 text-xl font-semibold tracking-tight">Report Outcomes</h2>
+        </div>
+
+        <div class="px-5 py-5 sm:px-6">
+          <div class="overflow-x-auto">
+            <table class="table w-full">
+              <thead>
+                <tr>
+                  <th>Outcome</th>
+                  <th class="text-right">Count</th>
+                </tr>
+              </thead>
+              <tbody>
+                <%= if map_size(@live.reports) == 0 do %>
+                  <tr>
+                    <td colspan="2" class="py-8 text-center text-sm text-base-content/55">
+                      No report events recorded.
+                    </td>
+                  </tr>
+                <% else %>
+                  <%= for {key, count} <- Enum.sort_by(@live.reports, fn {key, _} -> key end) do %>
+                    <tr>
+                      <td class="font-medium">{key}</td>
+                      <td class="text-right">{count}</td>
+                    </tr>
+                  <% end %>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </:body>
+    </.card>
+
+    <.card class="panel-card" body_class="p-0">
+      <:body>
+        <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+          <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            Federation
+          </div>
+
+          <h2 class="mt-1 text-xl font-semibold tracking-tight">Skipped Components</h2>
+        </div>
+
+        <div class="px-5 py-5 sm:px-6">
+          <div class="overflow-x-auto">
+            <table class="table w-full">
+              <thead>
+                <tr>
+                  <th>Component</th>
+                  <th class="text-right">Skips</th>
+                </tr>
+              </thead>
+              <tbody>
+                <%= if map_size(@live.federation.skipped_by_component) == 0 do %>
+                  <tr>
+                    <td colspan="2" class="py-8 text-center text-sm text-base-content/55">
+                      No skipped components recorded.
+                    </td>
+                  </tr>
+                <% else %>
+                  <%= for {component, count} <- Enum.sort_by(@live.federation.skipped_by_component, fn {component, _} -> component end) do %>
+                    <tr>
+                      <td class="font-medium">{component}</td>
+                      <td class="text-right">{count}</td>
+                    </tr>
+                  <% end %>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </:body>
+    </.card>
+  </section>
 </div>

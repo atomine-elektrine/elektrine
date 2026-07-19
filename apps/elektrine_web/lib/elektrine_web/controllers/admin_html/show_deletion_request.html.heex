@@ -1,174 +1,204 @@
 <div class="admin-page">
-  <div class="flex justify-between items-start gap-4">
-    <div>
-      <p class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/50">
-        Account Admin
-      </p>
-      <h1 class="mt-2 text-2xl font-bold">Account Deletion Request</h1>
-      <p class="mt-2 text-sm text-base-content/70 sm:text-base">
-        Review the request details, user context, and moderation notes before approving or denying account removal.
-      </p>
-    </div>
-    <.button href={~p"/pripyat/deletion-requests"} variant="ghost">
-      ← Back to Requests
-    </.button>
-  </div>
-
-  <.card>
+  <.card class="panel-card" body_class="p-0">
     <:body>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <!-- Request Details -->
+      <div class="flex flex-col gap-6 px-5 py-6 sm:px-8 sm:py-8 lg:flex-row lg:items-start lg:justify-between">
+        <div class="max-w-2xl">
+          <div class="text-2xs font-semibold uppercase tracking-[0.32em] text-error/80">
+            Account Admin
+          </div>
+
+          <h1 class="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
+            Account Deletion Request
+          </h1>
+
+          <p class="mt-3 max-w-2xl text-sm leading-6 text-base-content/70 sm:text-base">
+            Review the request details, user context, and moderation notes before approving or denying account removal.
+          </p>
+        </div>
+
+        <.link
+          href={~p"/pripyat/deletion-requests"}
+          class="inline-flex shrink-0 items-center gap-1.5 text-sm text-base-content/60 transition-colors hover:text-base-content"
+        >
+          <.icon name="hero-chevron-left" class="h-4 w-4" /> Back to Requests
+        </.link>
+      </div>
+    </:body>
+  </.card>
+
+  <.card class="panel-card" body_class="p-0">
+    <:body>
+      <div class="grid gap-8 px-5 py-6 sm:px-6 md:grid-cols-2">
         <div>
-          <h2 class="text-xl font-semibold mb-4">Request Details</h2>
+          <h2 class="text-lg font-semibold tracking-tight">Request Details</h2>
 
-          <div class="space-y-3">
+          <dl class="mt-4 space-y-4">
             <div>
-              <label class="label font-semibold">User</label>
-              <div class="text-lg">{@request.user.username} (ID: {@request.user.id})</div>
+              <dt class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                User
+              </dt>
+              <dd class="mt-1 text-lg font-medium">
+                {@request.user.username} (ID: {@request.user.id})
+              </dd>
             </div>
 
             <div>
-              <label class="label font-semibold">Status</label>
-              <span class={[
-                "badge badge-lg",
-                case @request.status do
-                  "pending" -> "badge-warning"
-                  "approved" -> "badge-success"
-                  "denied" -> "badge-error"
-                  _ -> "badge-neutral"
-                end
-              ]}>
-                {String.capitalize(@request.status)}
-              </span>
+              <dt class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                Status
+              </dt>
+              <dd class="mt-1">
+                <span class={[
+                  "badge badge-lg",
+                  case @request.status do
+                    "pending" -> "badge-warning"
+                    "approved" -> "badge-success"
+                    "denied" -> "badge-error"
+                    _ -> "badge-neutral"
+                  end
+                ]}>
+                  {String.capitalize(@request.status)}
+                </span>
+              </dd>
             </div>
 
             <div>
-              <label class="label font-semibold">Requested At</label>
-              <div>
+              <dt class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                Requested At
+              </dt>
+              <dd class="mt-1">
                 <.local_time
                   datetime={@request.requested_at}
                   format="datetime"
                   timezone={@timezone}
                   time_format={@time_format}
                 />
-              </div>
+              </dd>
             </div>
 
             <%= if @request.reason && String.trim(@request.reason) != "" do %>
               <div>
-                <label class="label font-semibold">Reason</label>
-                <div class="bg-base-200 p-3 rounded-lg">
+                <dt class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                  Reason
+                </dt>
+                <dd class="mt-2 rounded-box border border-base-content/10 bg-base-200/45 px-4 py-3 text-sm leading-6">
                   {@request.reason}
-                </div>
+                </dd>
               </div>
             <% else %>
               <div>
-                <label class="label font-semibold">Reason</label>
-                <div class="text-base-content/50 italic">No reason provided</div>
+                <dt class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                  Reason
+                </dt>
+                <dd class="mt-1 italic text-base-content/50">No reason provided</dd>
               </div>
             <% end %>
-          </div>
+          </dl>
         </div>
-        
-<!-- Review Information -->
+
         <div>
-          <h2 class="text-xl font-semibold mb-4">Review Information</h2>
+          <h2 class="text-lg font-semibold tracking-tight">Review Information</h2>
 
           <%= if @request.reviewed_by do %>
-            <div class="space-y-3">
+            <dl class="mt-4 space-y-4">
               <div>
-                <label class="label font-semibold">Reviewed By</label>
-                <div>{@request.reviewed_by.username}</div>
+                <dt class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                  Reviewed By
+                </dt>
+                <dd class="mt-1">{@request.reviewed_by.username}</dd>
               </div>
 
               <div>
-                <label class="label font-semibold">Reviewed At</label>
-                <div>
+                <dt class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                  Reviewed At
+                </dt>
+                <dd class="mt-1">
                   <.local_time
                     datetime={@request.reviewed_at}
                     format="datetime"
                     timezone={@timezone}
                     time_format={@time_format}
                   />
-                </div>
+                </dd>
               </div>
 
               <%= if @request.admin_notes && String.trim(@request.admin_notes) != "" do %>
                 <div>
-                  <label class="label font-semibold">Admin Notes</label>
-                  <div class="bg-base-200 p-3 rounded-lg">
+                  <dt class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                    Admin Notes
+                  </dt>
+                  <dd class="mt-2 rounded-box border border-base-content/10 bg-base-200/45 px-4 py-3 text-sm leading-6">
                     {@request.admin_notes}
-                  </div>
+                  </dd>
                 </div>
               <% end %>
-            </div>
+            </dl>
           <% else %>
-            <div class="text-base-content/50 italic">Not yet reviewed</div>
+            <div class="mt-4 rounded-box border border-dashed border-base-content/15 bg-base-200/45 px-4 py-8 text-center text-sm italic text-base-content/50">
+              Not yet reviewed
+            </div>
           <% end %>
         </div>
       </div>
-      
-<!-- Actions -->
+
       <%= if @request.status == "pending" do %>
-        <div class="divider"></div>
-        <div>
-          <h2 class="text-xl font-semibold mb-4">Review Actions</h2>
+        <div class="border-t border-base-content/10 px-5 py-6 sm:px-6">
+          <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            Decision
+          </div>
 
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <!-- Approve -->
-            <div class="card bg-success/10 border border-success/30">
-              <div class="card-body">
-                <h3 class="card-title text-success">Approve Request</h3>
-                <p class="text-sm">
-                  This will permanently delete the user's account and all associated data.
-                </p>
+          <h2 class="mt-1 text-xl font-semibold tracking-tight">Review Actions</h2>
 
-                <.simple_form
-                  :let={_f}
-                  for={%{}}
-                  action={~p"/pripyat/deletion-requests/#{@request.id}/approve"}
-                  method="post"
-                >
-                  <.input
-                    name="admin_notes"
-                    type="textarea"
-                    label="Admin Notes (optional)"
-                    placeholder="Add any notes about this approval..."
-                    value=""
-                  />
-                  <:actions>
-                    <.button variant="success" class="w-full">Approve & Delete Account</.button>
-                  </:actions>
-                </.simple_form>
-              </div>
+          <div class="mt-5 grid gap-4 md:grid-cols-2">
+            <div class="rounded-box border border-success/25 bg-success/5 p-5">
+              <h3 class="text-lg font-semibold text-success">Approve Request</h3>
+
+              <p class="mt-2 text-sm leading-6 text-base-content/70">
+                This will permanently delete the user's account and all associated data.
+              </p>
+
+              <.simple_form
+                :let={_f}
+                for={%{}}
+                action={~p"/pripyat/deletion-requests/#{@request.id}/approve"}
+                method="post"
+              >
+                <.input
+                  name="admin_notes"
+                  type="textarea"
+                  label="Admin Notes (optional)"
+                  placeholder="Add any notes about this approval..."
+                  value=""
+                />
+                <:actions>
+                  <.button variant="success" class="w-full">Approve & Delete Account</.button>
+                </:actions>
+              </.simple_form>
             </div>
-            
-<!-- Deny -->
-            <div class="card bg-error/10 border border-error/30">
-              <div class="card-body">
-                <h3 class="card-title text-error">Deny Request</h3>
-                <p class="text-sm">
-                  This will deny the deletion request. The user's account will remain active.
-                </p>
 
-                <.simple_form
-                  :let={_f}
-                  for={%{}}
-                  action={~p"/pripyat/deletion-requests/#{@request.id}/deny"}
-                  method="post"
-                >
-                  <.input
-                    name="admin_notes"
-                    type="textarea"
-                    label="Admin Notes (optional)"
-                    placeholder="Explain why this request was denied..."
-                    value=""
-                  />
-                  <:actions>
-                    <.button variant="secondary" class="w-full">Deny Request</.button>
-                  </:actions>
-                </.simple_form>
-              </div>
+            <div class="rounded-box border border-error/25 bg-error/5 p-5">
+              <h3 class="text-lg font-semibold text-error">Deny Request</h3>
+
+              <p class="mt-2 text-sm leading-6 text-base-content/70">
+                This will deny the deletion request. The user's account will remain active.
+              </p>
+
+              <.simple_form
+                :let={_f}
+                for={%{}}
+                action={~p"/pripyat/deletion-requests/#{@request.id}/deny"}
+                method="post"
+              >
+                <.input
+                  name="admin_notes"
+                  type="textarea"
+                  label="Admin Notes (optional)"
+                  placeholder="Explain why this request was denied..."
+                  value=""
+                />
+                <:actions>
+                  <.button variant="secondary" class="w-full">Deny Request</.button>
+                </:actions>
+              </.simple_form>
             </div>
           </div>
         </div>

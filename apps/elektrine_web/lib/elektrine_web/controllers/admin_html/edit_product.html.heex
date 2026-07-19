@@ -1,16 +1,28 @@
 <div class="admin-page">
-  <div class="mb-6">
-    <div class="flex items-center mb-2">
-      <.button href={~p"/pripyat/subscriptions"} variant="ghost" size="sm" class="mr-4">
-        <.icon name="hero-arrow-left" class="h-4 w-4 mr-2" /> Back
-      </.button>
-      <h1 class="text-2xl font-bold">Edit Product: {@product.name}</h1>
-    </div>
+  <.card class="panel-card" body_class="p-0">
+    <:body>
+      <div class="px-5 py-6 sm:px-8 sm:py-8">
+        <.link
+          href={~p"/pripyat/subscriptions"}
+          class="inline-flex items-center gap-1.5 text-sm text-base-content/60 transition-colors hover:text-base-content"
+        >
+          <.icon name="hero-chevron-left" class="h-4 w-4" /> Back to products
+        </.link>
 
-    <p class="opacity-70">Update product details and Stripe pricing.</p>
-  </div>
+        <div class="mt-5 text-2xs font-semibold uppercase tracking-[0.32em] text-info/80">
+          Billing
+        </div>
 
-  <.card>
+        <h1 class="mt-2 text-2xl font-semibold tracking-tight">Edit Product: {@product.name}</h1>
+
+        <p class="mt-3 max-w-2xl text-sm leading-6 text-base-content/70">
+          Update product details and Stripe pricing.
+        </p>
+      </div>
+    </:body>
+  </.card>
+
+  <.card class="panel-card">
     <:body>
       <.simple_form
         :let={f}
@@ -23,26 +35,24 @@
         </.error>
         <% features_value =
           Phoenix.HTML.Form.input_value(f, :features) || @product.features || [] %>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
             <.input field={f[:name]} type="text" label="Name" placeholder="e.g., VPN" required />
           </div>
 
           <div>
             <label class="label"><span class="label-text font-medium">Slug</span></label>
-            <div class="input input-bordered flex items-center font-mono text-sm bg-base-200">
+            <div class="input input-bordered flex items-center bg-base-200 font-mono text-sm">
               {@product.slug}
             </div>
 
-            <div class="label">
-              <span class="text-xs opacity-70">
-                Product slugs are immutable after creation so existing subscriptions and webhook mappings stay stable.
-              </span>
-            </div>
+            <p class="mt-1.5 text-xs text-base-content/55">
+              Product slugs are immutable after creation so existing subscriptions and webhook mappings stay stable.
+            </p>
           </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
             <.input
               field={f[:billing_type]}
@@ -50,11 +60,9 @@
               label="Billing Type"
               options={[{"Recurring subscription", "recurring"}, {"One-time payment", "one_time"}]}
             />
-            <div class="label">
-              <span class="text-xs opacity-70">
-                One-time products grant access after a single paid checkout and do not renew.
-              </span>
-            </div>
+            <p class="mt-1.5 text-xs text-base-content/55">
+              One-time products grant access after a single paid checkout and do not renew.
+            </p>
           </div>
 
           <div><.input field={f[:sort_order]} type="number" label="Sort Order" /></div>
@@ -78,23 +86,29 @@
           <textarea
             name="product[features]"
             placeholder="Feature 1&#10;Feature 2&#10;Feature 3"
-            class="textarea textarea-bordered w-full h-32 font-mono text-sm"
+            class="textarea textarea-bordered h-32 w-full font-mono text-sm"
           >{Enum.join(features_value, "\n")}</textarea>
         </div>
 
-        <div class="divider">Pricing</div>
+        <div class="border-t border-base-content/10 pt-5">
+          <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            Pricing
+          </div>
+        </div>
 
-        <div class="alert alert-info mb-4">
-          <.icon name="hero-information-circle" class="w-5 h-5" />
+        <div class="flex items-start gap-3 rounded-box border border-info/20 bg-info/10 px-4 py-3 text-sm text-base-content/75">
+          <.icon name="hero-information-circle" class="mt-0.5 h-5 w-5 shrink-0 text-info" />
           <span>
             Stripe price IDs sync the amount and currency each time you save. Use either recurring prices or a one-time price, depending on the billing type.
           </span>
         </div>
 
-        <div class="rounded-box border border-base-300 p-4 mb-4">
-          <div class="font-medium mb-3">Recurring Pricing</div>
+        <div class="rounded-box border border-base-content/10 bg-base-200/35 p-4">
+          <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+            Recurring Pricing
+          </div>
 
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="mt-3 grid grid-cols-1 gap-4 md:grid-cols-3">
             <div>
               <.input
                 field={f[:monthly_price_cents]}
@@ -103,7 +117,7 @@
                 placeholder="1900"
                 min="0"
               />
-              <div class="label"><span class="text-xs opacity-70">e.g., 1900 = $19.00</span></div>
+              <p class="mt-1.5 text-xs text-base-content/55">e.g., 1900 = $19.00</p>
             </div>
 
             <div>
@@ -114,9 +128,7 @@
                 placeholder="19000"
                 min="0"
               />
-              <div class="label">
-                <span class="text-xs opacity-70">e.g., 19000 = $190.00</span>
-              </div>
+              <p class="mt-1.5 text-xs text-base-content/55">e.g., 19000 = $190.00</p>
             </div>
 
             <div>
@@ -130,10 +142,12 @@
           </div>
         </div>
 
-        <div class="rounded-box border border-base-300 p-4 mb-4">
-          <div class="font-medium mb-3">One-time Pricing</div>
+        <div class="rounded-box border border-base-content/10 bg-base-200/35 p-4">
+          <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+            One-time Pricing
+          </div>
 
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <.input
                 field={f[:one_time_price_cents]}
@@ -142,18 +156,18 @@
                 placeholder="500"
                 min="0"
               />
-              <div class="label"><span class="text-xs opacity-70">e.g., 500 = $5.00</span></div>
+              <p class="mt-1.5 text-xs text-base-content/55">e.g., 500 = $5.00</p>
             </div>
 
             <div class="flex items-end">
-              <div class="text-sm opacity-70">
+              <div class="text-sm text-base-content/60">
                 Use this for pay-once access such as registration fees or lifetime unlocks.
               </div>
             </div>
           </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div>
             <.input
               field={f[:stripe_monthly_price_id]}
@@ -161,9 +175,9 @@
               label="Stripe Monthly Price ID"
               placeholder="price_xxx"
             />
-            <div class="label">
-              <span class="text-xs opacity-70"> Must be a recurring monthly Stripe price. </span>
-            </div>
+            <p class="mt-1.5 text-xs text-base-content/55">
+              Must be a recurring monthly Stripe price.
+            </p>
           </div>
 
           <div>
@@ -173,9 +187,9 @@
               label="Stripe Yearly Price ID"
               placeholder="price_xxx"
             />
-            <div class="label">
-              <span class="text-xs opacity-70">Must be a recurring yearly price.</span>
-            </div>
+            <p class="mt-1.5 text-xs text-base-content/55">
+              Must be a recurring yearly price.
+            </p>
           </div>
 
           <div>
@@ -185,17 +199,21 @@
               label="Stripe One-time Price ID"
               placeholder="price_xxx"
             />
-            <div class="label">
-              <span class="text-xs opacity-70"> Must be a non-recurring Stripe price. </span>
-            </div>
+            <p class="mt-1.5 text-xs text-base-content/55">
+              Must be a non-recurring Stripe price.
+            </p>
           </div>
         </div>
 
-        <div class="divider">Settings</div>
+        <div class="border-t border-base-content/10 pt-5">
+          <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            Settings
+          </div>
+        </div>
 
         <div class="grid grid-cols-1 gap-4">
           <div>
-            <label class="cursor-pointer label justify-start">
+            <label class="label cursor-pointer justify-start gap-3 rounded-box border border-base-content/10 bg-base-200/35 px-4 py-3">
               <input
                 type="checkbox"
                 name="product[active]"
@@ -207,7 +225,7 @@
                   )
                 }
                 class="checkbox checkbox-primary"
-              /> <span class="ml-3">Active (visible to users)</span>
+              /> <span>Active (visible to users)</span>
             </label>
           </div>
         </div>
@@ -215,7 +233,7 @@
         <:actions>
           <div class="flex gap-2">
             <.button>
-              <.icon name="hero-check" class="w-4 h-4 mr-2" /> Update Product
+              <.icon name="hero-check" class="h-4 w-4" /> Update Product
             </.button>
             <.button href={~p"/pripyat/subscriptions"} variant="ghost">Cancel</.button>
           </div>

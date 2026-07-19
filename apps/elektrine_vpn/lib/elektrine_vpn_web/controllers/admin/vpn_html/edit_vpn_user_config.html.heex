@@ -1,119 +1,143 @@
 <div class="admin-page">
-  <div class="mb-8">
-    <h1 class="text-3xl font-bold">Edit VPN User Configuration</h1>
-
-    <p class="text-base-content/70 mt-2">
-      Manage quota and rate limit for
-      <%= if @config.user.handle do %>
-        @{@config.user.handle}
-      <% else %>
-        {@config.user.username}
-      <% end %>
-    </p>
-  </div>
-
-  <div class="card panel-card">
-    <div class="card-body">
-      <.form :let={_f} for={@changeset} action={~p"/pripyat/vpn/users/#{@config.id}"} method="put">
-        <div class="space-y-6">
-          <!-- Current Usage Stats -->
-          <div class="bg-base-200 rounded-lg p-4">
-            <h3 class="font-semibold mb-3">Current Usage</h3>
-
-            <div class="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <p class="text-base-content/60">Quota Used</p>
-
-                <p class="font-medium font-semibold">{format_bytes(@config.quota_used_bytes)}</p>
-              </div>
-
-              <div>
-                <p class="text-base-content/60">Total Traffic</p>
-
-                <p class="font-medium">
-                  ↑ {format_bytes(@config.bytes_sent)} · ↓ {format_bytes(@config.bytes_received)}
-                </p>
-              </div>
-
-              <div>
-                <p class="text-base-content/60">Server</p>
-
-                <p class="font-medium">{@config.vpn_server.name}</p>
-              </div>
-
-              <div>
-                <p class="text-base-content/60">Allocated IP</p>
-
-                <p class="font-medium">{@config.allocated_ip}</p>
-              </div>
-            </div>
-          </div>
-          <!-- Bandwidth Quota -->
-          <div class="form-control">
-            <label class="label">
-              <span class="label-text font-semibold">Bandwidth Quota</span>
-              <span class="label-text-alt">Monthly data allowance</span>
-            </label>
-            <div class="join">
-              <input
-                type="number"
-                name="config[bandwidth_quota_gb]"
-                value={(@config.bandwidth_quota_bytes / 1_073_741_824) |> Float.round(1)}
-                step="0.1"
-                min="0.1"
-                max="1000"
-                class="input input-bordered join-item flex-1"
-                required
-              /> <span class="btn btn-disabled join-item">GB</span>
-            </div>
-            <label class="label"><span class="label-text-alt">Default: 10 GB</span></label>
-          </div>
-          <!-- Rate Limit -->
-          <div class="form-control">
-            <label class="label">
-              <span class="label-text font-semibold">Rate Limit</span>
-              <span class="label-text-alt">Maximum download speed</span>
-            </label>
-            <div class="join">
-              <input
-                type="number"
-                name="config[rate_limit_mbps]"
-                value={@config.rate_limit_mbps}
-                min="1"
-                max="1000"
-                class="input input-bordered join-item flex-1"
-                required
-              /> <span class="btn btn-disabled join-item">Mbps</span>
-            </div>
-
-            <label class="label">
-              <span class="label-text-alt">Default: 50 Mbps (prevents bandwidth hogging)</span>
-            </label>
-          </div>
-          <!-- Status -->
-          <div class="form-control">
-            <label class="label"><span class="label-text font-semibold">Status</span></label>
-            <div class="select select-bordered">
-              <select name="config[status]">
-                <option value="active" selected={@config.status == "active"}>Active</option>
-
-                <option value="suspended" selected={@config.status == "suspended"}>
-                  Suspended
-                </option>
-
-                <option value="revoked" selected={@config.status == "revoked"}>Revoked</option>
-              </select>
-            </div>
-          </div>
-          <!-- Actions -->
-          <div class="flex gap-2 justify-end">
-            <a href={~p"/pripyat/vpn/users"} class="btn btn-ghost">Cancel</a>
-            <button type="submit" class="btn btn-secondary">
-              <.icon name="hero-check" class="w-5 h-5" /> Save Changes
-            </button>
-          </div>
+  <.card class="panel-card" body_class="p-0">
+    <:body>
+      <div class="px-5 py-6 sm:px-8 sm:py-8">
+        <div class="text-2xs font-semibold uppercase tracking-[0.32em] text-secondary/80">
+          VPN Admin
         </div>
-      </.form>
-    </div>
-  </div>
+
+        <h1 class="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
+          Edit VPN User Configuration
+        </h1>
+
+        <p class="mt-3 max-w-2xl text-sm leading-6 text-base-content/70 sm:text-base">
+          Manage quota and rate limit for
+          <%= if @config.user.handle do %>
+            @{@config.user.handle}
+          <% else %>
+            {@config.user.username}
+          <% end %>
+        </p>
+      </div>
+    </:body>
+  </.card>
+
+  <.card class="panel-card" body_class="p-0">
+    <:body>
+      <div class="px-5 py-5 sm:px-6">
+        <.form
+          :let={_f}
+          for={@changeset}
+          action={~p"/pripyat/vpn/users/#{@config.id}"}
+          method="put"
+        >
+          <div class="space-y-6">
+            <div class="surface-muted rounded-box p-4">
+              <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                Current Usage
+              </div>
+
+              <div class="mt-3 grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p class="text-base-content/60">Quota Used</p>
+
+                  <p class="font-semibold">{format_bytes(@config.quota_used_bytes)}</p>
+                </div>
+
+                <div>
+                  <p class="text-base-content/60">Total Traffic</p>
+
+                  <p class="font-medium">
+                    ↑ {format_bytes(@config.bytes_sent)} · ↓ {format_bytes(@config.bytes_received)}
+                  </p>
+                </div>
+
+                <div>
+                  <p class="text-base-content/60">Server</p>
+
+                  <p class="font-medium">{@config.vpn_server.name}</p>
+                </div>
+
+                <div>
+                  <p class="text-base-content/60">Allocated IP</p>
+
+                  <p class="font-medium">{@config.allocated_ip}</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text font-semibold">Bandwidth Quota</span>
+                <span class="label-text-alt">Monthly data allowance</span>
+              </label>
+              <div class="join">
+                <input
+                  type="number"
+                  name="config[bandwidth_quota_gb]"
+                  value={(@config.bandwidth_quota_bytes / 1_073_741_824) |> Float.round(1)}
+                  step="0.1"
+                  min="0.1"
+                  max="1000"
+                  class="input input-bordered join-item flex-1"
+                  required
+                />
+                <span class="join-item inline-flex items-center border border-base-content/20 bg-base-200/60 px-4 text-sm font-medium text-base-content/60">
+                  GB
+                </span>
+              </div>
+              <label class="label"><span class="label-text-alt">Default: 10 GB</span></label>
+            </div>
+
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text font-semibold">Rate Limit</span>
+                <span class="label-text-alt">Maximum download speed</span>
+              </label>
+              <div class="join">
+                <input
+                  type="number"
+                  name="config[rate_limit_mbps]"
+                  value={@config.rate_limit_mbps}
+                  min="1"
+                  max="1000"
+                  class="input input-bordered join-item flex-1"
+                  required
+                />
+                <span class="join-item inline-flex items-center border border-base-content/20 bg-base-200/60 px-4 text-sm font-medium text-base-content/60">
+                  Mbps
+                </span>
+              </div>
+
+              <label class="label">
+                <span class="label-text-alt">Default: 50 Mbps (prevents bandwidth hogging)</span>
+              </label>
+            </div>
+
+            <div class="form-control">
+              <label class="label"><span class="label-text font-semibold">Status</span></label>
+              <div class="select select-bordered">
+                <select name="config[status]">
+                  <option value="active" selected={@config.status == "active"}>Active</option>
+
+                  <option value="suspended" selected={@config.status == "suspended"}>
+                    Suspended
+                  </option>
+
+                  <option value="revoked" selected={@config.status == "revoked"}>Revoked</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="flex gap-2 justify-end border-t border-base-content/10 pt-5">
+              <.button href={~p"/pripyat/vpn/users"} variant="ghost">Cancel</.button>
+              <.button type="submit" variant="secondary">
+                <.icon name="hero-check" class="w-5 h-5" /> Save Changes
+              </.button>
+            </div>
+          </div>
+        </.form>
+      </div>
+    </:body>
+  </.card>
 </div>

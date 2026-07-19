@@ -1,9 +1,35 @@
 <div class="admin-page">
-  <.section_header
-    title="Account Deletion Requests"
-    description="Review pending requests to permanently remove user accounts."
-    class="mb-6"
-  />
+  <.card class="panel-card" body_class="p-0">
+    <:body>
+      <div class="px-5 py-6 sm:px-8 sm:py-8">
+        <div class="text-2xs font-semibold uppercase tracking-[0.32em] text-error/80">
+          Account Admin
+        </div>
+
+        <h1 class="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
+          Account Deletion Requests
+        </h1>
+
+        <p class="mt-3 max-w-2xl text-sm leading-6 text-base-content/70 sm:text-base">
+          Review pending requests to permanently remove user accounts.
+        </p>
+
+        <div class="mt-5 flex flex-wrap gap-2">
+          <div class="surface-muted rounded-box px-3 py-2 text-sm text-base-content/70">
+            Total requests:
+            <span class="font-semibold text-base-content">{length(@requests)}</span>
+          </div>
+
+          <div class="surface-muted rounded-box px-3 py-2 text-sm text-base-content/70">
+            Pending:
+            <span class="font-semibold text-base-content">
+              {Enum.count(@requests, &(&1.status == "pending"))}
+            </span>
+          </div>
+        </div>
+      </div>
+    </:body>
+  </.card>
 
   <%= if Enum.empty?(@requests) do %>
     <.empty_state
@@ -13,27 +39,42 @@
       size="sm"
     />
   <% else %>
-    <.form for={%{}} action={~p"/pripyat/deletion-requests/bulk-approve"} method="post">
-      <.card class="border border-base-300/60 mb-4" body_class="gap-4 p-4">
+    <.form
+      for={%{}}
+      action={~p"/pripyat/deletion-requests/bulk-approve"}
+      method="post"
+      class="space-y-6 sm:space-y-8"
+    >
+      <.card class="panel-card" body_class="p-0">
         <:body>
-          <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <h2 class="text-base font-semibold">Bulk approve selected requests</h2>
-              <p class="text-sm opacity-70">
-                Only pending requests can be selected. Each approved request permanently deletes that account.
-              </p>
+          <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+            <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+              Bulk Actions
             </div>
 
-            <div class="flex w-full flex-col gap-3 lg:max-w-xl lg:flex-row lg:items-end">
+            <h2 class="mt-1 text-xl font-semibold tracking-tight">
+              Bulk approve selected requests
+            </h2>
+          </div>
+
+          <div class="px-5 py-5 sm:px-6">
+            <p class="text-sm leading-6 text-base-content/65">
+              Only pending requests can be selected. Each approved request permanently deletes that account.
+            </p>
+
+            <div class="mt-4 flex flex-col gap-3 lg:flex-row lg:items-end">
               <div class="flex-1">
-                <label class="label" for="bulk-admin-notes">
-                  <span class="label-text font-medium">Admin notes (optional)</span>
+                <label
+                  class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45"
+                  for="bulk-admin-notes"
+                >
+                  Admin notes (optional)
                 </label>
                 <textarea
                   id="bulk-admin-notes"
                   name="admin_notes"
                   rows="2"
-                  class="textarea textarea-bordered w-full"
+                  class="textarea textarea-bordered mt-2 w-full"
                   placeholder="Add notes for all selected approvals..."
                 ></textarea>
               </div>
@@ -50,111 +91,133 @@
         </:body>
       </.card>
 
-      <div class="overflow-x-auto">
-        <table class="table table-zebra w-full">
-          <thead>
-            <tr>
-              <th>
-                <input
-                  type="checkbox"
-                  class="checkbox checkbox-sm"
-                  data-select-all="deletion-request-select"
-                  aria-label="Select all pending deletion requests"
-                />
-              </th>
-              <th>User</th>
-              <th>Reason</th>
-              <th>Status</th>
-              <th>Requested At</th>
-              <th>Reviewed By</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <%= for request <- @requests do %>
-              <tr>
-                <td class="align-top">
-                  <%= if request.status == "pending" do %>
-                    <input
-                      type="checkbox"
-                      name="request_ids[]"
-                      value={request.id}
-                      class="checkbox checkbox-sm deletion-request-select"
-                      aria-label={"Select deletion request for #{request.user.username}"}
-                    />
-                  <% else %>
-                    <span class="text-xs opacity-40">-</span>
+      <.card class="panel-card" body_class="p-0">
+        <:body>
+          <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+            <div class="flex items-center justify-between gap-4">
+              <div>
+                <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+                  Queue
+                </div>
+
+                <h2 class="mt-1 text-xl font-semibold tracking-tight">All Requests</h2>
+              </div>
+
+              <div class="text-sm text-base-content/55">
+                {length(@requests)} request{if length(@requests) != 1, do: "s"}
+              </div>
+            </div>
+          </div>
+
+          <div class="px-5 py-5 sm:px-6">
+            <div class="overflow-x-auto">
+              <table class="table w-full">
+                <thead>
+                  <tr>
+                    <th>
+                      <input
+                        type="checkbox"
+                        class="checkbox checkbox-sm"
+                        data-select-all="deletion-request-select"
+                        aria-label="Select all pending deletion requests"
+                      />
+                    </th>
+                    <th>User</th>
+                    <th>Reason</th>
+                    <th>Status</th>
+                    <th>Requested At</th>
+                    <th>Reviewed By</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <%= for request <- @requests do %>
+                    <tr>
+                      <td class="align-top">
+                        <%= if request.status == "pending" do %>
+                          <input
+                            type="checkbox"
+                            name="request_ids[]"
+                            value={request.id}
+                            class="checkbox checkbox-sm deletion-request-select"
+                            aria-label={"Select deletion request for #{request.user.username}"}
+                          />
+                        <% else %>
+                          <span class="text-xs text-base-content/40">-</span>
+                        <% end %>
+                      </td>
+                      <td>
+                        <div class="font-semibold">{request.user.username}</div>
+                        <div class="text-sm text-base-content/60">ID: {request.user.id}</div>
+                      </td>
+                      <td>
+                        <%= if request.reason && String.trim(request.reason) != "" do %>
+                          <div class="max-w-xs truncate" title={request.reason}>
+                            {request.reason}
+                          </div>
+                        <% else %>
+                          <span class="text-base-content/50">No reason provided</span>
+                        <% end %>
+                      </td>
+                      <td>
+                        <span class={[
+                          "badge",
+                          case request.status do
+                            "pending" -> "badge-warning"
+                            "approved" -> "badge-success"
+                            "denied" -> "badge-error"
+                            _ -> "badge-neutral"
+                          end
+                        ]}>
+                          {String.capitalize(request.status)}
+                        </span>
+                      </td>
+                      <td>
+                        <div class="text-sm">
+                          {Calendar.strftime(request.requested_at, "%Y-%m-%d")}
+                        </div>
+                        <div class="text-xs text-base-content/60">
+                          {Calendar.strftime(request.requested_at, "%H:%M UTC")}
+                        </div>
+                      </td>
+                      <td>
+                        <%= if request.reviewed_by do %>
+                          <div class="text-sm">
+                            {request.reviewed_by.username}
+                          </div>
+                          <%= if request.reviewed_at do %>
+                            <div class="text-xs text-base-content/60">
+                              {Calendar.strftime(request.reviewed_at, "%Y-%m-%d %H:%M")}
+                            </div>
+                          <% end %>
+                        <% else %>
+                          <span class="text-base-content/50">-</span>
+                        <% end %>
+                      </td>
+                      <td>
+                        <div class="flex gap-2">
+                          <.button
+                            href={~p"/pripyat/deletion-requests/#{request.id}"}
+                            variant="ghost"
+                            size="sm"
+                          >
+                            View
+                          </.button>
+                          <%= if request.status == "pending" do %>
+                            <.button href={~p"/pripyat/deletion-requests/#{request.id}"} size="sm">
+                              Review
+                            </.button>
+                          <% end %>
+                        </div>
+                      </td>
+                    </tr>
                   <% end %>
-                </td>
-                <td>
-                  <div class="font-semibold">{request.user.username}</div>
-                  <div class="text-sm opacity-70">ID: {request.user.id}</div>
-                </td>
-                <td>
-                  <%= if request.reason && String.trim(request.reason) != "" do %>
-                    <div class="max-w-xs truncate" title={request.reason}>
-                      {request.reason}
-                    </div>
-                  <% else %>
-                    <span class="text-base-content/50">No reason provided</span>
-                  <% end %>
-                </td>
-                <td>
-                  <span class={[
-                    "badge",
-                    case request.status do
-                      "pending" -> "badge-warning"
-                      "approved" -> "badge-success"
-                      "denied" -> "badge-error"
-                      _ -> "badge-neutral"
-                    end
-                  ]}>
-                    {String.capitalize(request.status)}
-                  </span>
-                </td>
-                <td>
-                  <div class="text-sm">
-                    {Calendar.strftime(request.requested_at, "%Y-%m-%d")}
-                  </div>
-                  <div class="text-xs opacity-70">
-                    {Calendar.strftime(request.requested_at, "%H:%M UTC")}
-                  </div>
-                </td>
-                <td>
-                  <%= if request.reviewed_by do %>
-                    <div class="text-sm">
-                      {request.reviewed_by.username}
-                    </div>
-                    <%= if request.reviewed_at do %>
-                      <div class="text-xs opacity-70">
-                        {Calendar.strftime(request.reviewed_at, "%Y-%m-%d %H:%M")}
-                      </div>
-                    <% end %>
-                  <% else %>
-                    <span class="text-base-content/50">-</span>
-                  <% end %>
-                </td>
-                <td>
-                  <div class="flex gap-2">
-                    <.button
-                      href={~p"/pripyat/deletion-requests/#{request.id}"}
-                      variant="ghost"
-                      size="sm"
-                    >
-                      View
-                    </.button>
-                    <%= if request.status == "pending" do %>
-                      <.button href={~p"/pripyat/deletion-requests/#{request.id}"} size="sm">
-                        Review
-                      </.button>
-                    <% end %>
-                  </div>
-                </td>
-              </tr>
-            <% end %>
-          </tbody>
-        </table>
-      </div>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </:body>
+      </.card>
     </.form>
   <% end %>
 </div>

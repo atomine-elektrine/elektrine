@@ -1,180 +1,211 @@
 <div class="admin-page">
-  <div>
-    <p class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/50">
-      Community Admin
-    </p>
+  <.card body_class="p-0">
+    <:body>
+      <div class="px-5 py-6 sm:px-8 sm:py-8">
+        <div class="text-2xs font-semibold uppercase tracking-[0.32em] text-primary/80">
+          Community Admin
+        </div>
 
-    <h1 class="mt-2 text-3xl font-bold text-base-content">Badge Management</h1>
+        <h1 class="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">Badge Management</h1>
 
-    <p class="mt-2 text-sm text-base-content/70 sm:text-base">
-      Search for users, assign visible badges, and review existing badge grants across the platform.
-    </p>
-  </div>
+        <p class="mt-3 max-w-2xl text-sm leading-6 text-base-content/70 sm:text-base">
+          Search for users, assign visible badges, and review existing badge grants across the platform.
+        </p>
+      </div>
+    </:body>
+  </.card>
 
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-    <!-- User Search -->
-    <.card>
+  <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+    <.card body_class="p-0">
       <:body>
-        <h2 class="card-title mb-4">
-          <.icon name="hero-magnifying-glass" class="w-5 h-5" /> Search User
-        </h2>
-
-        <.form for={%{}} phx-submit="search_user" phx-change="search_user" class="space-y-4">
-          <div class="relative">
-            <input
-              id="badge-management-search-input"
-              type="text"
-              name="query"
-              value={@search_query}
-              placeholder="Search by username or handle..."
-              class="input input-bordered w-full pr-10"
-              autocomplete="off"
-            />
-
-            <.button
-              type="button"
-              variant="ghost"
-              size="xs"
-              phx-click="clear_search"
-              data-search-clear="true"
-              aria-label="Clear search"
-              class={[
-                "absolute right-2 top-1/2 -translate-y-1/2",
-                if(@search_query == "", do: "pointer-events-none invisible", else: nil)
-              ]}
-            >
-              <.icon name="hero-x-mark" class="h-4 w-4" />
-            </.button>
+        <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+          <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            Lookup
           </div>
-        </.form>
 
-        <%= if length(@search_results) > 0 do %>
-          <div class="mt-4 space-y-2">
-            <%= for user <- @search_results do %>
-              <button
-                phx-click="select_user"
-                phx-value-user_id={user.id}
-                class="w-full p-3 bg-base-200 hover:bg-base-300 rounded-lg flex items-center gap-3 transition-colors"
+          <h2 class="mt-1 text-xl font-semibold tracking-tight">Search User</h2>
+        </div>
+
+        <div class="px-5 py-5 sm:px-6">
+          <.form for={%{}} phx-submit="search_user" phx-change="search_user" class="space-y-4">
+            <div class="relative">
+              <input
+                id="badge-management-search-input"
+                type="text"
+                name="query"
+                value={@search_query}
+                placeholder="Search by username or handle..."
+                class="input input-bordered w-full pr-10"
+                autocomplete="off"
+              />
+
+              <.button
+                type="button"
+                variant="ghost"
+                size="xs"
+                phx-click="clear_search"
+                data-search-clear="true"
+                aria-label="Clear search"
+                class={[
+                  "absolute right-2 top-1/2 -translate-y-1/2",
+                  if(@search_query == "", do: "pointer-events-none invisible", else: nil)
+                ]}
               >
-                <div class="avatar placeholder">
-                  <div class="w-10 h-10 rounded-full bg-primary text-primary-content">
-                    <span>{String.upcase(String.first(user.username))}</span>
-                  </div>
-                </div>
-
-                <div class="text-left">
-                  <p class="font-medium">{user.username}</p>
-
-                  <%= if user.handle do %>
-                    <p class="text-sm text-base-content/60">@{user.handle}</p>
-                  <% end %>
-                </div>
-              </button>
-            <% end %>
-          </div>
-        <% end %>
-      </:body>
-    </.card>
-    <!-- Selected User Badges -->
-    <.card>
-      <:body>
-        <h2 class="card-title mb-4"><.icon name="hero-star" class="w-5 h-5" /> User Badges</h2>
-
-        <%= if @selected_user do %>
-          <div class="mb-6 p-4 bg-base-200 rounded-lg">
-            <div class="flex items-center gap-3 mb-4">
-              <div class="avatar placeholder">
-                <div class="w-12 h-12 rounded-full bg-primary text-primary-content">
-                  <span>{String.upcase(String.first(@selected_user.username))}</span>
-                </div>
-              </div>
-
-              <div>
-                <p class="font-bold">{@selected_user.username}</p>
-
-                <%= if @selected_user.handle do %>
-                  <p class="text-sm text-base-content/60">@{@selected_user.handle}</p>
-                <% end %>
-              </div>
+                <.icon name="hero-x-mark" class="h-4 w-4" />
+              </.button>
             </div>
-            <!-- Grant Badge -->
-            <div class="divider text-sm">Grant Badge</div>
+          </.form>
 
-            <div class="grid grid-cols-2 gap-2">
-              <%= for badge_type <- ["staff", "verified", "supporter", "developer", "admin", "moderator", "contributor", "beta_tester"] do %>
-                <.button
-                  variant="ghost"
-                  size="sm"
-                  phx-click="grant_badge"
-                  phx-value-user_id={@selected_user.id}
-                  phx-value-badge_type={badge_type}
+          <%= if length(@search_results) > 0 do %>
+            <div class="mt-4 space-y-3">
+              <%= for user <- @search_results do %>
+                <button
+                  phx-click="select_user"
+                  phx-value-user_id={user.id}
+                  class="flex w-full items-center gap-3 rounded-box border border-base-content/10 bg-base-200/45 px-4 py-3 text-left transition hover:border-primary/30 hover:bg-base-200/70"
                 >
-                  {String.capitalize(String.replace(badge_type, "_", " "))}
-                </.button>
-              <% end %>
-            </div>
-          </div>
-          <!-- Current Badges -->
-          <%= if length(@user_badges) > 0 do %>
-            <div class="space-y-3">
-              <h3 class="font-semibold text-sm">Current Badges:</h3>
+                  <div class="avatar placeholder">
+                    <div class="h-10 w-10 rounded-full bg-primary text-primary-content">
+                      <span>{String.upcase(String.first(user.username))}</span>
+                    </div>
+                  </div>
 
-              <%= for badge <- @user_badges do %>
-                <div class="flex items-center justify-between p-3 bg-base-200 rounded-lg">
-                  <div class="flex items-center gap-2">
-                    <span
-                      class="badge font-medium"
-                      style={badge_gradient_style(badge.badge_color) <> " color: #{Elektrine.Theme.inverse_text_color()};"}
-                    >
-                      <%= if badge.badge_icon do %>
-                        <span class="mr-1">{badge.badge_icon}</span>
-                      <% end %>
-                      {badge.badge_text}
-                    </span>
-                    <%= if badge.tooltip do %>
-                      <span class="text-xs text-base-content/60">{badge.tooltip}</span>
+                  <div class="min-w-0">
+                    <p class="truncate font-medium">{user.username}</p>
+
+                    <%= if user.handle do %>
+                      <p class="truncate text-sm text-base-content/60">@{user.handle}</p>
                     <% end %>
                   </div>
-
-                  <.button
-                    variant="ghost"
-                    size="xs"
-                    class="text-error"
-                    phx-click="revoke_badge"
-                    phx-value-badge_id={badge.id}
-                    data-confirm="Revoke this badge?"
-                  >
-                    <.icon name="hero-trash" class="w-4 h-4" />
-                  </.button>
-                </div>
+                </button>
               <% end %>
             </div>
-          <% else %>
-            <div class="text-center py-8">
-              <.icon name="hero-star" class="w-12 h-12 text-base-content/30 mx-auto mb-3" />
-              <p class="text-base-content/60">No badges yet</p>
+          <% end %>
+        </div>
+      </:body>
+    </.card>
 
-              <p class="text-sm text-base-content/40">Grant a badge above</p>
+    <.card body_class="p-0">
+      <:body>
+        <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+          <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            Grants
+          </div>
+
+          <h2 class="mt-1 text-xl font-semibold tracking-tight">User Badges</h2>
+        </div>
+
+        <div class="px-5 py-5 sm:px-6">
+          <%= if @selected_user do %>
+            <div class="surface-muted rounded-box p-4">
+              <div class="flex items-center gap-3">
+                <div class="avatar placeholder">
+                  <div class="h-12 w-12 rounded-full bg-primary text-primary-content">
+                    <span>{String.upcase(String.first(@selected_user.username))}</span>
+                  </div>
+                </div>
+
+                <div class="min-w-0">
+                  <p class="truncate font-semibold">{@selected_user.username}</p>
+
+                  <%= if @selected_user.handle do %>
+                    <p class="truncate text-sm text-base-content/60">@{@selected_user.handle}</p>
+                  <% end %>
+                </div>
+              </div>
+
+              <div class="mt-4 border-t border-base-content/10 pt-4">
+                <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                  Grant Badge
+                </div>
+
+                <div class="mt-3 grid grid-cols-2 gap-2">
+                  <%= for badge_type <- ["staff", "verified", "supporter", "developer", "admin", "moderator", "contributor", "beta_tester"] do %>
+                    <.button
+                      variant="ghost"
+                      size="sm"
+                      phx-click="grant_badge"
+                      phx-value-user_id={@selected_user.id}
+                      phx-value-badge_type={badge_type}
+                    >
+                      {String.capitalize(String.replace(badge_type, "_", " "))}
+                    </.button>
+                  <% end %>
+                </div>
+              </div>
+            </div>
+
+            <%= if length(@user_badges) > 0 do %>
+              <div class="mt-6">
+                <div class="text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                  Current Badges
+                </div>
+
+                <div class="mt-3 space-y-3">
+                  <%= for badge <- @user_badges do %>
+                    <div class="flex items-center justify-between gap-3 rounded-box border border-base-content/10 bg-base-200/45 px-4 py-3">
+                      <div class="flex min-w-0 items-center gap-2">
+                        <span
+                          class="badge font-medium"
+                          style={badge_gradient_style(badge.badge_color) <> " color: #{Elektrine.Theme.inverse_text_color()};"}
+                        >
+                          <%= if badge.badge_icon do %>
+                            <span class="mr-1">{badge.badge_icon}</span>
+                          <% end %>
+                          {badge.badge_text}
+                        </span>
+                        <%= if badge.tooltip do %>
+                          <span class="truncate text-xs text-base-content/60">
+                            {badge.tooltip}
+                          </span>
+                        <% end %>
+                      </div>
+
+                      <.button
+                        variant="ghost"
+                        size="xs"
+                        class="text-error"
+                        phx-click="revoke_badge"
+                        phx-value-badge_id={badge.id}
+                        data-confirm="Revoke this badge?"
+                      >
+                        <.icon name="hero-trash" class="h-4 w-4" />
+                      </.button>
+                    </div>
+                  <% end %>
+                </div>
+              </div>
+            <% else %>
+              <div class="mt-6 rounded-box border border-dashed border-base-content/15 bg-base-200/45 px-4 py-8 text-center">
+                <.icon name="hero-star" class="mx-auto mb-3 h-10 w-10 text-base-content/30" />
+                <p class="text-sm text-base-content/60">No badges yet</p>
+
+                <p class="mt-1 text-sm text-base-content/40">Grant a badge above</p>
+              </div>
+            <% end %>
+          <% else %>
+            <div class="rounded-box border border-dashed border-base-content/15 bg-base-200/45 px-4 py-12 text-center">
+              <.icon name="hero-user" class="mx-auto mb-4 h-12 w-12 text-base-content/30" />
+              <p class="text-sm text-base-content/60">Search for a user to manage their badges</p>
             </div>
           <% end %>
-        <% else %>
-          <div class="text-center py-12">
-            <.icon name="hero-user" class="w-16 h-16 text-base-content/30 mx-auto mb-4" />
-            <p class="text-base-content/60">Search for a user to manage their badges</p>
-          </div>
-        <% end %>
+        </div>
       </:body>
     </.card>
   </div>
-  <!-- Badge Reference -->
-  <.card class="mt-6">
-    <:body>
-      <h2 class="card-title mb-4">
-        <.icon name="hero-information-circle" class="w-5 h-5" /> Available Badges
-      </h2>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-        <div class="flex items-center gap-2">
+  <.card body_class="p-0">
+    <:body>
+      <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+        <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+          Reference
+        </div>
+
+        <h2 class="mt-1 text-xl font-semibold tracking-tight">Available Badges</h2>
+      </div>
+
+      <div class="grid grid-cols-1 gap-3 px-5 py-5 sm:px-6 md:grid-cols-2 lg:grid-cols-4">
+        <div class="flex items-center gap-2 rounded-box border border-base-content/10 bg-base-200/35 px-4 py-3">
           <span
             class="badge"
             style={badge_gradient_style(get_badge_color("staff")) <> " color: #{Elektrine.Theme.inverse_text_color()};"}
@@ -184,7 +215,7 @@
           <span class="text-xs text-base-content/60">Staff member</span>
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 rounded-box border border-base-content/10 bg-base-200/35 px-4 py-3">
           <span
             class="badge"
             style={badge_gradient_style(get_badge_color("verified")) <> " color: #{Elektrine.Theme.inverse_text_color()};"}
@@ -194,7 +225,7 @@
           <span class="text-xs text-base-content/60">Verified account</span>
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 rounded-box border border-base-content/10 bg-base-200/35 px-4 py-3">
           <span
             class="badge"
             style={badge_gradient_style(get_badge_color("supporter")) <> " color: #{Elektrine.Theme.inverse_text_color()};"}
@@ -204,7 +235,7 @@
           <span class="text-xs text-base-content/60">Platform supporter</span>
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 rounded-box border border-base-content/10 bg-base-200/35 px-4 py-3">
           <span
             class="badge"
             style={badge_gradient_style(get_badge_color("developer")) <> " color: #{Elektrine.Theme.inverse_text_color()};"}
@@ -214,7 +245,7 @@
           <span class="text-xs text-base-content/60">Developer</span>
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 rounded-box border border-base-content/10 bg-base-200/35 px-4 py-3">
           <span
             class="badge"
             style={badge_gradient_style(get_badge_color("admin")) <> " color: #{Elektrine.Theme.inverse_text_color()};"}
@@ -224,7 +255,7 @@
           <span class="text-xs text-base-content/60">Administrator</span>
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 rounded-box border border-base-content/10 bg-base-200/35 px-4 py-3">
           <span
             class="badge"
             style={badge_gradient_style(get_badge_color("moderator")) <> " color: #{Elektrine.Theme.inverse_text_color()};"}
@@ -234,7 +265,7 @@
           <span class="text-xs text-base-content/60">Moderator</span>
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 rounded-box border border-base-content/10 bg-base-200/35 px-4 py-3">
           <span
             class="badge"
             style={badge_gradient_style(get_badge_color("contributor")) <> " color: #{Elektrine.Theme.inverse_text_color()};"}
@@ -244,7 +275,7 @@
           <span class="text-xs text-base-content/60">Active contributor</span>
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 rounded-box border border-base-content/10 bg-base-200/35 px-4 py-3">
           <span
             class="badge"
             style={badge_gradient_style(get_badge_color("beta_tester")) <> " color: #{Elektrine.Theme.inverse_text_color()};"}

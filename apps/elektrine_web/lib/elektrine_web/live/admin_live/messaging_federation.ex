@@ -189,360 +189,423 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
   def render(assigns) do
     ~H"""
     <div class="admin-page">
-      <.section_header
-        title="Chat Federation"
-        description="Manage signed chat federation, including configured peers, discovery metadata, and per-direction runtime overrides. Powered by Arblarg."
-      >
-        <:actions>
-          <.action_toolbar>
-            <.button navigate={~p"/pripyat/federation"} variant="ghost" size="sm">
-              <.icon name="hero-globe-alt" class="w-4 h-4" />
-              <span class="ml-1">ActivityPub Policies</span>
-            </.button>
-            <.button navigate={~p"/pripyat/bluesky-bridge"} variant="ghost" size="sm">
-              <.icon name="hero-link" class="w-4 h-4" />
-              <span class="ml-1">Bluesky Bridge</span>
-            </.button>
-            <.button variant="ghost" size="sm" phx-click="refresh">
-              <.icon name="hero-arrow-path" class="w-4 h-4" />
-              <span class="ml-1">Refresh</span>
-            </.button>
-          </.action_toolbar>
-        </:actions>
-      </.section_header>
-
-      <div class="alert bg-base-200 border border-base-300">
-        <.icon name="hero-information-circle" class="w-5 h-5 text-info" />
-        <span class="text-sm">
-          Incoming controls whether this server accepts chat events from a peer. Outgoing controls
-          whether this server sends local events to that peer. Discovered peers come from open
-          federation bootstrap and keep their own trust/key-rotation metadata.
-        </span>
-      </div>
-
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <.card body_class="p-4">
-          <:body>
-            <div class="text-xs opacity-70">Blocked Peers</div>
-            <div class="text-2xl font-semibold text-error">{@blocked_peer_count}</div>
-          </:body>
-        </.card>
-        <.card body_class="p-4">
-          <:body>
-            <div class="text-xs opacity-70">Incoming Denied</div>
-            <div class="text-2xl font-semibold">{@incoming_denied_count}</div>
-          </:body>
-        </.card>
-        <.card body_class="p-4">
-          <:body>
-            <div class="text-xs opacity-70">Outgoing Denied</div>
-            <div class="text-2xl font-semibold">{@outgoing_denied_count}</div>
-          </:body>
-        </.card>
-      </div>
-
-      <.card body_class="p-4 sm:p-6">
+      <.card class="panel-card" body_class="p-0">
         <:body>
-          <h2 class="card-title text-base sm:text-lg mb-4">
-            <.icon name="hero-no-symbol" class="w-5 h-5" /> Block Peer for Chat Federation
-          </h2>
-          <p class="text-sm opacity-70 mb-4">
-            Use this when a remote server should not exchange chat events with this instance.
-          </p>
+          <div class="flex flex-col gap-6 px-5 py-6 sm:px-8 sm:py-8 xl:flex-row xl:items-end xl:justify-between">
+            <div class="max-w-3xl">
+              <div class="text-2xs font-semibold uppercase tracking-[0.32em] text-primary/80">
+                Federation
+              </div>
 
-          <form phx-submit="block_domain" class="grid grid-cols-1 md:grid-cols-6 gap-3">
-            <input
-              type="text"
-              name="domain"
-              value={@new_domain}
-              placeholder="chat-peer.example"
-              class="input input-bordered md:col-span-2 font-mono"
-              phx-input="update_new_domain"
-              required
-            />
-            <input
-              type="text"
-              name="reason"
-              value={@new_reason}
-              placeholder="optional reason"
-              class="input input-bordered md:col-span-3"
-              phx-input="update_new_reason"
-            />
-            <.button type="submit" variant="error" class="md:col-span-1">
-              <.icon name="hero-no-symbol" class="w-4 h-4" /> Block
-            </.button>
-          </form>
+              <h1 class="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">Chat Federation</h1>
+
+              <p class="mt-3 max-w-2xl text-sm leading-6 text-base-content/70 sm:text-base">
+                Manage signed chat federation, including configured peers, discovery metadata, and
+                per-direction runtime overrides. Powered by Arblarg.
+              </p>
+
+              <div class="mt-5 flex flex-wrap gap-2">
+                <div class="surface-muted rounded-box px-3 py-2 text-sm text-base-content/70">
+                  Peers:
+                  <span class="font-semibold text-base-content">{@filtered_peer_total_count}</span>
+                </div>
+
+                <div class="surface-muted rounded-box px-3 py-2 text-sm text-base-content/70">
+                  Blocked: <span class="font-semibold text-base-content">{@blocked_peer_count}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex flex-wrap gap-2">
+              <.button navigate={~p"/pripyat/federation"} variant="ghost" size="sm">
+                <.icon name="hero-globe-alt" class="w-4 h-4" />
+                <span class="ml-1">ActivityPub Policies</span>
+              </.button>
+              <.button navigate={~p"/pripyat/bluesky-bridge"} variant="ghost" size="sm">
+                <.icon name="hero-link" class="w-4 h-4" />
+                <span class="ml-1">Bluesky Bridge</span>
+              </.button>
+              <.button variant="ghost" size="sm" phx-click="refresh">
+                <.icon name="hero-arrow-path" class="w-4 h-4" />
+                <span class="ml-1">Refresh</span>
+              </.button>
+            </div>
+          </div>
         </:body>
       </.card>
 
-      <.card body_class="p-4 sm:p-6">
-        <:body>
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-            <h2 class="card-title text-base sm:text-lg">
-              <.icon name="hero-server-stack" class="w-5 h-5" /> Chat Peer Policy Grid
-              <span class="badge badge-neutral">{@filtered_peer_total_count}</span>
-            </h2>
+      <div class="rounded-box border border-info/20 bg-info/10 px-4 py-3 text-sm text-base-content/75">
+        <div class="flex items-start gap-3">
+          <.icon name="hero-information-circle" class="mt-0.5 h-5 w-5 shrink-0 text-info" />
+          <span>
+            Incoming controls whether this server accepts chat events from a peer. Outgoing controls
+            whether this server sends local events to that peer. Discovered peers come from open
+            federation bootstrap and keep their own trust/key-rotation metadata.
+          </span>
+        </div>
+      </div>
 
-            <form phx-submit="search" class="flex gap-2">
-              <input
-                type="text"
-                name="query"
-                value={@search_query}
-                placeholder="Search domain..."
-                class="input input-bordered input-sm"
-              />
-              <.button type="submit" size="sm">
-                <.icon name="hero-magnifying-glass" class="w-4 h-4" />
-              </.button>
-              <%= if Elektrine.Strings.present?(@search_query) do %>
-                <.button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  phx-click="clear_search"
-                  data-search-clear="true"
-                >
-                  <.icon name="hero-x-mark" class="w-4 h-4" />
-                </.button>
-              <% end %>
-            </form>
+      <section class="grid gap-3 sm:grid-cols-3">
+        <div class="surface-muted rounded-box px-4 py-4 shadow-sm">
+          <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            Blocked Peers
           </div>
 
-          <%= if @peer_controls == [] do %>
-            <div class="text-center py-10 opacity-70">No peers match the current filter.</div>
-          <% else %>
-            <div class="overflow-x-auto">
-              <table class="table table-zebra table-sm">
-                <thead>
-                  <tr>
-                    <th>Domain</th>
-                    <th>Status</th>
-                    <th>Incoming Chat</th>
-                    <th>Outgoing Chat</th>
-                    <th class="hidden md:table-cell">Discovery / Note</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <%= for peer <- @peer_controls do %>
-                    <tr>
-                      <td>
-                        <div class="font-mono text-xs sm:text-sm">{peer.domain}</div>
-                        <div class="flex flex-wrap gap-1 mt-1">
-                          <span :if={peer.configured} class="badge badge-neutral badge-xs">
-                            configured
-                          </span>
-                          <span :if={peer.discovered} class="badge badge-info badge-xs">
-                            discovered
-                          </span>
-                          <span
-                            :if={peer.trust_state && peer.trust_state != "trusted"}
-                            class={[
-                              "badge badge-xs",
-                              if(peer.trust_state == "rotated",
-                                do: "badge-warning",
-                                else: "badge-error"
-                              )
-                            ]}
-                          >
-                            {peer.trust_state}
-                          </span>
-                          <span
-                            :if={peer.requires_operator_action}
-                            class="badge badge-error badge-xs"
-                          >
-                            review required
-                          </span>
-                        </div>
-                        <div class="text-xs opacity-60 mt-1">
-                          <%= cond do %>
-                            <% peer.configured and peer.discovered -> %>
-                              configured + discovery metadata
-                            <% peer.configured -> %>
-                              configured policy
-                            <% peer.discovered -> %>
-                              discovery cache
-                            <% true -> %>
-                              runtime override only
-                          <% end %>
-                        </div>
-                      </td>
-                      <td>
-                        <%= if peer.blocked do %>
-                          <span class="badge badge-error badge-sm">Blocked</span>
-                        <% else %>
-                          <span class="badge badge-success badge-sm">Active</span>
-                        <% end %>
-                        <div :if={peer.protocol_version} class="text-xs opacity-60 mt-1">
-                          ARBP {peer.protocol_version}
-                        </div>
-                      </td>
-                      <td>
-                        <div class="flex flex-col gap-1">
-                          <span class={[
-                            "badge badge-xs",
-                            if(peer.effective_allow_incoming,
-                              do: "badge-success",
-                              else: "badge-neutral"
-                            )
-                          ]}>
-                            {if peer.effective_allow_incoming, do: "allowed", else: "denied"}
-                          </span>
-                          <div class="select select-bordered select-xs">
-                            <select
-                              name="mode"
-                              phx-change="set_direction"
-                              phx-value-domain={peer.domain}
-                              phx-value-direction="incoming"
-                            >
-                              <option value="inherit" selected={is_nil(peer.allow_incoming_override)}>
-                                inherit default
-                              </option>
-                              <option value="allow" selected={peer.allow_incoming_override == true}>
-                                allow
-                              </option>
-                              <option value="deny" selected={peer.allow_incoming_override == false}>
-                                deny
-                              </option>
-                            </select>
-                          </div>
-                        </div>
-                      </td>
-                      <td>
-                        <div class="flex flex-col gap-1">
-                          <span class={[
-                            "badge badge-xs",
-                            if(peer.effective_allow_outgoing,
-                              do: "badge-success",
-                              else: "badge-neutral"
-                            )
-                          ]}>
-                            {if peer.effective_allow_outgoing, do: "allowed", else: "denied"}
-                          </span>
-                          <div class="select select-bordered select-xs">
-                            <select
-                              name="mode"
-                              phx-change="set_direction"
-                              phx-value-domain={peer.domain}
-                              phx-value-direction="outgoing"
-                            >
-                              <option value="inherit" selected={is_nil(peer.allow_outgoing_override)}>
-                                inherit default
-                              </option>
-                              <option value="allow" selected={peer.allow_outgoing_override == true}>
-                                allow
-                              </option>
-                              <option value="deny" selected={peer.allow_outgoing_override == false}>
-                                deny
-                              </option>
-                            </select>
-                          </div>
-                        </div>
-                      </td>
-                      <td class="hidden md:table-cell text-xs opacity-70 max-w-xs">
-                        <div>{peer.reason || "-"}</div>
-                        <div :if={peer.base_url} class="font-mono opacity-60 mt-1 break-all">
-                          {peer.base_url}
-                        </div>
-                        <div :if={peer.discovery_url} class="font-mono opacity-60 mt-1 break-all">
-                          {peer.discovery_url}
-                        </div>
-                        <div :if={peer.last_discovered_at} class="opacity-60 mt-1">
-                          discovered {Calendar.strftime(
-                            peer.last_discovered_at,
-                            "%Y-%m-%d %H:%M:%S UTC"
-                          )}
-                        </div>
-                        <div :if={peer.last_key_change_at} class="opacity-60 mt-1">
-                          key change {Calendar.strftime(
-                            peer.last_key_change_at,
-                            "%Y-%m-%d %H:%M:%S UTC"
-                          )}
-                        </div>
-                      </td>
-                      <td>
-                        <div class="flex items-center gap-1">
-                          <%= if peer.blocked do %>
-                            <.button
-                              variant="ghost"
-                              size="xs"
-                              class="btn-success"
-                              phx-click="unblock_domain"
-                              phx-value-domain={peer.domain}
-                              title="Unblock peer"
-                            >
-                              <.icon name="hero-check" class="w-3 h-3" />
-                              <span class="hidden lg:inline">Unblock</span>
-                            </.button>
-                          <% else %>
-                            <.button
-                              variant="ghost"
-                              size="xs"
-                              class="btn-error"
-                              phx-click="block_domain"
-                              phx-value-domain={peer.domain}
-                              phx-value-reason={peer.reason || ""}
-                              title="Block peer"
-                            >
-                              <.icon name="hero-no-symbol" class="w-3 h-3" />
-                              <span class="hidden lg:inline">Block</span>
-                            </.button>
-                          <% end %>
-                          <.button
-                            variant="ghost"
-                            size="xs"
-                            phx-click="clear_policy"
-                            phx-value-domain={peer.domain}
-                            title="Reset runtime overrides to configured defaults"
-                          >
-                            <.icon name="hero-arrow-path-rounded-square" class="w-3 h-3" />
-                            <span class="hidden lg:inline">Reset</span>
-                          </.button>
-                          <.button
-                            variant="ghost"
-                            size="xs"
-                            phx-click="refresh_discovery"
-                            phx-value-domain={peer.domain}
-                            title="Refresh peer discovery metadata"
-                          >
-                            <.icon name="hero-arrow-path" class="w-3 h-3" />
-                            <span class="hidden lg:inline">Discover</span>
-                          </.button>
-                        </div>
-                      </td>
-                    </tr>
-                  <% end %>
-                </tbody>
-              </table>
+          <div class="mt-2 text-3xl font-semibold text-error">{@blocked_peer_count}</div>
+        </div>
+
+        <div class="surface-muted rounded-box px-4 py-4 shadow-sm">
+          <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            Incoming Denied
+          </div>
+
+          <div class="mt-2 text-3xl font-semibold text-warning">{@incoming_denied_count}</div>
+        </div>
+
+        <div class="surface-muted rounded-box px-4 py-4 shadow-sm">
+          <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            Outgoing Denied
+          </div>
+
+          <div class="mt-2 text-3xl font-semibold text-warning">{@outgoing_denied_count}</div>
+        </div>
+      </section>
+
+      <.card class="panel-card" body_class="p-0">
+        <:body>
+          <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+            <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+              Moderation
             </div>
-            <%= if @total_pages > 1 do %>
-              <div class="flex items-center justify-between mt-4">
-                <span class="text-xs opacity-70">
-                  Page {@page} of {@total_pages}
-                </span>
-                <div class="join">
-                  <.button
-                    variant="default"
-                    size="sm"
-                    class="join-item"
-                    phx-click="prev_page"
-                    disabled={@page <= 1}
-                  >
-                    Previous
-                  </.button>
-                  <.button
-                    variant="default"
-                    size="sm"
-                    class="join-item"
-                    phx-click="next_page"
-                    disabled={@page >= @total_pages}
-                  >
-                    Next
-                  </.button>
+
+            <h2 class="mt-1 text-xl font-semibold tracking-tight">
+              Block Peer for Chat Federation
+            </h2>
+
+            <p class="mt-2 text-sm text-base-content/70">
+              Use this when a remote server should not exchange chat events with this instance.
+            </p>
+          </div>
+
+          <div class="px-5 py-5 sm:px-6">
+            <form phx-submit="block_domain" class="grid grid-cols-1 gap-3 md:grid-cols-6">
+              <input
+                type="text"
+                name="domain"
+                value={@new_domain}
+                placeholder="chat-peer.example"
+                class="input input-bordered md:col-span-2 font-mono"
+                phx-input="update_new_domain"
+                required
+              />
+              <input
+                type="text"
+                name="reason"
+                value={@new_reason}
+                placeholder="optional reason"
+                class="input input-bordered md:col-span-3"
+                phx-input="update_new_reason"
+              />
+              <.button type="submit" variant="error" class="md:col-span-1">
+                <.icon name="hero-no-symbol" class="w-4 h-4" /> Block
+              </.button>
+            </form>
+          </div>
+        </:body>
+      </.card>
+
+      <.card class="panel-card" body_class="p-0">
+        <:body>
+          <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div class="text-2xs font-semibold uppercase tracking-[0.22em] text-base-content/45">
+                  Peers
                 </div>
+
+                <h2 class="mt-1 flex items-center gap-2 text-xl font-semibold tracking-tight">
+                  Chat Peer Policy Grid
+                  <span class="badge badge-neutral">{@filtered_peer_total_count}</span>
+                </h2>
               </div>
+
+              <form phx-submit="search" class="flex gap-2">
+                <input
+                  type="text"
+                  name="query"
+                  value={@search_query}
+                  placeholder="Search domain..."
+                  class="input input-bordered input-sm"
+                />
+                <.button type="submit" size="sm">
+                  <.icon name="hero-magnifying-glass" class="w-4 h-4" />
+                </.button>
+                <%= if Elektrine.Strings.present?(@search_query) do %>
+                  <.button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    phx-click="clear_search"
+                    data-search-clear="true"
+                  >
+                    <.icon name="hero-x-mark" class="w-4 h-4" />
+                  </.button>
+                <% end %>
+              </form>
+            </div>
+          </div>
+
+          <div class="px-5 py-5 sm:px-6">
+            <%= if @peer_controls == [] do %>
+              <div class="rounded-box border border-dashed border-base-content/15 bg-base-200/45 px-4 py-8 text-center text-sm text-base-content/55">
+                No peers match the current filter.
+              </div>
+            <% else %>
+              <div class="overflow-x-auto">
+                <table class="table table-sm w-full">
+                  <thead>
+                    <tr>
+                      <th>Domain</th>
+                      <th>Status</th>
+                      <th>Incoming Chat</th>
+                      <th>Outgoing Chat</th>
+                      <th class="hidden md:table-cell">Discovery / Note</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <%= for peer <- @peer_controls do %>
+                      <tr>
+                        <td>
+                          <div class="font-mono text-xs sm:text-sm">{peer.domain}</div>
+                          <div class="flex flex-wrap gap-1 mt-1">
+                            <span :if={peer.configured} class="badge badge-neutral badge-xs">
+                              configured
+                            </span>
+                            <span :if={peer.discovered} class="badge badge-info badge-xs">
+                              discovered
+                            </span>
+                            <span
+                              :if={peer.trust_state && peer.trust_state != "trusted"}
+                              class={[
+                                "badge badge-xs",
+                                if(peer.trust_state == "rotated",
+                                  do: "badge-warning",
+                                  else: "badge-error"
+                                )
+                              ]}
+                            >
+                              {peer.trust_state}
+                            </span>
+                            <span
+                              :if={peer.requires_operator_action}
+                              class="badge badge-error badge-xs"
+                            >
+                              review required
+                            </span>
+                          </div>
+                          <div class="mt-1 text-xs text-base-content/55">
+                            <%= cond do %>
+                              <% peer.configured and peer.discovered -> %>
+                                configured + discovery metadata
+                              <% peer.configured -> %>
+                                configured policy
+                              <% peer.discovered -> %>
+                                discovery cache
+                              <% true -> %>
+                                runtime override only
+                            <% end %>
+                          </div>
+                        </td>
+                        <td>
+                          <%= if peer.blocked do %>
+                            <span class="badge badge-error badge-sm">Blocked</span>
+                          <% else %>
+                            <span class="badge badge-success badge-sm">Active</span>
+                          <% end %>
+                          <div :if={peer.protocol_version} class="mt-1 text-xs text-base-content/55">
+                            ARBP {peer.protocol_version}
+                          </div>
+                        </td>
+                        <td>
+                          <div class="flex flex-col gap-1">
+                            <span class={[
+                              "badge badge-xs",
+                              if(peer.effective_allow_incoming,
+                                do: "badge-success",
+                                else: "badge-neutral"
+                              )
+                            ]}>
+                              {if peer.effective_allow_incoming, do: "allowed", else: "denied"}
+                            </span>
+                            <div class="select select-bordered select-xs">
+                              <select
+                                name="mode"
+                                phx-change="set_direction"
+                                phx-value-domain={peer.domain}
+                                phx-value-direction="incoming"
+                              >
+                                <option
+                                  value="inherit"
+                                  selected={is_nil(peer.allow_incoming_override)}
+                                >
+                                  inherit default
+                                </option>
+                                <option value="allow" selected={peer.allow_incoming_override == true}>
+                                  allow
+                                </option>
+                                <option value="deny" selected={peer.allow_incoming_override == false}>
+                                  deny
+                                </option>
+                              </select>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <div class="flex flex-col gap-1">
+                            <span class={[
+                              "badge badge-xs",
+                              if(peer.effective_allow_outgoing,
+                                do: "badge-success",
+                                else: "badge-neutral"
+                              )
+                            ]}>
+                              {if peer.effective_allow_outgoing, do: "allowed", else: "denied"}
+                            </span>
+                            <div class="select select-bordered select-xs">
+                              <select
+                                name="mode"
+                                phx-change="set_direction"
+                                phx-value-domain={peer.domain}
+                                phx-value-direction="outgoing"
+                              >
+                                <option
+                                  value="inherit"
+                                  selected={is_nil(peer.allow_outgoing_override)}
+                                >
+                                  inherit default
+                                </option>
+                                <option value="allow" selected={peer.allow_outgoing_override == true}>
+                                  allow
+                                </option>
+                                <option value="deny" selected={peer.allow_outgoing_override == false}>
+                                  deny
+                                </option>
+                              </select>
+                            </div>
+                          </div>
+                        </td>
+                        <td class="hidden max-w-xs text-xs text-base-content/70 md:table-cell">
+                          <div>{peer.reason || "-"}</div>
+                          <div
+                            :if={peer.base_url}
+                            class="mt-1 font-mono text-base-content/55 break-all"
+                          >
+                            {peer.base_url}
+                          </div>
+                          <div
+                            :if={peer.discovery_url}
+                            class="mt-1 font-mono text-base-content/55 break-all"
+                          >
+                            {peer.discovery_url}
+                          </div>
+                          <div :if={peer.last_discovered_at} class="mt-1 text-base-content/55">
+                            discovered {Calendar.strftime(
+                              peer.last_discovered_at,
+                              "%Y-%m-%d %H:%M:%S UTC"
+                            )}
+                          </div>
+                          <div :if={peer.last_key_change_at} class="mt-1 text-base-content/55">
+                            key change {Calendar.strftime(
+                              peer.last_key_change_at,
+                              "%Y-%m-%d %H:%M:%S UTC"
+                            )}
+                          </div>
+                        </td>
+                        <td>
+                          <div class="flex items-center gap-1">
+                            <%= if peer.blocked do %>
+                              <.button
+                                variant="success"
+                                size="xs"
+                                outline
+                                phx-click="unblock_domain"
+                                phx-value-domain={peer.domain}
+                                title="Unblock peer"
+                              >
+                                <.icon name="hero-check" class="w-3 h-3" />
+                                <span class="hidden lg:inline">Unblock</span>
+                              </.button>
+                            <% else %>
+                              <.button
+                                variant="error"
+                                size="xs"
+                                outline
+                                phx-click="block_domain"
+                                phx-value-domain={peer.domain}
+                                phx-value-reason={peer.reason || ""}
+                                title="Block peer"
+                              >
+                                <.icon name="hero-no-symbol" class="w-3 h-3" />
+                                <span class="hidden lg:inline">Block</span>
+                              </.button>
+                            <% end %>
+                            <.button
+                              variant="ghost"
+                              size="xs"
+                              phx-click="clear_policy"
+                              phx-value-domain={peer.domain}
+                              title="Reset runtime overrides to configured defaults"
+                            >
+                              <.icon name="hero-arrow-path-rounded-square" class="w-3 h-3" />
+                              <span class="hidden lg:inline">Reset</span>
+                            </.button>
+                            <.button
+                              variant="ghost"
+                              size="xs"
+                              phx-click="refresh_discovery"
+                              phx-value-domain={peer.domain}
+                              title="Refresh peer discovery metadata"
+                            >
+                              <.icon name="hero-arrow-path" class="w-3 h-3" />
+                              <span class="hidden lg:inline">Discover</span>
+                            </.button>
+                          </div>
+                        </td>
+                      </tr>
+                    <% end %>
+                  </tbody>
+                </table>
+              </div>
+              <%= if @total_pages > 1 do %>
+                <div class="mt-4 flex items-center justify-between">
+                  <span class="text-xs text-base-content/60">
+                    Page {@page} of {@total_pages}
+                  </span>
+                  <div class="join">
+                    <.button
+                      variant="default"
+                      size="sm"
+                      class="join-item"
+                      phx-click="prev_page"
+                      disabled={@page <= 1}
+                    >
+                      Previous
+                    </.button>
+                    <.button
+                      variant="default"
+                      size="sm"
+                      class="join-item"
+                      phx-click="next_page"
+                      disabled={@page >= @total_pages}
+                    >
+                      Next
+                    </.button>
+                  </div>
+                </div>
+              <% end %>
             <% end %>
-          <% end %>
+          </div>
         </:body>
       </.card>
     </div>

@@ -1,74 +1,89 @@
 <div class="admin-page">
-  <div class="mb-6">
-    <h1 class="text-2xl font-bold text-error">Ban User</h1>
-
-    <p class="opacity-70 mt-2">Restrict user access to the platform.</p>
-  </div>
-
-  <.card>
+  <.card class="panel-card mx-auto w-full max-w-lg" body_class="p-0">
     <:body>
-      <!-- User Info -->
-      <div class="flex items-center gap-3 mb-6">
-        <div class="avatar">
-          <div class="bg-warning text-warning-content rounded-lg w-12 h-12">
-            <span class="text-lg font-bold flex items-center justify-center h-full">
-              {String.first(@user.username) |> String.upcase()}
-            </span>
-          </div>
+      <div class="flex flex-col items-center gap-4 border-b border-base-content/10 px-6 py-8 text-center">
+        <div class="flex h-14 w-14 items-center justify-center rounded-full bg-warning/10 text-warning">
+          <.icon name="hero-no-symbol" class="h-7 w-7" />
         </div>
 
-        <div>
-          <div class="font-bold text-lg">{@user.username}</div>
-
-          <div class="text-sm opacity-70">
-            <%= if @user.is_admin do %>
-              <div class="badge badge-secondary badge-sm">Admin</div>
-            <% else %>
-              <div class="badge badge-ghost badge-sm">User</div>
-            <% end %>
+        <div class="space-y-1.5">
+          <div class="text-2xs font-semibold uppercase tracking-[0.32em] text-warning/80">
+            Moderation
           </div>
+
+          <h1 class="text-2xl font-semibold tracking-tight">Ban User</h1>
+
+          <p class="text-sm leading-relaxed text-base-content/60">
+            Restrict user access to the platform.
+          </p>
         </div>
       </div>
 
-      <div class="alert alert-warning mb-6">
-        <.icon name="hero-exclamation-triangle" class="stroke-current shrink-0 w-6 h-6" />
-        <div>
-          <h3 class="font-bold">Warning!</h3>
+      <div class="space-y-6 px-6 py-6">
+        <div class="flex items-center gap-3 rounded-box border border-base-content/10 bg-base-200/45 px-4 py-4">
+          <div class="avatar">
+            <div class="h-12 w-12 rounded-lg bg-warning text-warning-content">
+              <span class="flex h-full items-center justify-center text-lg font-bold">
+                {String.first(@user.username) |> String.upcase()}
+              </span>
+            </div>
+          </div>
 
-          <div class="text-xs">
-            Banning this user will immediately restrict their access to the platform. They will be logged out and unable to log back in.
+          <div class="min-w-0">
+            <div class="truncate text-lg font-semibold">{@user.username}</div>
+
+            <div class="mt-1">
+              <%= if @user.is_admin do %>
+                <div class="badge badge-secondary badge-sm">Admin</div>
+              <% else %>
+                <div class="badge badge-ghost badge-sm">User</div>
+              <% end %>
+            </div>
           </div>
         </div>
-      </div>
 
-      <.form :let={_f} for={%{}} action={~p"/pripyat/users/#{@user.id}/ban"} method="post">
-        <div>
-          <label class="label">
-            <span>Reason for ban</span> <span class="opacity-50">Optional</span>
-          </label>
-          <textarea
-            name="ban[banned_reason]"
-            class="textarea h-24"
-            placeholder="Enter the reason for banning this user..."
-          ></textarea>
-          <div class="label">
-            <span class="opacity-50">
+        <div class="rounded-box border border-warning/20 bg-warning/10 px-4 py-3 text-sm text-base-content/75">
+          <div class="flex items-start gap-3">
+            <.icon name="hero-exclamation-triangle" class="mt-0.5 h-5 w-5 shrink-0 text-warning" />
+
+            <div>
+              <p class="font-semibold">Warning!</p>
+
+              <p class="mt-1 text-xs">
+                Banning this user will immediately restrict their access to the platform. They will be logged out and unable to log back in.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <.form :let={_f} for={%{}} action={~p"/pripyat/users/#{@user.id}/ban"} method="post">
+          <div>
+            <label class="block text-2xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              Reason for ban
+              <span class="normal-case tracking-normal opacity-60">(Optional)</span>
+            </label>
+            <textarea
+              name="ban[banned_reason]"
+              class="textarea textarea-bordered mt-2 h-24 w-full"
+              placeholder="Enter the reason for banning this user..."
+            ></textarea>
+            <p class="mt-2 text-sm text-base-content/55">
               This reason will be stored for administrative records.
-            </span>
+            </p>
           </div>
-        </div>
 
-        <div class="card-actions justify-between mt-6">
-          <.button href={~p"/pripyat/users"} variant="ghost">Cancel</.button>
-          <.button
-            type="submit"
-            variant="secondary"
-            data-confirm={"Are you sure you want to ban #{@user.username}? This action will immediately restrict their access."}
-          >
-            <.icon name="hero-no-symbol" class="w-4 h-4 mr-2" /> Ban User
-          </.button>
-        </div>
-      </.form>
+          <div class="mt-6 flex items-center justify-between gap-2 border-t border-base-content/10 pt-6">
+            <.button href={~p"/pripyat/users"} variant="ghost">Cancel</.button>
+            <.button
+              type="submit"
+              variant="secondary"
+              data-confirm={"Are you sure you want to ban #{@user.username}? This action will immediately restrict their access."}
+            >
+              <.icon name="hero-no-symbol" class="h-4 w-4" /> Ban User
+            </.button>
+          </div>
+        </.form>
+      </div>
     </:body>
   </.card>
 </div>
