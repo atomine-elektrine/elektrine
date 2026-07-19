@@ -613,8 +613,8 @@
                     <img
                       src={@discord_data.avatar}
                       alt={@user.handle || @user.username}
-                      class={"w-24 h-24 rounded-full border-4 shadow-2xl mx-auto #{avatar_effect_class}"}
-                      style={"border-color: color-mix(in srgb, var(--profile-accent) 50%, transparent); --avatar-accent: #{accent_color}; --avatar-accent-light: #{accent_light};"}
+                      class={"w-24 h-24 rounded-full shadow-2xl mx-auto #{avatar_effect_class}"}
+                      style={"--avatar-accent: #{accent_color}; --avatar-accent-light: #{accent_light};"}
                     />
                   <% @user.avatar -> %>
                     <div
@@ -624,16 +624,15 @@
                       <.user_avatar
                         user={@user}
                         size="2xl"
-                        class="w-24 h-24 border-4 shadow-2xl rounded-full"
-                        style="border-color: color-mix(in srgb, var(--profile-accent) 50%, transparent);"
+                        class="w-24 h-24 shadow-2xl rounded-full"
                       />
                     </div>
                   <% true -> %>
                     <!-- Default placeholder avatar -->
                     <.placeholder_avatar
                       size="3xl"
-                      class={"border-4 shadow-2xl mx-auto #{avatar_effect_class}"}
-                      style={"border-color: color-mix(in srgb, var(--profile-accent) 50%, transparent); background: var(--profile-accent); --avatar-accent: #{accent_color}; --avatar-accent-light: #{accent_light};"}
+                      class={"shadow-2xl mx-auto #{avatar_effect_class}"}
+                      style={"background: var(--profile-accent); --avatar-accent: #{accent_color}; --avatar-accent-light: #{accent_light};"}
                     />
                 <% end %>
               </div>
