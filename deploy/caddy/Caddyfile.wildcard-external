@@ -19,8 +19,6 @@
 	}
 
 	auto_https disable_redirects
-
-	order rate_limit before basic_auth
 }
 
 (admin_netbird_gate) {
@@ -30,23 +28,6 @@
 	}
 	respond @admin_off_vpn "Not Found" 404
 }
-# Per-IP edge rate limit (mholt/caddy-ratelimit, built into deploy/caddy).
-# Federation inboxes and well-known discovery are exempt so bursts of
-# legitimate ActivityPub deliveries are never shed. Responds 429 with
-# Retry-After when the limit is hit.
-(edge_rate_limit) {
-	rate_limit {
-		zone per_ip {
-			match {
-				not path /inbox /users/*/inbox /c/*/inbox /relay/inbox /.well-known/*
-			}
-			key {client_ip}
-			events {$CADDY_RATE_LIMIT_EVENTS:600}
-			window {$CADDY_RATE_LIMIT_WINDOW:60s}
-		}
-	}
-}
-
 
 # elektrine:media:start
 {$CADDY_MEDIA_HOST:media.elektrine.com} {
@@ -68,7 +49,6 @@
 {$CADDY_MANAGED_SITE_1} {
 	tls {$CADDY_MANAGED_SITE_1_CERT_PATH} {$CADDY_MANAGED_SITE_1_KEY_PATH}
 	import admin_netbird_gate
-	import edge_rate_limit
 
 	reverse_proxy {$ORIGIN_UPSTREAM:app:8080} {
 		header_up Host {host}
@@ -82,7 +62,6 @@
 {$CADDY_MANAGED_SITE_2} {
 	tls {$CADDY_MANAGED_SITE_2_CERT_PATH} {$CADDY_MANAGED_SITE_2_KEY_PATH}
 	import admin_netbird_gate
-	import edge_rate_limit
 
 	reverse_proxy {$ORIGIN_UPSTREAM:app:8080} {
 		header_up Host {host}
@@ -98,7 +77,6 @@ https:// {
 		on_demand
 	}
 	import admin_netbird_gate
-	import edge_rate_limit
 
 	reverse_proxy {$ORIGIN_UPSTREAM:app:8080} {
 		header_up Host {host}
