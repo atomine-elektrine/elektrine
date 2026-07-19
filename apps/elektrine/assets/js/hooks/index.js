@@ -31,10 +31,7 @@ import { EmailIframeResize } from "./email_iframe_resize_hook";
 import { ReplyMarkdownEditor } from "./markdown_hooks";
 
 // Notification hooks
-import {
-  NotificationHandler,
-  NotificationDropdown,
-} from "./notification_hooks";
+import { NotificationHandler } from "./notification_hooks";
 import { NotificationVisibility } from "./notification_visibility";
 import { WebPushManager } from "./web_push_hook";
 
@@ -149,7 +146,6 @@ export const Hooks = {
 
   // Notifications
   NotificationHandler,
-  NotificationDropdown,
   NotificationVisibility,
   WebPushManager,
 
