@@ -553,7 +553,11 @@ if [[ ! -f "$KEY_PATH" ]]; then
 fi
 
 if command -v openssl >/dev/null 2>&1; then
-  openssl x509 -in "$CERT_PATH" -noout -checkend 604800 >/dev/null
+  if ! openssl x509 -in "$CERT_PATH" -noout -checkend 604800 >/dev/null; then
+    cert_enddate="$(openssl x509 -in "$CERT_PATH" -noout -enddate 2>/dev/null || true)"
+    echo "Warn: wildcard cert expires within 7 days (${cert_enddate:-enddate unknown}): $CERT_PATH" >&2
+    echo "      Continuing with the Haraka TLS config; check wildcard cert renewal on this host." >&2
+  fi
 fi
 
 ensure_writable_output_path "$OUTPUT_PATH"

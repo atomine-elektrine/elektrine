@@ -716,14 +716,17 @@ maybe_configure_haraka_wildcard_tls() {
   fi
 
   echo "Info: configuring Haraka to use Elektrine wildcard TLS certs from $cert_dir" >&2
-  DOCKER_CMD="${DOCKER_BIN[*]}" \
+
+  if ! DOCKER_CMD="${DOCKER_BIN[*]}" \
     "$ROOT_DIR/scripts/deploy/configure_haraka_wildcard_tls.sh" \
       --env-file "$ENV_FILE" \
       --haraka-dir "$haraka_dir" \
       --domain "$cert_domain" \
       --cert-path "$cert_path" \
       --key-path "$key_path" \
-      --apply
+      --apply; then
+    echo "Warn: Haraka wildcard TLS auto-config failed; continuing deploy" >&2
+  fi
 }
 
 reconcile_managed_mail_dkim() {
