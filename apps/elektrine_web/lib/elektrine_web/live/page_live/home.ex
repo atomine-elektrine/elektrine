@@ -198,10 +198,6 @@ defmodule ElektrineWeb.PageLive.Home do
                 <.icon name="hero-exclamation-circle-mini" class="h-4 w-4" />
                 <span>Issues</span>
               </.link>
-              <.link href={~p"/canary"} class="inline-flex items-center gap-2 hover:text-white">
-                <.icon name="hero-shield-check-mini" class="h-4 w-4" />
-                <span>Canary</span>
-              </.link>
               <.link
                 :if={@onion_host}
                 href={"http://#{@onion_host}"}
@@ -353,6 +349,37 @@ defmodule ElektrineWeb.PageLive.Home do
             </div>
           </section>
         </main>
+
+        <footer class="border-t border-white/10">
+          <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-8 gap-y-3 px-6 py-6 sm:px-8 lg:px-10">
+            <nav
+              aria-label="Site information"
+              class="flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-2xs uppercase tracking-[0.14em]"
+            >
+              <.link navigate={~p"/about"} class="text-white/45 transition-colors hover:text-white">
+                About
+              </.link>
+              <.link navigate={~p"/contact"} class="text-white/45 transition-colors hover:text-white">
+                Contact
+              </.link>
+              <.link navigate={~p"/faq"} class="text-white/45 transition-colors hover:text-white">
+                FAQ
+              </.link>
+              <.link navigate={~p"/terms"} class="text-white/45 transition-colors hover:text-white">
+                Terms of Service
+              </.link>
+              <.link navigate={~p"/privacy"} class="text-white/45 transition-colors hover:text-white">
+                Privacy Policy
+              </.link>
+              <.link href={~p"/canary"} class="text-white/45 transition-colors hover:text-white">
+                Canary
+              </.link>
+            </nav>
+            <p class="font-mono text-2xs uppercase tracking-[0.14em] text-white/30">
+              Elektrine · AGPLv3
+            </p>
+          </div>
+        </footer>
       </div>
     </div>
     """
