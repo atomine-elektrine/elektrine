@@ -1,54 +1,88 @@
 <div class="admin-page">
-  <div class="mb-6">
-    <h1 class="text-2xl sm:text-3xl font-bold">Admin Access Verification</h1>
-
-    <p class="opacity-70 mt-1 text-sm sm:text-base">
-      Confirm with a passkey to continue. Elevation is short-lived and auto-expires.
-    </p>
-  </div>
-
-  <div class="max-w-2xl">
-    <.card body_class="gap-5">
-      <:body>
-        <div class="alert alert-info">
-          <.icon name="hero-information-circle" class="w-5 h-5" />
-          <span>This applies only to admin privileges, not your regular user session.</span>
+  <.card class="panel-card mx-auto max-w-md" body_class="p-0">
+    <:body>
+      <div class="flex flex-col items-center gap-4 border-b border-base-content/10 px-6 py-8 text-center">
+        <div class="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <.icon name="hero-finger-print" class="h-7 w-7" />
         </div>
 
+        <div class="space-y-1.5">
+          <h1 class="text-xl font-semibold tracking-tight">Verify admin access</h1>
+
+          <p class="text-sm leading-relaxed text-base-content/60">
+            Confirm with a passkey to continue. Elevation is short-lived and expires automatically.
+          </p>
+        </div>
+      </div>
+
+      <div class="space-y-6 px-6 py-6">
         <%= if @has_passkeys do %>
           <div
             id="admin-elevation-flow"
             data-admin-elevation="true"
             data-return-to={@return_to}
-            class="space-y-3"
           >
-            <.button id="admin-elevate-passkey" type="button" class="w-full sm:w-auto">
-              <.icon name="hero-finger-print" class="w-5 h-5" /> Verify With Passkey
+            <.button id="admin-elevate-passkey" type="button" size="lg" class="w-full">
+              <.icon name="hero-finger-print" class="h-5 w-5" /> Verify with passkey
             </.button>
-            <p class="text-sm opacity-70">
-              You may be asked to verify again for sensitive admin actions.
-            </p>
           </div>
+
+          <ul class="space-y-3 text-sm text-base-content/60">
+            <li class="flex items-start gap-3">
+              <.icon
+                name="hero-identification"
+                class="mt-0.5 h-4 w-4 shrink-0 text-base-content/40"
+              />
+              <span>Applies only to admin privileges — your regular session is untouched.</span>
+            </li>
+
+            <li class="flex items-start gap-3">
+              <.icon name="hero-clock" class="mt-0.5 h-4 w-4 shrink-0 text-base-content/40" />
+              <span>Access is short-lived and expires automatically.</span>
+            </li>
+
+            <li class="flex items-start gap-3">
+              <.icon
+                name="hero-shield-check"
+                class="mt-0.5 h-4 w-4 shrink-0 text-base-content/40"
+              />
+              <span>Sensitive admin actions may prompt you to verify again.</span>
+            </li>
+          </ul>
         <% else %>
-          <div class="alert alert-warning">
-            <div class="space-y-2">
-              <p class="font-semibold">No passkey registered</p>
+          <div class="rounded-box border border-warning/30 bg-warning/10 p-4">
+            <div class="flex items-start gap-3">
+              <.icon
+                name="hero-exclamation-triangle"
+                class="mt-0.5 h-5 w-5 shrink-0 text-warning"
+              />
 
-              <p class="text-sm">Add a passkey in account settings, then return here.</p>
+              <div class="space-y-3">
+                <div class="space-y-1">
+                  <p class="font-semibold">No passkey registered</p>
 
-              <.button href={~p"/account/passkeys"} variant="warning" size="sm">
-                Open Passkey Settings
-              </.button>
+                  <p class="text-sm text-base-content/70">
+                    Add a passkey in account settings, then return here to verify.
+                  </p>
+                </div>
+
+                <.button href={~p"/account/passkeys"} variant="warning" size="sm">
+                  <.icon name="hero-key" class="h-4 w-4" /> Open passkey settings
+                </.button>
+              </div>
             </div>
           </div>
         <% end %>
+      </div>
 
-        <div class="pt-1">
-          <.link href={@return_to} class="link link-hover opacity-70">
-            Back to previous admin page
-          </.link>
-        </div>
-      </:body>
-    </.card>
-  </div>
+      <div class="border-t border-base-content/10 px-6 py-4">
+        <.link
+          href={@return_to}
+          class="inline-flex items-center gap-1.5 text-sm text-base-content/60 transition-colors hover:text-base-content"
+        >
+          <.icon name="hero-chevron-left" class="h-4 w-4" /> Back to previous admin page
+        </.link>
+      </div>
+    </:body>
+  </.card>
 </div>
