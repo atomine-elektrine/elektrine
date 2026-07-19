@@ -208,6 +208,45 @@ defmodule Elektrine.DNS.Query do
   end
 
   defp records_for_query(zone, qname, qtype, opts) do
+    zone
+    |> do_records_for_query(qname, qtype, opts)
+    |> apply_health_failover()
+  end
+
+  # Drop failover-enrolled A/AAAA records whose targets are down — unless
+  # every enrolled candidate is down, in which case answer with all of them
+  # (fail-open). Records without health checks are never affected.
+  defp apply_health_failover(records) do
+    {enrolled, rest} = Enum.split_with(records, &health_check_enrolled?/1)
+
+    case enrolled do
+      [] ->
+        records
+
+      _ ->
+        up = Enum.filter(enrolled, &target_healthy?/1)
+
+        if up == [] do
+          records
+        else
+          up ++ rest
+        end
+    end
+  end
+
+  defp health_check_enrolled?(record) do
+    type = record |> Map.get(:type) |> to_string() |> String.upcase()
+
+    type in ["A", "AAAA"] and
+      get_in(Map.get(record, :metadata) || %{}, ["health_check", "enabled"]) in [true, "true"]
+  end
+
+  defp target_healthy?(record) do
+    port = Elektrine.DNS.HealthMonitor.health_check_port(Map.get(record, :metadata))
+    Elektrine.DNS.HealthMonitor.healthy?(Map.get(record, :content), port)
+  end
+
+  defp do_records_for_query(zone, qname, qtype, opts) do
     fqdn = normalize_name(qname)
 
     if qtype == :soa and fqdn == normalize_name(zone.domain) do

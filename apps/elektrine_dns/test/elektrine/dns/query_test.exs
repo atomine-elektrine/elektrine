@@ -517,6 +517,70 @@ defmodule Elektrine.DNS.QueryTest do
     assert header(response).rcode == 5
   end
 
+  describe "health-checked failover" do
+    setup do
+      if :ets.whereis(:elektrine_dns_health_status) == :undefined do
+        :ets.new(:elektrine_dns_health_status, [:named_table, :set, :public])
+      end
+
+      zone = %Zone{
+        domain: "failover.example.com",
+        records: [
+          %Record{
+            name: "@",
+            type: "A",
+            content: "203.0.113.30",
+            ttl: 300,
+            metadata: %{"health_check" => %{"enabled" => true}}
+          },
+          %Record{
+            name: "@",
+            type: "A",
+            content: "203.0.113.31",
+            ttl: 300,
+            metadata: %{"health_check" => %{"enabled" => true}}
+          }
+        ]
+      }
+
+      :ets.insert(Elektrine.DNS.ZoneCache, {"failover.example.com", zone})
+
+      on_exit(fn ->
+        if :ets.whereis(:elektrine_dns_health_status) != :undefined do
+          :ets.delete(:elektrine_dns_health_status, {"203.0.113.30", 443})
+          :ets.delete(:elektrine_dns_health_status, {"203.0.113.31", 443})
+        end
+      end)
+
+      :ok
+    end
+
+    test "drops downed failover targets from answers" do
+      :ets.insert(:elektrine_dns_health_status, {{"203.0.113.31", 443}, :down, 3})
+
+      response = Query.answer(build_query("failover.example.com", 1))
+
+      assert header(response).ancount == 1
+      assert response =~ <<203, 0, 113, 30>>
+      refute response =~ <<203, 0, 113, 31>>
+    end
+
+    test "fails open when every failover target is down" do
+      :ets.insert(:elektrine_dns_health_status, {{"203.0.113.30", 443}, :down, 3})
+      :ets.insert(:elektrine_dns_health_status, {{"203.0.113.31", 443}, :down, 3})
+
+      response = Query.answer(build_query("failover.example.com", 1))
+
+      assert header(response).ancount == 2
+    end
+
+    test "unknown health state answers normally" do
+      response = Query.answer(build_query("failover.example.com", 1))
+
+      assert header(response).ancount == 2
+    end
+  end
+
   defp build_query(name, type, opts \\ []) do
     flags = if Keyword.get(opts, :rd, true), do: 0x0100, else: 0
 

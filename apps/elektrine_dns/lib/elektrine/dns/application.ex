@@ -20,6 +20,7 @@ defmodule Elektrine.DNS.Application do
     if Elektrine.DNS.authority_enabled?() do
       [
         Elektrine.DNS.ZoneCache,
+        Elektrine.DNS.HealthMonitor,
         Elektrine.DNS.ProfileWildcardBootstrap,
         Elektrine.DNS.Authority,
         {Elektrine.DNS.UDPServer, name: Elektrine.DNS.UDPServer, family: :inet},
