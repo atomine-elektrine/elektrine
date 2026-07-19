@@ -16,10 +16,35 @@ defmodule ElektrineWeb.AtomineGate do
   @verify_path "/__atomine_gate/verify"
   @default_clearance_ttl_seconds 12 * 60 * 60
 
+  @site_scope "site"
+
   def verify_path, do: @verify_path
 
   def enabled? do
     env_bool("ATOMINE_GATE_ENABLED", Keyword.get(config(), :enabled, false))
+  end
+
+  @doc """
+  Whether the site-wide challenge ("under attack" mode) is enabled for the
+  main application's browser routes. Independent of `enabled?/0`, which
+  governs the static-site and DNS-edge gates.
+  """
+  def site_enabled? do
+    env_bool("ATOMINE_GATE_SITE_ENABLED", Keyword.get(config(), :site_enabled, false))
+  end
+
+  @doc """
+  Gate an anonymous main-app browser request behind the site-wide challenge.
+  Callers are expected to have already excluded signed-in sessions and
+  non-HTML clients.
+  """
+  def authorize_site_request(conn, response_path) do
+    if site_enabled?() and html_method?(conn.method) and
+         not clearance_valid?(conn, @site_scope) do
+      {:challenge, challenge(conn, @site_scope, response_path)}
+    else
+      {:ok, conn}
+    end
   end
 
   def authorize_static_request(conn, user, "text/html", response_path) do
@@ -51,7 +76,7 @@ defmodule ElektrineWeb.AtomineGate do
     token = params["atomine_pow_token"]
 
     cond do
-      not enabled?() ->
+      not (enabled?() or site_enabled?()) ->
         send_verify_error(conn, "Security check is not enabled.")
 
       is_nil(scope) ->
