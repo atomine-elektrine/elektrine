@@ -25,7 +25,7 @@ defmodule ElektrineWeb.Components.Platform.ENav do
 
   """
   attr :active_tab, :string, required: true
-  attr :class, :string, default: "mb-6"
+  attr :class, :string, default: "mb-4"
   attr :current_user, :any, default: nil
   attr :badge_counts, :map, default: nil
 
@@ -34,7 +34,7 @@ defmodule ElektrineWeb.Components.Platform.ENav do
   def e_nav(assigns) do
     assigns =
       assigns
-      |> assign_new(:class, fn -> "mb-6" end)
+      |> assign_new(:class, fn -> "mb-4" end)
       |> assign_new(:current_user, fn -> nil end)
       |> assign_new(:badge_counts, fn -> nil end)
 

@@ -37,6 +37,7 @@ import { initLiveClock } from "./live_clock"
 import { initIpLookup } from "./ip_lookup"
 import { initTaglineCycler } from "./tagline_cycler"
 import { initProfileStatic } from "./profile_static"
+import { initENav } from "./e_nav"
 import { initAdminSecurity } from "./admin_security"
 import { initThemeToggle, syncThemeControls } from "./theme"
 
@@ -127,6 +128,7 @@ window.addEventListener("phx:page-loading-stop", () => {
   topbar.hide()
   checkBlinkenlights()
   initProfileStatic()
+  initENav()
   initAutoDismissFlashes()
   initTimezoneDetectors()
   initBackupCodesPrinters()
@@ -532,6 +534,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initEmailRaw()
   initIpLookup()
   initProfileStatic()
+  initENav()
   initAdminSecurity()
   initThemeToggle()
 

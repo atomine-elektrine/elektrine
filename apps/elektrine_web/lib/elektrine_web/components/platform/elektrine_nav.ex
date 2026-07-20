@@ -14,7 +14,7 @@ defmodule ElektrineWeb.Components.Platform.ElektrineNav do
 
   """
   attr :active_tab, :string, default: "email"
-  attr :class, :string, default: "mb-6"
+  attr :class, :string, default: "mb-4"
   attr :current_user, :any, default: nil
   attr :badge_counts, :map, default: nil
 

@@ -450,6 +450,68 @@ div.message-selected:hover {
 }
 
 /* --------------------------------------------------------------------------
+   E-NAV (product modes toolbar)
+   Compact single-row toolbar for mid-size desktop screens: primary modes
+   scroll horizontally, secondary modes live in the More menu.
+   -------------------------------------------------------------------------- */
+
+.e-nav .e-nav-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.e-nav .e-nav-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* Edge fades hinting at overflowed tabs; classes toggled by e_nav.js. */
+.e-nav .e-nav-scroll.e-nav-fade-start {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 1.75rem);
+  mask-image: linear-gradient(to right, transparent, #000 1.75rem);
+}
+
+.e-nav .e-nav-scroll.e-nav-fade-end {
+  -webkit-mask-image: linear-gradient(to left, transparent, #000 1.75rem);
+  mask-image: linear-gradient(to left, transparent, #000 1.75rem);
+}
+
+.e-nav .e-nav-scroll.e-nav-fade-start.e-nav-fade-end {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 1.75rem,
+    #000 calc(100% - 1.75rem),
+    transparent
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 1.75rem,
+    #000 calc(100% - 1.75rem),
+    transparent
+  );
+}
+
+.e-nav .e-nav-more {
+  position: relative;
+}
+
+.e-nav .e-nav-more-menu {
+  max-height: min(70vh, 28rem);
+  overflow-y: auto;
+}
+
+.e-nav .e-nav-more-menu a,
+.e-nav .e-nav-more-menu a:hover,
+.e-nav .e-nav-more-menu a:focus,
+.e-nav .e-nav-more-menu a:focus-visible,
+.e-nav .e-nav-more-menu a:active,
+.e-nav .e-nav-more-menu a:visited {
+  text-decoration: none !important;
+}
+
+/* --------------------------------------------------------------------------
    MOBILE RESPONSIVE
    -------------------------------------------------------------------------- */
 
