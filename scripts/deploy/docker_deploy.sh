@@ -764,7 +764,10 @@ issue_initial_wildcard_cert() {
     "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" up -d app "$runner_service"
   fi
 
-  "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" exec -T "$runner_service" /app/scripts/acme/issue_elektrine_wildcard_cert.sh
+  if ! "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" exec -T "$runner_service" /app/scripts/acme/issue_elektrine_wildcard_cert.sh; then
+    echo "Warn: wildcard certificate issuance failed; continuing deploy with the currently installed cert" >&2
+    echo "      Re-run inside $runner_service: /app/scripts/acme/issue_elektrine_wildcard_cert.sh" >&2
+  fi
 }
 
 populate_wildcard_cert_defaults
