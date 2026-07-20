@@ -118,7 +118,7 @@ defmodule Elektrine.MixProject do
       {:wallaby, "~> 0.30", only: :test, runtime: false},
       {:httpoison, "~> 3.0", only: :test, override: true},
       {:web_driver_client, "~> 0.3", only: :test, override: true},
-      {:hackney, "~> 4.4", override: true},
+      {:hackney, "== 4.5.2", override: true},
       {:stripity_stripe, "~> 3.3"}
     ]
   end
