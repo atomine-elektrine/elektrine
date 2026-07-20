@@ -30,7 +30,7 @@ defmodule Elektrine.Platform.ENavComponent do
     >
       <div class="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
         <div class="flex items-end gap-1 border-b border-base-300/70 sm:gap-1.5">
-          <div class="e-nav-scroll min-w-0 flex-1 overflow-x-auto overscroll-x-contain pt-1">
+          <div class="e-nav-scroll -ml-2 min-w-0 flex-1 overflow-x-auto overscroll-x-contain pt-1 sm:-ml-2.5">
             <div class="flex w-max min-w-full items-center gap-0.5 sm:gap-1" role="list">
               <%= for item <- @items do %>
                 <.link
@@ -53,7 +53,7 @@ defmodule Elektrine.Platform.ENavComponent do
           </div>
 
           <%= if @secondary_items != [] do %>
-            <div class="e-nav-more dropdown dropdown-end shrink-0 pt-1">
+            <div class="e-nav-more dropdown dropdown-end -mr-2 shrink-0 pt-1 sm:-mr-2.5">
               <div
                 tabindex="0"
                 role="button"
