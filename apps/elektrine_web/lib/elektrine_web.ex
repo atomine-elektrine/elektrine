@@ -50,6 +50,7 @@ defmodule ElektrineWeb do
         layout: {ElektrineWeb.Layouts, :app}
 
       on_mount ElektrineWeb.Live.AnnouncementCache
+      on_mount {ElektrineWeb.Live.Hooks.CurrentPathHook, :default}
 
       import ElektrineWeb.Live.NotificationHelpers
 

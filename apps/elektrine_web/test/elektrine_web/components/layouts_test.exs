@@ -39,6 +39,25 @@ defmodule ElektrineWeb.LayoutsTest do
       assert Layouts.full_width_main?(%{current_url: "https://example.com/email"})
       assert Layouts.full_width_main?(%{current_url: "https://example.com/communities"})
       assert Layouts.full_width_main?(%{current_url: "https://example.com/d/elixir"})
+      assert Layouts.full_width_main?(%{current_url: "https://example.com/kairo"})
+      assert Layouts.full_width_main?(%{current_url: "https://example.com/kairo?s=1"})
+    end
+
+    test "returns true from LiveView module when current_url is missing" do
+      assert Layouts.full_width_main?(%{
+               socket: %{view: ElektrineWeb.KairoLive.Index, host_uri: %URI{host: "localhost"}}
+             })
+
+      assert Layouts.full_width_main?(%{
+               socket: %{view: ElektrineWeb.ChatLive.Index, host_uri: %URI{host: "localhost"}}
+             })
+    end
+
+    test "does not treat host_uri without a route path as home for layout width" do
+      # host_uri is not a route; without current_url/view markers, fall back safely
+      refute Layouts.full_width_main?(%{
+               socket: %{view: ElektrineWeb.UserSettingsLive, host_uri: %URI{host: "localhost"}}
+             })
     end
 
     test "returns false for standard account pages" do

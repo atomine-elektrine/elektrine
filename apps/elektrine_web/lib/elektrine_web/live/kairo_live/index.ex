@@ -37,6 +37,20 @@ defmodule ElektrineWeb.KairoLive.Index do
   end
 
   @impl true
+  def handle_params(params, _uri, socket) do
+    selected_id =
+      case params do
+        %{"s" => id} -> parse_id(id)
+        _params -> nil
+      end
+
+    {:noreply,
+     socket
+     |> assign(:selected_id, selected_id)
+     |> assign_view()}
+  end
+
+  @impl true
   def handle_event("create_project", %{"project" => params}, socket) do
     user = socket.assigns.current_user
 
@@ -257,8 +271,7 @@ defmodule ElektrineWeb.KairoLive.Index do
      socket
      |> assign(:composing, false)
      |> assign(:view_mode, "reader")
-     |> assign(:selected_id, parse_id(id))
-     |> assign_view()}
+     |> push_patch(to: ~p"/kairo?s=#{id}")}
   end
 
   def handle_event("new_note", _params, socket) do
@@ -267,10 +280,9 @@ defmodule ElektrineWeb.KairoLive.Index do
      |> assign(:view_mode, "reader")
      |> assign(:composing, true)
      |> assign(:editing_source_id, nil)
-     |> assign(:selected, nil)
-     |> assign(:selected_id, nil)
      |> assign(:compose, empty_compose())
-     |> assign(:compose_tab, "write")}
+     |> assign(:compose_tab, "write")
+     |> push_patch(to: ~p"/kairo")}
   end
 
   def handle_event("cancel_note", _params, socket) do
@@ -373,6 +385,8 @@ defmodule ElektrineWeb.KairoLive.Index do
 
     case Kairo.delete_source(user, source_id) do
       {:ok, _source} ->
+        deselecting? = socket.assigns.selected_id == source_id
+
         socket =
           socket
           |> assign(:composing, false)
@@ -380,6 +394,8 @@ defmodule ElektrineWeb.KairoLive.Index do
           |> maybe_clear_selected(source_id)
           |> put_flash(:info, "Source deleted")
           |> load_kairo(user)
+
+        socket = if deselecting?, do: push_patch(socket, to: ~p"/kairo"), else: socket
 
         {:noreply, socket}
 
@@ -684,6 +700,16 @@ defmodule ElektrineWeb.KairoLive.Index do
 
   defp present?(value), do: is_binary(value) and String.trim(value) != ""
 
+  # data-confirm text for actions that would silently replace an in-progress
+  # note; nil (no confirm) when nothing would be lost.
+  defp discard_note_confirm(false, _editing_source_id, _compose), do: nil
+
+  defp discard_note_confirm(true, editing_source_id, compose) do
+    if editing_source_id != nil or present?(compose["title"]) or present?(compose["content"]) do
+      "Discard your unsaved changes?"
+    end
+  end
+
   defp preformatted_content?(%{content_format: format}) when format in ["text", "json"], do: true
   defp preformatted_content?(_source), do: false
 
@@ -759,7 +785,12 @@ defmodule ElektrineWeb.KairoLive.Index do
     ~H"""
     <div class="mx-auto w-full max-w-7xl px-4 pb-2 sm:px-6 lg:px-8">
       <section>
-        <.e_nav active_tab="kairo" current_user={@current_user} class="mb-6" />
+        <.e_nav
+          active_tab="kairo"
+          current_user={@current_user}
+          badge_counts={@e_nav_badge_counts}
+          class="mb-6"
+        />
 
         <div
           id="kairo-vault"
@@ -769,11 +800,16 @@ defmodule ElektrineWeb.KairoLive.Index do
         >
           <div class="grid grid-cols-1 gap-4 lg:grid-cols-[18rem_minmax(0,1fr)] lg:gap-6">
             <%!-- Explorer --%>
-            <aside class="card panel-card flex flex-col overflow-hidden border border-base-300 lg:max-h-[calc(100vh-8rem)]">
+            <aside class="card panel-card flex flex-col overflow-hidden border border-base-300 lg:max-h-[calc(100dvh-8rem)]">
               <div class="space-y-2 border-b border-base-300 p-3">
                 <div class="rounded-lg border border-base-300 bg-base-200/35 p-2">
                   <div class="grid grid-cols-3 gap-1">
-                    <.button type="button" phx-click="new_note" size="sm">
+                    <.button
+                      type="button"
+                      phx-click="new_note"
+                      data-confirm={discard_note_confirm(@composing, @editing_source_id, @compose)}
+                      size="sm"
+                    >
                       <.icon name="hero-pencil-square" class="h-4 w-4" /> Note
                     </.button>
                     <label for={@uploads.kairo_files.ref} class="btn btn-outline btn-sm">
@@ -1087,6 +1123,7 @@ defmodule ElektrineWeb.KairoLive.Index do
                         type="button"
                         phx-click="select_source"
                         phx-value-id={source.id}
+                        data-confirm={discard_note_confirm(@composing, @editing_source_id, @compose)}
                         class={[
                           "flex w-full items-center gap-1.5 truncate rounded-lg px-2 py-1.5 text-left text-sm",
                           if(@selected && @selected.id == source.id,
@@ -1100,6 +1137,18 @@ defmodule ElektrineWeb.KairoLive.Index do
                           class="h-4 w-4 shrink-0"
                         />
                         <span class="truncate">{source_label(source)}</span>
+                        <span
+                          :if={source.source_type == "url" and source.status == "received"}
+                          class="loading loading-spinner loading-xs ml-auto shrink-0 opacity-50"
+                          title="Fetching content"
+                        >
+                        </span>
+                        <.icon
+                          :if={source.status == "failed"}
+                          name="hero-exclamation-triangle"
+                          class="ml-auto h-3.5 w-3.5 shrink-0 text-error"
+                          title="Fetch failed"
+                        />
                       </button>
                     </li>
                   </ul>
@@ -1160,7 +1209,7 @@ defmodule ElektrineWeb.KairoLive.Index do
             </aside>
 
             <%!-- Reader / editor --%>
-            <section class="card panel-card border border-base-300 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto">
+            <section class="card panel-card border border-base-300 lg:max-h-[calc(100dvh-8rem)] lg:overflow-y-auto">
               <div class="flex justify-end border-b border-base-300 px-2 py-1.5">
                 <div class="join">
                   <button
@@ -1197,7 +1246,7 @@ defmodule ElektrineWeb.KairoLive.Index do
               <%!-- Graph view --%>
               <div
                 :if={@view_mode == "graph"}
-                class="relative h-[60vh] text-base-content lg:h-[calc(100vh-8rem)]"
+                class="relative h-[60vh] text-base-content lg:h-[calc(100dvh-10rem)]"
               >
                 <div
                   id="kairo-graph"
@@ -1242,6 +1291,7 @@ defmodule ElektrineWeb.KairoLive.Index do
                   value={@compose["title"]}
                   placeholder="Title"
                   autocomplete="off"
+                  phx-mounted={JS.focus()}
                   class="input input-bordered input-sm w-full font-medium"
                 />
 
@@ -1367,7 +1417,7 @@ defmodule ElektrineWeb.KairoLive.Index do
               </div>
 
               <article
-                :if={@view_mode == "reader" and @selected}
+                :if={@view_mode == "reader" and not @composing and @selected}
                 class="card-body space-y-4 p-3 sm:p-4"
               >
                 <header class="space-y-2 border-b border-base-300 pb-4">
@@ -1455,109 +1505,114 @@ defmodule ElektrineWeb.KairoLive.Index do
                 </header>
 
                 <div
-                  :if={@selected.encrypted}
-                  class="space-y-3 rounded-lg border border-base-300 bg-base-200/40 p-4"
-                  data-kairo-reader
+                  id={"kairo-reader-scroll-#{@selected.id}"}
+                  class="space-y-4 pt-4"
                 >
-                  <p class="text-sm text-base-content/70">
-                    This source is encrypted. Decrypt it in this tab to read the content.
-                  </p>
-                  <.button
-                    type="button"
-                    variant="default"
-                    outline
-                    size="sm"
-                    data-kairo-decrypt
-                    data-kairo-payload={Jason.encode!(@selected.encrypted_content)}
+                  <div
+                    :if={@selected.encrypted}
+                    class="space-y-3 rounded-lg border border-base-300 bg-base-200/40 p-4"
+                    data-kairo-reader
                   >
-                    <.icon name="hero-lock-open" class="h-4 w-4" /> Decrypt content
-                  </.button>
-                  <pre
-                    class="mt-1 hidden max-w-none whitespace-pre-wrap break-words rounded-lg bg-base-100 p-3 text-sm"
-                    data-kairo-output
-                  ></pre>
-                </div>
-
-                <%= if file_url = source_file_url(@selected) do %>
-                  <div class="space-y-3 rounded-lg border border-base-300 bg-base-200/30 p-3">
-                    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                      <div class="flex min-w-0 items-center gap-2 text-sm">
-                        <.icon name={source_icon(@selected)} class="h-4 w-4 shrink-0" />
-                        <span class="min-w-0 truncate font-medium">
-                          {source_file_name(@selected)}
-                        </span>
-                        <span
-                          :if={format_file_size(source_file_size(@selected))}
-                          class="text-xs text-base-content/50"
-                        >
-                          {format_file_size(source_file_size(@selected))}
-                        </span>
-                      </div>
-                      <.button
-                        href={file_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        variant="default"
-                        outline
-                        size="xs"
-                      >
-                        <.icon name="hero-arrow-top-right-on-square" class="h-3.5 w-3.5" /> Open
-                      </.button>
-                    </div>
-                    <img
-                      :if={source_image?(@selected)}
-                      src={file_url}
-                      alt={source_file_name(@selected)}
-                      class="max-h-[70vh] w-full rounded-lg border border-base-300 object-contain"
-                    />
-                    <iframe
-                      :if={source_pdf?(@selected)}
-                      src={file_url}
-                      class="h-[70vh] w-full rounded-lg border border-base-300 bg-base-100"
-                      title={source_file_name(@selected)}
+                    <p class="text-sm text-base-content/70">
+                      This source is encrypted. Decrypt it in this tab to read the content.
+                    </p>
+                    <.button
+                      type="button"
+                      variant="default"
+                      outline
+                      size="sm"
+                      data-kairo-decrypt
+                      data-kairo-payload={Jason.encode!(@selected.encrypted_content)}
                     >
-                    </iframe>
+                      <.icon name="hero-lock-open" class="h-4 w-4" /> Decrypt content
+                    </.button>
+                    <pre
+                      class="mt-1 hidden max-w-none whitespace-pre-wrap break-words rounded-lg bg-base-100 p-3 text-sm"
+                      data-kairo-output
+                    ></pre>
                   </div>
-                <% end %>
 
-                <pre
-                  :if={
-                    !@selected.encrypted and present?(@selected.content) and
-                      preformatted_content?(@selected)
-                  }
-                  class="max-w-none whitespace-pre-wrap break-words rounded-lg border border-base-300 bg-base-200/30 p-3 text-sm"
-                ><%= @selected.content %></pre>
-
-                <div
-                  :if={
-                    !@selected.encrypted and present?(@selected.content) and
-                      !preformatted_content?(@selected)
-                  }
-                  class="prose max-w-none"
-                >
-                  {Phoenix.HTML.raw(Elektrine.Markdown.to_html(@selected.content || ""))}
-                </div>
-
-                <div :if={@related != []} class="border-t border-base-300 pt-4">
-                  <h3 class="mb-2 text-xs font-semibold uppercase tracking-wide text-base-content/60">
-                    Related (shared tags)
-                  </h3>
-                  <ul class="space-y-1">
-                    <li :for={source <- @related}>
-                      <button
-                        type="button"
-                        phx-click="select_source"
-                        phx-value-id={source.id}
-                        class="flex w-full items-center gap-1.5 truncate rounded-lg px-2 py-1 text-left text-sm hover:bg-base-300/40"
+                  <%= if file_url = source_file_url(@selected) do %>
+                    <div class="space-y-3 rounded-lg border border-base-300 bg-base-200/30 p-3">
+                      <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div class="flex min-w-0 items-center gap-2 text-sm">
+                          <.icon name={source_icon(@selected)} class="h-4 w-4 shrink-0" />
+                          <span class="min-w-0 truncate font-medium">
+                            {source_file_name(@selected)}
+                          </span>
+                          <span
+                            :if={format_file_size(source_file_size(@selected))}
+                            class="text-xs text-base-content/50"
+                          >
+                            {format_file_size(source_file_size(@selected))}
+                          </span>
+                        </div>
+                        <.button
+                          href={file_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          variant="default"
+                          outline
+                          size="xs"
+                        >
+                          <.icon name="hero-arrow-top-right-on-square" class="h-3.5 w-3.5" /> Open
+                        </.button>
+                      </div>
+                      <img
+                        :if={source_image?(@selected)}
+                        src={file_url}
+                        alt={source_file_name(@selected)}
+                        class="max-h-[70vh] w-full rounded-lg border border-base-300 object-contain"
+                      />
+                      <iframe
+                        :if={source_pdf?(@selected)}
+                        src={file_url}
+                        class="h-[70vh] w-full rounded-lg border border-base-300 bg-base-100"
+                        title={source_file_name(@selected)}
                       >
-                        <.icon
-                          name={source_icon(source)}
-                          class="h-3.5 w-3.5 shrink-0"
-                        />
-                        <span class="truncate">{source_label(source)}</span>
-                      </button>
-                    </li>
-                  </ul>
+                      </iframe>
+                    </div>
+                  <% end %>
+
+                  <pre
+                    :if={
+                      !@selected.encrypted and present?(@selected.content) and
+                        preformatted_content?(@selected)
+                    }
+                    class="max-w-none whitespace-pre-wrap break-words rounded-lg border border-base-300 bg-base-200/30 p-3 text-sm"
+                  ><%= @selected.content %></pre>
+
+                  <div
+                    :if={
+                      !@selected.encrypted and present?(@selected.content) and
+                        !preformatted_content?(@selected)
+                    }
+                    class="prose max-w-none"
+                  >
+                    {Phoenix.HTML.raw(Elektrine.Markdown.to_html(@selected.content || ""))}
+                  </div>
+
+                  <div :if={@related != []} class="border-t border-base-300 pt-4">
+                    <h3 class="mb-2 text-xs font-semibold uppercase tracking-wide text-base-content/60">
+                      Related (shared tags)
+                    </h3>
+                    <ul class="space-y-1">
+                      <li :for={source <- @related}>
+                        <button
+                          type="button"
+                          phx-click="select_source"
+                          phx-value-id={source.id}
+                          class="flex w-full items-center gap-1.5 truncate rounded-lg px-2 py-1 text-left text-sm hover:bg-base-300/40"
+                        >
+                          <.icon
+                            name={source_icon(source)}
+                            class="h-3.5 w-3.5 shrink-0"
+                          />
+                          <span class="truncate">{source_label(source)}</span>
+                        </button>
+                      </li>
+                    </ul>
+                  </div>
                 </div>
               </article>
             </section>

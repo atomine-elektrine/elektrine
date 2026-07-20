@@ -53,6 +53,25 @@ defmodule ElektrineWeb.KairoLiveTest do
     assert html =~ "No matching sources"
   end
 
+  test "deep-links the selected source via the URL", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+
+    {:ok, source} =
+      Kairo.create_source(user, %{
+        "source_type" => "markdown",
+        "title" => "Linked note",
+        "content" => "deep-linked body"
+      })
+
+    {_user, view} = mount_kairo(conn, user)
+    render_click(view, "select_source", %{"id" => to_string(source.id)})
+    assert_patch(view, ~p"/kairo?s=#{source.id}")
+    assert has_element?(view, "article h1", "Linked note")
+
+    {:ok, view, _html} = conn |> log_in_user(user) |> live(~p"/kairo?s=#{source.id}")
+    assert has_element?(view, "article h1", "Linked note")
+  end
+
   test "saves a link as a url source", %{conn: conn} do
     {user, view} = mount_kairo(conn)
 

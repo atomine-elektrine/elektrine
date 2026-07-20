@@ -550,7 +550,40 @@ defmodule ElektrineWeb.Layouts do
     end
   end
 
-  @doc ~s|Returns true when the current page should use full-width main content.\n|
+  @full_width_path_prefixes [
+    "/chat",
+    "/timeline",
+    "/gallery",
+    "/kairo",
+    "/discussions",
+    "/hashtag",
+    "/lists",
+    "/filters",
+    "/videos",
+    "/email",
+    "/communities",
+    "/analytics",
+    "/d/"
+  ]
+
+  # Fallback when path is not yet available (before handle_params / no current_url).
+  @full_width_view_markers [
+    "ChatLive",
+    "TimelineLive",
+    "GalleryLive",
+    "KairoLive",
+    "DiscussionsLive",
+    "HashtagLive",
+    "ListLive",
+    "FiltersLive",
+    "VideosLive",
+    "EmailLive",
+    "ContactsLive",
+    "ProfileLive.Analytics",
+    "ProfileLive.DomainAnalytics"
+  ]
+
+  @doc ~s|Returns true when the current page should use full-width main content.\n\nProduct pages own their own `max-w-7xl` + horizontal padding. When this returns\nfalse for those pages, the app layout *also* wraps them, causing double padding.\n|
   def full_width_main?(assigns) do
     path = get_current_path(assigns)
 
@@ -560,31 +593,10 @@ defmodule ElektrineWeb.Layouts do
         _ -> ""
       end
 
-    full_width_path? =
-      is_binary(path) and
-        Enum.any?(
-          [
-            "/chat",
-            "/timeline",
-            "/gallery",
-            "/kairo",
-            "/discussions",
-            "/hashtag",
-            "/lists",
-            "/filters",
-            "/videos",
-            "/email",
-            "/communities",
-            "/analytics",
-            "/d/"
-          ],
-          &String.starts_with?(path, &1)
-        )
+    full_width_path? = Enum.any?(@full_width_path_prefixes, &String.starts_with?(path, &1))
+    full_width_view? = Enum.any?(@full_width_view_markers, &String.contains?(socket_view, &1))
 
-    full_width_path? or
-      String.contains?(socket_view, "ChatLive") or
-      String.contains?(socket_view, "ProfileLive.Analytics") or
-      String.contains?(socket_view, "ProfileLive.DomainAnalytics")
+    full_width_path? or full_width_view?
   end
 
   @doc ~s|Returns the container class for system announcements.\n|
@@ -616,33 +628,28 @@ defmodule ElektrineWeb.Layouts do
   end
 
   defp get_current_path(assigns) do
+    # Prefer :current_url (set by CurrentPathHook from handle_params). Do not use
+    # socket.host_uri.path — it is usually nil and is not the LiveView route.
     cond do
-      assigns[:socket] && assigns.socket.view ->
-        case assigns[:socket] do
-          %{host_uri: %{path: path}} when is_binary(path) -> path
-          _ -> get_path_from_uri(assigns)
-        end
+      path = path_from_url(assigns[:current_url]) ->
+        path
 
-      assigns[:conn] ->
-        assigns.conn.request_path || "/"
+      assigns[:conn] && is_binary(assigns.conn.request_path) ->
+        assigns.conn.request_path
 
       true ->
-        get_path_from_uri(assigns)
-    end
-  end
-
-  defp get_path_from_uri(assigns) do
-    case assigns[:current_url] do
-      nil ->
         "/"
-
-      url when is_binary(url) ->
-        case URI.parse(url) do
-          %{path: path} when is_binary(path) -> path
-          _ -> "/"
-        end
     end
   end
+
+  defp path_from_url(url) when is_binary(url) do
+    case URI.parse(url) do
+      %{path: path} when is_binary(path) and path != "" -> path
+      _ -> nil
+    end
+  end
+
+  defp path_from_url(_url), do: nil
 
   defp normalize_onion_host(value) when is_binary(value) do
     value = String.trim(value)
