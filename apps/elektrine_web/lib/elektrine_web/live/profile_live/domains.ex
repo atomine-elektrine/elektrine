@@ -315,7 +315,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="mx-auto w-full max-w-7xl px-4 pb-8 sm:px-6 lg:px-8 text-base-content">
+    <div class="pb-8 text-base-content">
       <ElektrineWeb.Components.Platform.ENav.e_nav
         active_tab="profile-domains"
         current_user={@current_user}

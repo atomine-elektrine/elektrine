@@ -567,6 +567,7 @@ defmodule ElektrineWeb.Layouts do
             "/chat",
             "/timeline",
             "/gallery",
+            "/kairo",
             "/discussions",
             "/hashtag",
             "/lists",
