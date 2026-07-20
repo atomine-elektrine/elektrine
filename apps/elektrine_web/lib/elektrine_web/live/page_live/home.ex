@@ -3,19 +3,31 @@ defmodule ElektrineWeb.PageLive.Home do
 
   require Logger
 
+  alias Elektrine.HomeBlog
   alias Elektrine.Platform.Modules
 
   on_mount({ElektrineWeb.Live.AuthHooks, :maybe_authenticated_user})
 
   def mount(_params, _session, socket) do
+    blog_posts = HomeBlog.cached_posts()
+
+    if connected?(socket) and blog_posts == [] do
+      send(self(), :load_blog_posts)
+    end
+
     {:ok,
      assign(socket,
        page_title: "Home",
        poster_image: home_random_image(),
        button_images: home_button_images(),
        platform_stats: load_platform_stats(),
-       onion_host: onion_host()
+       onion_host: onion_host(),
+       blog_posts: blog_posts
      ), layout: false}
+  end
+
+  def handle_info(:load_blog_posts, socket) do
+    {:noreply, assign(socket, blog_posts: HomeBlog.latest_posts())}
   end
 
   defp onion_host do
@@ -64,156 +76,195 @@ defmodule ElektrineWeb.PageLive.Home do
           </.link>
         </header>
 
-        <div class="relative z-10 mx-auto mt-auto w-full max-w-7xl px-6 pb-12 sm:px-8 lg:px-10">
-          <p class="font-mono text-xs uppercase tracking-[0.3em] text-white/60">
-            Elektrine
-          </p>
-          <h1 class="mt-4 max-w-3xl font-pixel text-4xl uppercase leading-[1.08] tracking-[0.1em] text-white sm:text-5xl lg:text-6xl text-balance">
-            Own or <span class="text-white/60">be owned.</span>
-          </h1>
-          <p class="mt-5 max-w-xl text-sm leading-7 text-white/70 sm:text-base">
-            Elektrine is a private, modular internet suite for people who want everyday
-            services without ads, tracking, or dependence on closed providers. Use the
-            hosted service, or run your own when you want full independence. Open source,
-            licensed under the AGPLv3.
-          </p>
+        <div class="relative z-10 mx-auto mt-auto w-full max-w-7xl px-6 pb-12 sm:px-8 lg:flex lg:items-end lg:justify-between lg:gap-16 lg:px-10">
+          <div class="min-w-0">
+            <p class="font-mono text-xs uppercase tracking-[0.3em] text-white/60">
+              Elektrine
+            </p>
+            <h1 class="mt-4 max-w-3xl font-pixel text-4xl uppercase leading-[1.08] tracking-[0.1em] text-white sm:text-5xl lg:text-6xl text-balance">
+              Own or <span class="text-white/60">be owned.</span>
+            </h1>
+            <p class="mt-5 max-w-xl text-sm leading-7 text-white/70 sm:text-base">
+              Elektrine is a private, modular internet suite for people who want everyday
+              services without ads, tracking, or dependence on closed providers. Use the
+              hosted service, or run your own when you want full independence. Open source,
+              licensed under the AGPLv3.
+            </p>
 
-          <div class="mt-7 flex flex-wrap items-center gap-3">
-            <%= if @current_user do %>
-              <.button
-                href={~p"/portal"}
-                size="lg"
-                class="rounded-none font-mono text-xs uppercase tracking-[0.14em]"
-              >
-                {gettext("Portal")}
-              </.button>
-              <%= if Modules.enabled?(:email) do %>
+            <div class="mt-7 flex flex-wrap items-center gap-3">
+              <%= if @current_user do %>
                 <.button
-                  href={~p"/email"}
+                  href={~p"/portal"}
+                  size="lg"
+                  class="rounded-none font-mono text-xs uppercase tracking-[0.14em]"
+                >
+                  {gettext("Portal")}
+                </.button>
+                <%= if Modules.enabled?(:email) do %>
+                  <.button
+                    href={~p"/email"}
+                    variant="default"
+                    size="lg"
+                    class="rounded-none border-white/30 bg-transparent font-mono text-xs uppercase tracking-[0.14em] text-white hover:border-white/60 hover:bg-white/10"
+                  >
+                    {gettext("Email")}
+                  </.button>
+                <% end %>
+                <%= if Modules.enabled?(:chat) do %>
+                  <.button
+                    href={~p"/chat"}
+                    variant="default"
+                    size="lg"
+                    class="rounded-none border-white/30 bg-transparent font-mono text-xs uppercase tracking-[0.14em] text-white hover:border-white/60 hover:bg-white/10"
+                  >
+                    {gettext("Chat")}
+                  </.button>
+                <% end %>
+                <.button
+                  href={~p"/account"}
                   variant="default"
                   size="lg"
                   class="rounded-none border-white/30 bg-transparent font-mono text-xs uppercase tracking-[0.14em] text-white hover:border-white/60 hover:bg-white/10"
                 >
-                  {gettext("Email")}
+                  {gettext("Account")}
                 </.button>
-              <% end %>
-              <%= if Modules.enabled?(:chat) do %>
                 <.button
-                  href={~p"/chat"}
+                  href={~p"/logout"}
+                  method="delete"
+                  variant="error"
+                  size="lg"
+                  class="rounded-none font-mono text-xs uppercase tracking-[0.14em]"
+                >
+                  {gettext("Sign out")}
+                </.button>
+              <% else %>
+                <.button
+                  href={~p"/register"}
+                  size="lg"
+                  class="rounded-none font-mono text-xs uppercase tracking-[0.14em]"
+                >
+                  {gettext("Sign up")}
+                </.button>
+                <.button
+                  href={Elektrine.Paths.login_path()}
                   variant="default"
                   size="lg"
                   class="rounded-none border-white/30 bg-transparent font-mono text-xs uppercase tracking-[0.14em] text-white hover:border-white/60 hover:bg-white/10"
                 >
-                  {gettext("Chat")}
+                  {gettext("Sign in")}
                 </.button>
               <% end %>
-              <.button
-                href={~p"/account"}
-                variant="default"
-                size="lg"
-                class="rounded-none border-white/30 bg-transparent font-mono text-xs uppercase tracking-[0.14em] text-white hover:border-white/60 hover:bg-white/10"
-              >
-                {gettext("Account")}
-              </.button>
-              <.button
-                href={~p"/logout"}
-                method="delete"
-                variant="error"
-                size="lg"
-                class="rounded-none font-mono text-xs uppercase tracking-[0.14em]"
-              >
-                {gettext("Sign out")}
-              </.button>
-            <% else %>
-              <.button
-                href={~p"/register"}
-                size="lg"
-                class="rounded-none font-mono text-xs uppercase tracking-[0.14em]"
-              >
-                {gettext("Sign up")}
-              </.button>
-              <.button
-                href={Elektrine.Paths.login_path()}
-                variant="default"
-                size="lg"
-                class="rounded-none border-white/30 bg-transparent font-mono text-xs uppercase tracking-[0.14em] text-white hover:border-white/60 hover:bg-white/10"
-              >
-                {gettext("Sign in")}
-              </.button>
-            <% end %>
+            </div>
+
+            <div class="mt-8 max-w-2xl border-t border-white/15 pt-4">
+              <div class="flex flex-wrap items-center gap-x-6 gap-y-2 font-mono text-2xs uppercase tracking-[0.14em] text-white/45">
+                <span :if={@platform_stats.stats.users > 0}>
+                  Users
+                  <span class="font-pixel text-lg leading-none tabular-nums text-white/85">
+                    {format_stat(@platform_stats.stats.users)}
+                  </span>
+                </span>
+                <span :if={@platform_stats.federation.instances > 0}>
+                  Instances
+                  <span class="font-pixel text-lg leading-none tabular-nums text-white/85">
+                    {format_stat(@platform_stats.federation.instances)}
+                  </span>
+                </span>
+                <span :if={@platform_stats.stats.posts > 0}>
+                  Posts
+                  <span class="font-pixel text-lg leading-none tabular-nums text-white/85">
+                    {format_stat(@platform_stats.stats.posts)}
+                  </span>
+                </span>
+                <span :if={@platform_stats.federation.remote_actors > 0}>
+                  Fediverse peers
+                  <span class="font-pixel text-lg leading-none tabular-nums text-white/85">
+                    {format_stat(@platform_stats.federation.remote_actors)}
+                  </span>
+                </span>
+              </div>
+              <div class="mt-3 flex flex-wrap items-center gap-4 text-sm text-white/50">
+                <.link
+                  href={github_repo_url()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="inline-flex items-center gap-2 hover:text-white"
+                >
+                  <.icon name="hero-code-bracket-mini" class="h-4 w-4" />
+                  <span>GitHub</span>
+                </.link>
+                <.link
+                  href={github_releases_url()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="inline-flex items-center gap-2 hover:text-white"
+                >
+                  <.icon name="hero-arrow-down-tray-mini" class="h-4 w-4" />
+                  <span>Releases</span>
+                </.link>
+                <.link
+                  href={github_issues_url()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="inline-flex items-center gap-2 hover:text-white"
+                >
+                  <.icon name="hero-exclamation-circle-mini" class="h-4 w-4" />
+                  <span>Issues</span>
+                </.link>
+                <.link
+                  :if={@onion_host}
+                  href={"http://#{@onion_host}"}
+                  rel="noopener noreferrer"
+                  title={@onion_host}
+                  class="inline-flex items-center gap-2 hover:text-white"
+                >
+                  <.icon name="hero-globe-alt-mini" class="h-4 w-4" />
+                  <span>Onion service</span>
+                </.link>
+                <span :if={!@onion_host} class="inline-flex items-center gap-2 opacity-60">
+                  <.icon name="hero-globe-alt-mini" class="h-4 w-4" />
+                  <span>Onion: not configured</span>
+                </span>
+              </div>
+            </div>
           </div>
 
-          <div class="mt-8 max-w-2xl border-t border-white/15 pt-4">
-            <div class="flex flex-wrap items-center gap-x-6 gap-y-2 font-mono text-2xs uppercase tracking-[0.14em] text-white/45">
-              <span :if={@platform_stats.stats.users > 0}>
-                Users
-                <span class="font-pixel text-lg leading-none tabular-nums text-white/85">
-                  {format_stat(@platform_stats.stats.users)}
-                </span>
-              </span>
-              <span :if={@platform_stats.federation.instances > 0}>
-                Instances
-                <span class="font-pixel text-lg leading-none tabular-nums text-white/85">
-                  {format_stat(@platform_stats.federation.instances)}
-                </span>
-              </span>
-              <span :if={@platform_stats.stats.posts > 0}>
-                Posts
-                <span class="font-pixel text-lg leading-none tabular-nums text-white/85">
-                  {format_stat(@platform_stats.stats.posts)}
-                </span>
-              </span>
-              <span :if={@platform_stats.federation.remote_actors > 0}>
-                Fediverse peers
-                <span class="font-pixel text-lg leading-none tabular-nums text-white/85">
-                  {format_stat(@platform_stats.federation.remote_actors)}
-                </span>
-              </span>
+          <aside
+            :if={@blog_posts != []}
+            class="mt-10 border border-white/10 bg-[#05070a]/85 p-4 backdrop-blur-sm lg:mt-0 lg:w-80 lg:shrink-0"
+          >
+            <p class="font-mono text-2xs uppercase tracking-[0.22em] text-white/40">
+              // From the operator
+            </p>
+            <div class="mt-3 space-y-4">
+              <.link
+                :for={{post, index} <- Enum.with_index(@blog_posts)}
+                href={post.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                class={["group block", index > 0 && "hidden lg:block"]}
+              >
+                <time
+                  :if={post.published_at}
+                  class="font-mono text-3xs uppercase tracking-[0.18em] text-white/35"
+                >
+                  {Calendar.strftime(post.published_at, "%b %d, %Y")}
+                </time>
+                <p class="mt-0.5 text-sm leading-snug text-white/80 transition-colors group-hover:text-white">
+                  {post.title}
+                </p>
+              </.link>
             </div>
-            <div class="mt-3 flex flex-wrap items-center gap-4 text-sm text-white/50">
-              <.link
-                href={github_repo_url()}
-                target="_blank"
-                rel="noopener noreferrer"
-                class="inline-flex items-center gap-2 hover:text-white"
-              >
-                <.icon name="hero-code-bracket-mini" class="h-4 w-4" />
-                <span>GitHub</span>
-              </.link>
-              <.link
-                href={github_releases_url()}
-                target="_blank"
-                rel="noopener noreferrer"
-                class="inline-flex items-center gap-2 hover:text-white"
-              >
-                <.icon name="hero-arrow-down-tray-mini" class="h-4 w-4" />
-                <span>Releases</span>
-              </.link>
-              <.link
-                href={github_issues_url()}
-                target="_blank"
-                rel="noopener noreferrer"
-                class="inline-flex items-center gap-2 hover:text-white"
-              >
-                <.icon name="hero-exclamation-circle-mini" class="h-4 w-4" />
-                <span>Issues</span>
-              </.link>
-              <.link
-                :if={@onion_host}
-                href={"http://#{@onion_host}"}
-                rel="noopener noreferrer"
-                title={@onion_host}
-                class="inline-flex items-center gap-2 hover:text-white"
-              >
-                <.icon name="hero-globe-alt-mini" class="h-4 w-4" />
-                <span>Onion service</span>
-              </.link>
-              <span :if={!@onion_host} class="inline-flex items-center gap-2 opacity-60">
-                <.icon name="hero-globe-alt-mini" class="h-4 w-4" />
-                <span>Onion: not configured</span>
-              </span>
-            </div>
-          </div>
+            <.link
+              href={HomeBlog.feed_url()}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="mt-4 inline-flex items-center gap-1.5 font-mono text-3xs uppercase tracking-[0.18em] text-white/40 transition-colors hover:text-white"
+            >
+              <.icon name="hero-rss-mini" class="h-3.5 w-3.5" />
+              <span>Atom feed</span>
+            </.link>
+          </aside>
         </div>
       </section>
 

@@ -40,6 +40,10 @@ defmodule Elektrine.AppCache do
   @domain_analytics_ttl :timer.seconds(60)
   # First page of global (non-personalized) feeds; short TTL to stay fresh
   @global_feed_ttl :timer.minutes(2)
+  # Operator blog posts on the home page come from a remote feed; long TTL,
+  # with failures cached briefly so a broken feed is not refetched per visit.
+  @home_blog_ttl :timer.hours(1)
+  @home_blog_negative_ttl :timer.minutes(5)
   import Cachex.Spec
 
   alias Elektrine.Telemetry.Events
@@ -520,6 +524,26 @@ defmodule Elektrine.AppCache do
   """
   def invalidate_platform_stats do
     delete_with_telemetry({:platform_stats})
+  end
+
+  @doc """
+  Returns the cached home page blog posts, or nil when nothing is cached.
+  An empty list is a cached negative result, not a miss.
+  """
+  def get_home_blog_posts do
+    case get_with_telemetry({:home_blog_posts}) do
+      {:ok, posts} when is_list(posts) -> posts
+      _ -> nil
+    end
+  end
+
+  @doc """
+  Caches the home page blog posts. Empty results (fetch failures or an empty
+  feed) are kept on a short TTL so the feed is retried soon.
+  """
+  def cache_home_blog_posts(posts) when is_list(posts) do
+    ttl = if posts == [], do: @home_blog_negative_ttl, else: @home_blog_ttl
+    put_with_telemetry({:home_blog_posts}, posts, expire: ttl)
   end
 
   # Storage caching

@@ -130,6 +130,9 @@ config :elektrine, Oban, testing: :inline, plugins: []
 # network fetch; worker tests inject :kairo_url_fetch_fun instead.
 config :elektrine, :kairo_fetch_url_sources, false
 
+# The home page blog feed is fetched over the network; disable it in tests.
+config :elektrine, :home_blog_feed_url, nil
+
 # Disable the periodic telemetry poller in tests. It performs background Oban
 # DB queries that can contend with sandboxed ExUnit tests under full-suite load.
 config :elektrine_web, telemetry_poller_enabled: false
