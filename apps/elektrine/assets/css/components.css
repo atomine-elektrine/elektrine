@@ -19,8 +19,8 @@
 } html[data-theme="light"] .btn-success:not(.btn-outline) { --btn-color: var(--color-success);
 } html[data-theme="light"] .btn-warning:not(.btn-outline) { --btn-color: var(--color-warning);
 } html[data-theme="light"] .btn-error:not(.btn-outline) { --btn-color: var(--color-error);
-} .btn-ghost { --btn-color: var(--theme-btn-ghost-bg); --btn-fg: var(--theme-btn-ghost-text);
-} .btn-outline { --btn-color: var(--theme-btn-outline-border); --btn-fg: var(--color-base-content);
+} .btn-ghost { --btn-color: var(--theme-btn-ghost-bg); --btn-fg: var(--theme-btn-ghost-text); --btn-rest-fg: var(--theme-btn-ghost-text);
+} .btn-outline { --btn-color: var(--theme-btn-outline-border); --btn-fg: var(--color-base-content); --btn-rest-fg: var(--color-base-content);
 }
 /* Outline + color variants: understated at rest (normal base-content text + a
    subtle dark themed border, mixed from base-300 so it stays muted on the dark
@@ -43,7 +43,7 @@
 } .btn-outline.btn-error { --btn-color: color-mix(in srgb, var(--color-base-300) 70%, var(--color-error) 30%); --btn-fg: var(--color-error-content); color: var(--color-base-content);
 } .btn-outline.btn-error:hover, .btn-outline.btn-error:focus-visible { color: var(--color-error-content);
 } .btn-soft,
-.btn-neutral { --btn-color: var(--theme-btn-neutral-bg); --btn-fg: var(--color-base-content);
+.btn-neutral { --btn-color: var(--theme-btn-neutral-bg); --btn-fg: var(--color-base-content); --btn-rest-fg: var(--color-base-content);
 } .btn-surface { border-color: var(--surface-panel-border); background-color: var(--surface-panel-bg-fallback) !important; color: var(--color-base-content);
 } .btn-surface:hover,
 .btn-surface:focus-visible { border-color: color-mix(in srgb, var(--color-base-content) 15%, var(--surface-panel-border) 85%); background-color: color-mix(in srgb, var(--surface-panel-bg-fallback) 82%, var(--color-base-300) 18%) !important;
