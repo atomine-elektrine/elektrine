@@ -175,7 +175,7 @@ defmodule ElektrineWeb.CoreComponents do
 
   def account_page(assigns) do
     ~H"""
-    <div class="mx-auto w-full max-w-7xl px-4 pb-2 sm:px-6 lg:px-8">
+    <div class="pb-2">
       <ElektrineWeb.Components.Platform.ENav.e_nav
         active_tab={@nav_tab}
         current_user={@current_user}

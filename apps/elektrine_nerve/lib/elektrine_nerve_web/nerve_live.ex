@@ -95,7 +95,7 @@ defmodule ElektrineNerveWeb.NerveLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="mx-auto max-w-7xl px-4 pb-6 sm:px-6 lg:px-8">
+    <div class="pb-6">
       <div
         id="nerve-live"
         phx-hook="Nerve"
