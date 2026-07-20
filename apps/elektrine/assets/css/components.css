@@ -367,3 +367,23 @@ table tr:hover { background-color: var(--theme-table-row-hover);
 } .prose > :first-child { margin-top: 0;
 } .prose > :last-child { margin-bottom: 0;
 }
+
+/* daisyUI 5.6 parity: keep chrome text as it looked on 5.5.
+   5.6 paints active/focused menu items solid neutral (a dark blue-gray in our
+   palette) and dims inactive tab text to a hardcoded 50% mix. Menu colors are
+   themable via the new variables; the tab dim has no variable, so that one is
+   a rule (ours is unlayered and wins over daisyUI's layered rule). Checked
+   buttons also stay base-content instead of switching to primary. Disabled
+   states keep daisyUI's 5.6 styling. */
+:root {
+  --menu-active-bg: color-mix(in oklab, var(--color-base-content) 10%, transparent);
+  --menu-active-fg: var(--color-base-content);
+}
+
+.tabs > .tab:not(.tab-active, [aria-selected="true"], [aria-current="true"], [aria-current="page"], .tab-disabled, [disabled]) {
+  color: var(--color-base-content);
+}
+
+.btn:where(:checked) {
+  color: var(--color-base-content);
+}
