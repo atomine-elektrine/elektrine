@@ -287,7 +287,7 @@ defmodule ElektrineWeb.Layouts do
       "/pripyat/dashboard" ->
         "Live Dashboard"
 
-      path when is_binary(path) ->
+      path ->
         if String.starts_with?(path, "/pripyat/") do
           path
           |> String.trim_leading("/pripyat/")
@@ -297,9 +297,6 @@ defmodule ElektrineWeb.Layouts do
         else
           nil
         end
-
-      _ ->
-        nil
     end
   end
 

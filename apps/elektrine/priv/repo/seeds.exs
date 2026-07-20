@@ -90,10 +90,9 @@ if Mix.env() == :dev do
 
           {:error, %Ecto.Changeset{errors: errors}} ->
             IO.puts("✗ Failed to create admin user: #{inspect(errors)}")
-            IO.puts("  This might be because 'admin' conflicts with an existing alias.")
-            IO.puts("  Using alternative username 'sysadmin' instead...")
+            IO.puts("  'admin' is reserved; using alternative username 'devadmin' instead...")
 
-            fallback_username = "sysadmin"
+            fallback_username = "devadmin"
 
             case Accounts.get_user_by_username(fallback_username) do
               nil ->
