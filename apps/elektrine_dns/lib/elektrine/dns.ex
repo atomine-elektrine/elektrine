@@ -1707,6 +1707,11 @@ defmodule Elektrine.DNS do
       if Keyword.get(opts, :touch_zone, false), do: touch_authority_zone(result), else: result
 
     refresh_authority_cache()
+    # Refresh the local cache directly (above) and notify other nodes — most
+    # importantly the separate, unclustered DNS-server node — over Postgres
+    # LISTEN/NOTIFY so public answers reflect the write within a debounce
+    # window instead of waiting for the periodic refresh timer.
+    Elektrine.DNS.ZoneChangeListener.notify()
     {:ok, result}
   end
 

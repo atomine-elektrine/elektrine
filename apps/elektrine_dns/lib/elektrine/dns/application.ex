@@ -20,6 +20,7 @@ defmodule Elektrine.DNS.Application do
     if Elektrine.DNS.authority_enabled?() do
       [
         Elektrine.DNS.ZoneCache,
+        Elektrine.DNS.ZoneChangeListener,
         Elektrine.DNS.HealthMonitor,
         Elektrine.DNS.ProfileWildcardBootstrap,
         Elektrine.DNS.Authority,
