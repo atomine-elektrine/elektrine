@@ -214,7 +214,7 @@ defmodule ElektrineWeb.PageLive.Privacy do
   def render(assigns) do
     ~H"""
     <div>
-      <div class="mx-auto max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
+      <div class="pb-8">
         <.e_nav
           active_tab=""
           class="mb-6"

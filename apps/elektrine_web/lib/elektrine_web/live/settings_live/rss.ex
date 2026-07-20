@@ -129,7 +129,7 @@ defmodule ElektrineWeb.SettingsLive.RSS do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <div class="pb-6">
       <ElektrineWeb.Components.Platform.ENav.e_nav
         active_tab="account"
         current_user={@current_user}

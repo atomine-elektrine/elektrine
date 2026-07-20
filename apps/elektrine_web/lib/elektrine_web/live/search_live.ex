@@ -935,7 +935,7 @@ defmodule ElektrineWeb.SearchLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="mx-auto max-w-7xl px-3 pb-8 sm:px-5 lg:px-8">
+    <div class="pb-8">
       <.e_nav active_tab="paige" current_user={@current_user} badge_counts={@e_nav_badge_counts} />
 
       <%= if @query == "" do %>

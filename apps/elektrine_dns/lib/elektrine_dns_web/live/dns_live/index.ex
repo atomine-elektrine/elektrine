@@ -464,7 +464,7 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="mx-auto max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
+    <div class="pb-8">
       <.e_nav
         active_tab="dns"
         current_user={@current_user}
