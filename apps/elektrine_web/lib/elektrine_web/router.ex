@@ -1881,6 +1881,7 @@ defmodule ElektrineWeb.Router do
 
       # Static pages
       live("/about", PageLive.About, :index)
+      live("/legal", PageLive.Legal, :index)
       live("/terms", PageLive.Terms, :index)
       live("/privacy", PageLive.Privacy, :index)
       live("/faq", PageLive.FAQ, :index)

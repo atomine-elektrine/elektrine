@@ -416,14 +416,8 @@ defmodule ElektrineWeb.PageLive.Home do
               <.link navigate={~p"/faq"} class="text-white/45 transition-colors hover:text-white">
                 FAQ
               </.link>
-              <.link navigate={~p"/terms"} class="text-white/45 transition-colors hover:text-white">
-                Terms of Service
-              </.link>
-              <.link navigate={~p"/privacy"} class="text-white/45 transition-colors hover:text-white">
-                Privacy Policy
-              </.link>
-              <.link href={~p"/canary"} class="text-white/45 transition-colors hover:text-white">
-                Canary
+              <.link navigate={~p"/legal"} class="text-white/45 transition-colors hover:text-white">
+                Legal
               </.link>
             </nav>
             <p class="font-mono text-2xs uppercase tracking-[0.14em] text-white/30">
