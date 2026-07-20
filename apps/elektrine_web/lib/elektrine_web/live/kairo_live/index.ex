@@ -783,13 +783,13 @@ defmodule ElektrineWeb.KairoLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="mx-auto w-full max-w-7xl px-4 pb-2 sm:px-6 lg:px-8">
-      <section>
+    <div class="mx-auto w-full max-w-7xl px-4 pb-4 sm:px-6 lg:px-8">
+      <section class="flex flex-col gap-4 lg:gap-5">
         <.e_nav
           active_tab="kairo"
           current_user={@current_user}
           badge_counts={@e_nav_badge_counts}
-          class="mb-6"
+          class="mb-0"
         />
 
         <div
@@ -798,161 +798,173 @@ defmodule ElektrineWeb.KairoLive.Index do
           data-kairo-master-configured={to_string(not is_nil(@master_vault))}
           data-kairo-master-wrapped-dek={@master_vault && Jason.encode!(@master_vault.wrapped_dek)}
         >
-          <div class="grid grid-cols-1 gap-4 lg:grid-cols-[18rem_minmax(0,1fr)] lg:gap-6">
-            <%!-- Explorer --%>
-            <aside class="card panel-card flex flex-col overflow-hidden border border-base-300 lg:max-h-[calc(100dvh-8rem)]">
-              <div class="space-y-2 border-b border-base-300 p-3">
-                <div class="rounded-lg border border-base-300 bg-base-200/35 p-2">
-                  <div class="grid grid-cols-3 gap-1">
-                    <.button
-                      type="button"
-                      phx-click="new_note"
-                      data-confirm={discard_note_confirm(@composing, @editing_source_id, @compose)}
-                      size="sm"
-                    >
-                      <.icon name="hero-pencil-square" class="h-4 w-4" /> Note
-                    </.button>
-                    <label for={@uploads.kairo_files.ref} class="btn btn-outline btn-sm">
-                      <.icon name="hero-arrow-up-tray" class="h-4 w-4" /> File
-                    </label>
-                    <button
-                      type="button"
-                      phx-click="toggle_add_link"
-                      class={[
-                        "btn btn-sm",
-                        if(@adding_link, do: "btn-active", else: "btn-outline")
-                      ]}
-                      title="Save a link"
-                    >
-                      <.icon name="hero-link" class="h-4 w-4" /> Link
-                    </button>
+          <div class="grid grid-cols-1 gap-4 lg:grid-cols-[17.5rem_minmax(0,1fr)] lg:items-start lg:gap-5">
+            <%!-- Library sidebar: sticky chrome, only the list scrolls --%>
+            <aside class="card panel-card app-sticky-sidebar flex max-h-[min(32rem,70dvh)] flex-col overflow-hidden border border-base-300 lg:max-h-[calc(100dvh-9rem)]">
+              <header class="shrink-0 space-y-2.5 border-b border-base-300 p-3">
+                <div class="flex items-center gap-1.5">
+                  <.button
+                    type="button"
+                    phx-click="new_note"
+                    data-confirm={discard_note_confirm(@composing, @editing_source_id, @compose)}
+                    size="sm"
+                    class="min-w-0 flex-1 justify-center"
+                  >
+                    <.icon name="hero-pencil-square" class="h-4 w-4" /> New note
+                  </.button>
+                  <label
+                    for={@uploads.kairo_files.ref}
+                    class="btn btn-outline btn-sm h-9 min-h-9 w-9 shrink-0 p-0"
+                    title="Upload file"
+                    aria-label="Upload file"
+                  >
+                    <.icon name="hero-arrow-up-tray" class="h-4 w-4" />
+                  </label>
+                  <button
+                    type="button"
+                    phx-click="toggle_add_link"
+                    class={[
+                      "btn btn-sm h-9 min-h-9 w-9 shrink-0 p-0",
+                      if(@adding_link, do: "btn-primary", else: "btn-outline")
+                    ]}
+                    title="Save a link"
+                    aria-label="Save a link"
+                    aria-pressed={to_string(@adding_link)}
+                  >
+                    <.icon name="hero-link" class="h-4 w-4" />
+                  </button>
+                </div>
+
+                <form
+                  id="kairo-upload-form"
+                  phx-change="validate_kairo_upload"
+                  phx-submit="upload_kairo_files"
+                  class={@uploads.kairo_files.entries != [] && "space-y-1.5"}
+                >
+                  <div class="sr-only">
+                    <.live_file_input upload={@uploads.kairo_files} />
                   </div>
 
-                  <form
-                    id="kairo-upload-form"
-                    phx-change="validate_kairo_upload"
-                    phx-submit="upload_kairo_files"
-                    class={["space-y-1.5", @uploads.kairo_files.entries != [] && "mt-1.5"]}
+                  <div
+                    :if={@uploads.kairo_files.entries != []}
+                    class="space-y-1.5 rounded-lg border border-base-300 bg-base-200/40 p-2"
                   >
-                    <div class="sr-only">
-                      <.live_file_input upload={@uploads.kairo_files} />
-                    </div>
-
-                    <div :if={@uploads.kairo_files.entries != []} class="space-y-1.5">
-                      <div class="space-y-1">
-                        <div
-                          :for={entry <- @uploads.kairo_files.entries}
-                          class="flex items-center gap-2 rounded-lg bg-base-100 px-2 py-1 text-xs"
+                    <div class="space-y-1">
+                      <div
+                        :for={entry <- @uploads.kairo_files.entries}
+                        class="flex items-center gap-2 rounded-md bg-base-100 px-2 py-1 text-xs"
+                      >
+                        <.icon name="hero-paper-clip" class="h-3.5 w-3.5 shrink-0" />
+                        <span class="min-w-0 flex-1 truncate">{entry.client_name}</span>
+                        <span class="text-base-content/50">{entry.progress}%</span>
+                        <.button
+                          type="button"
+                          phx-click="cancel_kairo_upload"
+                          phx-value-ref={entry.ref}
+                          variant="ghost"
+                          size="xs"
+                          class="h-6 min-h-0 w-6 p-0"
+                          aria-label="Remove file"
                         >
-                          <.icon name="hero-paper-clip" class="h-3.5 w-3.5 shrink-0" />
-                          <span class="min-w-0 flex-1 truncate">{entry.client_name}</span>
-                          <span class="text-base-content/50">{entry.progress}%</span>
-                          <.button
-                            type="button"
-                            phx-click="cancel_kairo_upload"
-                            phx-value-ref={entry.ref}
-                            variant="ghost"
-                            size="xs"
-                            class="h-6 min-h-0 w-6 p-0"
-                            aria-label="Remove file"
-                          >
-                            <.icon name="hero-x-mark" class="h-3.5 w-3.5" />
-                          </.button>
-                        </div>
+                          <.icon name="hero-x-mark" class="h-3.5 w-3.5" />
+                        </.button>
                       </div>
-                      <div class="grid grid-cols-2 gap-1.5">
-                        <select name="upload[project_id]" class="select select-bordered select-sm">
-                          <option value="">Inbox</option>
-                          <option :for={project <- @projects} value={project.id}>
-                            {project.name}
-                          </option>
-                        </select>
-                        <input
-                          type="text"
-                          name="upload[tags]"
-                          placeholder="tags, comma"
-                          autocomplete="off"
-                          class="input input-bordered input-sm w-full"
-                        />
-                      </div>
-                      <.button type="submit" variant="secondary" size="sm" class="w-full">
-                        Save files
-                      </.button>
                     </div>
-
-                    <p
-                      :for={error <- upload_errors(@uploads.kairo_files)}
-                      class="mt-2 text-xs text-error"
-                    >
-                      {upload_error_text(error)}
-                    </p>
-                  </form>
-
-                  <form
-                    :if={@adding_link}
-                    phx-submit="save_link"
-                    class="mt-1.5 space-y-1.5 border-t border-base-300 pt-1.5"
-                  >
-                    <input
-                      type="url"
-                      name="link[url]"
-                      required
-                      placeholder="https://…"
-                      autocomplete="off"
-                      class="input input-bordered input-sm w-full"
-                    />
-                    <input
-                      type="text"
-                      name="link[title]"
-                      placeholder="Title (optional, fetched if empty)"
-                      autocomplete="off"
-                      class="input input-bordered input-sm w-full"
-                    />
                     <div class="grid grid-cols-2 gap-1.5">
-                      <select name="link[project_id]" class="select select-bordered select-sm">
+                      <select name="upload[project_id]" class="select select-bordered select-sm">
                         <option value="">Inbox</option>
-                        <option :for={project <- @projects} value={project.id}>{project.name}</option>
+                        <option :for={project <- @projects} value={project.id}>
+                          {project.name}
+                        </option>
                       </select>
                       <input
                         type="text"
-                        name="link[tags]"
-                        placeholder="tags, comma"
+                        name="upload[tags]"
+                        placeholder="tags"
                         autocomplete="off"
                         class="input input-bordered input-sm w-full"
                       />
                     </div>
                     <.button type="submit" variant="secondary" size="sm" class="w-full">
-                      Save link
+                      Save files
                     </.button>
-                  </form>
-                </div>
+                  </div>
 
-                <form id="kairo-search-form" phx-change="search" phx-submit="search" class="relative">
-                  <label for="kairo-search" class="sr-only">Search sources</label>
-                  <input
-                    id="kairo-search"
-                    type="text"
-                    name="query"
-                    value={@query}
-                    placeholder="Search sources…"
-                    autocomplete="off"
-                    phx-debounce="150"
-                    class="input input-bordered input-sm w-full pr-8"
-                  />
-                  <button
-                    :if={@query != ""}
-                    type="button"
-                    phx-click="clear_search"
-                    aria-label="Clear search"
-                    class="absolute right-2 top-1/2 -translate-y-1/2 text-base-content/50 hover:text-base-content"
+                  <p
+                    :for={error <- upload_errors(@uploads.kairo_files)}
+                    class="text-xs text-error"
                   >
-                    <.icon name="hero-x-mark" class="h-4 w-4" />
-                  </button>
+                    {upload_error_text(error)}
+                  </p>
+                </form>
+
+                <form
+                  :if={@adding_link}
+                  phx-submit="save_link"
+                  class="space-y-1.5 rounded-lg border border-base-300 bg-base-200/40 p-2"
+                >
+                  <input
+                    type="url"
+                    name="link[url]"
+                    required
+                    placeholder="https://…"
+                    autocomplete="off"
+                    class="input input-bordered input-sm w-full"
+                  />
+                  <input
+                    type="text"
+                    name="link[title]"
+                    placeholder="Title (optional)"
+                    autocomplete="off"
+                    class="input input-bordered input-sm w-full"
+                  />
+                  <div class="grid grid-cols-2 gap-1.5">
+                    <select name="link[project_id]" class="select select-bordered select-sm">
+                      <option value="">Inbox</option>
+                      <option :for={project <- @projects} value={project.id}>{project.name}</option>
+                    </select>
+                    <input
+                      type="text"
+                      name="link[tags]"
+                      placeholder="tags"
+                      autocomplete="off"
+                      class="input input-bordered input-sm w-full"
+                    />
+                  </div>
+                  <.button type="submit" variant="secondary" size="sm" class="w-full">
+                    Save link
+                  </.button>
+                </form>
+
+                <form id="kairo-search-form" phx-change="search" phx-submit="search">
+                  <label class="input input-bordered input-sm flex w-full items-center gap-2">
+                    <.icon name="hero-magnifying-glass" class="h-4 w-4 opacity-60" />
+                    <input
+                      id="kairo-search"
+                      type="text"
+                      name="query"
+                      value={@query}
+                      placeholder="Search…"
+                      autocomplete="off"
+                      phx-debounce="150"
+                      aria-label="Search sources"
+                      class="min-w-0 grow bg-transparent"
+                    />
+                    <button
+                      :if={@query != ""}
+                      type="button"
+                      phx-click="clear_search"
+                      aria-label="Clear search"
+                      class="text-base-content/50 hover:text-base-content"
+                    >
+                      <.icon name="hero-x-mark" class="h-4 w-4" />
+                    </button>
+                  </label>
                 </form>
 
                 <div
                   :if={@has_encrypted_sources || @composing}
-                  class="!mt-2 hidden flex-col gap-1.5 rounded-lg border border-warning/30 bg-warning/5 p-2"
+                  class="hidden flex-col gap-1.5 rounded-lg border border-warning/30 bg-warning/5 p-2"
                   data-kairo-locked-hint
                 >
                   <%= if @master_vault do %>
@@ -971,12 +983,12 @@ defmodule ElektrineWeb.KairoLive.Index do
                       class="w-full"
                       data-kairo-master-unlock
                     >
-                      Unlock with account password
+                      Unlock vault
                     </.button>
                   <% else %>
                     <span class="text-xs text-warning">
                       <.link navigate={~p"/account/encrypted-data"} class="link">
-                        Set up account-password encryption
+                        Set up encryption
                       </.link>
                       to decrypt
                     </span>
@@ -990,134 +1002,172 @@ defmodule ElektrineWeb.KairoLive.Index do
                 >
                 </p>
 
-                <div :if={@projects != []} class="space-y-1">
-                  <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-base-content/50">
-                    Projects
-                  </p>
-                  <div class="flex flex-wrap gap-1">
-                    <button
-                      :for={project <- @projects}
-                      type="button"
-                      phx-click="filter_project"
-                      phx-value-project={project.id}
-                      title={if(project.status == "archived", do: "Archived", else: nil)}
-                      class={[
-                        "badge badge-sm cursor-pointer gap-1",
-                        if(@active_project == project.id, do: "badge-primary", else: "badge-outline"),
-                        project.status == "archived" && "opacity-50"
-                      ]}
-                    >
-                      <.icon
-                        name={
-                          if(project.status == "archived",
-                            do: "hero-archive-box",
-                            else: "hero-folder"
-                          )
-                        }
-                        class="h-3 w-3"
-                      /> {project.name}
-                    </button>
-                    <button
-                      :if={Enum.any?(@sources, &is_nil(&1.project_id))}
-                      type="button"
-                      phx-click="filter_project"
-                      phx-value-project="inbox"
-                      class={[
-                        "badge badge-sm cursor-pointer gap-1",
-                        if(@active_project == :inbox, do: "badge-primary", else: "badge-outline")
-                      ]}
-                    >
-                      <.icon name="hero-inbox" class="h-3 w-3" /> Inbox
-                    </button>
-                  </div>
+                <details
+                  :if={@projects != [] or @all_tags != []}
+                  class="group rounded-lg border border-base-300/80 bg-base-200/25"
+                  open={@active_project != nil or @active_tag != nil}
+                >
+                  <summary class="flex cursor-pointer list-none items-center justify-between gap-2 px-2.5 py-1.5 text-xs font-medium text-base-content/70 marker:content-none [&::-webkit-details-marker]:hidden">
+                    <span class="flex min-w-0 items-center gap-1.5">
+                      <.icon name="hero-funnel" class="h-3.5 w-3.5 shrink-0" />
+                      <span class="truncate">
+                        <%= cond do %>
+                          <% @active_project_record -> %>
+                            {@active_project_record.name}
+                          <% @active_project == :inbox -> %>
+                            Inbox
+                          <% @active_tag -> %>
+                            #{@active_tag}
+                          <% true -> %>
+                            Filters
+                        <% end %>
+                      </span>
+                    </span>
+                    <.icon
+                      name="hero-chevron-down"
+                      class="h-3.5 w-3.5 shrink-0 transition-transform group-open:rotate-180"
+                    />
+                  </summary>
 
-                  <div :if={@active_project_record} class="!mt-2">
-                    <div class="space-y-1.5 rounded-lg border border-base-300 bg-base-200/40 p-2">
-                      <form phx-submit="rename_project" class="flex gap-1">
-                        <input type="hidden" name="project[id]" value={@active_project_record.id} />
-                        <input
-                          type="text"
-                          name="project[name]"
-                          value={@active_project_record.name}
-                          required
-                          class="input input-bordered input-xs min-w-0 flex-1"
-                        />
-                        <.button type="submit" variant="default" outline size="xs" title="Rename">
-                          <.icon name="hero-check" class="h-3 w-3" />
-                        </.button>
-                      </form>
-                      <div class="flex gap-1">
-                        <.button
+                  <div class="space-y-2 border-t border-base-300/70 px-2.5 py-2">
+                    <div :if={@projects != []} class="space-y-1.5">
+                      <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-base-content/45">
+                        Projects
+                      </p>
+                      <div class="flex flex-wrap gap-1">
+                        <button
+                          :for={project <- @projects}
                           type="button"
-                          phx-click="toggle_archive_project"
-                          phx-value-id={@active_project_record.id}
-                          variant="default"
-                          outline
-                          size="xs"
-                          class="flex-1"
+                          phx-click="filter_project"
+                          phx-value-project={project.id}
+                          title={if(project.status == "archived", do: "Archived", else: nil)}
+                          class={[
+                            "badge badge-sm cursor-pointer gap-1",
+                            if(@active_project == project.id,
+                              do: "badge-primary",
+                              else: "badge-outline"
+                            ),
+                            project.status == "archived" && "opacity-50"
+                          ]}
                         >
-                          {if @active_project_record.status == "archived",
-                            do: "Unarchive",
-                            else: "Archive"}
-                        </.button>
-                        <.button
+                          <.icon
+                            name={
+                              if(project.status == "archived",
+                                do: "hero-archive-box",
+                                else: "hero-folder"
+                              )
+                            }
+                            class="h-3 w-3"
+                          /> {project.name}
+                        </button>
+                        <button
+                          :if={Enum.any?(@sources, &is_nil(&1.project_id))}
                           type="button"
-                          phx-click="delete_project"
-                          phx-value-id={@active_project_record.id}
-                          data-confirm="Delete this project? Its sources will move to the inbox."
-                          variant="error"
-                          outline
-                          size="xs"
-                          class="flex-1"
+                          phx-click="filter_project"
+                          phx-value-project="inbox"
+                          class={[
+                            "badge badge-sm cursor-pointer gap-1",
+                            if(@active_project == :inbox, do: "badge-primary", else: "badge-outline")
+                          ]}
                         >
-                          Delete
-                        </.button>
+                          <.icon name="hero-inbox" class="h-3 w-3" /> Inbox
+                        </button>
+                      </div>
+
+                      <div
+                        :if={@active_project_record}
+                        class="space-y-1.5 rounded-md border border-base-300 bg-base-100/70 p-1.5"
+                      >
+                        <form phx-submit="rename_project" class="flex gap-1">
+                          <input type="hidden" name="project[id]" value={@active_project_record.id} />
+                          <input
+                            type="text"
+                            name="project[name]"
+                            value={@active_project_record.name}
+                            required
+                            class="input input-bordered input-xs min-w-0 flex-1"
+                          />
+                          <.button type="submit" variant="default" outline size="xs" title="Rename">
+                            <.icon name="hero-check" class="h-3 w-3" />
+                          </.button>
+                        </form>
+                        <div class="flex gap-1">
+                          <.button
+                            type="button"
+                            phx-click="toggle_archive_project"
+                            phx-value-id={@active_project_record.id}
+                            variant="default"
+                            outline
+                            size="xs"
+                            class="flex-1"
+                          >
+                            {if @active_project_record.status == "archived",
+                              do: "Unarchive",
+                              else: "Archive"}
+                          </.button>
+                          <.button
+                            type="button"
+                            phx-click="delete_project"
+                            phx-value-id={@active_project_record.id}
+                            data-confirm="Delete this project? Its sources will move to the inbox."
+                            variant="error"
+                            outline
+                            size="xs"
+                            class="flex-1"
+                          >
+                            Delete
+                          </.button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div :if={@all_tags != []} class="space-y-1.5">
+                      <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-base-content/45">
+                        Tags
+                      </p>
+                      <div class="flex max-h-20 flex-wrap gap-1 overflow-y-auto">
+                        <button
+                          :for={tag <- @all_tags}
+                          type="button"
+                          phx-click="filter_tag"
+                          phx-value-tag={tag}
+                          class={[
+                            "badge badge-sm cursor-pointer",
+                            if(@active_tag == tag, do: "badge-primary", else: "badge-ghost")
+                          ]}
+                        >
+                          #{tag}
+                        </button>
                       </div>
                     </div>
                   </div>
-                </div>
+                </details>
+              </header>
 
-                <div :if={@all_tags != []} class="space-y-1">
-                  <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-base-content/50">
-                    Tags
-                  </p>
-                  <div class="flex flex-wrap gap-1">
-                    <button
-                      :for={tag <- @all_tags}
-                      type="button"
-                      phx-click="filter_tag"
-                      phx-value-tag={tag}
-                      class={[
-                        "badge badge-sm cursor-pointer",
-                        if(@active_tag == tag, do: "badge-primary", else: "badge-ghost")
-                      ]}
-                    >
-                      #{tag}
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <nav class="flex-1 space-y-1 overflow-y-auto p-2">
-                <p :if={@visible_count == 0} class="px-2 py-4 text-sm text-base-content/60">
+              <nav class="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain p-2">
+                <p
+                  :if={@visible_count == 0}
+                  class="px-2 py-6 text-center text-sm text-base-content/55"
+                >
                   <%= if @sources == [] do %>
-                    No sources yet. Start a new note or ingest via the API.
+                    No sources yet. Capture a note, file, or link.
                   <% else %>
                     No matching sources.
                   <% end %>
                 </p>
 
                 <details :for={folder <- @folders} open class="group">
-                  <summary class="flex cursor-pointer items-center justify-between rounded-lg px-2 py-1 text-xs font-semibold uppercase tracking-wide text-base-content/60 hover:bg-base-300/40">
-                    <span class="flex items-center gap-1">
+                  <summary class="flex cursor-pointer items-center justify-between rounded-lg px-2 py-1 text-xs font-semibold uppercase tracking-wide text-base-content/55 hover:bg-base-300/40">
+                    <span class="flex min-w-0 items-center gap-1">
                       <.icon
                         name="hero-chevron-right"
-                        class="h-3 w-3 transition-transform group-open:rotate-90"
-                      /> {folder.name}
+                        class="h-3 w-3 shrink-0 transition-transform group-open:rotate-90"
+                      />
+                      <span class="truncate">{folder.name}</span>
                     </span>
-                    <span class="opacity-60">{length(folder.sources)}</span>
+                    <span class="shrink-0 opacity-60">{length(folder.sources)}</span>
                   </summary>
-                  <ul class="mt-1 space-y-0.5">
+                  <ul class="mt-0.5 space-y-0.5">
                     <li :for={source <- folder.sources}>
                       <button
                         type="button"
@@ -1127,15 +1177,12 @@ defmodule ElektrineWeb.KairoLive.Index do
                         class={[
                           "flex w-full items-center gap-1.5 truncate rounded-lg px-2 py-1.5 text-left text-sm",
                           if(@selected && @selected.id == source.id,
-                            do: "bg-primary/15 text-primary",
+                            do: "bg-primary/15 font-medium text-primary",
                             else: "hover:bg-base-300/40"
                           )
                         ]}
                       >
-                        <.icon
-                          name={source_icon(source)}
-                          class="h-4 w-4 shrink-0"
-                        />
+                        <.icon name={source_icon(source)} class="h-4 w-4 shrink-0 opacity-80" />
                         <span class="truncate">{source_label(source)}</span>
                         <span
                           :if={source.source_type == "url" and source.status == "received"}
@@ -1148,6 +1195,12 @@ defmodule ElektrineWeb.KairoLive.Index do
                           name="hero-exclamation-triangle"
                           class="ml-auto h-3.5 w-3.5 shrink-0 text-error"
                           title="Fetch failed"
+                        />
+                        <.icon
+                          :if={source.encrypted}
+                          name="hero-lock-closed"
+                          class="ml-auto h-3 w-3 shrink-0 text-warning opacity-80"
+                          title="Encrypted"
                         />
                       </button>
                     </li>
@@ -1164,19 +1217,16 @@ defmodule ElektrineWeb.KairoLive.Index do
                 >
                   Load more ({length(@sources)} of {@sources_total} loaded)
                 </.button>
-                <p
-                  :if={@source_cap_reached}
-                  class="px-2 py-2 text-xs text-base-content/50"
-                >
+                <p :if={@source_cap_reached} class="px-2 py-2 text-xs text-base-content/50">
                   Showing the newest {length(@sources)} of {@sources_total} sources. Use the API for
                   deeper pagination.
                 </p>
               </nav>
 
-              <div class="border-t border-base-300 p-2">
+              <div class="shrink-0 border-t border-base-300 p-2">
                 <details class="group">
-                  <summary class="flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1 text-xs text-base-content/70 hover:bg-base-300/40">
-                    <.icon name="hero-plus" class="h-3.5 w-3.5" /> New project
+                  <summary class="flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-base-content/65 hover:bg-base-300/40">
+                    <.icon name="hero-folder-plus" class="h-3.5 w-3.5" /> New project
                   </summary>
                   <.form
                     for={@project_form}
@@ -1209,9 +1259,25 @@ defmodule ElektrineWeb.KairoLive.Index do
             </aside>
 
             <%!-- Reader / editor --%>
-            <section class="card panel-card border border-base-300 lg:max-h-[calc(100dvh-8rem)] lg:overflow-y-auto">
-              <div class="flex justify-end border-b border-base-300 px-2 py-1.5">
-                <div class="join">
+            <section class="card panel-card flex flex-col overflow-hidden border border-base-300 lg:max-h-[calc(100dvh-9rem)]">
+              <div class="flex shrink-0 items-center justify-between gap-2 border-b border-base-300 px-3 py-2">
+                <div class="min-w-0">
+                  <p class="truncate text-sm font-medium text-base-content/80">
+                    <%= cond do %>
+                      <% @composing && @editing_source -> %>
+                        Editing
+                      <% @composing -> %>
+                        New note
+                      <% @selected -> %>
+                        {source_label(@selected)}
+                      <% @view_mode == "graph" -> %>
+                        Graph
+                      <% true -> %>
+                        Reader
+                    <% end %>
+                  </p>
+                </div>
+                <div class="join shrink-0">
                   <button
                     type="button"
                     phx-click="toggle_view"
@@ -1220,11 +1286,11 @@ defmodule ElektrineWeb.KairoLive.Index do
                       "btn btn-ghost btn-xs join-item h-8 w-8 p-0",
                       @view_mode == "reader" && "btn-active"
                     ]}
-                    aria-label="List view"
+                    aria-label="Reader view"
                     aria-pressed={to_string(@view_mode == "reader")}
-                    title="List view"
+                    title="Reader view"
                   >
-                    <.icon name="hero-list-bullet" class="h-4 w-4" />
+                    <.icon name="hero-document-text" class="h-4 w-4" />
                   </button>
                   <button
                     type="button"
@@ -1246,7 +1312,7 @@ defmodule ElektrineWeb.KairoLive.Index do
               <%!-- Graph view --%>
               <div
                 :if={@view_mode == "graph"}
-                class="relative h-[60vh] text-base-content lg:h-[calc(100dvh-10rem)]"
+                class="relative h-[min(28rem,60dvh)] text-base-content"
               >
                 <div
                   id="kairo-graph"
@@ -1269,125 +1335,120 @@ defmodule ElektrineWeb.KairoLive.Index do
                 id="kairo-note-form"
                 phx-submit="save_note"
                 phx-change="compose_change"
-                class="card-body space-y-2 p-3 sm:p-4"
+                class="flex min-h-0 flex-col lg:max-h-[calc(100dvh-12rem)]"
               >
-                <div class="flex items-center justify-between">
-                  <h2 class="card-title text-base sm:text-lg">
-                    <%= if @editing_source do %>
-                      Edit source
-                    <% else %>
-                      New note
-                    <% end %>
-                  </h2>
-                  <.button type="button" phx-click="cancel_note" variant="ghost" size="sm">
-                    Cancel
-                  </.button>
-                </div>
-
-                <input
-                  id="kairo-note-title"
-                  type="text"
-                  name="note[title]"
-                  value={@compose["title"]}
-                  placeholder="Title"
-                  autocomplete="off"
-                  phx-mounted={JS.focus()}
-                  class="input input-bordered input-sm w-full font-medium"
-                />
-
-                <div class="grid gap-1.5 sm:grid-cols-2">
-                  <select name="note[project_id]" class="select select-bordered select-sm">
-                    <option value="" selected={@compose["project_id"] in [nil, ""]}>Inbox</option>
-                    <option
-                      :for={project <- @projects}
-                      value={project.id}
-                      selected={to_string(@compose["project_id"]) == to_string(project.id)}
-                    >
-                      {project.name}
-                    </option>
-                  </select>
+                <div class="min-h-0 space-y-2.5 overflow-y-auto overscroll-contain p-3 sm:p-4">
                   <input
-                    id="kairo-note-tags"
+                    id="kairo-note-title"
                     type="text"
-                    name="note[tags]"
-                    value={@compose["tags"]}
-                    placeholder="tags, comma, separated"
+                    name="note[title]"
+                    value={@compose["title"]}
+                    placeholder="Title"
                     autocomplete="off"
-                    class="input input-bordered input-sm w-full"
+                    phx-mounted={JS.focus()}
+                    class="input input-bordered input-sm w-full text-base font-semibold"
                   />
-                </div>
 
-                <div role="tablist" class="tabs tabs-bordered">
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={to_string(@compose_tab == "write")}
-                    phx-click="set_compose_tab"
-                    phx-value-tab="write"
-                    class={["tab", @compose_tab == "write" && "tab-active"]}
+                  <div class="grid gap-1.5 sm:grid-cols-2">
+                    <select name="note[project_id]" class="select select-bordered select-sm">
+                      <option value="" selected={@compose["project_id"] in [nil, ""]}>Inbox</option>
+                      <option
+                        :for={project <- @projects}
+                        value={project.id}
+                        selected={to_string(@compose["project_id"]) == to_string(project.id)}
+                      >
+                        {project.name}
+                      </option>
+                    </select>
+                    <input
+                      id="kairo-note-tags"
+                      type="text"
+                      name="note[tags]"
+                      value={@compose["tags"]}
+                      placeholder="tags, comma, separated"
+                      autocomplete="off"
+                      class="input input-bordered input-sm w-full"
+                    />
+                  </div>
+
+                  <div class="inline-flex rounded-lg border border-base-300 p-0.5" role="tablist">
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={to_string(@compose_tab == "write")}
+                      phx-click="set_compose_tab"
+                      phx-value-tab="write"
+                      class={[
+                        "btn btn-xs rounded-md",
+                        if(@compose_tab == "write", do: "btn-active", else: "btn-ghost")
+                      ]}
+                    >
+                      Write
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={to_string(@compose_tab == "preview")}
+                      phx-click="set_compose_tab"
+                      phx-value-tab="preview"
+                      class={[
+                        "btn btn-xs rounded-md",
+                        if(@compose_tab == "preview", do: "btn-active", else: "btn-ghost")
+                      ]}
+                    >
+                      Preview
+                    </button>
+                  </div>
+
+                  <textarea
+                    :if={is_nil(@editing_source) or !@editing_source.encrypted}
+                    id={"kairo-note-content-#{@editing_source_id || "new"}"}
+                    name="note[content]"
+                    rows="14"
+                    phx-debounce="200"
+                    phx-update="ignore"
+                    placeholder="Write markdown…"
+                    class={[
+                      "textarea textarea-bordered min-h-[14rem] w-full flex-1 font-mono text-sm leading-relaxed",
+                      @compose_tab != "write" && "hidden"
+                    ]}
+                  >{@compose["content"]}</textarea>
+                  <div
+                    :if={@editing_source && @editing_source.encrypted}
+                    class="rounded-lg border border-warning/30 bg-warning/5 p-3 text-sm text-base-content/70"
                   >
-                    Write
-                  </button>
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={to_string(@compose_tab == "preview")}
-                    phx-click="set_compose_tab"
-                    phx-value-tab="preview"
-                    class={["tab", @compose_tab == "preview" && "tab-active"]}
+                    Encrypted source content cannot be edited on the server. You can still change the
+                    title, project, and tags.
+                  </div>
+                  <div
+                    :if={@compose_tab == "preview"}
+                    class="prose min-h-[14rem] max-w-none rounded-lg border border-base-300 bg-base-100 p-3"
                   >
-                    Preview
-                  </button>
+                    {Phoenix.HTML.raw(Elektrine.Markdown.to_html(@compose["content"] || ""))}
+                  </div>
+
+                  <label
+                    :if={is_nil(@editing_source) && @master_vault}
+                    class="flex cursor-pointer items-center gap-1.5 text-sm text-base-content/70"
+                  >
+                    <input
+                      type="checkbox"
+                      name="note[encrypt]"
+                      value="true"
+                      checked={@compose["encrypt"] == "true"}
+                      class="checkbox checkbox-xs"
+                    /> Encrypt — the server never sees the content
+                  </label>
+                  <p
+                    class="hidden text-xs text-error"
+                    role="alert"
+                    aria-live="polite"
+                    data-kairo-encrypt-error
+                  >
+                  </p>
                 </div>
 
-                <textarea
-                  :if={is_nil(@editing_source) or !@editing_source.encrypted}
-                  id={"kairo-note-content-#{@editing_source_id || "new"}"}
-                  name="note[content]"
-                  rows="16"
-                  phx-debounce="200"
-                  phx-update="ignore"
-                  placeholder="Write markdown…"
-                  class={[
-                    "textarea textarea-bordered w-full font-mono text-sm",
-                    @compose_tab != "write" && "hidden"
-                  ]}
-                >{@compose["content"]}</textarea>
-                <div
-                  :if={@editing_source && @editing_source.encrypted}
-                  class="rounded-lg border border-warning/30 bg-warning/5 p-3 text-sm text-base-content/70"
-                >
-                  Encrypted source content cannot be edited on the server. You can still change the
-                  title, project, and tags.
-                </div>
-                <div
-                  :if={@compose_tab == "preview"}
-                  class="prose min-h-[16rem] max-w-none rounded-lg border border-base-300 bg-base-100 p-3"
-                >
-                  {Phoenix.HTML.raw(Elektrine.Markdown.to_html(@compose["content"] || ""))}
-                </div>
-
-                <label
-                  :if={is_nil(@editing_source) && @master_vault}
-                  class="flex cursor-pointer items-center gap-1.5 text-sm text-base-content/70"
-                >
-                  <input
-                    type="checkbox"
-                    name="note[encrypt]"
-                    value="true"
-                    checked={@compose["encrypt"] == "true"}
-                    class="checkbox checkbox-xs"
-                  /> Encrypt — the server never sees the content
-                </label>
-                <p
-                  class="hidden text-xs text-error"
-                  role="alert"
-                  aria-live="polite"
-                  data-kairo-encrypt-error
-                >
-                </p>
-
-                <div class="flex justify-end gap-1.5">
+                <div class="flex shrink-0 items-center justify-end gap-1.5 border-t border-base-300 bg-base-200/20 px-3 py-2.5 sm:px-4">
                   <.button type="button" phx-click="cancel_note" variant="ghost" size="sm">
                     Cancel
                   </.button>
@@ -1407,23 +1468,37 @@ defmodule ElektrineWeb.KairoLive.Index do
 
               <div
                 :if={@view_mode == "reader" and is_nil(@selected) and not @composing}
-                class="flex flex-col items-center justify-center gap-3 p-12 text-center text-base-content/50"
+                class="flex flex-col items-center justify-center gap-3 px-6 py-10 text-center text-base-content/50 sm:py-12"
               >
-                <.icon name="hero-document-magnifying-glass" class="h-10 w-10" />
-                <p class="text-sm">Select a source to read it, or start a new note.</p>
-                <.button type="button" phx-click="new_note" variant="default" outline size="sm">
+                <.icon name="hero-document-magnifying-glass" class="h-10 w-10 opacity-70" />
+                <div class="space-y-1">
+                  <p class="text-sm font-medium text-base-content/70">Nothing selected</p>
+                  <p class="max-w-xs text-sm">
+                    Pick a source from the library, or start a new note.
+                  </p>
+                </div>
+                <.button
+                  type="button"
+                  phx-click="new_note"
+                  data-confirm={discard_note_confirm(@composing, @editing_source_id, @compose)}
+                  variant="default"
+                  outline
+                  size="sm"
+                >
                   <.icon name="hero-pencil-square" class="h-4 w-4" /> New note
                 </.button>
               </div>
 
               <article
                 :if={@view_mode == "reader" and not @composing and @selected}
-                class="card-body space-y-4 p-3 sm:p-4"
+                class="flex min-h-0 flex-col overflow-hidden lg:max-h-[calc(100dvh-12rem)]"
               >
-                <header class="space-y-2 border-b border-base-300 pb-4">
-                  <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <h1 class="min-w-0 text-xl font-bold sm:text-2xl">{source_label(@selected)}</h1>
-                    <div class="flex shrink-0 items-center gap-2">
+                <header class="shrink-0 space-y-2 border-b border-base-300 px-3 py-3 sm:px-4">
+                  <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <h1 class="min-w-0 text-xl font-bold tracking-tight sm:text-2xl">
+                      {source_label(@selected)}
+                    </h1>
+                    <div class="flex shrink-0 items-center gap-1.5">
                       <.button
                         type="button"
                         phx-click="edit_source"
@@ -1484,10 +1559,7 @@ defmodule ElektrineWeb.KairoLive.Index do
                       rel="noopener noreferrer"
                       class="link link-primary inline-flex items-center gap-1 break-all text-sm"
                     >
-                      <.icon
-                        name="hero-arrow-top-right-on-square"
-                        class="h-4 w-4 shrink-0"
-                      />
+                      <.icon name="hero-arrow-top-right-on-square" class="h-4 w-4 shrink-0" />
                       {source_url}
                     </a>
                   <% end %>
@@ -1506,7 +1578,7 @@ defmodule ElektrineWeb.KairoLive.Index do
 
                 <div
                   id={"kairo-reader-scroll-#{@selected.id}"}
-                  class="space-y-4 pt-4"
+                  class="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-3 py-4 sm:px-4"
                 >
                   <div
                     :if={@selected.encrypted}
