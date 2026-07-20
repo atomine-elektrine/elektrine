@@ -425,7 +425,7 @@ config :esbuild,
 
 # Configure tailwind (using npm-installed version for reliable builds)
 config :tailwind,
-  version: "4.1.18",
+  version: "4.3.3",
   path: Path.expand("../apps/elektrine/assets/node_modules/.bin/tailwindcss", __DIR__),
   elektrine: [
     args: ~w(
