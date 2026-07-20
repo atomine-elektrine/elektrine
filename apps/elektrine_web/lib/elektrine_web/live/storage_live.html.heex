@@ -80,28 +80,48 @@
       <button
         phx-click="change_tab"
         phx-value-tab="chat"
-        class={["tab", @active_tab == "chat" && "tab-active"]}
+        class={[
+          "btn btn-sm min-h-10 rounded-full border border-base-300 px-4",
+          if(@active_tab == "chat", do: "btn-primary", else: "btn-ghost")
+        ]}
+        role="tab"
+        aria-selected={@active_tab == "chat"}
       >
         Chat Media
       </button>
       <button
         phx-click="change_tab"
         phx-value-tab="drive"
-        class={["tab", @active_tab == "drive" && "tab-active"]}
+        class={[
+          "btn btn-sm min-h-10 rounded-full border border-base-300 px-4",
+          if(@active_tab == "drive", do: "btn-primary", else: "btn-ghost")
+        ]}
+        role="tab"
+        aria-selected={@active_tab == "drive"}
       >
         Drive
       </button>
       <button
         phx-click="change_tab"
         phx-value-tab="profile"
-        class={["tab", @active_tab == "profile" && "tab-active"]}
+        class={[
+          "btn btn-sm min-h-10 rounded-full border border-base-300 px-4",
+          if(@active_tab == "profile", do: "btn-primary", else: "btn-ghost")
+        ]}
+        role="tab"
+        aria-selected={@active_tab == "profile"}
       >
         Profile Images
       </button>
       <button
         phx-click="change_tab"
         phx-value-tab="static_sites"
-        class={["tab", @active_tab == "static_sites" && "tab-active"]}
+        class={[
+          "btn btn-sm min-h-10 rounded-full border border-base-300 px-4",
+          if(@active_tab == "static_sites", do: "btn-primary", else: "btn-ghost")
+        ]}
+        role="tab"
+        aria-selected={@active_tab == "static_sites"}
       >
         Static Site
       </button>
