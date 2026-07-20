@@ -944,9 +944,6 @@ defmodule ElektrineWeb.SearchLive do
             <div class="panel-card rounded-lg border border-base-300 p-4 sm:p-5">
               <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
                 <div>
-                  <p class="text-xs font-semibold uppercase tracking-wide text-base-content/45">
-                    Search
-                  </p>
                   <h1 class="text-3xl font-bold tracking-tight text-base-content sm:text-4xl">
                     Paige
                   </h1>
@@ -1110,9 +1107,6 @@ defmodule ElektrineWeb.SearchLive do
               <div class="border-b border-base-300 p-4 sm:p-5">
                 <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
                   <div class="min-w-0">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-base-content/45">
-                      Paige
-                    </p>
                     <h1 class="text-xl font-semibold leading-tight text-base-content sm:text-2xl">
                       Search results
                     </h1>
