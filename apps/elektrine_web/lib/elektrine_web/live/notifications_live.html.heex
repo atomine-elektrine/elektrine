@@ -1,5 +1,12 @@
-<div class="pb-4">
-  <.e_nav active_tab="portal" current_user={@current_user} badge_counts={@e_nav_badge_counts} />
+<div class="pb-6">
+  <%!-- e_nav uses -mt-6 to cancel main pt-6; keep mb-6 under the tabs so page
+       content is not tight against the mode bar (default is only mb-4). --%>
+  <.e_nav
+    active_tab="portal"
+    current_user={@current_user}
+    badge_counts={@e_nav_badge_counts}
+    class="mb-6"
+  />
 
   <div class="space-y-5">
     <section class="card panel-card">
