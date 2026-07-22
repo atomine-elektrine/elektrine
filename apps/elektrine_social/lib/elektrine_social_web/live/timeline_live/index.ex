@@ -70,6 +70,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
       |> assign(:show_post_composer, false)
       |> assign(:composer_intent, "post")
       |> assign(:loading_more, false)
+      |> assign(:timeline_append_on_filter, false)
       |> assign(:no_more_posts, false)
       |> assign(:reply_to_post, nil)
       |> assign(:reply_to_post_recent_replies, [])

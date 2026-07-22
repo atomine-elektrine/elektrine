@@ -73,7 +73,7 @@ defmodule ElektrineWeb.Components.Datetime.LocalTime do
   defp format_datetime(datetime, format, timezone, time_format) do
     # Shift to user's timezone, fallback to UTC if timezone is invalid
     shifted =
-      case DateTime.shift_zone(datetime, timezone, Tzdata.TimeZoneDatabase) do
+      case DateTime.shift_zone(datetime, timezone, Tz.TimeZoneDatabase) do
         {:ok, dt} -> dt
         # Fallback to original UTC time
         {:error, _} -> datetime
@@ -121,7 +121,7 @@ defmodule ElektrineWeb.Components.Datetime.LocalTime do
           _ -> "%B %d, %Y %I:%M:%S %p"
         end
 
-      case DateTime.shift_zone(dt, timezone, Tzdata.TimeZoneDatabase) do
+      case DateTime.shift_zone(dt, timezone, Tz.TimeZoneDatabase) do
         {:ok, shifted} ->
           tz_abbr = Map.get(shifted, :zone_abbr, "")
           "#{Calendar.strftime(shifted, title_format)} #{tz_abbr}"

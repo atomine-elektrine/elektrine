@@ -110,7 +110,6 @@ defmodule Elektrine.MixProject do
       {:eqrcode, "== 0.2.1"},
       {:cachex, "== 4.1.1"},
       {:mdex, "== 0.13.4"},
-      {:tzdata, "== 1.1.4"},
       {:image, "== 0.71.0"},
       {:html_entities, "~> 0.5"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},

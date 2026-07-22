@@ -6,92 +6,110 @@
   <!-- Z Platform Navigation -->
   <.e_nav active_tab="portal" current_user={@current_user} badge_counts={@e_nav_badge_counts} />
   <div class="space-y-4 sm:space-y-6">
-    <% overview_stats =
+    <% attention_items =
       [
         %{
-          label: "Unread email",
+          id: "email",
+          label: "Email",
           count: @dashboard.inbox_unread_count,
           icon: "hero-envelope",
           href: Elektrine.Paths.email_index_path(tab: "inbox", filter: "unread")
         },
         %{
-          label: "Unread chat",
+          id: "chat",
+          label: "Chat",
           count: @dashboard.chat_unread_count,
           icon: "hero-chat-bubble-left-right",
           href: Elektrine.Paths.chat_root_path()
         },
         %{
+          id: "notifications",
           label: "Notifications",
           count: @dashboard.notifications_unread_count,
           icon: "hero-bell-alert",
           href: Elektrine.Paths.notifications_path()
         },
         %{
+          id: "requests",
           label: "Requests",
           count:
             @dashboard.pending_friend_requests_count + @dashboard.pending_follow_requests_count,
           icon: "hero-user-plus",
           href: Elektrine.Paths.friends_path(tab: "requests")
         }
-      ] ++
-        if @portal_credits do
-          [
-            %{
-              label: "Credits",
-              count: @portal_credits,
-              icon: "hero-sparkles",
-              href: "/account/proofs"
-            }
-          ]
-        else
-          []
-        end %>
+      ]
 
-    <section aria-label="Overview" class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-      <.link
-        :for={stat <- overview_stats}
-        navigate={stat.href}
-        class="card panel-card transition hover:bg-base-200/40 focus-visible:bg-base-200/40"
-      >
-        <div class="card-body flex-row items-center gap-3 p-3 sm:p-4">
-          <span class={[
-            "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
-            if(!@loading_dashboard and stat.count > 0,
-              do: "bg-primary/10 text-primary",
-              else: "bg-base-200 text-base-content/45"
-            )
-          ]}>
-            <.icon name={stat.icon} class="h-4 w-4" />
-          </span>
-          <div
-            class="min-w-0"
-            data-dashboard-loading={to_string(@loading_dashboard)}
-            aria-busy={@loading_dashboard}
-          >
-            <p class={[
-              "text-lg font-semibold leading-none tabular-nums",
-              if(@loading_dashboard, do: "text-base-content/70", else: "text-base-content")
-            ]}>
-              {stat.count}
-              <span :if={@loading_dashboard} class="sr-only">Updating</span>
+    active_attention = Enum.filter(attention_items, &(&1.count > 0))
+    attention_total = Enum.reduce(active_attention, 0, &(&1.count + &2)) %>
+
+    <section
+      aria-label="Overview"
+      class="card panel-card"
+      data-dashboard-loading={to_string(@loading_dashboard)}
+      aria-busy={@loading_dashboard}
+    >
+      <div class="card-body flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-3.5">
+        <div class="min-w-0">
+          <%= if @loading_dashboard do %>
+            <p class="text-sm text-base-content/60">
+              Checking inbox… <span class="sr-only">Updating</span>
             </p>
-            <p class="mt-1 truncate text-xs text-base-content/60">{stat.label}</p>
-          </div>
+          <% else %>
+            <%= if attention_total > 0 do %>
+              <p class="text-sm font-medium text-base-content">
+                {attention_total} need{if attention_total == 1, do: "s", else: ""} attention
+              </p>
+              <p class="mt-0.5 text-xs text-base-content/55">
+                Jump to what is waiting for you.
+              </p>
+            <% else %>
+              <p class="text-sm text-base-content/60">You're all caught up</p>
+            <% end %>
+          <% end %>
         </div>
-      </.link>
+
+        <div class="flex flex-wrap items-center gap-1.5">
+          <.link
+            :for={item <- attention_items}
+            navigate={item.href}
+            class={[
+              "btn btn-sm gap-1.5 border border-base-300/80",
+              if(!@loading_dashboard and item.count > 0,
+                do: "btn-primary btn-outline",
+                else: "btn-ghost"
+              )
+            ]}
+            aria-label={
+              if item.count > 0,
+                do: "#{item.label}: #{item.count} unread",
+                else: item.label
+            }
+          >
+            <.icon name={item.icon} class="h-4 w-4" />
+            <span class="hidden sm:inline">{item.label}</span>
+            <span
+              :if={!@loading_dashboard and item.count > 0}
+              class="badge badge-primary badge-sm tabular-nums"
+            >
+              {item.count}
+            </span>
+          </.link>
+
+          <.link
+            :if={@portal_credits}
+            navigate="/account/proofs"
+            class="btn btn-ghost btn-sm gap-1.5 border border-base-300/80"
+            aria-label={"Credits: #{@portal_credits}"}
+          >
+            <.icon name="hero-sparkles" class="h-4 w-4" />
+            <span class="hidden sm:inline">Credits</span>
+            <span class="tabular-nums text-xs opacity-70">{@portal_credits}</span>
+          </.link>
+        </div>
+      </div>
     </section>
 
     <div role="tablist" class="flex w-fit flex-wrap gap-2">
-      <.link
-        patch={~p"/portal?#{[filter: @filter]}"}
-        role="tab"
-        class={[
-          "btn btn-sm min-h-10 rounded-full border border-base-300 px-4",
-          if(@portal_view == "feed", do: "btn-primary", else: "btn-ghost")
-        ]}
-      >
-        <.icon name="hero-sparkles" class="mr-1 h-4 w-4" /> Feed
-      </.link>
       <.link
         patch={~p"/portal?view=reader"}
         role="tab"
@@ -101,6 +119,16 @@
         ]}
       >
         <.icon name="hero-rss" class="mr-1 h-4 w-4" /> Reader
+      </.link>
+      <.link
+        patch={~p"/portal?#{[view: "feed", filter: @filter]}"}
+        role="tab"
+        class={[
+          "btn btn-sm min-h-10 rounded-full border border-base-300 px-4",
+          if(@portal_view == "feed", do: "btn-primary", else: "btn-ghost")
+        ]}
+      >
+        <.icon name="hero-sparkles" class="mr-1 h-4 w-4" /> Feed
       </.link>
     </div>
 
@@ -161,6 +189,26 @@
               Communities
             </button>
           </div>
+          <!-- Twitter-style: opt-in load inserts at top of feed (not mid-scroll) -->
+          <%= if length(@queued_posts || []) > 0 do %>
+            <div class="sticky top-0 z-30 -mx-1 mb-3 flex justify-center sm:mx-0">
+              <button
+                id="portal-load-queued-posts-button"
+                type="button"
+                phx-hook="PreserveQueuedPostsButtonScroll"
+                phx-click="load_queued_posts"
+                data-load-queued-posts
+                class="btn btn-primary btn-sm gap-2 shadow-md"
+              >
+                <.icon name="hero-arrow-up" class="w-4 h-4" />
+                <span>
+                  Show {length(@queued_posts)} new {if length(@queued_posts) == 1,
+                    do: "post",
+                    else: "posts"}
+                </span>
+              </button>
+            </div>
+          <% end %>
           <!-- Unified Feed -->
           <div
             class="space-y-4"

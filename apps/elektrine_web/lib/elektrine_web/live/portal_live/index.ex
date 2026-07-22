@@ -89,7 +89,7 @@ defmodule ElektrineWeb.PortalLive.Index do
         |> assign(:loading_dashboard, is_nil(cached_dashboard))
         |> assign(:portal_credits, atomine_credit_balance(user.id))
         |> assign(:dashboard, cached_dashboard || DashboardData.default())
-        |> assign(:portal_view, "feed")
+        |> assign(:portal_view, "reader")
         |> assign(:reader_params, %{})
         |> assign(:dashboard_last_refreshed_at, nil)
         |> assign(:data_loaded, false)
@@ -97,7 +97,9 @@ defmodule ElektrineWeb.PortalLive.Index do
         |> assign(:feed_source, feed_source_key(@default_filter))
         |> assign(:visible_post_limit, @portal_feed_limit)
         |> assign(:loading_more, false)
+        |> assign(:portal_append_on_load, false)
         |> assign(:no_more_posts, false)
+        |> assign(:queued_posts, [])
         |> assign(:last_fetched_post_count, 0)
         |> assign(:session_context, SessionContext.default())
         |> assign(:show_image_modal, false)
@@ -144,7 +146,9 @@ defmodule ElektrineWeb.PortalLive.Index do
       |> assign(:reader_params, reader_params)
 
     socket =
-      maybe_switch_portal_filter(socket, previous_filter, filter)
+      socket
+      |> maybe_switch_portal_filter(previous_filter, filter)
+      |> prune_portal_queued_posts()
 
     {:noreply, socket}
   end
@@ -156,8 +160,33 @@ defmodule ElektrineWeb.PortalLive.Index do
     {:noreply,
      push_patch(
        socket,
-       to: ~p"/portal?#{[filter: filter, attention: socket.assigns.attention_filter]}"
+       to:
+         ~p"/portal?#{[view: "feed", filter: filter, attention: socket.assigns.attention_filter]}"
      )}
+  end
+
+  def handle_event("load_queued_posts", _params, socket) do
+    queued = socket.assigns[:queued_posts] || []
+
+    if Enum.empty?(queued) do
+      {:noreply, assign(socket, :queued_posts, [])}
+    else
+      # Newest first in the queue (prepended as they arrive) — keep that order at feed top.
+      unique = Enum.uniq_by(queued, & &1.id)
+
+      socket =
+        Enum.reduce(unique, socket, fn post, acc ->
+          acc
+          |> register_post_state(post)
+          |> update(:all_posts, &prepend_portal_post(&1, post))
+          |> update(:filtered_all_posts, &prepend_portal_post(&1, post))
+        end)
+
+      {:noreply,
+       socket
+       |> assign(:queued_posts, [])
+       |> sync_portal_posts_stream()}
+    end
   end
 
   def handle_event("set_attention_filter", %{"filter" => filter}, socket) do
@@ -292,6 +321,9 @@ defmodule ElektrineWeb.PortalLive.Index do
 
       {:noreply,
        socket
+       # Explicit append flag so the next fetch merges at the bottom even if
+       # loading_more is cleared by an intermediate assign.
+       |> assign(:portal_append_on_load, true)
        |> assign(:loading_more, true)
        |> assign(:visible_post_limit, next_limit)
        |> maybe_load_feed_data(next_limit)}
@@ -1923,14 +1955,22 @@ defmodule ElektrineWeb.PortalLive.Index do
     @default_filter
   end
 
+  # Reader is the default portal surface. Feed opens via view=feed or any feed filter.
+  defp normalize_portal_view(%{"view" => "feed"}), do: "feed"
   defp normalize_portal_view(%{"view" => "reader"}), do: "reader"
   defp normalize_portal_view(%{"filter" => "rss"}), do: "reader"
 
   defp normalize_portal_view(params) when is_map(params) do
-    if Enum.any?(["rss_source", "rss_density", "rss_item"], &Map.has_key?(params, &1)) do
-      "reader"
-    else
-      "feed"
+    cond do
+      Enum.any?(["rss_source", "rss_density", "rss_item"], &Map.has_key?(params, &1)) ->
+        "reader"
+
+      # Any explicit feed filter (including invalid ones normalized later) opens Feed.
+      Map.has_key?(params, "filter") ->
+        "feed"
+
+      true ->
+        "reader"
     end
   end
 
@@ -1995,13 +2035,48 @@ defmodule ElektrineWeb.PortalLive.Index do
       |> register_post_state(post)
       |> update(:all_posts, &prepend_portal_post(&1, post))
 
-    if post_matches_current_filter?(post, socket.assigns) do
-      socket
-      |> update(:filtered_all_posts, &prepend_portal_post(&1, post))
-      |> sync_portal_posts_stream()
-    else
-      socket
+    cond do
+      not post_matches_current_filter?(post, socket.assigns) ->
+        socket
+
+      # Own posts or empty feed: show immediately (no interrupt).
+      immediate_new_post_insert?(socket, post) ->
+        socket
+        |> update(:filtered_all_posts, &prepend_portal_post(&1, post))
+        |> update(:queued_posts, fn queued -> Enum.reject(queued || [], &(&1.id == post.id)) end)
+        |> sync_portal_posts_stream()
+
+      # Twitter-style: queue for the sticky "Show N new posts" control.
+      true ->
+        queue_portal_post(socket, post)
     end
+  end
+
+  defp immediate_new_post_insert?(socket, post) do
+    user = socket.assigns[:current_user]
+    empty_feed? = Enum.empty?(socket.assigns[:filtered_all_posts] || [])
+    own_post? = user && post.sender_id == user.id
+    empty_feed? or own_post?
+  end
+
+  defp queue_portal_post(socket, post) do
+    already_queued = Enum.any?(socket.assigns[:queued_posts] || [], &(&1.id == post.id))
+    already_visible = Enum.any?(socket.assigns[:filtered_all_posts] || [], &(&1.id == post.id))
+
+    if already_queued or already_visible do
+      socket
+    else
+      update(socket, :queued_posts, fn queued -> [post | queued || []] end)
+    end
+  end
+
+  defp prune_portal_queued_posts(socket) do
+    queued =
+      Enum.filter(socket.assigns[:queued_posts] || [], fn post ->
+        post_matches_current_filter?(post, socket.assigns)
+      end)
+
+    assign(socket, :queued_posts, queued)
   end
 
   defp post_matches_current_filter?(post, assigns) do
@@ -2020,11 +2095,16 @@ defmodule ElektrineWeb.PortalLive.Index do
   defp assign_feed_data(socket, feed_data) do
     visible_limit = socket.assigns[:visible_post_limit] || @portal_feed_limit
     fetched_posts = feed_data.all_posts || []
-    loading_more? = socket.assigns[:loading_more] == true
+    # Prefer explicit append flag (set by load-more) so older pages always land
+    # under the posts already on screen.
+    append? =
+      socket.assigns[:portal_append_on_load] == true or socket.assigns[:loading_more] == true
+
+    existing_posts = socket.assigns[:all_posts] || []
 
     fetched_posts =
-      if loading_more? do
-        merge_portal_posts(socket.assigns[:all_posts] || [], fetched_posts)
+      if append? do
+        merge_portal_posts(existing_posts, fetched_posts)
       else
         Enum.take(fetched_posts, visible_limit)
       end
@@ -2035,7 +2115,7 @@ defmodule ElektrineWeb.PortalLive.Index do
 
     no_more_posts =
       fetched_post_count < socket.assigns.visible_post_limit or
-        (loading_more? and previous_count > 0 and fetched_post_count <= previous_count)
+        (append? and previous_count > 0 and fetched_post_count <= previous_count)
 
     socket
     |> put_feed_posts_cache(source_key, fetched_posts)
@@ -2051,6 +2131,7 @@ defmodule ElektrineWeb.PortalLive.Index do
     |> assign(:pending_follows, feed_data.pending_follows)
     |> assign(:post_reactions, feed_data.post_reactions)
     |> assign(:loading_feed, false)
+    |> assign(:portal_append_on_load, false)
     |> assign(:no_more_posts, no_more_posts)
     |> assign(:last_fetched_post_count, fetched_post_count)
     |> assign(:data_loaded, true)

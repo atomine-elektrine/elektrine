@@ -186,8 +186,9 @@ config :elektrine, :federation_load_guard,
   enabled: true,
   max_available_or_retryable: 50_000
 
-# Explicitly use UTC-only timezone database to avoid breaking DateTime.add
-# Timezone conversions use Tzdata explicitly in shift_zone/3
+# Explicitly use UTC-only timezone database to avoid breaking DateTime.add.
+# Timezone conversions use Tz.TimeZoneDatabase explicitly in shift_zone/3
+# (see ElektrineWeb.Components.Datetime.LocalTime).
 config :elixir, :time_zone_database, Calendar.UTCOnlyTimeZoneDatabase
 
 primary_domain =

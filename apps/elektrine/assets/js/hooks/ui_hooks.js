@@ -211,9 +211,13 @@ export const TimelineReply = {
     this.prePatchShouldPreserve = false
 
     this.handleFeedClick = (event) => {
+      // "Show N new posts" should jump to the top of the feed (Twitter-style),
+      // not pin the previous viewport. PreserveQueuedPostsButtonScroll owns that.
       const queuedBtn = event.target.closest('[data-load-queued-posts]')
       if (queuedBtn) {
-        this.queuedAnchor = this.findVisiblePostAnchor()
+        this.queuedAnchor = null
+        this.pendingInteractionAnchor = null
+        this.pendingInteractionScrollY = null
         return
       }
 

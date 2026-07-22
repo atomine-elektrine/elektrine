@@ -6,7 +6,7 @@ defmodule ElektrineWeb.PortalLiveTest do
   import Elektrine.SocialFixtures,
     only: [discussion_post_fixture: 1, media_post_fixture: 1, post_fixture: 1]
 
-  alias Elektrine.{AccountsFixtures, Messaging, Profiles, Repo, RSS, Social}
+  alias Elektrine.{AccountsFixtures, Messaging, Notifications, Profiles, Repo, RSS, Social}
   alias Elektrine.ActivityPub.Actor
   alias ElektrineWeb.PortalLive.Index
 
@@ -29,6 +29,26 @@ defmodule ElektrineWeb.PortalLiveTest do
     |> String.split(needle)
     |> length()
     |> Kernel.-(1)
+  end
+
+  defp e_nav_tab_badges(html, href) do
+    html
+    |> Floki.parse_document!()
+    |> Floki.find(~s(nav.e-nav a[href="#{href}"] span.absolute))
+    |> Enum.map(&(Floki.text(&1) |> String.trim()))
+  end
+
+  defp await_e_nav_badges(view, href, expected, attempts \\ 30) do
+    Enum.reduce_while(1..attempts, render(view), fn _attempt, _html ->
+      html = render(view)
+
+      if e_nav_tab_badges(html, href) == expected do
+        {:halt, html}
+      else
+        Process.sleep(25)
+        {:cont, html}
+      end
+    end)
   end
 
   test "redirects unauthenticated users to login", %{conn: conn} do
@@ -470,7 +490,7 @@ defmodule ElektrineWeb.PortalLiveTest do
     html =
       conn
       |> log_in_user(user)
-      |> get(~p"/portal")
+      |> get(~p"/portal?view=feed")
       |> html_response(200)
 
     assert html =~ ~s(phx-hook="TimelineReply")
@@ -478,7 +498,40 @@ defmodule ElektrineWeb.PortalLiveTest do
     assert html =~ "data-feed-loading-skeleton"
   end
 
-  test "portal overview cards reserve number space before dashboard numbers load", %{conn: conn} do
+  test "slim e_nav portal badge updates live over PubSub without navigation", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+
+    {:ok, view, html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/portal")
+
+    # Connected LiveView socket (no full page reload after this)
+    assert e_nav_tab_badges(html, "/portal") == []
+
+    {:ok, _notification} =
+      Notifications.create_notification(%{
+        type: "system",
+        title: "Live e-nav badge #{System.unique_integer([:positive])}",
+        body: "Should bump the portal tab badge",
+        user_id: user.id,
+        priority: "normal",
+        source_type: "system",
+        source_id: 1,
+        url: "/portal"
+      })
+
+    html = await_e_nav_badges(view, "/portal", ["1"])
+    assert e_nav_tab_badges(html, "/portal") == ["1"]
+
+    # Clear unread — hook should refresh badge counts on the same LV process
+    assert :ok = Notifications.mark_all_as_read(user.id)
+
+    html = await_e_nav_badges(view, "/portal", [])
+    assert e_nav_tab_badges(html, "/portal") == []
+  end
+
+  test "portal overview is a compact attention strip instead of zero-count cards", %{conn: conn} do
     user = AccountsFixtures.user_fixture()
 
     html =
@@ -488,15 +541,14 @@ defmodule ElektrineWeb.PortalLiveTest do
       |> html_response(200)
 
     assert html =~ ~s(aria-label="Overview")
-    assert html =~ "Unread email"
-    assert html =~ "Unread chat"
+    assert html =~ "Checking inbox"
+    assert html =~ "Email"
+    assert html =~ "Chat"
     assert html =~ "Notifications"
     assert html =~ "Requests"
-    assert html =~ "Credits"
+    refute html =~ "Unread email"
     refute html =~ "animate-pulse rounded bg-base-300"
-    assert count_occurrences(html, ~s(data-dashboard-loading="true")) == 5
-    assert count_occurrences(html, "aria-busy") == 5
-    assert count_occurrences(html, ">Updating</span>") == 5
+    assert html =~ ~s(data-dashboard-loading="true")
   end
 
   test "portal uses the manual pagination feed container", %{conn: conn} do
@@ -505,10 +557,23 @@ defmodule ElektrineWeb.PortalLiveTest do
     {:ok, view, _html} =
       conn
       |> log_in_user(user)
-      |> live(~p"/portal")
+      |> live(~p"/portal?view=feed")
 
     assert has_element?(view, ~s(#portal-infinite-scroll[phx-hook="ManualPagination"]))
     assert has_element?(view, ~s(#portal-posts-list))
+  end
+
+  test "portal defaults to the reader surface", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+
+    {:ok, view, html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/portal")
+
+    assert html =~ "Feed Reader"
+    assert html =~ "/settings/rss"
+    refute has_element?(view, ~s(#portal-infinite-scroll))
   end
 
   test "portal load replies shows a retry state when no replies are retrieved", %{conn: conn} do
@@ -748,7 +813,7 @@ defmodule ElektrineWeb.PortalLiveTest do
     |> element(~s(button[phx-click="set_filter"][phx-value-filter="gallery"]))
     |> render_click()
 
-    assert_patch(view, ~p"/portal?filter=gallery&attention=all")
+    assert_patch(view, ~p"/portal?view=feed&filter=gallery&attention=all")
 
     html =
       Enum.reduce_while(1..100, "", fn _, _acc ->
@@ -818,7 +883,7 @@ defmodule ElektrineWeb.PortalLiveTest do
     {:ok, view, _html} =
       conn
       |> log_in_user(user)
-      |> live(~p"/portal")
+      |> live(~p"/portal?view=feed")
 
     send(view.pid, :load_stats_data)
     render(view)
@@ -861,7 +926,7 @@ defmodule ElektrineWeb.PortalLiveTest do
     {:ok, view, _html} =
       conn
       |> log_in_user(viewer)
-      |> live(~p"/portal")
+      |> live(~p"/portal?view=feed")
 
     html =
       Enum.reduce_while(1..20, "", fn _, _acc ->
@@ -909,7 +974,7 @@ defmodule ElektrineWeb.PortalLiveTest do
     {:ok, view, _html} =
       conn
       |> log_in_user(viewer)
-      |> live(~p"/portal")
+      |> live(~p"/portal?view=feed")
 
     html =
       Enum.reduce_while(1..20, "", fn _, _acc ->

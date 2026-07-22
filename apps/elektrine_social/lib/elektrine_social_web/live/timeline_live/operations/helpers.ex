@@ -246,54 +246,84 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.Helpers do
     previous_posts = socket.assigns[:filtered_posts] || []
     previous_ids = socket.assigns[:filtered_post_ids] || []
     previous_posts_by_id = Map.new(previous_posts, fn post -> {post.id, post} end)
+    previous_id_set = MapSet.new(previous_ids)
     current_ids = Enum.map(filtered_posts, & &1.id)
+    current_id_set = MapSet.new(current_ids)
 
-    changed_posts =
-      Enum.filter(filtered_posts, fn post ->
-        Map.get(previous_posts_by_id, post.id) != post
-      end)
+    # Load-more: keep the visible feed order stable and always append newly
+    # matching posts at the bottom (even if filters re-sort / regroup).
+    if !force_reset? and socket.assigns[:timeline_append_on_filter] == true and
+         previous_ids != [] and MapSet.subset?(previous_id_set, current_id_set) do
+      refreshed_existing =
+        Enum.map(previous_ids, fn id ->
+          Enum.find(filtered_posts, &(&1.id == id)) || Map.get(previous_posts_by_id, id)
+        end)
+        |> Enum.reject(&is_nil/1)
 
-    changed_existing_posts =
-      Enum.filter(changed_posts, fn post ->
-        Map.has_key?(previous_posts_by_id, post.id)
-      end)
+      appended_posts =
+        Enum.filter(filtered_posts, fn post -> not MapSet.member?(previous_id_set, post.id) end)
 
-    socket =
+      stable_filtered = refreshed_existing ++ appended_posts
+      stable_ids = Enum.map(stable_filtered, & &1.id)
+
+      changed_existing_posts =
+        Enum.filter(refreshed_existing, fn post ->
+          Map.get(previous_posts_by_id, post.id) != post
+        end)
+
       socket
-      |> assign(:filtered_posts, filtered_posts)
-      |> assign(:filtered_post_ids, current_ids)
+      |> assign(:filtered_posts, stable_filtered)
+      |> assign(:filtered_post_ids, stable_ids)
+      |> append_filtered_posts(appended_posts)
+      |> refresh_changed_filtered_posts(changed_existing_posts)
+    else
+      changed_posts =
+        Enum.filter(filtered_posts, fn post ->
+          Map.get(previous_posts_by_id, post.id) != post
+        end)
 
-    cond do
-      force_reset? ->
-        stream(socket, :timeline_filtered_posts, filtered_posts, reset: true)
+      changed_existing_posts =
+        Enum.filter(changed_posts, fn post ->
+          Map.has_key?(previous_posts_by_id, post.id)
+        end)
 
-      previous_ids == current_ids ->
-        refresh_changed_filtered_posts(socket, changed_posts)
-
-      ids_prefixed?(previous_ids, current_ids) ->
-        appended_posts = Enum.drop(filtered_posts, length(previous_ids))
-
+      socket =
         socket
-        |> append_filtered_posts(appended_posts)
-        |> refresh_changed_filtered_posts(changed_existing_posts)
+        |> assign(:filtered_posts, filtered_posts)
+        |> assign(:filtered_post_ids, current_ids)
 
-      ids_suffixed?(previous_ids, current_ids) ->
-        prepended_count = length(current_ids) - length(previous_ids)
-        prepended_posts = Enum.take(filtered_posts, prepended_count)
+      cond do
+        force_reset? ->
+          stream(socket, :timeline_filtered_posts, filtered_posts, reset: true)
 
-        socket
-        |> prepend_filtered_posts(prepended_posts)
-        |> refresh_changed_filtered_posts(changed_existing_posts)
+        previous_ids == current_ids ->
+          refresh_changed_filtered_posts(socket, changed_posts)
 
-      ids_subsequence?(current_ids, previous_ids) ->
-        removed_ids = previous_ids -- current_ids
+        ids_prefixed?(previous_ids, current_ids) ->
+          appended_posts = Enum.drop(filtered_posts, length(previous_ids))
 
-        socket
-        |> remove_filtered_posts(previous_posts_by_id, removed_ids)
-        |> refresh_changed_filtered_posts(changed_existing_posts)
+          socket
+          |> append_filtered_posts(appended_posts)
+          |> refresh_changed_filtered_posts(changed_existing_posts)
 
-      true ->
-        stream(socket, :timeline_filtered_posts, filtered_posts, reset: true)
+        ids_suffixed?(previous_ids, current_ids) ->
+          prepended_count = length(current_ids) - length(previous_ids)
+          prepended_posts = Enum.take(filtered_posts, prepended_count)
+
+          socket
+          |> prepend_filtered_posts(prepended_posts)
+          |> refresh_changed_filtered_posts(changed_existing_posts)
+
+        ids_subsequence?(current_ids, previous_ids) ->
+          removed_ids = previous_ids -- current_ids
+
+          socket
+          |> remove_filtered_posts(previous_posts_by_id, removed_ids)
+          |> refresh_changed_filtered_posts(changed_existing_posts)
+
+        true ->
+          stream(socket, :timeline_filtered_posts, filtered_posts, reset: true)
+      end
     end
   end
 

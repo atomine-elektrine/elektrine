@@ -923,6 +923,9 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
       end
 
     socket
+    # Force stream append-at-bottom for this filter pass (load more), even if
+    # display filters regroup/re-sort and would otherwise full-reset the stream.
+    |> assign(:timeline_append_on_filter, true)
     |> assign(:loading_more, false)
     |> assign(:no_more_posts, no_more_posts)
     |> assign(
@@ -941,6 +944,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
     |> maybe_assign_saved_scroll_cursor(saved_cursor)
     |> maybe_merge_saved_item_folders(more_posts)
     |> Helpers.apply_timeline_filter()
+    |> assign(:timeline_append_on_filter, false)
     |> maybe_queue_reply_context_preview_fetch(more_posts)
     |> maybe_schedule_background_refresh_jobs(more_posts)
     |> maybe_schedule_reply_ingestion_jobs(more_posts)

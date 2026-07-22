@@ -124,7 +124,9 @@ defmodule ElektrineWeb.MixProject do
       internal_dep(:paige),
       internal_dep(:kairo),
       internal_dep(:elektrine_nerve),
-      {:posthog, "~> 2.10"}
+      {:posthog, "~> 2.10"},
+      # IANA timezone database for LocalTime shift_zone/3 (no HTTP; replaces tzdata)
+      {:tz, "== 0.28.2"}
     ]
   end
 

@@ -255,46 +255,76 @@ export const PreserveStreamAnchor = {
   },
 };
 
+/**
+ * "Show N new posts" — Twitter-style: after the stream prepends, jump to the
+ * top of the feed so the newly inserted posts are actually visible.
+ * (Previously preserved scroll, which left new posts above the viewport.)
+ */
 export const PreserveQueuedPostsButtonScroll = {
   mounted() {
     this.restoreRAF = null;
     this.restoreTimeouts = [];
+    this.pendingScrollTop = false;
 
     this.handleClick = () => {
-      const stream =
-        document.getElementById("timeline-posts-stream") || document;
-
-      queuedPostsScrollSnapshot = {
-        anchor: findVisiblePostAnchor(stream),
-        scrollY: currentScrollY(),
-      };
+      // Clear any preserve-scroll snapshot so stream patches don't pin us mid-feed.
+      queuedPostsScrollSnapshot = null;
+      this.pendingScrollTop = true;
     };
 
     this.el.addEventListener("click", this.handleClick);
   },
 
+  updated() {
+    if (!this.pendingScrollTop) return;
+    this.pendingScrollTop = false;
+    this.scrollFeedToTop();
+  },
+
   destroyed() {
     if (this.handleClick)
       this.el.removeEventListener("click", this.handleClick);
-    if (!queuedPostsScrollSnapshot) return;
+
+    // Button unmounts once the queue is empty — still scroll so new posts show.
+    if (this.pendingScrollTop) {
+      this.pendingScrollTop = false;
+      this.scrollFeedToTop();
+    }
+
+    this.restoreTimeouts.forEach((id) => clearTimeout(id));
+    this.restoreTimeouts = [];
+    if (this.restoreRAF) cancelAnimationFrame(this.restoreRAF);
+  },
+
+  scrollFeedToTop() {
+    const scrollTop = () => {
+      const target =
+        document.getElementById("timeline-posts-stream") ||
+        document.getElementById("portal-posts-list") ||
+        document.getElementById("timeline-infinite-scroll") ||
+        document.getElementById("portal-infinite-scroll");
+
+      if (target && typeof target.scrollIntoView === "function") {
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    };
 
     this.restoreRAF = requestAnimationFrame(() => {
       this.restoreRAF = null;
-      restoreQueuedPostsScroll();
+      scrollTop();
     });
-    [120, 280, 520].forEach((delay) => {
+
+    // Stream patches can lag a frame; re-assert a couple times.
+    [80, 200].forEach((delay) => {
       const timeoutId = setTimeout(() => {
         this.restoreTimeouts = this.restoreTimeouts.filter(
           (id) => id !== timeoutId,
         );
-        restoreQueuedPostsScroll();
+        scrollTop();
       }, delay);
-
       this.restoreTimeouts.push(timeoutId);
     });
-
-    setTimeout(() => {
-      queuedPostsScrollSnapshot = null;
-    }, 600);
   },
 };
