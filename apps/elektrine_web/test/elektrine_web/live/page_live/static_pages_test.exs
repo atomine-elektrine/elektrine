@@ -32,16 +32,14 @@ defmodule ElektrineWeb.PageLive.StaticPagesTest do
     assert html =~ "Limitation of Liability"
   end
 
-  test "home page footer links the info and policy pages", %{conn: conn} do
+  test "home page footer links the info and legal pages", %{conn: conn} do
     {:ok, _view, html} = live(conn, ~p"/")
 
     for {path, label} <- [
           {"/about", "About"},
           {"/contact", "Contact"},
           {"/faq", "FAQ"},
-          {"/terms", "Terms of Service"},
-          {"/privacy", "Privacy Policy"},
-          {"/canary", "Canary"}
+          {"/legal", "Legal"}
         ] do
       assert html =~ ~s(href="#{path}"), "expected footer link to #{path}"
       assert html =~ label

@@ -1257,7 +1257,7 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
 
     assert refreshed_html =~ ~s(id="reply-card-#{reply.id}-like-count")
     assert refreshed_html =~ ~s(id="reply-card-#{reply.id}-boost-count")
-    assert refreshed_html =~ ~s(id="reply-card-#{reply.id}-reply-count")
+    assert refreshed_html =~ ~s(id="reply-card-#{reply.id}-comment-count")
     assert refreshed_html =~ ~s(data-count="4")
     assert refreshed_html =~ ~s(data-count="2")
     assert refreshed_html =~ ~s(data-count="3")

@@ -382,7 +382,7 @@ defmodule ElektrineSocialWeb.TimelinePostDetailTest do
 
       assert html =~ ~s(id="reply-card-#{reply.id}-like-count")
       assert html =~ ~s(id="reply-card-#{reply.id}-boost-count")
-      assert html =~ ~s(id="reply-card-#{reply.id}-reply-count")
+      assert html =~ ~s(id="reply-card-#{reply.id}-comment-count")
       assert html =~ ~s(id="remote-post-detail-actions-#{post.id}-comment-count")
       assert html =~ ~s(data-count="2")
       assert html =~ ~s(phx-click="unlike_post")

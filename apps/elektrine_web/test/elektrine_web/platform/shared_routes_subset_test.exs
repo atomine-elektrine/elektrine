@@ -28,8 +28,9 @@ defmodule ElektrineWeb.Platform.SharedRoutesSubsetTest do
       |> log_in_user(user)
       |> live(~p"/portal")
 
-    assert html =~ "For You"
+    # Default portal view is the reader; feed filters like "For You" only show on ?view=feed.
     assert html =~ "Reader"
+    assert html =~ "portal-container"
     refute html =~ "Compose Email"
     refute html =~ "New Message"
     refute html =~ "New Post"

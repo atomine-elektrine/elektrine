@@ -188,7 +188,7 @@ defmodule ElektrineWeb.PaigeLiveTest do
       |> log_in_user(user)
       |> live(~p"/paige?q=meta")
 
-    html = render_async(view)
+    html = render_async(view, 1_000)
 
     assert html =~ "Paige meta-search"
     assert html =~ "https://paige.example/search"
@@ -206,7 +206,7 @@ defmodule ElektrineWeb.PaigeLiveTest do
       |> log_in_user(user)
       |> live(~p"/paige?q=meta&lens=web")
 
-    html = render_async(view)
+    html = render_async(view, 1_000)
 
     assert html =~ "via SearchProvider + Wikipedia"
     assert length(:binary.matches(html, ~s(href="https://paige.example/search"))) == 1
@@ -221,7 +221,7 @@ defmodule ElektrineWeb.PaigeLiveTest do
       |> log_in_user(user)
       |> live(~p"/paige?q=unsafe")
 
-    html = render_async(view)
+    html = render_async(view, 1_000)
 
     refute html =~ "Dropped result"
     refute html =~ "javascript:"
@@ -239,7 +239,7 @@ defmodule ElektrineWeb.PaigeLiveTest do
       |> log_in_user(user)
       |> live(~p"/paige?q=meta")
 
-    html = render_async(view)
+    html = render_async(view, 1_000)
 
     assert html =~ "Paige meta-search"
     assert html =~ "Some web sources were unavailable"
@@ -263,7 +263,7 @@ defmodule ElektrineWeb.PaigeLiveTest do
     assert_receive {:provider_started, ^query, provider_pid}
 
     send(provider_pid, :release)
-    html = render_async(view)
+    html = render_async(view, 1_000)
 
     assert html =~ "Result for #{query}"
     refute html =~ "skeleton"
@@ -287,7 +287,7 @@ defmodule ElektrineWeb.PaigeLiveTest do
     assert_receive {:provider_started, ^first_query, _provider_pid}
 
     render_patch(view, ~p"/paige?q=#{second_query}&lens=web")
-    html = render_async(view)
+    html = render_async(view, 1_000)
 
     assert html =~ "Result for #{second_query}"
     refute html =~ "Result for #{first_query}"
@@ -302,7 +302,7 @@ defmodule ElektrineWeb.PaigeLiveTest do
       |> log_in_user(user)
       |> live(~p"/paige?q=filtered&lens=web&page=99&freshness=week&safesearch=off")
 
-    html = render_async(view)
+    html = render_async(view, 1_000)
 
     assert_receive {:provider_options, "filtered", opts}
     assert opts[:page] == 10
@@ -323,7 +323,7 @@ defmodule ElektrineWeb.PaigeLiveTest do
       |> log_in_user(user)
       |> live(~p"/paige?q=blended")
 
-    html = render_async(view)
+    html = render_async(view, 1_000)
 
     kinds =
       for _index <- 1..4 do
@@ -344,11 +344,11 @@ defmodule ElektrineWeb.PaigeLiveTest do
       |> log_in_user(user)
       |> live(~p"/paige?q=pages&lens=web&freshness=month&safesearch=strict")
 
-    render_async(view)
+    render_async(view, 1_000)
     assert has_element?(view, "a[rel=next]", "Next")
 
     view |> element("a[rel=next]") |> render_click()
-    html = render_async(view)
+    html = render_async(view, 1_000)
 
     assert html =~ "Page 2"
     assert html =~ "Page 2 result 1"
@@ -365,14 +365,14 @@ defmodule ElektrineWeb.PaigeLiveTest do
     {:ok, unconfigured_view, _html} =
       conn |> log_in_user(user) |> live(~p"/paige?q=none&lens=web")
 
-    unconfigured_html = render_async(unconfigured_view)
+    unconfigured_html = render_async(unconfigured_view, 1_000)
 
     assert unconfigured_html =~ "Web search is not configured"
     assert unconfigured_html =~ "Check again"
 
     Application.put_env(:paige, :providers, [BrokenProvider])
     render_patch(unconfigured_view, ~p"/paige?q=offline&lens=web")
-    error_html = render_async(unconfigured_view)
+    error_html = render_async(unconfigured_view, 1_000)
 
     assert error_html =~ "Search is temporarily unavailable"
     assert error_html =~ "Retry search"
@@ -401,13 +401,13 @@ defmodule ElektrineWeb.PaigeLiveTest do
       |> log_in_user(user)
       |> live(~p"/paige?q=meta")
 
-    html = render_async(view)
+    html = render_async(view, 1_000)
 
     assert html =~ "Paige meta-search"
     assert html =~ "Adjust ranking for paige.example"
 
     render_click(view, "set_domain_rule", %{"domain" => "paige.example", "action" => "block"})
-    html = render_async(view)
+    html = render_async(view, 1_000)
 
     refute html =~ "Paige meta-search"
     assert Elektrine.Search.DomainRules.rules_map(user.id) == %{"paige.example" => :block}
@@ -422,12 +422,12 @@ defmodule ElektrineWeb.PaigeLiveTest do
       |> log_in_user(user)
       |> live(~p"/paige?q=meta")
 
-    html = render_async(view)
+    html = render_async(view, 1_000)
 
     assert index_of(html, "Other domain result") < index_of(html, "Paige meta-search")
 
     render_click(view, "set_domain_rule", %{"domain" => "paige.example", "action" => "pin"})
-    html = render_async(view)
+    html = render_async(view, 1_000)
 
     assert index_of(html, "Paige meta-search") < index_of(html, "Other domain result")
   end
@@ -441,12 +441,12 @@ defmodule ElektrineWeb.PaigeLiveTest do
       |> log_in_user(user)
       |> live(~p"/paige?q=meta")
 
-    html = render_async(view)
+    html = render_async(view, 1_000)
 
     refute html =~ "Paige meta-search"
 
     render_click(view, "remove_domain_rule", %{"domain" => "paige.example"})
-    html = render_async(view)
+    html = render_async(view, 1_000)
 
     assert html =~ "Paige meta-search"
     assert Elektrine.Search.DomainRules.rules_map(user.id) == %{}
