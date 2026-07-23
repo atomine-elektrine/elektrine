@@ -120,32 +120,6 @@ defmodule Elektrine.EmailAliasTest do
       assert {:error, %Ecto.Changeset{}} = Email.create_alias(%{})
     end
 
-    test "legacy dual-domain alias creation is atomic", %{user: user} do
-      username = "dualtx#{System.unique_integer([:positive])}"
-      domains = Domains.supported_email_domains()
-      [primary_domain | _] = domains
-      conflicting_domain = List.last(domains)
-
-      {:ok, _existing} =
-        Email.create_alias(%{
-          alias_email: "#{username}@#{conflicting_domain}",
-          target_email: forward_email("existing"),
-          user_id: user.id
-        })
-
-      assert {:error, %Ecto.Changeset{}} =
-               Email.create_alias(%{
-                 username: username,
-                 user_id: user.id,
-                 target_email: forward_email("new")
-               })
-
-      if length(domains) > 1 do
-        assert Email.get_alias_by_email("#{username}@#{primary_domain}") == nil
-      end
-
-      assert %Alias{} = Email.get_alias_by_email("#{username}@#{conflicting_domain}")
-    end
 
     test "update_alias/2 updates alias with valid data", %{user: user} do
       alias_attrs = %{

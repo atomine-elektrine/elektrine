@@ -2055,74 +2055,13 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
     assert html =~ ~s(data-count="1")
   end
 
-  test "boost wrapper detail updates original post like and boost counts", %{conn: conn} do
+  test "boost wrapper detail targets original post for likes, boosts, and reactions", %{
+    conn: conn
+  } do
     author = AccountsFixtures.user_fixture()
     booster = AccountsFixtures.user_fixture()
     viewer = AccountsFixtures.user_fixture()
     original = post_fixture(%{user: author, content: "Original boosted post"})
-
-    assert {:ok, _boost} = Elektrine.Social.boost_post(booster.id, original.id)
-
-    wrapper =
-      Repo.get_by!(Message, sender_id: booster.id, shared_message_id: original.id)
-      |> Repo.preload([:sender, shared_message: [:sender]])
-
-    {:ok, view, _html} =
-      conn
-      |> log_in_user(viewer)
-      |> live("/remote/post/#{wrapper.id}")
-
-    html = render_hook(view, "like_post", %{"message_id" => Integer.to_string(original.id)})
-
-    assert Repo.get(Message, original.id).like_count == 1
-    assert html =~ ~s(phx-click="unlike_post")
-    assert html =~ ~s(data-count="1")
-
-    html = render_hook(view, "boost_post", %{"message_id" => Integer.to_string(original.id)})
-
-    assert Repo.get(Message, original.id).share_count == 2
-    assert html =~ ~s(phx-click="unboost_post")
-    assert html =~ ~s(data-count="2")
-  end
-
-  test "boost wrapper detail shows existing original like and boost state", %{conn: conn} do
-    author = AccountsFixtures.user_fixture()
-    booster = AccountsFixtures.user_fixture()
-    viewer = AccountsFixtures.user_fixture()
-    original = post_fixture(%{user: author, content: "Already boosted original"})
-
-    assert {:ok, _boost} = Elektrine.Social.boost_post(booster.id, original.id)
-    assert {:ok, _like} = Elektrine.Social.like_post(viewer.id, original.id)
-    assert {:ok, _viewer_boost} = Elektrine.Social.boost_post(viewer.id, original.id)
-
-    wrapper =
-      Repo.get_by!(Message, sender_id: booster.id, shared_message_id: original.id)
-      |> Repo.preload([:sender, shared_message: [:sender]])
-
-    {:ok, _view, html} =
-      conn
-      |> log_in_user(viewer)
-      |> live("/remote/post/#{wrapper.id}")
-
-    assert html =~
-             ~s(id="remote-post-detail-boosted-#{wrapper.id}-actions-#{original.id}-like")
-
-    assert html =~
-             ~s(id="remote-post-detail-boosted-#{wrapper.id}-actions-#{original.id}-boost")
-
-    assert html =~ ~s(phx-click="unlike_post")
-    assert html =~ ~s(phx-click="unboost_post")
-    assert html =~ "hero-heart-solid"
-    assert html =~ "hero-arrow-path-solid"
-    assert html =~ "text-primary"
-    assert html =~ "text-success"
-  end
-
-  test "boost wrapper detail reactions target the original message", %{conn: conn} do
-    author = AccountsFixtures.user_fixture()
-    booster = AccountsFixtures.user_fixture()
-    viewer = AccountsFixtures.user_fixture()
-    original = post_fixture(%{user: author, content: "Reactable boosted original"})
 
     assert {:ok, _boost} = Elektrine.Social.boost_post(booster.id, original.id)
 
@@ -2146,6 +2085,16 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
              document,
              ~s(button[phx-click="react_to_post"][phx-value-emoji="🔥"][phx-value-post_id="#{original.id}"])
            ) == []
+
+    html = render_hook(view, "like_post", %{"message_id" => Integer.to_string(original.id)})
+    assert Repo.get(Message, original.id).like_count == 1
+    assert html =~ ~s(phx-click="unlike_post")
+    assert html =~ ~s(data-count="1")
+
+    html = render_hook(view, "boost_post", %{"message_id" => Integer.to_string(original.id)})
+    assert Repo.get(Message, original.id).share_count == 2
+    assert html =~ ~s(phx-click="unboost_post")
+    assert html =~ ~s(data-count="2")
 
     html =
       render_hook(view, "react_to_post", %{

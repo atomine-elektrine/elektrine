@@ -1248,47 +1248,56 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
     assert render(view) =~ "Remote community chip target"
   end
 
-  test "navigate_to_post routes federated posts to local remote post detail", %{conn: conn} do
+  test "navigate_to_post routes local and federated posts (and replies) to remote post detail", %{
+    conn: conn
+  } do
     viewer = AccountsFixtures.user_fixture()
     author = AccountsFixtures.user_fixture()
 
-    {:ok, post} =
-      Social.create_timeline_post(author.id, "Federated timeline post", visibility: "public")
-
-    activitypub_id = "https://example.social/objects/#{post.id}"
-
-    Repo.update_all(
-      from(m in Message, where: m.id == ^post.id),
-      set: [federated: true, activitypub_id: activitypub_id]
-    )
-
-    {:ok, view, _html} =
-      conn
-      |> log_in_user(viewer)
-      |> live(~p"/timeline?filter=all&view=all")
-
-    assert render(view) =~ "Federated timeline post"
-
-    render_hook(view, "navigate_to_post", %{"id" => to_string(post.id)})
-    assert_redirect(view, "/remote/post/#{post.id}")
-  end
-
-  test "navigate_to_post routes local posts to remote post detail", %{conn: conn} do
-    viewer = AccountsFixtures.user_fixture()
-    author = AccountsFixtures.user_fixture()
-
-    {:ok, post} =
+    {:ok, local_post} =
       Social.create_timeline_post(author.id, "Local timeline post", visibility: "public")
 
-    {:ok, view, _html} =
-      conn
-      |> log_in_user(viewer)
-      |> live(~p"/timeline?filter=all&view=all")
+    {:ok, federated_post} =
+      Social.create_timeline_post(author.id, "Federated timeline post", visibility: "public")
 
-    assert render(view) =~ "Local timeline post"
+    Repo.update_all(
+      from(m in Message, where: m.id == ^federated_post.id),
+      set: [
+        federated: true,
+        activitypub_id: "https://example.social/objects/#{federated_post.id}"
+      ]
+    )
 
-    render_hook(view, "navigate_to_post", %{"id" => to_string(post.id)})
-    assert_redirect(view, ~p"/remote/post/#{post.id}")
+    {:ok, parent_post} =
+      Social.create_timeline_post(author.id, "Parent post", visibility: "public")
+
+    {:ok, local_reply} =
+      Social.create_timeline_post(author.id, "Reply post",
+        visibility: "public",
+        reply_to_id: parent_post.id
+      )
+
+    {:ok, federated_reply} =
+      Social.create_timeline_post(author.id, "Federated reply post", visibility: "public")
+
+    Repo.update_all(
+      from(m in Message, where: m.id == ^federated_reply.id),
+      set: [
+        federated: true,
+        activitypub_id: "https://example.social/notes/reply-#{federated_reply.id}",
+        media_metadata: %{
+          "inReplyTo" => "https://example.social/notes/parent-#{federated_reply.id}"
+        }
+      ]
+    )
+
+    logged_in = log_in_user(conn, viewer)
+
+    for post <- [local_post, federated_post, local_reply, federated_reply] do
+      {:ok, view, _html} = live(logged_in, ~p"/timeline?filter=all&view=all")
+      render_hook(view, "navigate_to_post", %{"id" => to_string(post.id)})
+      assert_redirect(view, "/remote/post/#{post.id}")
+    end
   end
 
   test "navigate_to_remote_post opens unresolved ActivityPub URLs externally", %{conn: conn} do
@@ -1302,57 +1311,6 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
 
     assert {:error, {:redirect, %{to: ^remote_url}}} =
              render_hook(view, "navigate_to_remote_post", %{"url" => remote_url})
-  end
-
-  test "navigate_to_post opens local replies directly", %{conn: conn} do
-    viewer = AccountsFixtures.user_fixture()
-    author = AccountsFixtures.user_fixture()
-
-    {:ok, parent_post} =
-      Social.create_timeline_post(author.id, "Parent post", visibility: "public")
-
-    {:ok, reply_post} =
-      Social.create_timeline_post(author.id, "Reply post",
-        visibility: "public",
-        reply_to_id: parent_post.id
-      )
-
-    {:ok, view, _html} =
-      conn
-      |> log_in_user(viewer)
-      |> live(~p"/timeline?filter=all&view=all")
-
-    render_hook(view, "navigate_to_post", %{"id" => to_string(reply_post.id)})
-    assert_redirect(view, "/remote/post/#{reply_post.id}")
-  end
-
-  test "navigate_to_post opens metadata-backed federated replies directly", %{conn: conn} do
-    viewer = AccountsFixtures.user_fixture()
-    author = AccountsFixtures.user_fixture()
-
-    {:ok, reply_post} =
-      Social.create_timeline_post(author.id, "Federated reply post", visibility: "public")
-
-    parent_ref = "https://example.social/notes/parent-#{reply_post.id}"
-    reply_ref = "https://example.social/notes/reply-#{reply_post.id}"
-
-    Repo.update_all(
-      from(m in Message, where: m.id == ^reply_post.id),
-      set: [
-        federated: true,
-        activitypub_id: reply_ref,
-        media_metadata: %{"inReplyTo" => parent_ref}
-      ]
-    )
-
-    {:ok, view, _html} =
-      conn
-      |> log_in_user(viewer)
-      |> live(~p"/timeline?filter=all&view=all")
-
-    render_hook(view, "navigate_to_post", %{"id" => to_string(reply_post.id)})
-
-    assert_redirect(view, "/remote/post/#{reply_post.id}")
   end
 
   test "timeline replies render while ancestor context loads independently", %{conn: conn} do
