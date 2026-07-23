@@ -495,7 +495,7 @@ defmodule Elektrine.Notifications do
     |> Repo.all()
     |> Enum.filter(&notification_policy_allowed?/1)
     |> Enum.take(limit)
-    |> resolve_legacy_message_notification_urls()
+    |> resolve_message_notification_urls()
   end
 
   @doc """
@@ -515,7 +515,7 @@ defmodule Elektrine.Notifications do
         if notification_policy_allowed?(notification) do
           notification
           |> List.wrap()
-          |> resolve_legacy_message_notification_urls()
+          |> resolve_message_notification_urls()
           |> List.first()
         else
           nil
@@ -1230,10 +1230,10 @@ defmodule Elektrine.Notifications do
 
   defp build_content_url(_, _), do: "/"
 
-  defp resolve_legacy_message_notification_urls(notifications) when is_list(notifications) do
+  defp resolve_message_notification_urls(notifications) when is_list(notifications) do
     source_ids =
       notifications
-      |> Enum.filter(&legacy_message_notification_url?/1)
+      |> Enum.filter(&needs_message_notification_url_resolution?/1)
       |> Enum.map(& &1.source_id)
       |> Enum.uniq()
 
@@ -1243,7 +1243,7 @@ defmodule Elektrine.Notifications do
       {messages_by_id, parents_by_id} = load_messages_with_parents(source_ids)
 
       Enum.map(notifications, fn notification ->
-        if legacy_message_notification_url?(notification) do
+        if needs_message_notification_url_resolution?(notification) do
           case Map.get(messages_by_id, notification.source_id) do
             %Message{} = message ->
               resolved_url =
@@ -1269,7 +1269,7 @@ defmodule Elektrine.Notifications do
     end
   end
 
-  defp legacy_message_notification_url?(%Notification{
+  defp needs_message_notification_url_resolution?(%Notification{
          source_type: "message",
          source_id: source_id,
          url: url
@@ -1279,7 +1279,7 @@ defmodule Elektrine.Notifications do
       String.starts_with?(url, ["/timeline/post/", "/remote/post/", "/post/", "#message-"])
   end
 
-  defp legacy_message_notification_url?(_), do: false
+  defp needs_message_notification_url_resolution?(_), do: false
 
   defp load_messages_with_parents(message_ids) when is_list(message_ids) do
     messages =

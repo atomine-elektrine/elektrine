@@ -72,12 +72,12 @@ defmodule Elektrine.EmailConfig do
   defp present_string(_), do: nil
 
   defp normalize_base_url(base_url) when is_binary(base_url) do
-    legacy_base_url = "https://haraka." <> Elektrine.Domains.primary_email_domain()
+    haraka_host_url = "https://haraka." <> Elektrine.Domains.primary_email_domain()
 
     base_url
     |> String.trim_trailing("/")
     |> case do
-      normalized when normalized == legacy_base_url ->
+      normalized when normalized == haraka_host_url ->
         EmailAddresses.mail_base_url()
 
       normalized ->

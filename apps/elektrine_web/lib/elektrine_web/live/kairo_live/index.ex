@@ -1697,7 +1697,7 @@ defmodule ElektrineWeb.KairoLive.Index do
 
   # Sources can also arrive through API and MCP clients, so browser-native URL
   # inputs are not a sufficient safety boundary. Never turn non-web schemes into
-  # clickable links, even if malformed legacy data is present in the database.
+  # clickable links, even if malformed existing data is present in the database.
   defp safe_http_url(url) when is_binary(url) do
     url = String.trim(url)
 

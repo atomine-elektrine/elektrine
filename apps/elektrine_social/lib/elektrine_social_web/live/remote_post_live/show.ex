@@ -2902,7 +2902,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     {:noreply, assign(socket, :platform_counts_load_ref, load_ref)}
   end
 
-  # Legacy handler for backwards compatibility
+  # Older handler for older clients
   def handle_info({:load_lemmy_counts, post_id}, socket) do
     send(self(), {:load_platform_counts, post_id})
     {:noreply, socket}

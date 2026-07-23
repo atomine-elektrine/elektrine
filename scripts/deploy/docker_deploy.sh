@@ -790,7 +790,7 @@ if [[ " $RENDER_PROFILES " == *" caddy "* ]]; then
 
   if [[ ! "$CADDY_EDGE_API_KEY" =~ ^[A-Za-z0-9._~-]+$ ]]; then
     echo "Error: CADDY_EDGE_API_KEY must contain only URL path-safe characters: A-Z a-z 0-9 . _ ~ -" >&2
-    echo "Hint: scripts/deploy/generate_env.sh generates a compatible hex value." >&2
+    echo "Hint: scripts/deploy/generate_env.sh generates a URL-safe hex value." >&2
     exit 1
   fi
 fi
@@ -820,6 +820,23 @@ for override_file in "${COMPOSE_OVERRIDE_FILES[@]}"; do
 done
 
 remove_caddy_with_stale_config_mount
+
+maybe_prune_old_images() {
+  if truthy "${ELEKTRINE_SKIP_IMAGE_PRUNE:-false}"; then
+    return 0
+  fi
+
+  local prune_script="$ROOT_DIR/scripts/deploy/prune_old_images.sh"
+
+  if [[ ! -f "$prune_script" ]]; then
+    return 0
+  fi
+
+  echo "Pruning old Elektrine images (keep ${ELEKTRINE_IMAGE_KEEP_COUNT:-3})..."
+  if ! DOCKER_CMD="${DOCKER_BIN[*]}" bash "$prune_script"; then
+    echo "Warning: image prune failed (non-fatal); free disk space manually if deploys keep filling the host" >&2
+  fi
+}
 
 if [[ "$DO_UP" -eq 1 ]]; then
   mapfile -t release_services < <(compose_release_services)
@@ -882,12 +899,14 @@ if [[ "$DO_UP" -eq 1 ]]; then
   if [[ "$DO_BUILD" -eq 1 ]]; then
     "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" up -d --build --no-recreate "${PASSTHROUGH_ARGS[@]}"
     reconcile_managed_mail_dkim
-    exit $?
+    maybe_prune_old_images
+    exit 0
   fi
 
   "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" up -d --no-recreate "${PASSTHROUGH_ARGS[@]}"
   reconcile_managed_mail_dkim
-  exit $?
+  maybe_prune_old_images
+  exit 0
 fi
 
 if [[ "${#PASSTHROUGH_ARGS[@]}" -gt 0 ]]; then

@@ -7,7 +7,7 @@ defmodule Elektrine.Email.Mailbox do
   import Ecto.Changeset
 
   schema "email_mailboxes" do
-    # Legacy field - will be phased out
+    # Older field - will be phased out
     field :email, :string
     # Domain-agnostic username
     field :username, :string
@@ -38,7 +38,7 @@ defmodule Elektrine.Email.Mailbox do
   end
 
   def get_all_emails(%__MODULE__{email: email}) when is_binary(email) do
-    # Fallback for legacy mailboxes without username field
+    # Fallback for older mailboxes without username field
     case String.split(email, "@", parts: 2) do
       [username, _domain] ->
         Elektrine.Domains.local_addresses_for_username(username)

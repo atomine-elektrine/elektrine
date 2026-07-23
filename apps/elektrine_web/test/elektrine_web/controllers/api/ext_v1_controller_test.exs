@@ -718,8 +718,12 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
       conn =
         conn
         |> put_req_header("authorization", "Bearer #{token}")
-        |> post("/api/ext/v1/nerve/setup", %{
-          "nerve" => %{"encrypted_verifier" => valid_client_payload()}
+        |> post("/api/ext/v1/nerve/entries", %{
+          "entry" => %{
+            "title" => "Blocked",
+            "encrypted_metadata" => valid_client_payload(),
+            "encrypted_password" => valid_client_payload()
+          }
         })
 
       assert %{"error" => error} = json_response(conn, 401)

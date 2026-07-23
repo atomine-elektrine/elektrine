@@ -763,7 +763,7 @@ defmodule Elektrine.Social.Message do
           |> Map.put(:content, nil)
       end
     else
-      # Legacy chat rows stay readable here; current chat writes use ChatMessage.
+      # Older chat rows stay readable here; current chat writes use ChatMessage.
       if is_chat_conversation do
         case Map.get(attrs, :content) do
           nil ->

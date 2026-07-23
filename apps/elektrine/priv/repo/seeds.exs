@@ -224,14 +224,14 @@ if Mix.env() == :dev do
       end
   end
 
-  {legacy_feed_updates, _} =
+  {paper_pile_feed_updates, _} =
     from(m in Email.Message,
       where: m.mailbox_id == ^test_mailbox.id and m.category == "paper_pile"
     )
     |> Repo.update_all(set: [category: "feed"])
 
-  if legacy_feed_updates > 0 do
-    IO.puts("✓ Migrated #{legacy_feed_updates} legacy paper_pile messages to feed")
+  if paper_pile_feed_updates > 0 do
+    IO.puts("✓ Migrated #{paper_pile_feed_updates} older paper_pile messages to feed")
   end
 
   create_seed_message = fn attrs ->

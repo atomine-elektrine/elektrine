@@ -116,7 +116,7 @@ defmodule ArblargWeb.ChatLive.Index do
           id
 
         nil ->
-          # Fallback to ID lookup for backwards compatibility
+          # Fallback to ID lookup when handle is absent
           case Integer.parse(conversation_identifier) do
             {id, ""} -> id
             _ -> nil

@@ -6,7 +6,7 @@
 #   ELEKTRINE_API_BASE  e.g. https://elektrine.com
 #   ELEKTRINE_INTERNAL_API_KEY shared internal key, usually CADDY_EDGE_API_KEY
 #
-# Legacy external API fallback:
+# Older external API fallback:
 #   ELEKTRINE_DNS_TOKEN personal access token with write:dns scope
 #
 # acme.sh calls:

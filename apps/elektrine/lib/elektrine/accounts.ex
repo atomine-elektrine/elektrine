@@ -338,8 +338,8 @@ defmodule Elektrine.Accounts do
   @doc """
   Gets a local user by the identifier used for ActivityPub actor URLs/WebFinger.
 
-  Handles are canonical for federation, but legacy username-based identifiers
-  still resolve for compatibility.
+  Handles are canonical for federation, but older username-based identifiers
+  still resolve for older identifiers.
   """
   def get_user_by_activitypub_identifier(identifier) when is_binary(identifier) do
     normalized_identifier =

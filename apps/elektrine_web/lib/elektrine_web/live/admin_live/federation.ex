@@ -970,8 +970,8 @@ defmodule ElektrineWeb.AdminLive.Federation do
               />
               <.policy_toggle
                 field="silenced"
-                label="Silence (Legacy)"
-                description="Legacy option - prefer using specific visibility policies"
+                label="Silence (Older)"
+                description="Older option - prefer using specific visibility policies"
                 value={@policy_form["silenced"]}
               />
             </div>

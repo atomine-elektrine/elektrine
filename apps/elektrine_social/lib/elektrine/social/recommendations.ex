@@ -268,15 +268,15 @@ defmodule Elektrine.Social.Recommendations do
         Map.get(session_context, :liked_creators, [])
       )
 
-    legacy_creators = Map.get(session_context, :liked_creators, [])
+    session_liked_creators = Map.get(session_context, :liked_creators, [])
     remote_creators = Map.get(session_context, :liked_remote_creators, [])
 
     Enum.sort_by(posts, fn post ->
       cond do
         post.federated and post.remote_actor_id in remote_creators -> 0
-        post.federated and post.remote_actor_id in legacy_creators -> 0
+        post.federated and post.remote_actor_id in session_liked_creators -> 0
         not post.federated and post.sender_id in local_creators -> 0
-        not post.federated and post.sender_id in legacy_creators -> 0
+        not post.federated and post.sender_id in session_liked_creators -> 0
         true -> 1
       end
     end)
@@ -1095,14 +1095,15 @@ defmodule Elektrine.Social.Recommendations do
 
     local_creators = user_profile.session_liked_local_creators
     remote_creators = user_profile.session_liked_remote_creators
-    legacy_creators = user_profile.session_liked_creators
+    session_liked_creators = user_profile.session_liked_creators
 
     creator_match =
       if post.federated do
         not is_nil(post.remote_actor_id) and
-          (post.remote_actor_id in remote_creators or post.remote_actor_id in legacy_creators)
+          (post.remote_actor_id in remote_creators or
+             post.remote_actor_id in session_liked_creators)
       else
-        post.sender_id in local_creators or post.sender_id in legacy_creators
+        post.sender_id in local_creators or post.sender_id in session_liked_creators
       end
 
     score =

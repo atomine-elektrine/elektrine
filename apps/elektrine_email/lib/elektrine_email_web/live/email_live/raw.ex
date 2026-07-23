@@ -33,7 +33,7 @@ defmodule ElektrineEmailWeb.EmailLive.Raw do
           Email.get_user_message(msg.id, user.id)
 
         nil ->
-          # Fallback to ID lookup for backwards compatibility
+          # Fallback to ID lookup when handle is absent
           case Integer.parse(message_identifier) do
             {id, ""} -> Email.get_user_message(id, user.id)
             _ -> {:error, :invalid_identifier}

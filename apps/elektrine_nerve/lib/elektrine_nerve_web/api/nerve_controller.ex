@@ -38,21 +38,6 @@ defmodule ElektrineNerveWeb.API.NerveController do
   end
 
   @doc """
-  POST /api/ext/v1/nerve/setup
-
-  Deprecated: Nerve no longer has its own passphrase. Encrypted data is enabled
-  in account settings.
-  """
-  def setup(conn, _params) do
-    Response.error(
-      conn,
-      :bad_request,
-      "master_password_required",
-      "Nerve uses your account password. Set up encrypted data at /account/encrypted-data."
-    )
-  end
-
-  @doc """
   POST /api/ext/v1/nerve/entries
   """
   def create(conn, params) do

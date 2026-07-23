@@ -1734,7 +1734,7 @@ defmodule Elektrine.Profiles do
 
   @doc """
   Get users that a user is following (includes both local and remote users).
-  Returns accepted follows, plus legacy remote follows to actors that auto-accept.
+  Returns accepted follows, plus older remote follows to actors that auto-accept.
   """
   def get_following(user_id, opts \\ []) do
     limit = Keyword.get(opts, :limit, 20)
@@ -1759,7 +1759,7 @@ defmodule Elektrine.Profiles do
       })
       |> Repo.all()
 
-    # Treat legacy pending rows for auto-accepting remote actors as accepted.
+    # Treat older pending rows for auto-accepting remote actors as accepted.
     remote_following =
       Follow
       |> join(:inner, [f], a in Elektrine.ActivityPub.Actor, on: f.remote_actor_id == a.id)
@@ -1818,7 +1818,7 @@ defmodule Elektrine.Profiles do
 
   @doc """
   Get following count for a user (includes both local and remote).
-  Counts accepted follows, plus legacy remote follows to actors that auto-accept.
+  Counts accepted follows, plus older remote follows to actors that auto-accept.
   """
   def get_following_count(user_id) do
     local_following_count =
@@ -2075,7 +2075,7 @@ defmodule Elektrine.Profiles do
 
   @doc """
   Checks if a LOCAL user is actively following a REMOTE actor.
-  Treats legacy pending rows for auto-accepting remote actors as accepted.
+  Treats older pending rows for auto-accepting remote actors as accepted.
   """
   def following_remote_actor?(follower_id, remote_actor_id) do
     Follow

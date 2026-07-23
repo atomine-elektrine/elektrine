@@ -27,7 +27,7 @@ defmodule ElektrineWeb.Plugs.SecurityHeaders do
     |> put_hsts_header()
     |> put_resp_header("x-frame-options", "SAMEORIGIN")
     |> put_resp_header("x-content-type-options", "nosniff")
-    # X-XSS-Protection is deprecated; the legacy auditor it controls can itself
+    # X-XSS-Protection is obsolete; the auditor it enables can itself
     # introduce vulnerabilities. Disable it ("0") and rely on the CSP instead.
     |> put_resp_header("x-xss-protection", "0")
     |> put_resp_header("referrer-policy", "strict-origin-when-cross-origin")

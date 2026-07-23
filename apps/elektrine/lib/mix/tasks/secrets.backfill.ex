@@ -1,6 +1,6 @@
 defmodule Mix.Tasks.Secrets.Backfill do
-  @moduledoc "Encrypts legacy plaintext secret fields in place."
-  @shortdoc "Encrypts legacy plaintext secret fields in place"
+  @moduledoc "Encrypts remaining plaintext secret fields in place."
+  @shortdoc "Encrypts remaining plaintext secret fields in place"
 
   use Mix.Task
 

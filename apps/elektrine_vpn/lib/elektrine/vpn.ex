@@ -1274,12 +1274,13 @@ defmodule Elektrine.VPN do
   end
 
   defp decrypt_private_key(encrypted_data) when is_binary(encrypted_data) do
-    decrypt_legacy_private_key(encrypted_data)
+    # Older keys used Endpoint secret_key_base as the AEAD key.
+    decrypt_private_key_with_endpoint_secret(encrypted_data)
   end
 
   defp decrypt_private_key(nil), do: nil
 
-  defp decrypt_legacy_private_key(encrypted_data) do
+  defp decrypt_private_key_with_endpoint_secret(encrypted_data) do
     secret =
       Application.get_env(:elektrine, ElektrineWeb.Endpoint)[:secret_key_base]
       |> binary_part(0, 32)

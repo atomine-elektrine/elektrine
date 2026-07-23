@@ -705,7 +705,7 @@ defmodule Elektrine.Social.Messages do
   def get_messages(conversation_id, user_id, opts \\ []) do
     limit = Keyword.get(opts, :limit, 50)
     before_id = Keyword.get(opts, :before_id)
-    # Default to showing only regular messages (not discussions) for backward compatibility
+    # Default to showing only regular messages (not discussions) for older clients
     post_types = Keyword.get(opts, :post_types, ["message", nil])
 
     # Verify user is a member of the conversation
@@ -1705,7 +1705,7 @@ defmodule Elektrine.Social.Messages do
         load_activitypub_lookup_message(id)
 
       nil ->
-        case message_id_by_legacy_activitypub_ref(canonical_ref, [
+        case message_id_by_activitypub_ref_field(canonical_ref, [
                :activitypub_id,
                :activitypub_url
              ]) do
@@ -1730,12 +1730,12 @@ defmodule Elektrine.Social.Messages do
     |> Repo.one()
   end
 
-  defp message_id_by_legacy_activitypub_ref(ref, field_names)
+  defp message_id_by_activitypub_ref_field(ref, field_names)
        when is_binary(ref) and is_list(field_names) do
-    Enum.find_value(field_names, &message_id_by_legacy_activitypub_ref(ref, &1))
+    Enum.find_value(field_names, &message_id_by_activitypub_ref_field(ref, &1))
   end
 
-  defp message_id_by_legacy_activitypub_ref(ref, field_name)
+  defp message_id_by_activitypub_ref_field(ref, field_name)
        when is_binary(ref) and is_atom(field_name) do
     from(m in Message,
       where:

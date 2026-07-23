@@ -29,6 +29,14 @@ scripts/deploy/self_host.sh init \
   --public-dns-ip 203.0.113.10
 ```
 
+## Disk / image cleanup
+
+Each successful Docker `up` prunes old `ghcr.io/atomine-elektrine/elektrine`
+tags (default: keep 3). A full root disk will stop Postgres and can take
+self-hosted DNS offline. Tune with `ELEKTRINE_IMAGE_KEEP_COUNT` or run
+`scripts/deploy/prune_old_images.sh` manually. `doctor.sh` warns when free space
+or image-tag count looks unhealthy.
+
 ## Simple Env Keys
 
 Prefer these high-level values in `.env.production`:

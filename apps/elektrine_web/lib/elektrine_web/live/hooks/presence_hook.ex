@@ -243,7 +243,7 @@ defmodule ElektrineWeb.Live.Hooks.PresenceHook do
   end
 
   defp handle_presence_event("device_detected", _params, socket) do
-    # Legacy event from older clients; device info now arrives in connect params.
+    # Older event from older clients; device info now arrives in connect params.
     {:halt, socket}
   end
 

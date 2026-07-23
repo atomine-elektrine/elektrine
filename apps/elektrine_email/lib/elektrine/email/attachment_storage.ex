@@ -49,7 +49,7 @@ defmodule Elektrine.Email.AttachmentStorage do
         content = decode_attachment_data(data, storage_metadata)
 
         Events.upload(:email_attachment_download, :success, byte_size(content), %{
-          source: "legacy"
+          source: "older"
         })
 
         {:ok, content}
@@ -111,13 +111,13 @@ defmodule Elektrine.Email.AttachmentStorage do
         delete_attachment_local(key)
 
       _ ->
-        Events.upload(:email_attachment_delete, :success, nil, %{source: "legacy"})
+        Events.upload(:email_attachment_delete, :success, nil, %{source: "older"})
         :ok
     end
   end
 
   @doc """
-  Migrates a legacy database-stored attachment into configured attachment storage.
+  Migrates a older database-stored attachment into configured attachment storage.
   """
   def migrate_attachment_to_s3(mailbox_id, message_id, attachment_id, attachment_data) do
     content =

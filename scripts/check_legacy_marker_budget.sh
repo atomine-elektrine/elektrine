@@ -3,7 +3,9 @@ set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
 
-max_markers=234
+# Budget tracks remaining product "compat" surfaces (Mastodon/Pleroma APIs, etc.)
+# after removal of dual-path shims and unversioned external routes.
+max_markers=130
 
 count=$(
   rg -n "legacy|backward|backwards|compat|deprecated" apps config scripts deploy \

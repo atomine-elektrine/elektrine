@@ -18,7 +18,7 @@ defmodule Elektrine.Auth.RateLimiter do
     lockout: {:minutes, 30},
     cleanup_interval: {:minutes, 5}
 
-  # Backwards compatibility aliases
+  # Older callers aliases
   def record_failed_attempt(identifier), do: record_attempt(identifier)
   def record_successful_attempt(identifier), do: clear_limits(identifier)
   def get_rate_limit_status(identifier), do: get_status(identifier)

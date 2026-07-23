@@ -428,7 +428,7 @@ defmodule Elektrine.Domains do
   end
 
   @doc """
-  Optional legacy ActivityPub domain to migrate from.
+  Optional older ActivityPub domain to migrate from.
   """
   def activitypub_move_from_domain do
     configured = System.get_env("ACTIVITYPUB_MOVE_FROM_DOMAIN")

@@ -7,7 +7,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.SortHelpers do
   alias Elektrine.Social.Message
 
   @doc """
-  Normalizes sort values from UI/legacy values to supported discussion sort modes.
+  Normalizes sort values from UI/older values to supported discussion sort modes.
   """
   def normalize_sort(sort) when is_binary(sort) do
     case sort do

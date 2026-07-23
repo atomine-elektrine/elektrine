@@ -1471,7 +1471,7 @@ defmodule ElektrineWeb.Router do
       :blocks_import
     )
 
-    # Chat client compatibility
+    # Pleroma chat API (Akkoma/Pleroma clients)
     post(
       "/v1/pleroma/chats/by-account-id/:id",
       ElektrineWeb.API.ChatCompatController,
@@ -1501,13 +1501,13 @@ defmodule ElektrineWeb.Router do
     post("/v1/pleroma/chats/:id/unpin", ElektrineWeb.API.ChatCompatController, :unpin)
     get("/v2/pleroma/chats", ElektrineWeb.API.ChatCompatController, :index)
 
-    # Client-compatible bookmark folders
+    # Pleroma bookmark folders
     get("/v1/pleroma/bookmark_folders", ElektrineWeb.API.BookmarkFolderController, :index)
     post("/v1/pleroma/bookmark_folders", ElektrineWeb.API.BookmarkFolderController, :create)
     patch("/v1/pleroma/bookmark_folders/:id", ElektrineWeb.API.BookmarkFolderController, :update)
     delete("/v1/pleroma/bookmark_folders/:id", ElektrineWeb.API.BookmarkFolderController, :delete)
 
-    # Client-compatible account backups
+    # Pleroma account backups
     get("/pleroma/backups", ElektrineWeb.API.BackupController, :index)
     post("/pleroma/backups", ElektrineWeb.API.BackupController, :create)
     get("/pleroma/backups/:id", ElektrineWeb.API.BackupController, :show)
@@ -1729,60 +1729,6 @@ defmodule ElektrineWeb.Router do
     post("/:id/deliveries/:delivery_id/replay", WebhookController, :replay)
   end
 
-  # Backward-compatible unversioned external endpoints.
-  scope "/api/ext/search", ElektrineWeb.API do
-    pipe_through([:api_pat_authenticated, :api_pat_search_read_scope])
-
-    get("/", GlobalSearchController, :index)
-    get("/actions", GlobalSearchController, :actions)
-    post("/actions/execute", GlobalSearchController, :execute)
-  end
-
-  scope "/api/ext/calendars", ElektrineWeb.API do
-    pipe_through([:api_pat_authenticated, :api_pat_calendar_read_scope])
-
-    get("/", CalendarController, :index)
-    get("/:id/events", CalendarController, :events)
-  end
-
-  scope "/api/ext/calendars", ElektrineWeb.API do
-    pipe_through([:api_pat_authenticated, :api_pat_calendar_write_scope])
-
-    post("/", CalendarController, :create)
-    post("/:id/events", CalendarController, :create_event)
-  end
-
-  scope "/api/ext/events", ElektrineWeb.API do
-    pipe_through([:api_pat_authenticated, :api_pat_calendar_write_scope])
-
-    put("/:id", CalendarController, :update_event)
-    delete("/:id", CalendarController, :delete_event)
-  end
-
-  scope "/api/ext/nerve", ElektrineWeb.API do
-    pipe_through([:api_nerve_authenticated, :api_pat_nerve_read_scope])
-
-    ElektrineWeb.Routes.Nerve.api_read_routes()
-  end
-
-  scope "/api/ext/dns", ElektrineWeb.API do
-    pipe_through([:api_pat_authenticated, :api_pat_dns_read_scope])
-
-    ElektrineWeb.Routes.DNS.api_read_routes()
-  end
-
-  scope "/api/ext/dns", ElektrineWeb.API do
-    pipe_through([:api_pat_authenticated, :api_pat_dns_write_scope])
-
-    ElektrineWeb.Routes.DNS.api_write_routes()
-  end
-
-  scope "/api/ext/nerve", ElektrineWeb.API do
-    pipe_through([:api_nerve_authenticated, :api_pat_nerve_write_scope])
-
-    ElektrineWeb.Routes.Nerve.api_write_routes()
-  end
-
   # Data export download for the logged-in browser UI.
   # Requires the browser session plus the per-export download token.
   scope "/api", ElektrineWeb.API do
@@ -1954,7 +1900,7 @@ defmodule ElektrineWeb.Router do
 
       live("/dns/analytics", ProfileLive.DomainAnalytics, :analytics)
 
-      # Backward-compatible app search route. /paige is the canonical merged search UI.
+      # Older-client app search route. /paige is the canonical merged search UI.
       live("/search", SearchLive, :index)
     end
   end

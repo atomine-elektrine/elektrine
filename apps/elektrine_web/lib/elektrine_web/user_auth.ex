@@ -245,7 +245,7 @@ defmodule ElektrineWeb.UserAuth do
 
   defp signed_in_path(_conn, user) do
     # Redirect to onboarding if not completed
-    # Handle both false and nil (for legacy users)
+    # Handle both false and nil (for older users)
     if user.onboarding_completed == true do
       ~p"/"
     else

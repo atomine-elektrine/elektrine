@@ -21,7 +21,6 @@ defmodule ElektrineWeb.Routes.Nerve do
   defmacro api_write_routes do
     quote do
       scope "/", alias: false do
-        post("/setup", ElektrineNerveWeb.API.NerveController, :setup)
         post("/entries", ElektrineNerveWeb.API.NerveController, :create)
         put("/entries/:id", ElektrineNerveWeb.API.NerveController, :update)
         delete("/entries/:id", ElektrineNerveWeb.API.NerveController, :delete)

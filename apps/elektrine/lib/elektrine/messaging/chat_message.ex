@@ -533,7 +533,7 @@ defmodule Elektrine.Messaging.ChatMessage do
         attrs
         |> Map.put(:encrypted_content, nil)
         # Keep plaintext content, but maintain the same blind keyword index as
-        # the legacy message path so chat search semantics stay user-specific.
+        # the older message path so chat search semantics stay user-specific.
         |> Map.put(:search_index, Elektrine.Encryption.index_content(content, sender_id))
     end
   end

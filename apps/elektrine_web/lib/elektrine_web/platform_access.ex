@@ -65,9 +65,9 @@ defmodule ElektrineWeb.PlatformAccess do
       "/api/ext/v1/social",
       "/pripyat/communities"
     ],
-    nerve: ["/account/nerve", "/api/ext/v1/nerve", "/api/ext/nerve"],
+    nerve: ["/account/nerve", "/api/ext/v1/nerve"],
     vpn: ["/vpn", "/api/vpn", "/pripyat/vpn"],
-    dns: ["/dns", "/api/dns", "/api/ext/v1/dns", "/api/ext/dns", "/pripyat/dns"],
+    dns: ["/dns", "/api/dns", "/api/ext/v1/dns", "/pripyat/dns"],
     uptime: ["/uptime"],
     kairo: ["/kairo", "/api/ext/v1/kairo"]
   ]
@@ -188,7 +188,7 @@ defmodule ElektrineWeb.PlatformAccess do
       path_matches?(path, "/vpn/policy") ->
         nil
 
-      path_matches?(path, "/api/ext/v1/search") or path_matches?(path, "/api/ext/search") ->
+      path_matches?(path, "/api/ext/v1/search") ->
         :portal
 
       path_matches?(path, "/portal") ->
@@ -197,7 +197,7 @@ defmodule ElektrineWeb.PlatformAccess do
       path_matches?(path, "/chat") or path_matches?(path, "/api/private-attachments") or
         path_matches?(path, "/api/servers") or path_matches?(path, "/api/conversations") or
         path_matches?(path, "/api/messages") or path_matches?(path, "/api/chat") or
-        path_matches?(path, "/api/ext/v1/chat") or path_matches?(path, "/api/ext/chat") ->
+          path_matches?(path, "/api/ext/v1/chat") ->
         :chat
 
       path_matches?(path, "/email") or path_matches?(path, "/calendar") or
@@ -206,10 +206,10 @@ defmodule ElektrineWeb.PlatformAccess do
         path_matches?(path, "/jmap") or path_matches?(path, "/.well-known/jmap") or
         path_matches?(path, "/api/email") or path_matches?(path, "/api/emails") or
         path_matches?(path, "/api/aliases") or path_matches?(path, "/api/mailbox") or
-        path_matches?(path, "/api/ext/v1/email") or path_matches?(path, "/api/ext/email") or
-        path_matches?(path, "/api/ext/v1/contacts") or path_matches?(path, "/api/ext/contacts") or
-        path_matches?(path, "/api/ext/v1/calendars") or path_matches?(path, "/api/ext/calendars") or
-        path_matches?(path, "/api/ext/v1/events") or path_matches?(path, "/api/ext/events") ->
+        path_matches?(path, "/api/ext/v1/email") or
+        path_matches?(path, "/api/ext/v1/contacts") or
+        path_matches?(path, "/api/ext/v1/calendars") or
+          path_matches?(path, "/api/ext/v1/events") ->
         :email
 
       path_matches?(path, "/communities") or path_matches?(path, "/discussions") or
@@ -229,17 +229,13 @@ defmodule ElektrineWeb.PlatformAccess do
 
       path_matches?(path, "/timeline") or path_matches?(path, "/hashtag") or
         path_matches?(path, "/post") or path_matches?(path, "/remote") or
-        path_matches?(path, "/api/social") or path_matches?(path, "/api/ext/v1/social") or
-          path_matches?(path, "/api/ext/social") ->
+        path_matches?(path, "/api/social") or path_matches?(path, "/api/ext/v1/social") ->
         :timeline
 
-      path_matches?(path, "/account/nerve") or
-        path_matches?(path, "/api/ext/v1/nerve") or
-          path_matches?(path, "/api/ext/nerve") ->
+      path_matches?(path, "/account/nerve") or path_matches?(path, "/api/ext/v1/nerve") ->
         :nerve
 
-      path_matches?(path, "/dns") or path_matches?(path, "/api/ext/v1/dns") or
-          path_matches?(path, "/api/ext/dns") ->
+      path_matches?(path, "/dns") or path_matches?(path, "/api/ext/v1/dns") ->
         :dns
 
       path_matches?(path, "/vpn") or path_matches?(path, "/api/vpn") ->

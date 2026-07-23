@@ -182,7 +182,7 @@ defmodule Elektrine.Security.URLValidator do
         private_or_special_ip?(ip)
 
       :error ->
-        # Backwards-compatible hostname checks for known internal patterns.
+        # Hostname checks for known internal patterns.
         ipv4_private?(host) or
           ipv6_private?(host) or
           localhost?(host) or

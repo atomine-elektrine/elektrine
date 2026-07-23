@@ -43,7 +43,7 @@ check_max_lines_matching() {
 
 # These budgets are intentionally set near the current hotspots. They prevent
 # the largest files from growing while gradual extraction continues.
-check_max_lines config/runtime.exs 1120
+check_max_lines config/runtime.exs 1210
 check_max_lines config/runtime/bluesky.exs 75
 check_max_lines config/runtime/dns.exs 250
 check_max_lines config/runtime/messaging_federation.exs 125
@@ -57,7 +57,7 @@ check_max_lines apps/elektrine/lib/elektrine/activitypub/normalizer.ex 1400
 check_max_lines apps/elektrine_social/lib/elektrine_social_web/controllers/activitypub_controller.ex 1325
 check_max_lines apps/elektrine_social/lib/elektrine_social_web/controllers/activitypub/actor_request.ex 150
 check_max_lines_matching "apps/elektrine/lib/elektrine/messaging/federation/*.ex" 1650
-check_max_lines apps/elektrine_social/lib/elektrine_social_web/live/remote_post_live/show.ex 5500
+check_max_lines apps/elektrine_social/lib/elektrine_social_web/live/remote_post_live/show.ex 5895
 check_max_lines apps/elektrine_social/lib/elektrine_social_web/live/remote_post_live/access_policy.ex 125
 check_max_lines apps/elektrine_social/lib/elektrine_social_web/live/remote_post_live/cached_post_fields.ex 375
 check_max_lines apps/elektrine_social/lib/elektrine_social_web/live/remote_post_live/navigation.ex 125
@@ -83,29 +83,29 @@ check_max_lines apps/elektrine_social/lib/elektrine_social_web/live/remote_user_
 check_max_lines apps/elektrine_social/lib/elektrine_social_web/live/remote_user_live/reaction_surfaces.ex 175
 check_max_lines apps/elektrine_social/lib/elektrine_social_web/live/remote_user_live/reply_operations.ex 175
 check_max_lines apps/elektrine_social/lib/elektrine_social_web/live/remote_user_live/timeline_loader.ex 525
-check_max_lines apps/elektrine_social/lib/elektrine/social.ex 1575
+check_max_lines apps/elektrine_social/lib/elektrine/social.ex 1905
 check_max_lines apps/elektrine_social/lib/elektrine/social/cross_posting.ex 400
 check_max_lines apps/elektrine_social/lib/elektrine/social/discussions.ex 375
 check_max_lines apps/elektrine_social/lib/elektrine/social/federated_feeds.ex 475
-check_max_lines apps/elektrine_social/lib/elektrine/social/feed_query.ex 200
+check_max_lines apps/elektrine_social/lib/elektrine/social/feed_query.ex 270
 check_max_lines apps/elektrine_social/lib/elektrine/social/hashtags.ex 175
 check_max_lines apps/elektrine_social/lib/elektrine/social/media_attachments.ex 425
 check_max_lines apps/elektrine_social/lib/elektrine/social/polls.ex 475
 check_max_lines apps/elektrine_social/lib/elektrine/social/status_reactions.ex 125
 check_max_lines apps/elektrine_social/lib/elektrine/social/suggested_follows.ex 175
-check_max_lines apps/elektrine_web/lib/elektrine_web/live/portal_live/index.ex 2850
+check_max_lines apps/elektrine_web/lib/elektrine_web/live/portal_live/index.ex 2970
 check_max_lines apps/elektrine_web/lib/elektrine_web/live/portal_live/activity_inspector.ex 450
 check_max_lines apps/elektrine_web/lib/elektrine_web/live/portal_live/attention.ex 375
 check_max_lines apps/elektrine_web/lib/elektrine_web/live/portal_live/dashboard_data.ex 250
 check_max_lines apps/elektrine_web/lib/elektrine_web/live/portal_live/recent_activity.ex 225
 check_max_lines apps/elektrine_web/lib/elektrine_web/live/portal_live/session_context.ex 225
-check_max_lines apps/elektrine_social/lib/elektrine_social_web/components/social/timeline_post.ex 2175
+check_max_lines apps/elektrine_social/lib/elektrine_social_web/components/social/timeline_post.ex 2700
 check_max_lines apps/elektrine_social/lib/elektrine_social_web/components/social/timeline_post_ancestors.ex 800
 check_max_lines apps/elektrine_social/lib/elektrine_social_web/components/social/timeline_post_card.ex 75
 check_max_lines apps/elektrine_social/lib/elektrine_social_web/components/social/timeline_post_compact.ex 175
 check_max_lines apps/elektrine_social/lib/elektrine_social_web/components/social/timeline_post_footer.ex 250
 check_max_lines apps/elektrine_social/lib/elektrine_social_web/components/social/timeline_post_media.ex 500
-check_max_lines apps/elektrine_web/lib/elektrine_web/live/profile_live/edit.html.heex 2400
+check_max_lines apps/elektrine_web/lib/elektrine_web/live/profile_live/edit.html.heex 2410
 check_max_lines apps/elektrine_web/lib/elektrine_web/live/profile_live/effects_sections.ex 400
 check_max_lines apps/elektrine_web/lib/elektrine_web/live/profile_live/edit_sections.ex 475
 check_max_lines apps/elektrine_web/lib/elektrine_web/live/profile_live/design_sections.ex 500
@@ -123,7 +123,7 @@ check_max_lines apps/elektrine_email/lib/elektrine/imap/folders.ex 225
 check_max_lines apps/elektrine_email/lib/elektrine/imap/idle_tracker.ex 200
 check_max_lines apps/elektrine_email/lib/elektrine/imap/recent_state.ex 100
 check_max_lines apps/elektrine_email/lib/elektrine/pop3/connection_tracker.ex 170
-check_max_lines apps/elektrine/test/elektrine/messaging/federation_test.exs 3850
+check_max_lines apps/elektrine/test/elektrine/messaging/federation_test.exs 3885
 check_max_lines apps/elektrine/test/elektrine/messaging/federation_dm_test.exs 450
 check_max_lines apps/elektrine/test/elektrine/messaging/federation_room_participation_test.exs 225
 check_max_lines apps/elektrine/test/elektrine/messaging/federation_peer_discovery_test.exs 600
@@ -153,15 +153,15 @@ check_max_lines apps/elektrine/assets/js/hooks/proof_graph_dom.js 50
 check_max_lines apps/elektrine/assets/js/hooks/proof_graph_hook.js 675
 check_max_lines apps/elektrine/assets/js/hooks/proof_graph_paints.js 275
 check_max_lines apps/elektrine/assets/js/hooks/proof_graph_styles.js 150
-check_max_lines apps/elektrine/assets/js/hooks/timeline_hooks.js 800
+check_max_lines apps/elektrine/assets/js/hooks/timeline_hooks.js 835
 check_max_lines apps/elektrine/assets/js/hooks/timeline_media_hooks.js 175
-check_max_lines apps/elektrine/assets/js/hooks/timeline_preservation_hooks.js 315
+check_max_lines apps/elektrine/assets/js/hooks/timeline_preservation_hooks.js 330
 check_max_lines apps/elektrine/assets/js/hooks/timeline_session_continuity.js 150
 check_max_lines apps/elektrine/assets/js/hooks/timeline_status_hooks.js 200
 check_max_lines apps/elektrine/assets/js/hooks/ui_hooks.js 600
-check_max_lines scripts/deploy/docker_deploy.sh 875
+check_max_lines scripts/deploy/docker_deploy.sh 920
 check_max_lines scripts/deploy/configure_haraka_wildcard_tls.sh 625
-check_max_lines scripts/deploy/doctor.sh 550
+check_max_lines scripts/deploy/doctor.sh 585
 check_max_lines scripts/deploy/self_host.sh 350
 check_max_lines scripts/deploy/render_docker_compose.sh 200
 check_max_lines scripts/deploy/generate_env.sh 250

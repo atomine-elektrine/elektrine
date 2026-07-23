@@ -29,8 +29,6 @@ defmodule ElektrineWeb.Components.Platform.ENav do
   attr :current_user, :any, default: nil
   attr :badge_counts, :map, default: nil
 
-  def z_nav(assigns), do: e_nav(assigns)
-
   def e_nav(assigns) do
     assigns =
       assigns

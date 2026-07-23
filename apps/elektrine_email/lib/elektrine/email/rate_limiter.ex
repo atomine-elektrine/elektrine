@@ -378,7 +378,7 @@ defmodule Elektrine.Email.RateLimiter do
   end
 
   @doc """
-  Gets rate limit status in the legacy format for backwards compatibility.
+  Gets rate limit status in the previous format for older clients.
   """
   def get_rate_limit_status(user_id) do
     status = get_status(user_id)

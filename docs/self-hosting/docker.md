@@ -136,8 +136,8 @@ Review the appended block before deploying; some presets intentionally leave
 provider credentials or public hostnames commented.
 
 `scripts/deploy/doctor.sh` checks these values before deploy and also validates
-the common Caddy, wildcard TLS, Magpie/S3, Docker, and stale bind-mount failure
-points.
+the common Caddy, wildcard TLS, Magpie/S3, Docker, disk free space / old app
+image count, and stale bind-mount failure points.
 
 The doctor also checks the self-host file layout:
 
@@ -245,6 +245,26 @@ scripts/deploy/deploy_pushed_image.sh --host linuxuser@your-host --tag dev-$(git
 
 That path builds the main Elektrine image locally, pushes it to GHCR, then has
 the remote host pull and deploy it without rebuilding the app image there.
+
+After a successful `up`, `docker_deploy.sh` prunes old app image tags on the
+host so repeated deploys do not fill the disk. By default it keeps the three
+newest tags of `ghcr.io/atomine-elektrine/elektrine`, never removes images still
+used by a container, and cleans dangling images plus unused build cache.
+
+```bash
+# manual prune / dry-run
+scripts/deploy/prune_old_images.sh --keep 3
+scripts/deploy/prune_old_images.sh --dry-run
+
+# tune via env (also read from .env.production on deploy)
+ELEKTRINE_IMAGE_KEEP_COUNT=5
+ELEKTRINE_PRUNE_BUILD_CACHE=1
+ELEKTRINE_SKIP_IMAGE_PRUNE=false
+```
+
+`doctor.sh` warns when root disk free space is low or when many old app image
+tags have piled up. A full root disk will prevent Postgres from starting and
+can take self-hosted DNS down with it.
 
 ## HTTPS
 

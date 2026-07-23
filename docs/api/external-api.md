@@ -261,8 +261,4 @@ Beyond the PAT API, standard protocols are available:
 - **OIDC**: Elektrine can act as an OpenID Connect provider; clients are
   managed under `/account/developer/oidc/clients`.
 
-## Legacy unversioned routes
 
-`/api/ext/...` (without `/v1`) still mirrors the search, calendars, events,
-nerve, and DNS endpoints for backward compatibility. Use `/api/ext/v1/...`
-for new integrations.

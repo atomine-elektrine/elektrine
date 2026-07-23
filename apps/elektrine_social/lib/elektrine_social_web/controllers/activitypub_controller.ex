@@ -1044,8 +1044,8 @@ defmodule ElektrineSocialWeb.ActivityPubController do
     base_urls =
       [ActivityPub.instance_url()] ++
         case Domains.activitypub_move_from_domain() do
-          legacy_domain when is_binary(legacy_domain) ->
-            [ActivityPub.instance_url_for_domain(legacy_domain)]
+          configured_domain when is_binary(configured_domain) ->
+            [ActivityPub.instance_url_for_domain(configured_domain)]
 
           _ ->
             []

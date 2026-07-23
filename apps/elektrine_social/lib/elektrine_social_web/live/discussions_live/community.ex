@@ -260,7 +260,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Community do
           message
         end
 
-      # Only add if it's a discussion-related post (discussion, poll, link, or legacy post with nil post_type)
+      # Only add if it's a discussion-related post (discussion, poll, link, or older post with nil post_type)
       if message.post_type in ["discussion", "poll", "link", "post"] || is_nil(message.post_type) do
         # Decrypt content before adding to list
         message = Elektrine.Social.Message.decrypt_content(message)

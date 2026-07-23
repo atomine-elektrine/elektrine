@@ -9,7 +9,7 @@ defmodule ElektrineWeb.Live.NotificationHelpers do
 
   The following options are supported:
   - `:title` - Custom title (overrides default)
-  Additional options are accepted for compatibility but are ignored by Phoenix flash.
+  Additional options are accepted but ignored by Phoenix flash.
   """
 
   @type notify_opts :: [

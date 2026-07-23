@@ -722,7 +722,7 @@ defmodule Atomine.Personhood do
           end
         end
 
-      :legacy ->
+      :older ->
         true
 
       {:error, reason} ->
@@ -740,7 +740,7 @@ defmodule Atomine.Personhood do
     parse_signed_proof_statement_fields(rest)
   end
 
-  defp parse_signed_proof_statement(_challenge), do: :legacy
+  defp parse_signed_proof_statement(_challenge), do: :older
 
   defp parse_signed_proof_statement_fields(rest) do
     case String.split(rest, " ", trim: true) do

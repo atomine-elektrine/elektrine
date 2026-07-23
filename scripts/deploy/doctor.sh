@@ -324,7 +324,7 @@ check_old_generated_files
 check_root_owned_generated_files
 check_stale_deploy_worktrees
 check_compose_project_name
-doctor_check_legacy_deploy_env_file
+doctor_check_docker_env_file
 doctor_check_simplified_deploy_env
 
 for required in PRIMARY_DOMAIN DB_PASSWORD ELEKTRINE_MASTER_SECRET; do
@@ -489,6 +489,50 @@ if ! docker info >/dev/null 2>&1; then
 else
   check_ok "Docker is accessible"
 fi
+
+check_disk_space() {
+  local avail_kb=""
+  local avail_human=""
+  local use_pct=""
+  local image_count=0
+  local image_repo="${ELEKTRINE_IMAGE_REPO:-${IMAGE_REPO:-ghcr.io/atomine-elektrine/elektrine}}"
+  local keep_count="${ELEKTRINE_IMAGE_KEEP_COUNT:-3}"
+
+  avail_kb="$(df -Pk / 2>/dev/null | awk 'NR==2 {print $4}')"
+  use_pct="$(df -P / 2>/dev/null | awk 'NR==2 {gsub(/%/, "", $5); print $5}')"
+  avail_human="$(df -h / 2>/dev/null | awk 'NR==2 {print $4}')"
+
+  if [[ -n "$avail_kb" && "$avail_kb" =~ ^[0-9]+$ ]]; then
+    # Warn under 5 GiB free or over 90% used — full disk takes Postgres and DNS down.
+    if [[ "$avail_kb" -lt 5242880 ]] || { [[ -n "$use_pct" && "$use_pct" =~ ^[0-9]+$ ]] && [[ "$use_pct" -ge 90 ]]; }; then
+      check_error "root filesystem is critically low on space (${avail_human:-?} free, ${use_pct:-?}% used)"
+      echo "Hint: run scripts/deploy/prune_old_images.sh and/or docker system df to reclaim space." >&2
+    elif [[ "$avail_kb" -lt 20971520 ]] || { [[ -n "$use_pct" && "$use_pct" =~ ^[0-9]+$ ]] && [[ "$use_pct" -ge 80 ]]; }; then
+      check_warn "root filesystem space is getting low (${avail_human:-?} free, ${use_pct:-?}% used)"
+      echo "Hint: scripts/deploy/docker_deploy.sh prunes old app images after each up; or run scripts/deploy/prune_old_images.sh." >&2
+    else
+      check_ok "root filesystem has free space (${avail_human:-?} free, ${use_pct:-?}% used)"
+    fi
+  else
+    check_warn "could not determine root filesystem free space"
+  fi
+
+  if [[ "${#DOCKER_BIN[@]}" -gt 0 ]]; then
+    image_count="$("${DOCKER_BIN[@]}" images --format '{{.Repository}}:{{.Tag}}' 2>/dev/null \
+      | awk -v repo="$image_repo" '$0 ~ ("^" repo ":") && $0 !~ /:<none>$/' \
+      | wc -l \
+      | tr -d ' ')"
+
+    if [[ "$image_count" =~ ^[0-9]+$ ]] && [[ "$image_count" -gt $((keep_count * 3)) ]]; then
+      check_warn "$image_count local tags for $image_repo (keep target is $keep_count)"
+      echo "Hint: run scripts/deploy/prune_old_images.sh --keep $keep_count" >&2
+    elif [[ "$image_count" =~ ^[0-9]+$ ]]; then
+      check_ok "local $image_repo tags: $image_count (keep target $keep_count)"
+    fi
+  fi
+}
+
+check_disk_space
 
 if [[ "${#DOCKER_BIN[@]}" -gt 0 ]]; then
   if "${DOCKER_BIN[@]}" inspect elektrine_caddy_edge >/dev/null 2>&1; then

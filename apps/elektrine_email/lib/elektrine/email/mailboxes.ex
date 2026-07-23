@@ -54,7 +54,7 @@ defmodule Elektrine.Email.Mailboxes do
   Gets a mailbox by email address.
   """
   def get_mailbox_by_email(email) when is_binary(email) do
-    # First try direct email lookup for backwards compatibility
+    # First try direct email lookup for older clients
     case Mailbox |> where(email: ^email) |> preferred_mailbox_query() |> Repo.one() do
       %Mailbox{} = mailbox ->
         mailbox

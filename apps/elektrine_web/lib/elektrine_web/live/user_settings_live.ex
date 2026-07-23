@@ -1083,7 +1083,7 @@ defmodule ElektrineWeb.UserSettingsLive do
 
     case other_result do
       {:ok, _updated_user} ->
-        sync_legacy_profile_hide_followers(socket.assigns.user.id, final_params)
+        sync_profile_hide_followers(socket.assigns.user.id, final_params)
         updated_user = Accounts.get_user!(socket.assigns.user.id)
         old_recovery_email = socket.assigns.user.recovery_email
 
@@ -1140,9 +1140,9 @@ defmodule ElektrineWeb.UserSettingsLive do
     end
   end
 
-  # Keeps the legacy per-profile hide_followers flag (enforced on profile show)
+  # Keeps the older per-profile hide_followers flag (enforced on profile show)
   # in sync with the user-level setting.
-  defp sync_legacy_profile_hide_followers(user_id, params) do
+  defp sync_profile_hide_followers(user_id, params) do
     case Map.fetch(params, "hide_followers") do
       {:ok, value} when is_boolean(value) ->
         Profiles.upsert_user_profile(user_id, %{hide_followers: value})

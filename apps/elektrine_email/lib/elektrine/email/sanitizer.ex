@@ -24,7 +24,7 @@ defmodule Elektrine.Email.Sanitizer do
     email_params |> sanitize_headers() |> sanitize_body_content()
   end
 
-  @doc "Light sanitization for forwarded emails.\n\n⚠️ DEPRECATED: Use `sanitize_incoming_email/1` instead for consistent security.\n\nThis function provides minimal sanitization (UTF-8 fixes only) but is NOT\nrecommended for production use. Forwarded emails should go through the same\nsecurity sanitization as regular incoming emails.\n\nOnly applies:\n- Header sanitization (prevent SMTP injection)\n- UTF-8 validation and encoding fixes\n- NO HTML stripping or tag removal\n\nFor security reasons, use `sanitize_incoming_email/1` instead, which:\n- Removes dangerous tags (script, iframe, form, etc.)\n- Removes event handlers (onclick, etc.)\n- Removes dangerous protocols\n- While still preserving safe links and formatting\n"
+  @doc "Light sanitization for forwarded emails.\n\n⚠️ Retired:: Use `sanitize_incoming_email/1` instead for consistent security.\n\nThis function provides minimal sanitization (UTF-8 fixes only) but is NOT\nrecommended for production use. Forwarded emails should go through the same\nsecurity sanitization as regular incoming emails.\n\nOnly applies:\n- Header sanitization (prevent SMTP injection)\n- UTF-8 validation and encoding fixes\n- NO HTML stripping or tag removal\n\nFor security reasons, use `sanitize_incoming_email/1` instead, which:\n- Removes dangerous tags (script, iframe, form, etc.)\n- Removes event handlers (onclick, etc.)\n- Removes dangerous protocols\n- While still preserving safe links and formatting\n"
   def sanitize_forwarded_email(email_params) do
     email_params |> sanitize_headers() |> sanitize_forwarded_body_content()
   end

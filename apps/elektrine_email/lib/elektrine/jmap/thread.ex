@@ -257,7 +257,7 @@ defmodule Elektrine.JMAP.Thread do
   Gets all message IDs in a thread.
 
   When `mailbox_id` is provided, the lookup is scoped to that mailbox and will
-  fall back to a singleton thread for legacy messages without `thread_id`.
+  fall back to a singleton thread for older messages without `thread_id`.
   """
   def get_thread_message_ids(thread_id, mailbox_id \\ nil)
 

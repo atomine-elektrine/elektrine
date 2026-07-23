@@ -82,7 +82,7 @@ defmodule Elektrine.PubSubTopics do
   @doc """
   Shared topic for global user presence updates.
 
-  This is used by the legacy Phoenix Presence tracker and federated ARBP
+  This is used by the older Phoenix Presence tracker and federated ARBP
   presence fanout so LiveViews can consume a single presence bus.
   """
   def users_presence, do: "users"

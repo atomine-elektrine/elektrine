@@ -5,7 +5,6 @@ defmodule Elektrine.Email.Aliases do
   """
 
   import Ecto.Query, warn: false
-  alias Ecto.Multi
   alias Elektrine.Email.Alias
   alias Elektrine.Repo
 
@@ -82,11 +81,12 @@ defmodule Elektrine.Email.Aliases do
   end
 
   @doc """
-  Creates email aliases for all configured local domains.
-  Takes a username and user_id, automatically creates aliases for each domain.
+  Creates an email alias.
+
+  Preferred attrs: `username`, `domain`, and `user_id`.
+  Also accepts a full `alias_email` (or map with string keys) via the changeset.
   """
   def create_alias(attrs \\ %{}) do
-    # Check if domain is specified for single-domain creation
     case attrs do
       %{username: username, domain: domain, user_id: user_id}
       when is_binary(username) and is_binary(domain) and is_integer(user_id) ->
@@ -96,30 +96,15 @@ defmodule Elektrine.Email.Aliases do
       when is_binary(username) and is_binary(domain) ->
         create_single_domain_alias_with_parsed_user_id(username, domain, user_id, attrs)
 
-      # Legacy dual-domain creation (for backwards compatibility)
-      %{username: username, user_id: user_id} when is_binary(username) and is_integer(user_id) ->
-        create_dual_domain_aliases(username, user_id, attrs)
-
-      %{"username" => username, "user_id" => user_id} when is_binary(username) ->
-        create_dual_domain_aliases_with_parsed_user_id(username, user_id, attrs)
-
-      # Legacy single alias creation (for backwards compatibility)
       _ ->
-        create_single_alias(attrs)
+        insert_alias(attrs)
     end
   end
 
   defp create_single_domain_alias_with_parsed_user_id(username, domain, user_id, attrs) do
     case parse_positive_int(user_id) do
       {:ok, user_id} -> create_single_domain_alias(username, domain, user_id, attrs)
-      :error -> create_single_alias(attrs)
-    end
-  end
-
-  defp create_dual_domain_aliases_with_parsed_user_id(username, user_id, attrs) do
-    case parse_positive_int(user_id) do
-      {:ok, user_id} -> create_dual_domain_aliases(username, user_id, attrs)
-      :error -> create_single_alias(attrs)
+      :error -> insert_alias(attrs)
     end
   end
 
@@ -130,7 +115,6 @@ defmodule Elektrine.Email.Aliases do
     end
   end
 
-  # Create alias for a single specified domain
   defp create_single_domain_alias(username, domain, user_id, attrs) do
     target_email = attrs[:target_email] || attrs["target_email"] || ""
     description = attrs[:description] || attrs["description"] || ""
@@ -143,65 +127,19 @@ defmodule Elektrine.Email.Aliases do
       enabled: true
     }
 
-    result =
-      %Alias{}
-      |> Alias.changeset(alias_attrs)
-      |> Repo.insert()
-
-    case result do
-      {:ok, alias} ->
-        # Invalidate alias cache for this user
-        Elektrine.Email.Cached.invalidate_aliases(user_id)
-        {:ok, alias}
-
-      {:error, changeset} ->
-        {:error, changeset}
-    end
+    insert_alias(alias_attrs)
   end
 
-  # Create aliases for all configured local domains (legacy, kept for backwards compatibility)
-  defp create_dual_domain_aliases(username, user_id, attrs) do
-    domains = Elektrine.Domains.supported_email_domains()
-    target_email = attrs[:target_email] || attrs["target_email"] || ""
-    description = attrs[:description] || attrs["description"] || ""
-
-    multi =
-      Enum.reduce(domains, Multi.new(), fn domain, acc ->
-        operation = {:alias, domain}
-
-        alias_attrs = %{
-          alias_email: "#{username}@#{domain}",
-          target_email: target_email,
-          description: description,
-          user_id: user_id,
-          enabled: true
-        }
-
-        Multi.insert(acc, operation, Alias.changeset(%Alias{}, alias_attrs))
-      end)
-
-    case Repo.transaction(multi) do
-      {:ok, results} ->
-        Elektrine.Email.Cached.invalidate_aliases(user_id)
-        {:ok, results}
-
-      {:error, _operation, changeset, _changes} ->
-        {:error, changeset}
-    end
-  end
-
-  # Legacy single alias creation
-  defp create_single_alias(attrs) do
+  defp insert_alias(attrs) do
     result =
       %Alias{}
       |> Alias.changeset(attrs)
       |> Repo.insert()
 
     case result do
-      {:ok, alias} ->
-        # Invalidate alias cache for this user
-        Elektrine.Email.Cached.invalidate_aliases(alias.user_id)
-        {:ok, alias}
+      {:ok, email_alias} ->
+        Elektrine.Email.Cached.invalidate_aliases(email_alias.user_id)
+        {:ok, email_alias}
 
       error ->
         error

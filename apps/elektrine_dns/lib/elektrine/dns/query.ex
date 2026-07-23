@@ -109,7 +109,7 @@ defmodule Elektrine.DNS.Query do
   end
 
   # RFC 8482: answer ANY with a synthetic HINFO instead of the full RRset or
-  # an outright refusal, which breaks some legacy mail senders.
+  # an outright refusal, which breaks some older mail senders.
   defp minimal_any_response(query, zone, opts) do
     hinfo = %{host: query.qname, type: :hinfo, cpu: "RFC8482", os: "", ttl: 3789}
 

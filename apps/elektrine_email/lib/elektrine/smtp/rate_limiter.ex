@@ -17,7 +17,7 @@ defmodule Elektrine.SMTP.RateLimiter do
     lockout: {:minutes, 10},
     cleanup_interval: {:minutes, 1}
 
-  # Backwards compatibility
+  # Alias for older callers
   def check_attempt(ip) do
     case check_rate_limit(ip) do
       # Return attempts left

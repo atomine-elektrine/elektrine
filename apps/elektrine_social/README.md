@@ -10,7 +10,7 @@ Social domain code and social web routes for the Elektrine umbrella.
 - Link preview and social background jobs
 - Timeline, community, list, gallery, hashtag, and remote-profile LiveViews
 - Social APIs, ActivityPub/WebFinger/NodeInfo, Mastodon compatibility endpoints, media proxying, and interaction redirects
-- Social components under both `ElektrineSocialWeb.*` and `ElektrineWeb.Components.Social.*`
+- Social components primarily under `ElektrineSocialWeb.Components.Social.*`, with a small set of shared helpers still under `ElektrineWeb.Components.Social.*` (post utilities, reactions, fediverse follow, YouTube preview)
 
 ## Notes
 

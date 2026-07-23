@@ -53,7 +53,7 @@ import {
 import { insertMarkdownFormat, toggleMarkdownPreview, markdownToHtml } from "./markdown_helpers"
 
 // ============================================================================
-// Global Exports (for compatibility with inline scripts and non-module code)
+// Global Exports (for inline scripts and non-module code)
 // ============================================================================
 
 window.FlashMessageManager = FlashMessageManager

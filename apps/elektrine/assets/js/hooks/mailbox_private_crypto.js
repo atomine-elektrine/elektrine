@@ -338,12 +338,12 @@ async function decryptEnvelope(envelope, mailboxId, aad) {
   return JSON.parse(new TextDecoder().decode(plaintext))
 }
 
-function envelopeAAD(envelope, legacyAAD) {
+function envelopeAAD(envelope, fallbackAAD) {
   if (Number(envelope.version) >= 2 && envelope.aad_context) {
     return encodedStableJson(envelope.aad_context)
   }
 
-  return legacyAAD
+  return fallbackAAD
 }
 
 export async function decryptMessagePayload(envelope, mailboxId) {

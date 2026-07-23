@@ -19,7 +19,7 @@ defmodule ElektrineSocialWeb.Components.Social.EmbeddedPost do
   attr :class, :string, default: ""
 
   def embedded_post(assigns) do
-    # Support multiple attr names for backwards compatibility
+    # Support multiple attr names for older clients
     msg = assigns.shared_message || assigns.message || assigns.post
 
     # Guard against NotLoaded association or nil - don't render if not loaded

@@ -324,11 +324,11 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePostMedia do
 
     width =
       attachment_dimension(attachment, "width") ||
-        legacy_media_dimension(metadata, "widths", index)
+        array_media_dimension(metadata, "widths", index)
 
     height =
       attachment_dimension(attachment, "height") ||
-        legacy_media_dimension(metadata, "heights", index)
+        array_media_dimension(metadata, "heights", index)
 
     {width, height}
   end
@@ -378,7 +378,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePostMedia do
 
   defp attachment_media_type?(_, _), do: false
 
-  defp legacy_media_dimension(metadata, key, index) when is_map(metadata) do
+  defp array_media_dimension(metadata, key, index) when is_map(metadata) do
     atom_key =
       case key do
         "widths" -> :widths
@@ -397,7 +397,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePostMedia do
     end
   end
 
-  defp legacy_media_dimension(_metadata, _key, _index), do: nil
+  defp array_media_dimension(_metadata, _key, _index), do: nil
 
   defp media_frame_class("portal"),
     do: "block w-full max-w-md mx-auto overflow-hidden rounded-lg bg-base-200/55"

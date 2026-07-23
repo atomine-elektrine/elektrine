@@ -1,6 +1,6 @@
 defmodule ElektrineWeb.Plugs.InternalAPIAuth do
   @moduledoc """
-  Shared-secret authentication for internal compatibility endpoints.
+  Shared-secret authentication for internal service endpoints.
   """
 
   import Plug.Conn
@@ -68,7 +68,7 @@ defmodule ElektrineWeb.Plugs.InternalAPIAuth do
 
   # Query params decode "+" as space, which breaks base64-style shared secrets.
   # Prefer the raw query string so literal plus signs survive intact, then fall
-  # back to Plug's decoded params for legacy/internal callers that opt into params.
+  # back to Plug's decoded params for older/internal callers that opt into params.
   defp raw_query_param(query_string, name)
 
   defp raw_query_param(query_string, name)

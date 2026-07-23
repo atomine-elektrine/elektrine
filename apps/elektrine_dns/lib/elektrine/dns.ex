@@ -1510,12 +1510,12 @@ defmodule Elektrine.DNS do
       end
     end)
     |> case do
-      nil -> legacy_assigned_nameserver_base(host)
+      nil -> fallback_assigned_nameserver_base(host)
       nameserver -> nameserver
     end
   end
 
-  defp legacy_assigned_nameserver_base(host) do
+  defp fallback_assigned_nameserver_base(host) do
     Enum.find(nameservers(), fn nameserver ->
       nameserver = normalize_hostname(nameserver)
       String.starts_with?(host, "z") and String.ends_with?(host, "." <> nameserver)

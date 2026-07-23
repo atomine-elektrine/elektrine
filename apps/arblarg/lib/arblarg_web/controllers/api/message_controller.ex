@@ -411,7 +411,7 @@ defmodule ArblargWeb.API.MessageController do
   defp format_reactions(%Ecto.Association.NotLoaded{}), do: []
 
   defp format_reactions(reactions) when is_list(reactions) do
-    # Return individual reactions for iOS compatibility
+    # Return individual reactions for the iOS client
     Enum.map(reactions, fn reaction ->
       # Handle both ChatMessageReaction (chat_message_id) and MessageReaction (message_id)
       message_id =

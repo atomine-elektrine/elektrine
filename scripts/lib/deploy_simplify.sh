@@ -70,24 +70,24 @@ validate_netbird_allowed_cidrs() {
   return 0
 }
 
-doctor_check_legacy_deploy_env_file() {
-  local legacy_env="$ROOT_DIR/deploy/docker/.env"
+doctor_check_docker_env_file() {
+  local docker_env="$ROOT_DIR/deploy/docker/.env"
 
-  if [[ ! -f "$legacy_env" ]]; then
-    check_ok "no legacy deploy/docker/.env file found"
+  if [[ ! -f "$docker_env" ]]; then
+    check_ok "no deploy/docker/.env file found"
     return
   fi
 
-  if [[ "$ENV_FILE" == "$legacy_env" ]]; then
-    check_ok "using legacy deploy/docker/.env explicitly"
+  if [[ "$ENV_FILE" == "$docker_env" ]]; then
+    check_ok "using deploy/docker/.env explicitly"
     return
   fi
 
-  if cmp -s "$ENV_FILE" "$legacy_env"; then
-    check_warn "legacy deploy/docker/.env duplicates $ENV_FILE"
+  if cmp -s "$ENV_FILE" "$docker_env"; then
+    check_warn "deploy/docker/.env duplicates $ENV_FILE"
     echo "Hint: keep one canonical env file, normally $ROOT_DIR/.env.production." >&2
   else
-    check_error "legacy deploy/docker/.env differs from $ENV_FILE"
+    check_error "deploy/docker/.env differs from $ENV_FILE"
     echo "Hint: remove deploy/docker/.env or replace it with a symlink/copy of the canonical env." >&2
   fi
 }

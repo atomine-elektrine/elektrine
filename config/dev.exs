@@ -194,7 +194,7 @@ config :phoenix_live_view,
 config :swoosh, :api_client, false
 
 # Override mailer configuration to use local file adapter in development
-# To use local file adapter instead of Postal API, set USE_LOCAL_EMAIL=true
+# To use local file adapter instead of remote SMTP, set USE_LOCAL_EMAIL=true
 if System.get_env("USE_LOCAL_EMAIL") == "true" do
   # Use local file adapter for testing
   IO.puts("Using local file adapter for emails")
@@ -207,7 +207,7 @@ if System.get_env("USE_LOCAL_EMAIL") == "true" do
     # http://localhost:4000/dev/mailbox
     serve_endpoints: true
 else
-  # Use Postal API configuration from config.exs
+  # Use mailer configuration from config.exs
 end
 
 s3_scheme_env = System.get_env("S3_SCHEME") || "https://"

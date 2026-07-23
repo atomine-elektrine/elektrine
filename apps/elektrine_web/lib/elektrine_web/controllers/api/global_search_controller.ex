@@ -12,7 +12,7 @@ defmodule ElektrineWeb.API.GlobalSearchController do
   @max_limit 100
 
   @doc """
-  GET /api/ext/search?q=...
+  GET /api/ext/v1/search?q=...
   """
   def index(conn, %{"q" => query} = params) do
     user = conn.assigns.current_user
@@ -41,7 +41,7 @@ defmodule ElektrineWeb.API.GlobalSearchController do
   end
 
   @doc """
-  GET /api/ext/search/actions
+  GET /api/ext/v1/search/actions
   """
   def actions(conn, _params) do
     actions =
@@ -56,7 +56,7 @@ defmodule ElektrineWeb.API.GlobalSearchController do
   end
 
   @doc """
-  POST /api/ext/search/actions/execute
+  POST /api/ext/v1/search/actions/execute
   """
   def execute(conn, params) do
     user = conn.assigns.current_user

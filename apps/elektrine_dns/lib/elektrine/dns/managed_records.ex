@@ -359,7 +359,8 @@ defmodule Elektrine.DNS.ManagedRecords do
       not Elektrine.DNS.public_hostname?(target) ->
         default_target
 
-      target == zone.domain and default_target != zone.domain and legacy_mail_alias?(zone) ->
+      target == zone.domain and default_target != zone.domain and
+          mail_zone_uses_mail_subdomain?(zone) ->
         default_target
 
       true ->
@@ -367,7 +368,7 @@ defmodule Elektrine.DNS.ManagedRecords do
     end
   end
 
-  defp legacy_mail_alias?(%Zone{} = zone) do
+  defp mail_zone_uses_mail_subdomain?(%Zone{} = zone) do
     Enum.any?(List.wrap(zone.records), fn record ->
       record.managed == true and record.service == "mail" and record.managed_key == "mail:mail" and
         record.type == "CNAME" and

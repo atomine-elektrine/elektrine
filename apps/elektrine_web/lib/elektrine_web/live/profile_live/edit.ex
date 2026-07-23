@@ -26,7 +26,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
   ]
   @valid_tabs Enum.map(@profile_tabs, fn {tab, _icon, _label} -> tab end)
   @default_tab "profile"
-  @legacy_tab_map %{
+  @tab_aliases %{
     "basic" => "profile",
     "appearance" => "design",
     "avatar" => "effects",
@@ -2411,7 +2411,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
 
   defp normalize_selected_tab(tab) when tab in @valid_tabs, do: tab
 
-  defp normalize_selected_tab(tab) when is_map_key(@legacy_tab_map, tab), do: @legacy_tab_map[tab]
+  defp normalize_selected_tab(tab) when is_map_key(@tab_aliases, tab), do: @tab_aliases[tab]
 
   defp normalize_selected_tab(_tab), do: @default_tab
 

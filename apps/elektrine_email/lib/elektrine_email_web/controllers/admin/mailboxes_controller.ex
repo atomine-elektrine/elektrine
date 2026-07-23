@@ -199,7 +199,7 @@ defmodule ElektrineEmailWeb.Admin.MailboxesController do
           }
         end)
       else
-        # Fallback for mailboxes without username (legacy)
+        # Fallback for mailboxes without username (older)
         [mailbox]
       end
     end)

@@ -75,7 +75,7 @@ defmodule ElektrineEmailWeb.AttachmentController do
                         end
 
                       true ->
-                        # Serve attachment directly (for legacy or small files)
+                        # Serve attachment directly (for older or small files)
                         serve_attachment_directly(conn, attachment)
                     end
                 end
@@ -128,7 +128,7 @@ defmodule ElektrineEmailWeb.AttachmentController do
       is_map(Map.get(attachment, :private_encrypted_payload))
   end
 
-  # Serve attachment directly (for legacy or when presigned URL fails)
+  # Serve attachment directly (for older or when presigned URL fails)
   defp serve_attachment_directly(conn, attachment) do
     case get_attachment_content(attachment) do
       {:ok, content, content_type} ->
@@ -181,7 +181,7 @@ defmodule ElektrineEmailWeb.AttachmentController do
         {:ok, content, content_type}
 
       {:error, _reason} ->
-        # Fallback to legacy data field if S3 download fails
+        # Fallback to existing data field if S3 download fails
         case Map.get(attachment, "data") do
           nil ->
             {:error, "No attachment data available"}
