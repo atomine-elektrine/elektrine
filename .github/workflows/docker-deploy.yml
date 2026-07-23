@@ -83,18 +83,20 @@ jobs:
       contents: read
       packages: read
     env:
-      DEPLOY_HOST: ${{ vars.DEPLOY_HOST || secrets.DEPLOY_HOST }}
-      DEPLOY_SSH_HOST_KEY: ${{ vars.DEPLOY_SSH_HOST_KEY || secrets.DEPLOY_SSH_HOST_KEY }}
+      # Non-secret deploy settings live in repository Variables.
+      # Only the private key is a Secret.
+      DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+      DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/opt/elektrine' }}
+      DEPLOY_BRANCH: ${{ vars.DEPLOY_BRANCH || 'main' }}
+      DEPLOY_SSH_HOST_KEY: ${{ vars.DEPLOY_SSH_HOST_KEY }}
       DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-      DEPLOY_USER: ${{ vars.DEPLOY_USER || secrets.DEPLOY_USER }}
-      DEPLOY_PORT: ${{ vars.DEPLOY_PORT || secrets.DEPLOY_PORT || '22' }}
-      DEPLOY_PATH: ${{ vars.DEPLOY_PATH || secrets.DEPLOY_PATH || '/opt/elektrine' }}
-      DEPLOY_BRANCH: ${{ vars.DEPLOY_BRANCH || secrets.DEPLOY_BRANCH || 'main' }}
       ELEKTRINE_ENABLED_MODULES: all
       ELEKTRINE_RELEASE_MODULES: all
       DOCKER_PROFILES: caddy dns email tor turn bluesky vpn
-      DEPLOY_COMPOSE_OVERRIDES: ${{ vars.DEPLOY_COMPOSE_OVERRIDES || secrets.DEPLOY_COMPOSE_OVERRIDES || '' }}
-      REPAIR_INDEXES_ON_DEPLOY: ${{ github.event.inputs.repair_indexes || vars.REPAIR_INDEXES_ON_DEPLOY || secrets.REPAIR_INDEXES_ON_DEPLOY || 'false' }}
+      DEPLOY_COMPOSE_OVERRIDES: ${{ vars.DEPLOY_COMPOSE_OVERRIDES || '' }}
+      REPAIR_INDEXES_ON_DEPLOY: ${{ github.event.inputs.repair_indexes || vars.REPAIR_INDEXES_ON_DEPLOY || 'false' }}
       TARGET_IMAGE: ghcr.io/${{ github.repository }}:${{ github.sha }}
       DEPLOY_REF: ${{ github.sha }}
     concurrency:
