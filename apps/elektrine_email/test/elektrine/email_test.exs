@@ -120,7 +120,6 @@ defmodule Elektrine.EmailAliasTest do
       assert {:error, %Ecto.Changeset{}} = Email.create_alias(%{})
     end
 
-
     test "update_alias/2 updates alias with valid data", %{user: user} do
       alias_attrs = %{
         alias_email: local_email("tester"),

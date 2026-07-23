@@ -271,8 +271,6 @@ defmodule Elektrine.EmailBasicFunctionsTest do
     end
   end
 
-
-
   describe "email notification suppression" do
     setup do
       username = "notifself#{System.unique_integer([:positive])}"
