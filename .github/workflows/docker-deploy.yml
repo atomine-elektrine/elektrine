@@ -113,7 +113,7 @@ jobs:
           [ -n "${DEPLOY_SSH_KEY}" ] || missing+=(DEPLOY_SSH_KEY)
 
           if [ "${#missing[@]}" -gt 0 ]; then
-            printf '::error::Missing deploy settings: %s. Set them as repository/org variables or secrets. DEPLOY_SSH_KEY must be a secret.\n' "${missing[*]}"
+            printf '::error::Missing deploy settings: %s. Use repository Variables for host/user/path/host-key; DEPLOY_SSH_KEY must remain a Secret.\n' "${missing[*]}"
             exit 1
           fi
 
